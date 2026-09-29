@@ -1,0 +1,175 @@
+# Changelog
+
+All notable changes to Book Generator will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Planned for v1.1
+- Enhanced editing workflow with AI revision suggestions
+- Multiple book format support (technical, fiction, non-fiction templates)
+- Collaborative authoring features
+- Version control integration for manuscripts
+
+### Planned for v1.2
+- Direct Amazon KDP API integration
+- Automated cover design generation
+- Marketing copy generation (description, keywords, categories)
+- Multi-language book generation
+
+### Planned for v2.0
+- Full publishing pipeline automation (draft → edited → formatted → published)
+- Analytics dashboard for sales tracking
+- Author community platform
+- AI-powered reader feedback analysis
+
+## [1.1.0] - 2025-01-01
+
+### Phase 1: Foundation Fixes
+
+#### Added
+- `scripts/generate_book.sh` — master orchestrator chaining the full 6-step pipeline
+  (outline → chapters → appendices → references → plagiarism check → compile)
+- `requirements.txt` — runtime Python dependencies (`requests`, `beautifulsoup4`)
+- `.env.example` — template for API keys and optional defaults
+
+#### Fixed
+- Model override (`--model` / `-m` flag) was silently ignored; now correctly pins Gemini
+  models via temp `GEMINI_MODELS` override and Ollama models via direct API call
+  (`scripts/multi_provider_ai_simple.sh`)
+- Removed ~70 lines of unreachable dead code in `generate_book_cover()` that followed
+  an early `return 0` (`scripts/compile_book.sh`)
+- `demo.sh` existence check pointed to `./generate_book.sh`; corrected to
+  `./scripts/generate_book.sh`
+- Two BATS tests in `tests/generator.bats` pointed to `./generate_book.sh`; corrected
+  to `./scripts/generate_book.sh`
+
+## [1.0.0] - 2024-12-15
+
+### 🎉 Proof-of-Concept Complete
+
+Book Generator has successfully demonstrated feasibility by producing **books on Amazon KDP**
+using a fully Bash-based pipeline driven by multi-provider AI (Gemini, Groq, Ollama).
+
+### Achievements
+
+**Published Books (v3/ pipeline):**
+- Full-length manuscripts (50,000+ words) generated end-to-end via shell scripts
+- Amazon KDP formatting compliance
+- Cover design integrated via ImageMagick (`generate_book_cover()`)
+- Metadata and keyword optimization workflow
+
+**Validation:**
+- ✅ Full manuscript generation
+- ✅ Chapter structure and organisation
+- ✅ PDF, EPUB, HTML, MOBI output via Pandoc + ImageMagick
+- ✅ Multi-provider AI fallback (Gemini → Groq → Ollama)
+- ✅ Plagiarism detection pass per chapter
+
+### Core Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/generate_book.sh` | Master orchestrator — full pipeline in one command |
+| `scripts/multi_provider_ai_simple.sh` | AI provider abstraction + all generation functions |
+| `scripts/compile_book.sh` | Assembles chapters → PDF / EPUB / HTML / MOBI |
+| `scripts/generate_appendices.sh` | AI-generated appendices (requires `GEMINI_API_KEY`) |
+| `scripts/generate_references.sh` | AI-generated bibliography (requires `GEMINI_API_KEY`) |
+| `scripts/generate_covers.sh` | Standalone cover generation utility |
+| `scripts/kdp_topic_finder.sh` | KDP market research and topic discovery |
+| `scripts/plagiarism_report_manager.sh` | Plagiarism report utilities |
+
+### AI Provider Priority
+
+1. **Gemini** (if `GEMINI_API_KEY` set) — primary provider, model rotation via `GEMINI_MODELS` array
+2. **Ollama** — local fallback, model array with priority order
+3. **Groq** — cloud fallback
+
+### Known Limitations
+
+1. **Human Editing Required** — AI generates high-quality drafts; final polish is manual
+2. **Cover Design via ImageMagick** — B&W programmatic covers; AI image covers require `OPENAI_API_KEY`
+3. **KDP Upload Manual** — no API integration yet
+4. **Appendices/References** require Gemini API key (Ollama path not implemented)
+
+### Technical Dependencies
+
+- Bash 4+ (macOS: `brew install bash`)
+- Pandoc (PDF/EPUB/HTML/MOBI compilation)
+- ImageMagick (cover generation)
+- `jq` (JSON parsing for AI responses)
+- Python 3.9+ with `requests`, `beautifulsoup4` (optional tooling)
+- At least one AI provider key or local Ollama running
+
+## [0.3.0] - 2024-10-01
+
+### Added
+- Multi-format export (PDF, EPUB, MOBI) via Pandoc
+- Amazon KDP formatting utilities
+- Cover image generation via ImageMagick
+
+### Changed
+- Improved chapter generation prompts for better consistency
+- Enhanced outline structure with hierarchical chapters
+- Better error handling in pipeline scripts
+
+## [0.2.0] - 2024-08-15
+
+### Added
+- Chapter-by-chapter generation workflow
+- Multi-provider AI fallback (Gemini → Ollama)
+- Word count tracking per chapter
+- Plagiarism check integration
+
+### Fixed
+- API rate limiting with exponential backoff
+- Chapter ordering and accumulation logic
+
+## [0.1.0] - 2024-06-01
+
+### Added
+- Initial proof-of-concept
+- Basic outline generation
+- Single chapter generation
+- Simple text compilation
+- README documentation
+
+### Notes
+- First working prototype
+- Successfully generated 10-chapter test book
+- Validated AI content generation approach
+
+---
+
+## Version History
+
+- **1.0.0** (2024-12-15) - POC complete, 2 books published
+- **0.3.0** (2024-10-01) - Multi-format export added
+- **0.2.0** (2024-08-15) - Chapter workflow improvements
+- **0.1.0** (2024-06-01) - Initial prototype
+
+---
+
+## Links
+
+- **Repository**: https://github.com/wesleyscholl/book-generator
+- **Published Books**: See Amazon KDP author profile
+- **Issues**: https://github.com/wesleyscholl/book-generator/issues
+
+---
+
+## Future Vision
+
+The goal is to evolve Book Generator from a proof-of-concept into a **full-featured AI-assisted authoring platform** that:
+
+1. **Democratizes Publishing** - Make book creation accessible to everyone
+2. **Maintains Quality** - Ensure AI-generated content meets human standards
+3. **Automates Tedium** - Handle formatting, metadata, and distribution logistics
+4. **Empowers Creativity** - Let authors focus on ideas, not mechanics
+5. **Builds Community** - Connect AI-assisted authors for learning and support
+
+---
+
+**Disclaimer:** This tool assists in content generation but does not replace human creativity, editing, and oversight. All AI-generated content should be reviewed, fact-checked, and refined before publication.

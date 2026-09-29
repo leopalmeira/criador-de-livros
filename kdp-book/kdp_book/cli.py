@@ -1,0 +1,689 @@
+"""CLI for `kdp-book`.
+
+Subcommands match `PLAN.md` §5. Subcommands not yet implemented print a
+clear "Phase N" notice instead of crashing.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import warnings
+
+warnings.filterwarnings("ignore", category=Warning, module="agent_framework.*")
+
+import click  # noqa: E402
+
+from kdp_book.agents._language import (  # noqa: E402
+    CLI_LANGUAGE_CHOICES,
+    normalize_language,
+)
+from kdp_book.config import get_settings  # noqa: E402
+from kdp_book.log import attach_file_handler, detach_file_handler, log, new_run_id  # noqa: E402
+from kdp_book.models.book import BookType  # noqa: E402
+from kdp_book.observability import (  # noqa: E402
+    finalize_run_metadata,
+    init_run_metadata,
+    reset_step_counter,
+    step_recorder,
+)
+from kdp_book.workflow.pipeline import run_book  # noqa: E402
+from kdp_book.workflow.state import load_state, resolve_book_dir, save_state  # noqa: E402
+from kdp_book.workflow.steps import do_bible, do_concept, do_outline  # noqa: E402
+
+BOOK_TYPE_CHOICES = [t.value for t in BookType]
+
+
+@click.group()
+@click.version_option(package_name="kdp-book")
+def main() -> None:
+    """kdp-book — generate KDP-ready books with AI agents."""
+
+
+# ── doctor ────────────────────────────────────────────────────────────────────
+
+@main.command()
+def doctor() -> None:
+    """Validate the local environment (env vars, output dir)."""
+    s = get_settings()
+    checks = [
+        ("AZURE_API_KEY / OPENAI_API_KEY", bool(s.azure_api_key or s.openai_api_key)),
+        ("OPENAI_BASE_URL", bool(s.openai_base_url)),
+        ("AZURE_IMAGE_ENDPOINT", bool(s.azure_image_endpoint)),
+        ("AZURE_IMAGE_EDIT_ENDPOINT", bool(s.azure_image_edit_endpoint)),
+        ("Books directory", s.kdp_books_dir.parent.exists() or s.kdp_books_dir.exists()),
+    ]
+    failed = 0
+    for name, ok in checks:
+        click.echo(f"  {'✓' if ok else '✗'}  {name}")
+        if not ok:
+            failed += 1
+    click.echo()
+    click.echo(f"Model: {s.copilot_model}  |  Image size: {s.image_size}  |  Quality: {s.image_quality}")
+    click.echo(f"Books dir: {s.kdp_books_dir.resolve()}")
+    if failed:
+        click.echo(click.style(f"\n{failed} check(s) failed", fg="red"))
+        raise SystemExit(1)
+    click.echo(click.style("\nAll checks passed.", fg="green"))
+
+
+# ── generate ──────────────────────────────────────────────────────────────────
+
+@main.command()
+@click.option("--topic", required=True, help="Topic / premise of the book.")
+@click.option("--type", "book_type", required=True, type=click.Choice(BOOK_TYPE_CHOICES), help="Book type.")
+@click.option("--resume", default=None, help="Slug of an existing book directory to resume.")
+@click.option("--author", default=None, help="Author/pen name. Defaults to KDP_AUTHOR_NAME.")
+@click.option(
+    "--language",
+    default="english",
+    type=click.Choice(CLI_LANGUAGE_CHOICES, case_sensitive=False),
+    help="Natural language for all reader-facing text. Default: english.",
+)
+@click.option("--no-images", is_flag=True, help="Skip illustrations/cover (cheap text-only smoke test).")
+@click.option(
+    "--quality",
+    type=click.Choice(["low", "medium", "high"]),
+    default=None,
+    help="Override gpt-image-2 quality. Defaults to IMAGE_QUALITY in .env (low).",
+)
+def generate(
+    topic: str,
+    book_type: str,
+    resume: str | None,
+    author: str | None,
+    language: str,
+    no_images: bool,
+    quality: str | None,
+) -> None:
+    """Run the full pipeline end-to-end. Resumable via --resume <slug>."""
+    if quality is not None:
+        # Override the cached settings singleton for this run.
+        s = get_settings()
+        s.image_quality = quality
+    book_dir = run_book(
+        topic,
+        BookType(book_type),
+        resume=resume,
+        author=author,
+        skip_images=no_images,
+        language=normalize_language(language),
+    )
+    click.echo(click.style(f"\nDone. Output: {book_dir}", fg="green"))
+
+
+# ── outline ───────────────────────────────────────────────────────────────────
+
+@main.command()
+@click.option("--topic", required=True, help="Topic / premise of the book.")
+@click.option("--type", "book_type", required=True, type=click.Choice(BOOK_TYPE_CHOICES), help="Book type.")
+@click.option("--author", default=None, help="Author name.")
+@click.option(
+    "--language",
+    default="english",
+    type=click.Choice(CLI_LANGUAGE_CHOICES, case_sensitive=False),
+    help="Natural language for all reader-facing text. Default: english.",
+)
+def outline(topic: str, book_type: str, author: str | None, language: str) -> None:
+    """Generate concept + outline + bible (no writing, no images)."""
+    asyncio.run(_run_outline(topic, BookType(book_type), author, normalize_language(language)))
+
+
+async def _run_outline(
+    topic: str, book_type: BookType, author: str | None, language: str,
+) -> None:
+    run_id = new_run_id()
+    book_dir = resolve_book_dir(topic, book_type)
+    attach_file_handler(book_dir)
+    reset_step_counter()
+    init_run_metadata(
+        book_dir=book_dir,
+        run_id=run_id,
+        topic=topic,
+        book_type=book_type.value,
+        slug=book_dir.name,
+    )
+    try:
+        from kdp_book.models.book import IBookConfig, IBookState, get_book_type_config
+
+        cfg = IBookConfig(
+            topic=topic,
+            book_type=book_type,
+            type_config=get_book_type_config(book_type),
+            author=author or get_settings().kdp_author_name,
+            language=language,
+        )
+        state = IBookState(slug=book_dir.name, book_dir=str(book_dir), config=cfg)
+        save_state(state)
+        log.info("Outline run: %s (%s)", topic, book_type.value)
+
+        with step_recorder(state.book_dir, "concept"):
+            state = await do_concept(state)
+            save_state(state)
+        with step_recorder(state.book_dir, "outline"):
+            state = await do_outline(state)
+            save_state(state)
+        with step_recorder(state.book_dir, "bible"):
+            state = await do_bible(state)
+            save_state(state)
+
+        click.echo(click.style(f"\nConcept: {state.concept.title}", fg="cyan"))
+        click.echo(f"  Subtitle:  {state.concept.subtitle}")
+        click.echo(f"  Audience:  {state.concept.audience}")
+        click.echo(f"  Tone:      {state.concept.tone}")
+        click.echo(f"\nOutline: {len(state.outline.chapters)} chapters")
+        for ch in state.outline.chapters:
+            click.echo(f"  {ch.index:>2}. {ch.title}")
+        click.echo(f"\nBible: {len(state.bible.characters)} characters, {len(state.bible.locations)} locations")
+        for c in state.bible.characters:
+            click.echo(f"  • {c.name} — {c.role}")
+        click.echo(click.style(f"\nSaved to: {book_dir}", fg="green"))
+        finalize_run_metadata(book_dir, status="ok")
+    except Exception:
+        finalize_run_metadata(book_dir, status="failed")
+        raise
+    finally:
+        detach_file_handler()
+
+
+# ── write ─────────────────────────────────────────────────────────────────────
+
+
+def _slug_to_book_dir(slug: str):
+    book_dir = get_settings().kdp_books_dir / slug
+    if not book_dir.exists():
+        raise click.UsageError(f"No book directory at {book_dir}")
+    return book_dir
+
+
+@main.command()
+@click.option("--from", "from_slug", required=True, help="Existing book slug.")
+def write(from_slug: str) -> None:
+    """Draft every chapter for an existing book slug."""
+    asyncio.run(_run_write(from_slug))
+
+
+async def _run_write(slug: str) -> None:
+    from kdp_book.workflow.steps import do_write
+
+    book_dir = _slug_to_book_dir(slug)
+    state = load_state(book_dir)
+    if state is None:
+        raise click.UsageError(f"No book.json at {book_dir}")
+
+    new_run_id()
+    attach_file_handler(book_dir)
+    reset_step_counter()
+    init_run_metadata(
+        book_dir=book_dir,
+        run_id=new_run_id(),
+        topic=state.config.topic,
+        book_type=state.config.book_type.value,
+        slug=state.slug,
+    )
+    try:
+        with step_recorder(state.book_dir, "write"):
+            state = await do_write(state)
+            save_state(state)
+        click.echo(click.style(
+            f"\nManuscript: {len(state.manuscript.chapters)} chapters, "
+            f"{state.manuscript.total_word_count} words",
+            fg="green",
+        ))
+        finalize_run_metadata(book_dir, status="ok")
+    except Exception:
+        finalize_run_metadata(book_dir, status="failed")
+        raise
+    finally:
+        detach_file_handler()
+
+
+@main.command()
+@click.argument("slug", required=False)
+@click.option("--from", "from_slug", help="Existing book slug (legacy form of SLUG).")
+@click.option("--title", "new_title", help="Set a new title (updates concept.title).")
+@click.option(
+    "--subtitle",
+    "new_subtitle",
+    help="Set a new subtitle (use empty string '' to clear).",
+)
+@click.option(
+    "--show",
+    is_flag=True,
+    help="Show current title/subtitle/cover characters and exit.",
+)
+def edit(
+    slug: str | None,
+    from_slug: str | None,
+    new_title: str | None,
+    new_subtitle: str | None,
+    show: bool,
+) -> None:
+    """Edit book metadata, or run the editorial review on a draft.
+
+    Examples:
+
+      kdp-book edit my-book-slug --show
+
+      kdp-book edit my-book-slug --title "New Title" --subtitle "New Subtitle"
+
+      kdp-book edit --from my-book-slug      # run editorial review
+    """
+    is_metadata_edit = show or new_title is not None or new_subtitle is not None
+    if is_metadata_edit:
+        target = slug or from_slug
+        if not target:
+            raise click.UsageError(
+                "Provide a book SLUG when using --show / --title / --subtitle."
+            )
+        _run_concept_edit(
+            slug=target,
+            new_title=new_title,
+            new_subtitle=new_subtitle,
+            show=show,
+        )
+        return
+
+    target = slug or from_slug
+    if not target:
+        raise click.UsageError(
+            "Provide a book SLUG (or pass --from <slug>) for the editorial review."
+        )
+    asyncio.run(_run_edit(target))
+
+
+def _run_concept_edit(
+    *,
+    slug: str,
+    new_title: str | None,
+    new_subtitle: str | None,
+    show: bool,
+) -> None:
+    book_dir = _slug_to_book_dir(slug)
+    state = load_state(book_dir)
+    if state is None:
+        raise click.UsageError(f"No book.json at {book_dir}")
+    if state.concept is None:
+        raise click.UsageError(
+            f"book.json at {book_dir} has no concept yet — run `kdp-book outline` first."
+        )
+
+    if show and new_title is None and new_subtitle is None:
+        cover = state.cover
+        click.echo(click.style(f"Slug:     {state.slug}", fg="cyan"))
+        click.echo(f"Title:    {state.concept.title}")
+        click.echo(f"Subtitle: {state.concept.subtitle or '(none)'}")
+        click.echo(f"Audience: {state.concept.audience}")
+        click.echo(f"Tone:     {state.concept.tone}")
+        click.echo(f"Themes:   {', '.join(state.concept.themes) or '(none)'}")
+        if cover is not None:
+            chars = ", ".join(cover.characters_on_cover) or "(none)"
+            click.echo(f"Cover characters: {chars}")
+        return
+
+    changes: list[tuple[str, str, str]] = []
+    if new_title is not None:
+        old = state.concept.title
+        if old != new_title:
+            state.concept.title = new_title
+            changes.append(("title", old, new_title))
+    if new_subtitle is not None:
+        old = state.concept.subtitle or ""
+        normalised = new_subtitle or ""
+        if old != normalised:
+            state.concept.subtitle = normalised
+            changes.append(("subtitle", old or "(none)", normalised or "(none)"))
+
+    if not changes:
+        click.echo("No changes — values match what's already in book.json.")
+        if show:
+            click.echo(f"Title:    {state.concept.title}")
+            click.echo(f"Subtitle: {state.concept.subtitle or '(none)'}")
+        return
+
+    save_state(state)
+    click.echo(click.style(f"Updated {book_dir / 'book.json'}", fg="green"))
+    for field, old, new in changes:
+        click.echo(f"  {field}: {old}  →  {new}")
+    click.echo(
+        click.style(
+            "Run `kdp-book cover " + slug + " --force` to regenerate the cover "
+            "with the new title.",
+            fg="yellow",
+        )
+    )
+
+
+async def _run_edit(slug: str) -> None:
+    from kdp_book.workflow.steps import do_edit
+
+    book_dir = _slug_to_book_dir(slug)
+    state = load_state(book_dir)
+    if state is None:
+        raise click.UsageError(f"No book.json at {book_dir}")
+
+    attach_file_handler(book_dir)
+    reset_step_counter()
+    init_run_metadata(
+        book_dir=book_dir,
+        run_id=new_run_id(),
+        topic=state.config.topic,
+        book_type=state.config.book_type.value,
+        slug=state.slug,
+    )
+    try:
+        with step_recorder(state.book_dir, "edit"):
+            state = await do_edit(state)
+            save_state(state)
+        report = state.editor_report
+        click.echo(click.style(
+            f"\nEditor: {report.score}/10 — {len(report.issues)} issues, "
+            f"{len(report.chapters_to_revise)} chapters revised",
+            fg="green" if report.score >= 7 else "yellow",
+        ))
+        click.echo(report.summary)
+        finalize_run_metadata(book_dir, status="ok")
+    except Exception:
+        finalize_run_metadata(book_dir, status="failed")
+        raise
+    finally:
+        detach_file_handler()
+
+
+# ── stubs for later phases ────────────────────────────────────────────────────
+
+
+@main.command()
+@click.option("--from", "from_slug", required=True, help="Existing book slug.")
+def illustrate(from_slug: str) -> None:
+    """Plan + render illustrations (character refs + page art)."""
+    asyncio.run(_run_illustrate(from_slug))
+
+
+async def _run_illustrate(slug: str) -> None:
+    from kdp_book.workflow.steps import do_characters, do_illustrate, do_images
+
+    book_dir = _slug_to_book_dir(slug)
+    state = load_state(book_dir)
+    if state is None:
+        raise click.UsageError(f"No book.json at {book_dir}")
+
+    attach_file_handler(book_dir)
+    reset_step_counter()
+    init_run_metadata(
+        book_dir=book_dir,
+        run_id=new_run_id(),
+        topic=state.config.topic,
+        book_type=state.config.book_type.value,
+        slug=state.slug,
+    )
+    try:
+        with step_recorder(state.book_dir, "illustrate"):
+            state = await do_illustrate(state)
+            save_state(state)
+        with step_recorder(state.book_dir, "characters"):
+            state = await do_characters(state)
+            save_state(state)
+        with step_recorder(state.book_dir, "images"):
+            state = await do_images(state)
+            save_state(state)
+        click.echo(click.style(
+            f"\nIllustrations: {len(state.illustrations)} planned, "
+            f"{len(state.images)} rendered",
+            fg="green",
+        ))
+        finalize_run_metadata(book_dir, status="ok")
+    except Exception:
+        finalize_run_metadata(book_dir, status="failed")
+        raise
+    finally:
+        detach_file_handler()
+
+
+@main.command()
+@click.option("--from", "from_slug", required=True, help="Existing book slug.")
+@click.option("--output", default="both", type=click.Choice(["pdf", "epub", "both"]))
+def format(from_slug: str, output: str) -> None:
+    """Render PDF and/or EPUB into the book's output/ directory."""
+    asyncio.run(_run_format(from_slug, output))
+
+
+async def _run_format(slug: str, output: str) -> None:
+    from kdp_book.workflow.steps import do_format
+
+    book_dir = _slug_to_book_dir(slug)
+    state = load_state(book_dir)
+    if state is None:
+        raise click.UsageError(f"No book.json at {book_dir}")
+
+    attach_file_handler(book_dir)
+    reset_step_counter()
+    init_run_metadata(
+        book_dir=book_dir,
+        run_id=new_run_id(),
+        topic=state.config.topic,
+        book_type=state.config.book_type.value,
+        slug=state.slug,
+    )
+    try:
+        with step_recorder(state.book_dir, "format"):
+            state = await do_format(state, output=output)
+            save_state(state)
+        click.echo(click.style(
+            f"\nOutput written to: {book_dir / 'output'}",
+            fg="green",
+        ))
+        finalize_run_metadata(book_dir, status="ok")
+    except Exception:
+        finalize_run_metadata(book_dir, status="failed")
+        raise
+    finally:
+        detach_file_handler()
+
+
+@main.command()
+@click.argument("slug", required=False)
+@click.option("--from", "from_slug", default=None, help="(deprecated) Existing book slug; prefer the positional SLUG argument.")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Re-render the cover from scratch: clears front/back/wrap, drops the "
+    "cover step from completed_steps, regenerates with character references, "
+    "and refreshes output/cover.pdf. Other artifacts (chapters, interior, "
+    "metadata) are not touched.",
+)
+def cover(slug: str | None, from_slug: str | None, force: bool) -> None:
+    """Design + render + compose the print-ready cover wrap."""
+    target = slug or from_slug
+    if target is None:
+        raise click.UsageError("Provide a slug: `kdp-book cover SLUG [--force]`")
+    asyncio.run(_run_cover(target, force=force))
+
+
+async def _run_cover(slug: str, *, force: bool = False) -> None:
+    import shutil
+
+    from kdp_book.workflow.steps import do_cover
+
+    book_dir = _slug_to_book_dir(slug)
+    state = load_state(book_dir)
+    if state is None:
+        raise click.UsageError(f"No book.json at {book_dir}")
+
+    attach_file_handler(book_dir)
+    reset_step_counter()
+    init_run_metadata(
+        book_dir=book_dir,
+        run_id=new_run_id(),
+        topic=state.config.topic,
+        book_type=state.config.book_type.value,
+        slug=state.slug,
+    )
+    try:
+        if force:
+            cover_dir = book_dir / "cover"
+            for stale in (
+                cover_dir / "front.png",
+                cover_dir / "front.png.json",
+                cover_dir / "back.png",
+                cover_dir / "back.png.json",
+                cover_dir / "wrap.png",
+                cover_dir / "wrap.pdf",
+            ):
+                if stale.exists():
+                    stale.unlink()
+            state.cover = None
+            state.completed_steps = [s for s in state.completed_steps if s != "cover"]
+            click.echo("Cleared existing cover artifacts; regenerating from scratch.")
+
+        with step_recorder(state.book_dir, "cover"):
+            state = await do_cover(state)
+            save_state(state)
+
+        cover_pdf = book_dir / "cover" / "wrap.pdf"
+        if cover_pdf.exists():
+            out_dir = book_dir / "output"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(cover_pdf, out_dir / "cover.pdf")
+            click.echo(click.style(
+                f"Refreshed {out_dir / 'cover.pdf'}", fg="green",
+            ))
+
+        click.echo(click.style(
+            f"\nCover composed: {state.cover.composed_path}",
+            fg="green",
+        ))
+        if state.cover.characters_on_cover:
+            click.echo(
+                "Characters on cover: "
+                + ", ".join(state.cover.characters_on_cover),
+            )
+        finalize_run_metadata(book_dir, status="ok")
+    except Exception:
+        finalize_run_metadata(book_dir, status="failed")
+        raise
+    finally:
+        detach_file_handler()
+
+
+@main.command()
+@click.argument("slug")
+@click.argument("step_name")
+@click.option("--force", is_flag=True, help="Force re-run by clearing later checkpoints.")
+def step(slug: str, step_name: str, force: bool) -> None:
+    """Run a single named step on an existing book slug."""
+    click.echo(f"step {slug}/{step_name} (force={force}): not yet implemented (Phase 1+)")
+
+
+@main.command()
+@click.option("--from", "from_slug", required=True, help="Existing book slug.")
+def metadata(from_slug: str) -> None:
+    """Generate KDP listing metadata (title, blurb, keywords, BISAC)."""
+    asyncio.run(_run_metadata(from_slug))
+
+
+async def _run_metadata(slug: str) -> None:
+    from kdp_book.workflow.steps import do_metadata
+
+    book_dir = _slug_to_book_dir(slug)
+    state = load_state(book_dir)
+    if state is None:
+        raise click.UsageError(f"No book.json at {book_dir}")
+
+    attach_file_handler(book_dir)
+    reset_step_counter()
+    init_run_metadata(
+        book_dir=book_dir,
+        run_id=new_run_id(),
+        topic=state.config.topic,
+        book_type=state.config.book_type.value,
+        slug=state.slug,
+    )
+    try:
+        with step_recorder(state.book_dir, "metadata"):
+            state = await do_metadata(state)
+            save_state(state)
+        md = state.metadata
+        click.echo(click.style(
+            f"\nMetadata generated:\n  title:    {md.title}\n"
+            f"  keywords: {', '.join(md.keywords)}\n"
+            f"  BISAC:    {', '.join(md.bisac_categories)}",
+            fg="green",
+        ))
+        finalize_run_metadata(book_dir, status="ok")
+    except Exception:
+        finalize_run_metadata(book_dir, status="failed")
+        raise
+    finally:
+        detach_file_handler()
+
+
+@main.command()
+@click.option("--from", "from_slug", required=True, help="Existing book slug.")
+def quality(from_slug: str) -> None:
+    """Run the final quality review."""
+    asyncio.run(_run_quality(from_slug))
+
+
+async def _run_quality(slug: str) -> None:
+    from kdp_book.workflow.steps import do_quality
+
+    book_dir = _slug_to_book_dir(slug)
+    state = load_state(book_dir)
+    if state is None:
+        raise click.UsageError(f"No book.json at {book_dir}")
+
+    attach_file_handler(book_dir)
+    reset_step_counter()
+    init_run_metadata(
+        book_dir=book_dir,
+        run_id=new_run_id(),
+        topic=state.config.topic,
+        book_type=state.config.book_type.value,
+        slug=state.slug,
+    )
+    try:
+        with step_recorder(state.book_dir, "quality"):
+            state = await do_quality(state)
+            save_state(state)
+        report = state.quality_report
+        click.echo(click.style(
+            f"\nQuality review: score {report.score}/10\n"
+            f"  blockers: {len(report.blockers)}\n"
+            f"  concerns: {len(report.concerns)}",
+            fg="green" if report.score >= 7 else "yellow",
+        ))
+        finalize_run_metadata(book_dir, status="ok")
+    except Exception:
+        finalize_run_metadata(book_dir, status="failed")
+        raise
+    finally:
+        detach_file_handler()
+
+
+@main.command()
+@click.argument("slug")
+def status(slug: str) -> None:
+    """Show pipeline progress for an existing slug."""
+    book_dir = get_settings().kdp_books_dir / slug
+    state = load_state(book_dir)
+    if state is None:
+        click.echo(click.style(f"No state at {book_dir}/book.json", fg="red"))
+        raise SystemExit(1)
+    click.echo(json.dumps(
+        {
+            "slug": state.slug,
+            "book_dir": state.book_dir,
+            "topic": state.config.topic,
+            "type": state.config.book_type.value,
+            "completed_steps": state.completed_steps,
+            "has_concept": state.concept is not None,
+            "has_outline": state.outline is not None,
+            "has_bible": state.bible is not None,
+        },
+        indent=2,
+    ))
+
+
+if __name__ == "__main__":
+    main()
