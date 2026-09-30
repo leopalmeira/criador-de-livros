@@ -6,7 +6,7 @@ export const PrivacyTab: React.FC = () => {
       <div className="header-banner">
         <div>
           <h2 className="page-title">Privacidade & Arquitetura Local</h2>
-          <div className="page-subtitle">Compromisso de transparência: seus dados pertencem unicamente a você</div>
+          <div className="page-subtitle">Saiba onde os dados ficam e quando são enviados a serviços externos</div>
         </div>
       </div>
 
@@ -17,33 +17,34 @@ export const PrivacyTab: React.FC = () => {
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-              Privacidade Absoluta e Armazenamento 100% Local
+              Armazenamento local com integrações opcionais
             </h3>
             <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 700 }}>
-              Zero Telemetria • Zero Rastreamento • Sem Servidores Externos
+              Sem telemetria própria • Sem rastreamento publicitário
             </span>
           </div>
         </div>
 
         <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <p style={{ margin: 0 }}>
-            Esta extensão foi projetada com a premissa fundamental de <strong>privacidade e custo zero</strong>. Todo o processamento de análise, parsing de HTML, cálculo de BSR, estimativas de vendas e modelagem de royalties é executado exclusivamente na CPU da sua máquina, dentro do próprio navegador Google Chrome.
+            A análise das páginas, o cálculo de estimativas e o armazenamento de observações são feitos no navegador. Recursos de IA em nuvem e geração remota de imagens são opcionais e podem enviar os prompts e trechos do projeto ao provedor configurado, sujeitos às políticas desse serviço.
           </p>
 
           <div style={{ background: '#10131a', padding: '16px 20px', borderRadius: '8px', border: '1px solid #1f2633' }}>
             <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#60a5fa', fontWeight: 700 }}>
-              Nossos Compromissos de Segurança:
+              Como os dados são tratados:
             </h4>
             <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <li><strong>Sem envio de dados:</strong> Seus dados de navegação, buscas de nicho e livros monitorados nunca são transmitidos para nenhum servidor externo ou nuvem de terceiros.</li>
-              <li><strong>Sem telemetria:</strong> Não usamos Google Analytics, Mixpanel, pixels de rastreamento ou identificadores publicitários.</li>
-              <li><strong>Zero credenciais:</strong> A extensão não lê, não intercepta e não armazena cookies de login, senhas ou dados de pagamento da Amazon.</li>
-              <li><strong>Banco IndexedDB Local:</strong> Todas as observações de BSR ficam guardadas no seu banco de dados local do navegador e você pode exportá-las ou apagá-las a qualquer momento.</li>
+              <li><strong>Dados locais:</strong> Projetos, configurações e observações ficam no armazenamento do navegador e podem ser exportados ou apagados pelo usuário.</li>
+              <li><strong>Provedores externos:</strong> Ao usar IA em nuvem, o conteúdo necessário para a solicitação é enviado diretamente ao provedor selecionado. A extensão também pode solicitar imagens a um serviço externo conforme a configuração.</li>
+              <li><strong>Chaves de API:</strong> As chaves configuradas são armazenadas em chrome.storage.local, que não oferece criptografia de segredo pela extensão. Use uma chave com limites e permissões apropriados; não compartilhe o perfil do navegador.</li>
+              <li><strong>Credenciais Amazon:</strong> A extensão não lê cookies de login, senhas ou dados de pagamento da Amazon.</li>
+              <li><strong>Telemetria:</strong> O projeto não integra ferramentas próprias de analytics ou rastreamento publicitário.</li>
             </ul>
           </div>
 
           <p style={{ margin: 0, color: '#94a3b8' }}>
-            "Os dados coletados pela extensão permanecem neste navegador, salvo quando o usuário decidir exportá-los voluntariamente via arquivo CSV ou JSON."
+            As estimativas de vendas e royalties são aproximações, não dados oficiais da Amazon. Consulte as políticas do provedor de IA antes de enviar conteúdo confidencial.
           </p>
         </div>
       </div>

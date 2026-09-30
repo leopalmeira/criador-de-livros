@@ -271,19 +271,8 @@ class LocalDatabase {
           if (result && result.bookintel_settings) {
             const merged = { ...DEFAULT_SETTINGS, ...result.bookintel_settings };
             if (merged.aiSettings) {
-              const envGeminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-              const envGeminiFallbackKey = (import.meta as any).env?.VITE_GEMINI_FALLBACK_API_KEY || '';
               if (merged.aiSettings.provider === 'ollama' && (merged.aiSettings.model === 'gpt-4o-mini' || merged.aiSettings.model === 'gpt-4o')) {
                 merged.aiSettings.model = 'llama3.1';
-              }
-              if (!merged.aiSettings.apiKey || merged.aiSettings.apiKey === '') {
-                merged.aiSettings.provider = 'gemini';
-                merged.aiSettings.apiKey = envGeminiKey;
-                merged.aiSettings.fallbackApiKey = envGeminiFallbackKey;
-                merged.aiSettings.model = 'gemini-2.0-flash';
-              }
-              if (!merged.aiSettings.fallbackApiKey && envGeminiFallbackKey) {
-                merged.aiSettings.fallbackApiKey = envGeminiFallbackKey;
               }
             }
             resolve(merged);
@@ -298,19 +287,8 @@ class LocalDatabase {
         try {
           const merged = { ...DEFAULT_SETTINGS, ...JSON.parse(local) };
           if (merged.aiSettings) {
-            const envGeminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-            const envGeminiFallbackKey = (import.meta as any).env?.VITE_GEMINI_FALLBACK_API_KEY || '';
             if (merged.aiSettings.provider === 'ollama' && (merged.aiSettings.model === 'gpt-4o-mini' || merged.aiSettings.model === 'gpt-4o')) {
               merged.aiSettings.model = 'llama3.1';
-            }
-            if (!merged.aiSettings.apiKey || merged.aiSettings.apiKey === '') {
-              merged.aiSettings.provider = 'gemini';
-              merged.aiSettings.apiKey = envGeminiKey;
-              merged.aiSettings.fallbackApiKey = envGeminiFallbackKey;
-              merged.aiSettings.model = 'gemini-2.0-flash';
-            }
-            if (!merged.aiSettings.fallbackApiKey && envGeminiFallbackKey) {
-              merged.aiSettings.fallbackApiKey = envGeminiFallbackKey;
             }
           }
           return merged;
@@ -450,17 +428,16 @@ class LocalDatabase {
     return projects.map(p => ({
       id: p.id,
       title: p.title,
+      subtitle: p.subtitle,
+      author: p.author,
       status: p.status,
-      priority: p.priority,
-      format: p.format,
-      targetPrice: p.targetPrice,
-      estimatedPages: p.estimatedPages,
-      chaptersTotal: p.outline.length,
-      chaptersReady: p.outline.filter(c => c.status === 'PRONTO').length,
-      tasksTotal: p.tasks.length,
-      tasksCompleted: p.tasks.filter(t => t.completed).length,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt
+      kdpBookType: p.kdpBookType,
+      chaptersCount: p.kdpChapters?.length || p.outline?.length || 0,
+      wordsTotal: p.kdpChapters?.reduce((sum, ch) => sum + (ch.wordCount || 0), 0) || 0,
+      pagesEstimated: p.actualPages || p.estimatedPages || 0,
+      updatedAt: p.updatedAt,
+      qualityScore: p.kdpQualityReport?.overallScore,
+      isReadyForKdp: p.kdpQualityReport?.isReadyForKdp
     }));
   }
 

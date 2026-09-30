@@ -9,6 +9,10 @@ export class KdpPackager {
    * Gera o pacote completo em formato .ZIP organizado para publicação direta no Amazon KDP
    */
   public static async createKdpPackage(project: BookProject): Promise<Blob> {
+    return this.packageFullKdpBundle(project);
+  }
+
+  public static async packageFullKdpBundle(project: BookProject): Promise<Blob> {
     const zip = new JSZip();
     const slug = (project.title || 'livro-kdp')
       .toLowerCase()
@@ -156,7 +160,7 @@ ${cov?.backCoverBlurb || p.description || ''}
 
   private static generateQualityReportHtml(p: BookProject): string {
     const q = p.kdpQualityReport;
-    const score = q?.overallScore ?? 95;
+    const score = q?.overallScore;
     const checks = q?.checks || [];
 
     const checksList = checks.map(c => `
@@ -173,18 +177,18 @@ ${cov?.backCoverBlurb || p.description || ''}
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 24px; color: #1e293b; }
     .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; }
-    .score { font-size: 36px; font-weight: bold; color: ${score >= 80 ? '#16a34a' : '#ea580c'}; }
+    .score { font-size: 36px; font-weight: bold; color: ${score !== undefined && score >= 80 ? '#16a34a' : '#ea580c'}; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Relatório de Auditoria Editorial & KDP Quality Gate</h1>
     <p><strong>Obra:</strong> ${p.title} (${p.author})</p>
-    <div class="score">${score} / 100</div>
-    <p>Status: <strong>${q?.isReadyForKdp ? 'Aprovado para Publicação KDP' : 'Atenção Necessária'}</strong></p>
+    <div class="score">${score === undefined ? '—' : `${score} / 100`}</div>
+    <p>Status: <strong>${q?.isReadyForKdp ? 'Checklist concluído — valide no Previewer do KDP' : q ? 'Revisão necessária' : 'Auditoria não executada'}</strong></p>
     <hr/>
     <h3>Checklist de Verificações:</h3>
-    <ul>${checksList || '<li>Nenhuma inconsistência encontrada. Obra pronta para o Amazon KDP.</li>'}</ul>
+    <ul>${checksList || '<li>A auditoria de qualidade ainda não foi executada para este projeto.</li>'}</ul>
     <p style="font-size: 12px; color: #64748b; margin-top: 30px;">Gerado pelo BookIntel Editorial Engine em ${new Date().toLocaleString('pt-BR')}.</p>
   </div>
 </body>

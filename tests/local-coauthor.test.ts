@@ -28,7 +28,7 @@ describe('Motor Local Embutido - Modo CoAuthor (Offline)', () => {
       'Investigador Silva',
       160
     );
-    expect(concept.titleOptions.length).toBeGreaterThanOrEqual(3);
+    expect(concept.titleOptions?.length).toBeGreaterThanOrEqual(3);
     expect(concept.title).toContain('Sul');
 
     // 2. Outline detalhado
@@ -77,24 +77,34 @@ describe('Motor Local Embutido - Modo CoAuthor (Offline)', () => {
       title: concept.title,
       subtitle: concept.subtitle,
       author: 'Investigador Silva',
+      description: concept.shortSynopsis || 'Thriller policial',
       language: 'Português',
-      bookType: 'thriller',
-      status: 'kdp_ready',
-      progress: 100,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      currentStage: 'packaging',
-      totalCostUsd: 0,
-      totalCostBrl: 0,
-      totalTokens: 0,
-      targetPages: 160,
-      targetWords: 35000,
+      format: 'Capa Comum',
+      kdpBookType: 'thriller',
+      status: 'DIAGRAMAÇÃO',
+      priority: 'ALTA',
+      executionMode: 'automatic',
+      topic: 'crimes na america do Sul',
+      targetPrice: 39.90,
+      currency: 'BRL',
+      targetMarketplace: 'Amazon.com.br',
+      categories: ['Policial', 'Suspense'],
+      keywords: ['crime', 'investigador'],
+      targetAudience: 'Adultos',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      pipelineStage: 'packaging',
+      pipelineProgress: 100,
+      pipelineLog: [],
+      tasks: [],
+      notes: '',
+      competitorsAsins: [],
+      estimatedPages: 160,
       actualPages: 160,
-      actualWords: 35000,
       trimSize: '6x9',
       paperType: 'bw-white',
-      concept,
-      bible,
+      kdpConcept: concept,
+      kdpBible: bible,
       kdpChapters: [
         { ...outline[0], prose: chapter1.prose, wordCount: chapter1.wordCount }
       ],

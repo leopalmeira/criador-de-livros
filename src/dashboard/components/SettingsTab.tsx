@@ -45,7 +45,7 @@ export const SettingsTab: React.FC = () => {
       const models = await AiService.fetchOllamaModels(url);
       setOllamaModels(models);
       if (models.length > 0) {
-        if (currentAi.model === 'gpt-4o-mini' || currentAi.model === 'gpt-4o' || !models.includes(currentAi.model)) {
+        if (!currentAi.model || currentAi.model === 'gpt-4o-mini' || currentAi.model === 'gpt-4o' || !models.includes(currentAi.model)) {
           handleAiChange('model', models[0]);
         }
       }

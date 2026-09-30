@@ -14,6 +14,7 @@ export type BookType =
   | 'romance'
   | 'fantasy'
   | 'thriller'
+  | 'mystery'
   | 'suspense'
   | 'sci-fi'
   | 'self-help'
@@ -25,9 +26,15 @@ export type BookType =
   | 'biography'
   | 'non-fiction'
   | 'technical-manual'
-  | 'short-ebook';
+  | 'short-ebook'
+  | 'workbook'
+  | 'activity-book'
+  | 'coloring-book'
+  | 'journal'
+  | 'puzzle-book'
+  | 'other';
 
-export type TrimSize = '8.5x8.5' | '6x9' | '5.5x8.5' | '5x8' | '8.5x11' | '7x10' | '7.5x9.25';
+export type TrimSize = '8.5x8.5' | '6x9' | '5.5x8.5' | '5x8' | '5.25x8' | '8x10' | '8.5x11' | '7x10' | '7.5x9.25' | 'custom';
 export type PaperType = 'bw-white' | 'bw-cream' | 'color';
 
 export interface IBookTypeConfig {
@@ -458,6 +465,155 @@ export const BOOK_TYPE_CONFIGS: Record<BookType, IBookTypeConfig> = {
     hasFactCheck: true,
     description: 'Livro focado de alta densidade de valor, leitura de 1 a 2 horas para Kindle.',
     editorialRules: ['Densidade de conteúdo', 'Sem enrolação']
+  },
+
+  // Interativos & Especiais
+  'workbook': {
+    id: 'workbook',
+    label: 'Workbook / Caderno de Exercícios',
+    category: 'Técnico & Guias',
+    trimSize: '8.5x11',
+    paperType: 'bw-white',
+    targetPages: 120,
+    chapterCount: [8, 12],
+    wordsPerChapter: [800, 1500],
+    scenesPerChapter: [1, 2],
+    illustrationsPerChapter: 0,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: false,
+    hasFactCheck: false,
+    description: 'Caderno interativo com exercícios, espaços para preenchimento e atividades práticas.',
+    editorialRules: ['Espaços para escrita', 'Instruções claras', 'Progressão de dificuldade']
+  },
+  'activity-book': {
+    id: 'activity-book',
+    label: 'Livro de Atividades Infantil',
+    category: 'Infantil & Ilustrado',
+    trimSize: '8.5x11',
+    paperType: 'bw-white',
+    targetPages: 80,
+    chapterCount: [10, 20],
+    wordsPerChapter: [50, 200],
+    scenesPerChapter: [1, 1],
+    illustrationsPerChapter: 1,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '2048x2048',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: false,
+    hasFactCheck: false,
+    description: 'Atividades variadas: labirintos, ligar pontos, colorir, caça-palavras e jogos educativos.',
+    editorialRules: ['Variedade de atividades', 'Faixa etária clara', 'Instruções simples']
+  },
+  'coloring-book': {
+    id: 'coloring-book',
+    label: 'Livro de Colorir',
+    category: 'Infantil & Ilustrado',
+    trimSize: '8.5x11',
+    paperType: 'bw-white',
+    targetPages: 60,
+    chapterCount: [25, 40],
+    wordsPerChapter: [10, 50],
+    scenesPerChapter: [1, 1],
+    illustrationsPerChapter: 1,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '2048x2048',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: true,
+    hasFactCheck: false,
+    description: 'Ilustrações em lineart para colorir, impressão em um lado só, temas variados.',
+    editorialRules: ['Lineart limpo e detalhado', 'Impressão unilateral', 'Tema consistente']
+  },
+  'journal': {
+    id: 'journal',
+    label: 'Diário / Journal / Planner',
+    category: 'Técnico & Guias',
+    trimSize: '6x9',
+    paperType: 'bw-white',
+    targetPages: 150,
+    chapterCount: [5, 10],
+    wordsPerChapter: [100, 500],
+    scenesPerChapter: [1, 1],
+    illustrationsPerChapter: 0,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: false,
+    hasFactCheck: false,
+    description: 'Diário com prompts de escrita, espaços para reflexão, gratidão ou planejamento.',
+    editorialRules: ['Prompts inspiradores', 'Layout limpo', 'Espaços generosos para escrita']
+  },
+  'mystery': {
+    id: 'mystery',
+    label: 'Mistério / Policial / Detetive',
+    category: 'Ficção',
+    trimSize: '5.5x8.5',
+    paperType: 'bw-cream',
+    targetPages: 240,
+    chapterCount: [20, 28],
+    wordsPerChapter: [2500, 4500],
+    scenesPerChapter: [2, 3],
+    illustrationsPerChapter: 0,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: true,
+    hasWorldbuilding: false,
+    hasArtBible: false,
+    hasFactCheck: false,
+    description: 'Enigma central, pistas plantadas, red herrings, revelação no clímax.',
+    editorialRules: ['Pistas consistentes e justas', 'Resolução lógica', 'Sem deus ex machina']
+  },
+  'puzzle-book': {
+    id: 'puzzle-book',
+    label: 'Livro de Quebra-Cabeças / Enigmas',
+    category: 'Técnico & Guias',
+    trimSize: '8.5x11',
+    paperType: 'bw-white',
+    targetPages: 100,
+    chapterCount: [10, 20],
+    wordsPerChapter: [50, 200],
+    scenesPerChapter: [1, 1],
+    illustrationsPerChapter: 0,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: false,
+    hasFactCheck: false,
+    description: 'Palavras cruzadas, sudoku, caça-palavras e enigmas lógicos com gabarito.',
+    editorialRules: ['Gabarito no final', 'Dificuldade progressiva', 'Instruções em cada tipo']
+  },
+  'other': {
+    id: 'other',
+    label: 'Outro / Personalizado',
+    category: 'Técnico & Guias',
+    trimSize: '6x9',
+    paperType: 'bw-white',
+    targetPages: 150,
+    chapterCount: [8, 14],
+    wordsPerChapter: [2000, 4000],
+    scenesPerChapter: [2, 4],
+    illustrationsPerChapter: 0,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: false,
+    hasFactCheck: false,
+    description: 'Formato personalizado pelo autor, sem template predefinido.',
+    editorialRules: ['Defina suas próprias regras editoriais']
   }
 };
 
@@ -477,13 +633,28 @@ export interface PageLayoutMetrics {
 
 export const TRIM_SIZE_METRICS: Record<TrimSize, { widthInches: number; heightInches: number; defaultWordsPerPage: number }> = {
   '5x8': { widthInches: 5.0, heightInches: 8.0, defaultWordsPerPage: 220 },
+  '5.25x8': { widthInches: 5.25, heightInches: 8.0, defaultWordsPerPage: 235 },
   '5.5x8.5': { widthInches: 5.5, heightInches: 8.5, defaultWordsPerPage: 250 },
   '6x9': { widthInches: 6.0, heightInches: 9.0, defaultWordsPerPage: 280 },
   '7x10': { widthInches: 7.0, heightInches: 10.0, defaultWordsPerPage: 340 },
   '7.5x9.25': { widthInches: 7.5, heightInches: 9.25, defaultWordsPerPage: 360 },
+  '8x10': { widthInches: 8.0, heightInches: 10.0, defaultWordsPerPage: 380 },
   '8.5x8.5': { widthInches: 8.5, heightInches: 8.5, defaultWordsPerPage: 120 },
-  '8.5x11': { widthInches: 8.5, heightInches: 11.0, defaultWordsPerPage: 450 }
+  '8.5x11': { widthInches: 8.5, heightInches: 11.0, defaultWordsPerPage: 450 },
+  'custom': { widthInches: 6.0, heightInches: 9.0, defaultWordsPerPage: 280 }
 };
+
+/**
+ * Calcula a margem de encadernação interna (Gutter) recomendada pela Amazon KDP
+ * com base na quantidade de páginas da obra impressa.
+ */
+export function calculateKdpBindingMargin(pageCount: number): number {
+  if (pageCount <= 150) return 0.375;
+  if (pageCount <= 300) return 0.500;
+  if (pageCount <= 500) return 0.625;
+  if (pageCount <= 700) return 0.750;
+  return 0.875;
+}
 
 export function calculateTargetWordsForPages(pages: number, trim: TrimSize = '6x9'): { targetWords: number; wordsPerPage: number } {
   const metric = TRIM_SIZE_METRICS[trim] || TRIM_SIZE_METRICS['6x9'];
@@ -697,6 +868,11 @@ export interface IBookCoverDesign {
   subtitle?: string;
   author: string;
   backCoverBlurb: string;
+  authorBio?: string;
+  isbnCode?: string;
+  publisher?: string;
+  badgeText?: string;
+  showBadge?: boolean;
   geometry: CoverGeometry;
   frontImageUrl?: string;
   backImageUrl?: string;
@@ -771,6 +947,154 @@ export type PipelineStage =
   | 'completed' 
   | 'error';
 
+// --- CONFIGURAÇÃO DE DIAGRAMAÇÃO E PÁGINAS ---
+export interface PageMargins {
+  top: number;       // polegadas (padrão 0.75)
+  bottom: number;    // polegadas (padrão 0.75)
+  inside: number;    // margem interna / gutter (padrão 0.75 ou calculada)
+  outside: number;   // margem externa (padrão 0.50)
+}
+
+export interface PageLayoutSettings {
+  trimSize: TrimSize;
+  margins: PageMargins;
+  autoKdpBindingMargin: boolean;
+  bleedInches: number;
+  hasRunningHeaders: boolean;
+  hasPageNumbers: boolean;
+  startNumberingAt: number;
+}
+
+export interface TypographySettings {
+  fontFamily: string;
+  fontSizePt: number;
+  lineHeight: number;
+  paragraphSpacingPt: number;
+  letterSpacingPt?: number;
+  textAlign: 'justify' | 'left' | 'center' | 'right';
+  headingFont: string;
+  bodyFont: string;
+  captionFont?: string;
+  quoteFont?: string;
+  dropCap: boolean;
+}
+
+export type PageElementType = 
+  | 'chapter-title' 
+  | 'heading' 
+  | 'subheading' 
+  | 'paragraph' 
+  | 'quote' 
+  | 'callout' 
+  | 'image' 
+  | 'table' 
+  | 'divider';
+
+export interface PageElement {
+  id: string;
+  type: PageElementType;
+  content: string;
+  caption?: string;
+  imageUrl?: string;
+  alignment?: 'left' | 'center' | 'right' | 'justify';
+}
+
+export type VisualPageType = 
+  | 'half-title' 
+  | 'title-page' 
+  | 'copyright' 
+  | 'dedication' 
+  | 'epigraph' 
+  | 'toc' 
+  | 'preface' 
+  | 'chapter-opener' 
+  | 'body' 
+  | 'conclusion' 
+  | 'about-author' 
+  | 'blank';
+
+export interface BookVisualPage {
+  id: string;
+  pageNumber: number;
+  chapterIndex?: number;
+  type: VisualPageType;
+  headerText?: string;
+  footerText?: string;
+  elements: PageElement[];
+  rawText?: string;
+}
+
+// --- MEMÓRIA DO LIVRO (BOOK MEMORY) ---
+export interface MemoryCharacter {
+  id: string;
+  name: string;
+  role: string;
+  appearance: string;
+  personality: string;
+  arc?: string;
+  notes?: string;
+}
+
+export interface MemoryLocation {
+  id: string;
+  name: string;
+  description: string;
+  mood?: string;
+  notes?: string;
+}
+
+export interface MemoryEvent {
+  id: string;
+  chapterIndex: number;
+  title: string;
+  description: string;
+  consequence?: string;
+}
+
+export interface MemoryRule {
+  id: string;
+  category: string;
+  rule: string;
+  notes?: string;
+}
+
+export interface MemoryConcept {
+  id: string;
+  term: string;
+  definition: string;
+  application?: string;
+}
+
+export interface BookMemory {
+  characters: MemoryCharacter[];
+  locations: MemoryLocation[];
+  events: MemoryEvent[];
+  rules: MemoryRule[];
+  concepts: MemoryConcept[];
+}
+
+// --- BIBLIOTECA DE IMAGENS ---
+export interface BookImageItem {
+  id: string;
+  name: string;
+  dataUrl: string;
+  source: 'ai-generated' | 'upload' | 'template';
+  pageNumber?: number;
+  chapterIndex?: number;
+  prompt?: string;
+  createdAt: number;
+}
+
+// --- VERSIONAMENTO DE PROJETOS ---
+export interface BookVersionItem {
+  id: string;
+  versionTag: string;
+  name: string;
+  timestamp: number;
+  summary: string;
+  snapshotJson: string;
+}
+
 // --- ENTIDADE PRINCIPAL DO PROJETO ---
 export interface BookProject {
   id: string;
@@ -808,6 +1132,7 @@ export interface BookProject {
   kdpCoverDesign?: IBookCoverDesign;
   kdpMetadata?: IBookMetadataKdp;
   kdpQualityReport?: IBookQualityReport;
+  kdpPackageGeneratedAt?: number;
   editorialElements?: EditorialElements;
   
   // Rastreabilidade e Custos
@@ -815,6 +1140,15 @@ export interface BookProject {
   pipelineStage: PipelineStage;
   pipelineProgress: number;
   pipelineLog: string[];
+  
+  // Diagramação, Editor Visual e Memória
+  pageSettings?: PageLayoutSettings;
+  typography?: TypographySettings;
+  visualPages?: BookVisualPage[];
+  bookMemory?: BookMemory;
+  images?: BookImageItem[];
+  versions?: BookVersionItem[];
+  coverImageUrl?: string;
   
   // Tarefas manuais e notas
   tasks: Array<{ id: string; text: string; completed: boolean; category: string; createdAt: number }>;
@@ -837,3 +1171,4 @@ export interface ProjectSummary {
   qualityScore?: number;
   isReadyForKdp?: boolean;
 }
+

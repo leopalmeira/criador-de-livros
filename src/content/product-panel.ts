@@ -225,7 +225,7 @@ export class ProductPanel {
       <!-- Seção do Gráfico BSR History -->
       <div class="bi-ca-chart-section">
         <div class="bi-ca-chart-header">
-          <div class="bi-ca-chart-title">BSR History</div>
+          <div class="bi-ca-chart-title">Histórico de BSR observado</div>
           <div class="bi-ca-time-filters" id="bi-ca-time-filters">
             <button class="bi-ca-time-btn ${this.currentTimeRange === '1M' ? 'active' : ''}" data-range="1M">1M</button>
             <button class="bi-ca-time-btn ${this.currentTimeRange === '3M' ? 'active' : ''}" data-range="3M">3M</button>
@@ -315,8 +315,12 @@ export class ProductPanel {
     else if (range === '1Y') days = 365;
     else if (range === 'All') days = 730;
 
-    // Gera pontos históricos (usando observações reais se houver, ou projeção plausível do histórico)
+    // Gera pontos apenas a partir de observações reais salvas.
     const points = this.generateHistoricalPoints(currentBsr, days, this.cachedObservations);
+    if (points.length === 0) {
+      container.innerHTML = '<p class="bi-ca-chart-empty">Ainda não há observações suficientes para exibir o histórico de BSR. Os dados coletados aparecerão aqui.</p>';
+      return;
+    }
 
     // Dimensões do SVG
     const width = 640;
@@ -403,37 +407,16 @@ export class ProductPanel {
    * Gera pontos históricos coerentes
    */
   private static generateHistoricalPoints(currentBsr: number, days: number, realObs: Observation[]): { date: number; bsr: number }[] {
-    const pointsCount = Math.min(days, 40);
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
-    const result: { date: number; bsr: number }[] = [];
 
     // Se temos observações reais gravadas
     const sortedObs = [...realObs]
       .filter(o => o.bsr && o.timestamp >= (now - days * dayMs))
       .sort((a, b) => a.timestamp - b.timestamp);
 
-    // Se tiver mais de 4 observações reais, utiliza interpolação real
-    if (sortedObs.length >= 4) {
-      return sortedObs.map(o => ({ date: o.timestamp, bsr: o.bsr! }));
-    }
-
-    // Gera curva pseudo-realista com oscilação orgânica típica da Amazon
-    // para livros nessa faixa de BSR
-    let prevBsr = currentBsr;
-    for (let i = pointsCount - 1; i >= 0; i--) {
-      const pointTime = now - i * (days / pointsCount) * dayMs;
-      
-      // Variação sazonal / degrau
-      const cycle = Math.sin(i * 0.4) * 0.25;
-      const noise = (Math.random() - 0.48) * 0.35;
-      const factor = 1 + cycle + noise;
-      const simBsr = Math.max(100, Math.round(currentBsr * factor));
-
-      result.push({ date: pointTime, bsr: i === 0 ? currentBsr : simBsr });
-    }
-
-    return result;
+    // Exibe apenas observações reais: não inventa histórico quando os dados ainda são escassos.
+    return sortedObs.map(o => ({ date: o.timestamp, bsr: o.bsr! }));
   }
 
   /**

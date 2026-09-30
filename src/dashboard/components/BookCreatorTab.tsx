@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { BookOpen } from 'lucide-react';
 import { db } from '../../database/local-database';
 import { 
   BookProject, 
@@ -14,7 +15,6 @@ import {
   PipelineStage,
   ProjectStatus, 
   ProjectPriority,
-  ExecutionMode,
   TitleOption,
   ContinuityIssue,
   ChapterVersion,
@@ -48,6 +48,50 @@ const STATUS_COLORS: Record<ProjectStatus, string> = {
 
 function generateId(): string {
   return `proj_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
+
+function getEditorialStepCompletion(project: BookProject): boolean[] {
+  const chapters = project.kdpChapters || [];
+  const remainingChapters = chapters.slice(1);
+  const metadata = project.kdpMetadata;
+  return [
+    Boolean(project.kdpConcept?.title?.trim() && project.kdpConcept?.promise?.trim()),
+    Boolean(project.kdpBible && (
+      project.kdpBible.styleGuide?.tone?.trim() ||
+      project.kdpBible.coreConcepts?.length ||
+      project.kdpBible.characters?.length
+    )),
+    Boolean(chapters.length && chapters.every(chapter => chapter.title?.trim() && chapter.summary?.trim())),
+    Boolean(project.editorialElements?.titlePage?.title?.trim() && project.editorialElements?.copyrightNotice?.trim()),
+    Boolean(project.kdpCoverDesign?.geometry && project.kdpCoverDesign.title?.trim()),
+    Boolean(chapters[0]?.prose?.trim()),
+    Boolean(remainingChapters.length && remainingChapters.every(chapter => chapter.prose?.trim())),
+    Boolean(project.editorialElements?.conclusion?.trim()),
+    Boolean(project.kdpEditorReport && project.kdpQualityReport),
+    Boolean(metadata?.title?.trim() && metadata.commercialLongDescription?.trim() &&
+      metadata.keywords7?.length === 7 && metadata.keywords7.every(keyword => keyword.trim())),
+    Boolean(project.kdpPackageGeneratedAt)
+  ];
+}
+
+type WizardAiProvider = 'local-builtin' | 'ollama' | 'openai';
+
+function getWizardAiConfig(savedSettings: any, selectedProvider: WizardAiProvider) {
+  const config = { ...(savedSettings || { provider: 'local-builtin', model: 'local-coauthor-engine', apiKey: '' }) };
+
+  if (selectedProvider === 'local-builtin') {
+    return { ...config, provider: 'local-builtin', model: 'local-coauthor-engine', apiKey: '' };
+  }
+  if (selectedProvider === 'ollama') {
+    return {
+      ...config,
+      provider: 'ollama',
+      model: !config.model || config.model.startsWith('gpt-') ? 'llama3.1' : config.model,
+      apiKey: ''
+    };
+  }
+
+  return config;
 }
 
 export type SubTabType = 
@@ -86,8 +130,7 @@ export const BookCreatorTab: React.FC = () => {
   const [wizardTrim, setWizardTrim] = useState<TrimSize>('6x9');
   const [wizardPaper, setWizardPaper] = useState<PaperType>('bw-white');
   const [wizardPages, setWizardPages] = useState<number>(160);
-  const [wizardExecutionMode, setWizardExecutionMode] = useState<ExecutionMode>('assisted');
-  const [wizardAiProvider, setWizardAiProvider] = useState<'local-builtin' | 'ollama' | 'openai'>('local-builtin');
+  const [wizardAiProvider, setWizardAiProvider] = useState<WizardAiProvider>('local-builtin');
   const [isAutoAnalyzing, setIsAutoAnalyzing] = useState(false);
 
   // Estados de Execução da IA e Pipeline
@@ -173,19 +216,13 @@ export const BookCreatorTab: React.FC = () => {
     setIsAutoAnalyzing(true);
     try {
       const settings = await db.getSettings();
-      const aiConfig = {
-        ...(settings.aiSettings || { provider: 'local-builtin', model: 'local-coauthor-engine', apiKey: '' })
-      };
-
-      if (aiConfig.provider === 'ollama') {
-        if (!aiConfig.model || aiConfig.model === 'gpt-4o-mini' || aiConfig.model === 'gpt-4o') {
-          aiConfig.model = 'llama3.1';
-        }
+      const aiConfig = getWizardAiConfig(settings.aiSettings, wizardAiProvider);
+      const cloudProviders = ['openai', 'anthropic', 'openrouter', 'gemini', 'azure'];
+      if (wizardAiProvider === 'openai' && !cloudProviders.includes(aiConfig.provider)) {
+        throw new Error('Configure um provedor de IA na nuvem em Configurações antes de selecioná-lo.');
       }
-
-      if (!aiConfig.apiKey && aiConfig.provider !== 'ollama' && aiConfig.provider !== 'local-builtin') {
-        aiConfig.provider = 'local-builtin';
-        aiConfig.model = 'local-coauthor-engine';
+      if (wizardAiProvider === 'openai' && !aiConfig.apiKey) {
+        throw new Error('Adicione a chave de API do provedor selecionado em Configurações.');
       }
 
       const aiService = new AiService(aiConfig);
@@ -218,20 +255,15 @@ export const BookCreatorTab: React.FC = () => {
     }
 
     const settings = await db.getSettings();
-    const aiConfig = {
-      ...(settings.aiSettings || { provider: 'local-builtin', model: 'local-coauthor-engine', apiKey: '' })
-    };
-
-    if (aiConfig.provider === 'ollama') {
-      if (!aiConfig.model || aiConfig.model === 'gpt-4o-mini' || aiConfig.model === 'gpt-4o') {
-        aiConfig.model = 'llama3.1';
-      }
+    const aiConfig = getWizardAiConfig(settings.aiSettings, wizardAiProvider);
+    const cloudProviders = ['openai', 'anthropic', 'openrouter', 'gemini', 'azure'];
+    if (wizardAiProvider === 'openai' && !cloudProviders.includes(aiConfig.provider)) {
+      alert('Configure um provedor de IA na nuvem em Configurações antes de selecioná-lo.');
+      return;
     }
-
-    if (!aiConfig.apiKey && aiConfig.provider !== 'ollama' && aiConfig.provider !== 'local-builtin') {
-      // Se não tiver chave de API externa, usa automaticamente o Motor Local Embutido
-      aiConfig.provider = 'local-builtin';
-      aiConfig.model = 'local-coauthor-engine';
+    if (wizardAiProvider === 'openai' && !aiConfig.apiKey) {
+      alert('Adicione a chave de API do provedor selecionado em Configurações.');
+      return;
     }
 
     const providerLabel = aiConfig.provider === 'local-builtin'
@@ -244,8 +276,8 @@ export const BookCreatorTab: React.FC = () => {
     setPipelineStep('concept');
     setPipelinePercent(10);
     setPipelineLogs([
-      `Iniciando Plataforma Editorial KDP para: "${wizardIdea}"`,
-      `Template Selecionado: ${BOOK_TYPE_CONFIGS[wizardType]?.label || wizardType} | Modo: ${wizardExecutionMode.toUpperCase()}`,
+      `Iniciando projeto editorial: "${wizardIdea}"`,
+      `Template selecionado: ${BOOK_TYPE_CONFIGS[wizardType]?.label || wizardType} | Fluxo: etapa por etapa com revisão do autor`,
       `Formato: ${wizardTrim} (${wizardPaper}) | Meta: ${wizardPages} páginas`,
       `Provedor de IA: ${providerLabel}`
     ]);
@@ -272,7 +304,7 @@ export const BookCreatorTab: React.FC = () => {
         updatedAt: Date.now(),
         status: 'CONCEITO',
         priority: 'ALTA',
-        executionMode: wizardExecutionMode,
+        executionMode: 'assisted',
         title: concept.title,
         subtitle: concept.subtitle || '',
         author: wizardAuthor,
@@ -291,7 +323,7 @@ export const BookCreatorTab: React.FC = () => {
         topic: wizardIdea,
         kdpBookType: wizardType,
         kdpConcept: concept,
-        pipelineStage: wizardExecutionMode === 'assisted' ? 'title_selection' : 'outline',
+        pipelineStage: 'title_selection',
         pipelineProgress: 30,
         pipelineLog: pipelineLogs,
         tasks: [
@@ -302,7 +334,7 @@ export const BookCreatorTab: React.FC = () => {
           { id: 't5', text: 'Auditoria de continuidade e edição', completed: false, category: 'REVISÃO', createdAt: Date.now() },
           { id: 't6', text: 'Compilar EPUB, PDF e Pacote KDP', completed: false, category: 'KDP', createdAt: Date.now() }
         ],
-        notes: `Criado na Plataforma Editorial KDP em ${new Date().toLocaleDateString('pt-BR')}`,
+        notes: `Criado no Estúdio editorial em ${new Date().toLocaleDateString('pt-BR')}`,
         competitorsAsins: []
       };
 
@@ -315,18 +347,12 @@ export const BookCreatorTab: React.FC = () => {
         setSelectedTitleId(concept.titleOptions[0].id);
       }
 
-      // Se modo assistido: para e mostra opções de título para aprovação humana
-      if (wizardExecutionMode === 'assisted') {
-        setIsGenerating(false);
-        setPipelineStep('title_selection');
-        setView('edit');
-        setActiveSubTab('concept');
-        showToast('✓ Conceito gerado! Selecione ou personalize o título do seu livro.');
-        return;
-      }
-
-      // Se modo automático: prossegue direto até a geração completa!
-      await executeFullAutomatedPipeline(initialProject, pipeline);
+      setIsGenerating(false);
+      setPipelineStep('title_selection');
+      setView('edit');
+      setActiveSubTab('concept');
+      showToast('Rascunho do conceito criado. Revise e escolha o título antes da próxima etapa.');
+      return;
 
     } catch (err: any) {
       setPipelineStep('error');
@@ -454,7 +480,7 @@ export const BookCreatorTab: React.FC = () => {
     }
   };
 
-  // --- LÓGICA PASSO A PASSO DA ÁRVORE EDITORIAL BEST-SELLER ---
+  // --- LÓGICA PASSO A PASSO DO FLUXO EDITORIAL ---
   const runTreeStepLogic = async (stepNum: number, baseProj: BookProject): Promise<BookProject> => {
     const settings = await db.getSettings();
     const aiConfig = {
@@ -543,8 +569,8 @@ export const BookCreatorTab: React.FC = () => {
         break;
       }
 
-      case 6: { // 6. Capítulo 1: O Gancho de Best-Seller
-        setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] [Passo 6/10] Redigindo Capítulo 1 com Gancho Magnético de Best-Seller (Abertura de Alta Tensão)...`]);
+      case 6: {
+        setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] [Passo 6/10] Redigindo a abertura do primeiro capítulo...`]);
         if (!cur.kdpConcept) {
           cur.kdpConcept = LocalAiEngine.generateConcept(cur.topic || cur.title, cur.kdpBookType, cur.language, cur.author, cur.estimatedPages);
         }
@@ -576,37 +602,30 @@ export const BookCreatorTab: React.FC = () => {
       }
 
       case 7: { // 7. Demais Capítulos (2 a N)
-        setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] [Passo 7/10] Redigindo Capítulos 2 a ${cur.kdpChapters?.length || 8} com contexto contínuo e profundidade...`]);
+        setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] [Passo 7/11] Preparando o próximo capítulo sem rascunho...`]);
         if (!cur.kdpConcept) {
           cur.kdpConcept = LocalAiEngine.generateConcept(cur.topic || cur.title, cur.kdpBookType, cur.language, cur.author, cur.estimatedPages);
         }
         if (!cur.kdpChapters || cur.kdpChapters.length < 2) {
           cur.kdpChapters = await pipeline.generateOutline(cur.kdpConcept, cur.kdpBookType, cur.language);
         }
-        const bibleForOthers = cur.kdpBible || LocalAiEngine.generateBible(cur.kdpConcept, cur.kdpChapters, cur.kdpBookType);
-        let prevSumm = cur.kdpChapters[0]?.summary || '';
-
+        const bibleForOthers = cur.kdpBible || LocalAiEngine.generateBible(cur.kdpConcept, cur.kdpChapters || [], cur.kdpBookType);
         const updatedChaps = [...cur.kdpChapters];
-        for (let i = 1; i < updatedChaps.length; i++) {
-          const ch = updatedChaps[i];
-          setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Redigindo Capítulo ${ch.index}: "${ch.title}" (~${ch.targetWordCount || 2500} palavras)...`]);
-          const draft = await pipeline.writeChapter(
-            cur.kdpConcept,
-            bibleForOthers,
-            updatedChaps,
-            ch,
-            cur.kdpBookType,
-            prevSumm,
-            cur.language
-          );
-          updatedChaps[i] = {
-            ...ch,
-            prose: draft.prose,
-            wordCount: draft.wordCount,
-            status: 'RASCUNHO'
-          };
-          prevSumm = ch.summary;
-        }
+        const i = updatedChaps.findIndex((chapter, index) => index > 0 && !chapter.prose?.trim());
+        if (i < 0) throw new Error('Não há capítulos pendentes. Revise o manuscrito ou atualize o sumário.');
+        const ch = updatedChaps[i];
+        const previousSummary = updatedChaps.slice(0, i).map(chapter => chapter.summary).filter(Boolean).join('\n');
+        setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Redigindo somente o capítulo ${ch.index}: "${ch.title}".`]);
+        const draft = await pipeline.writeChapter(
+          cur.kdpConcept,
+          bibleForOthers,
+          updatedChaps,
+          ch,
+          cur.kdpBookType,
+          previousSummary,
+          cur.language
+        );
+        updatedChaps[i] = { ...ch, prose: draft.prose, wordCount: draft.wordCount, status: 'RASCUNHO' };
         cur.kdpChapters = updatedChaps;
         cur.status = 'ESCREVENDO';
         break;
@@ -643,15 +662,15 @@ export const BookCreatorTab: React.FC = () => {
       }
 
       case 10: { // 10. Compilação Final KDP (EPUB, PDF, Metadados & .ZIP)
-        setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] [Passo 10/10] Otimizando Metadados KDP e preparando Pacote Final de Publicação...`]);
+        setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] [Passo 10/11] Preparando metadados para revisão...`]);
         if (!cur.kdpConcept) {
           cur.kdpConcept = LocalAiEngine.generateConcept(cur.topic || cur.title, cur.kdpBookType, cur.language, cur.author, cur.estimatedPages);
         }
         const metadata = await pipeline.generateMetadataKdp(cur.kdpConcept, cur.kdpChapters || [], cur.author, cur.language);
         cur.kdpMetadata = metadata;
-        cur.pipelineStage = 'completed';
-        cur.pipelineProgress = 100;
-        cur.status = 'CONCLUÍDO';
+        cur.pipelineStage = 'metadata';
+        cur.pipelineProgress = 90;
+        cur.status = 'VALIDAÇÃO';
         break;
       }
     }
@@ -665,34 +684,21 @@ export const BookCreatorTab: React.FC = () => {
 
   const handleRunSingleStep = async (stepNum: number) => {
     if (!activeProject || isGenerating) return;
+    const completion = getEditorialStepCompletion(activeProject);
+    const requiredPreviousStep = stepNum === 7 ? 6 : stepNum - 1;
+    if (stepNum > 1 && !completion[requiredPreviousStep - 1]) {
+      showToast(`Conclua primeiro a etapa ${requiredPreviousStep} e revise o rascunho antes de avançar.`);
+      return;
+    }
     setIsGenerating(true);
     setTreeRunningStep(stepNum);
     try {
       await runTreeStepLogic(stepNum, activeProject);
-      showToast(`✓ Passo ${stepNum} da Árvore Editorial concluído com sucesso!`);
+      showToast(`Rascunho da etapa ${stepNum} criado e salvo. Revise antes de continuar.`);
     } catch (err: any) {
       console.error('[Single Step Error]', err);
-      showToast(`Aviso: Passo ${stepNum} finalizado com motor de segurança.`);
-    } finally {
-      setIsGenerating(false);
-      setTreeRunningStep(null);
-    }
-  };
-
-  const executeFullTreeStepByStep = async () => {
-    if (!activeProject || isGenerating) return;
-    setIsGenerating(true);
-    setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] 🚀 Iniciando Execução da Árvore Editorial Completa (Passo a Passo com Checks)...`]);
-    try {
-      let cur = { ...activeProject };
-      for (let s = 1; s <= 10; s++) {
-        cur = await runTreeStepLogic(s, cur);
-      }
-      showToast('🎉 Toda a Árvore Editorial foi executada e auditada com sucesso! Todos os 10 checks validados.');
-      setActiveSubTab('tree');
-    } catch (err: any) {
-      console.error('[Tree Pipeline Error]', err);
-      showToast(`Aviso: Árvore finalizada com motor de segurança.`);
+      setPipelineLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Etapa ${stepNum} não concluída: ${err.message || 'erro inesperado'}`]);
+      showToast(`A etapa ${stepNum} falhou e não foi marcada como concluída.`);
     } finally {
       setIsGenerating(false);
       setTreeRunningStep(null);
@@ -722,30 +728,8 @@ export const BookCreatorTab: React.FC = () => {
     setActiveProject(updatedProj);
     await db.saveBookProject(updatedProj);
 
-    // Avança para o próximo passo no modo assistido
-    setIsGenerating(true);
-    setPipelineStep('outline');
-    setPipelinePercent(35);
-    setPipelineLogs([`✓ Título selecionado: "${updatedProj.title}". Gerando sumário e capítulos...`]);
-
-    try {
-      const settings = await db.getSettings();
-      const aiService = new AiService(settings.aiSettings);
-      const pipeline = new KdpBookPipeline(aiService);
-
-      const outline = await pipeline.generateOutline(updatedConcept, updatedProj.kdpBookType, updatedProj.language);
-      updatedProj.kdpChapters = outline;
-      updatedProj.status = 'OUTLINE';
-
-      await db.saveBookProject(updatedProj);
-      setActiveProject(updatedProj);
-      setActiveSubTab('outline');
-      showToast('✓ Estrutura de capítulos gerada com sucesso! Revise os capítulos.');
-    } catch (err: any) {
-      alert(`Falha ao gerar outline: ${err.message}`);
-    } finally {
-      setIsGenerating(false);
-    }
+    setActiveSubTab('tree');
+    showToast('Conceito salvo. Revise o rascunho; o sumário será uma etapa separada.');
   };
 
   // Escreve um único capítulo selecionado com contexto completo da obra
@@ -815,103 +799,6 @@ export const BookCreatorTab: React.FC = () => {
     } finally {
       setIsAiWorkingOnChapter(false);
       setAiActionMessage('');
-    }
-  };
-
-  // Escreve todos os capítulos sequencialmente mantendo continuidade e contexto holístico
-  const handleWriteAllChapters = async () => {
-    if (!activeProject || !activeProject.kdpChapters) return;
-    const confirmStart = window.confirm(
-      `Deseja iniciar a redação automática de TODOS os ${activeProject.kdpChapters.length} capítulos deste livro com alta densidade textual?`
-    );
-    if (!confirmStart) return;
-
-    setIsGenerating(true);
-    setPipelineStep('writing');
-    setPipelinePercent(10);
-    setPipelineLogs([`[${new Date().toLocaleTimeString()}] Iniciando redação automática do livro completo...`]);
-
-    try {
-      const settings = await db.getSettings();
-      const aiService = new AiService(settings.aiSettings);
-      const pipeline = new KdpBookPipeline(aiService);
-
-      let updatedChapters = [...activeProject.kdpChapters];
-      let previousSummary = '';
-
-      for (let i = 0; i < updatedChapters.length; i++) {
-        const ch = updatedChapters[i];
-        const percent = Math.round(10 + ((i + 1) / updatedChapters.length) * 85);
-        setPipelinePercent(percent);
-        setPipelineLogs(prev => [
-          ...prev, 
-          `[${new Date().toLocaleTimeString()}] Redigindo Capítulo ${ch.index}/${updatedChapters.length}: "${ch.title}" (~${ch.targetWordCount || 2500} palavras)...`
-        ]);
-
-        const draft = await pipeline.writeChapter(
-          activeProject.kdpConcept!,
-          activeProject.kdpBible || {
-            characters: [],
-            locations: [],
-            styleGuide: { artStyle: 'Clássico', palette: [], lineWeight: '', lighting: '', tone: activeProject.kdpConcept?.tone || '' },
-            coreConcepts: [],
-            keyArguments: [],
-            terminologyGlossary: [],
-            rulesOfUniverse: []
-          },
-          updatedChapters,
-          ch,
-          activeProject.kdpBookType,
-          previousSummary,
-          activeProject.language
-        );
-
-        const newVersion: ChapterVersion = {
-          id: `v_${Date.now()}`,
-          chapterIndex: ch.index,
-          timestamp: Date.now(),
-          prose: draft.prose,
-          wordCount: draft.wordCount,
-          summary: `Geração em lote via IA`,
-          authorType: 'ai'
-        };
-
-        updatedChapters[i] = {
-          ...ch,
-          prose: draft.prose,
-          wordCount: draft.wordCount,
-          status: 'RASCUNHO',
-          versions: [newVersion, ...(ch.versions || [])]
-        };
-        previousSummary = ch.summary;
-
-        // Auto-save persistente no IndexedDB após cada capítulo
-        const interimProj = { ...activeProject, kdpChapters: [...updatedChapters], updatedAt: Date.now() };
-        await db.saveBookProject(interimProj);
-        setActiveProject(interimProj);
-      }
-
-      const totalWords = updatedChapters.reduce((s, c) => s + (c.wordCount || 0), 0);
-      const actualPages = estimateActualPagesFromWords(totalWords, activeProject.trimSize);
-      const finalProj = {
-        ...activeProject,
-        kdpChapters: updatedChapters,
-        actualPages,
-        status: 'ESCREVENDO' as const,
-        updatedAt: Date.now()
-      };
-      await db.saveBookProject(finalProj);
-      setActiveProject(finalProj);
-      setPipelinePercent(100);
-      setPipelineLogs(prev => [
-        ...prev, 
-        `🎉 Concluído! Todos os ${updatedChapters.length} capítulos foram redigidos com sucesso! Volume total: ${totalWords.toLocaleString()} palavras (~${actualPages} páginas).`
-      ]);
-      showToast(`🎉 Livro completo gerado! ${totalWords.toLocaleString()} palavras redigidas.`);
-    } catch (err: any) {
-      alert(`Falha durante redação do livro: ${err.message}`);
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -1015,8 +902,13 @@ export const BookCreatorTab: React.FC = () => {
   // DOWNLOADS E EXPORTAÇÕES KDP
   const handleDownloadZipPackage = async () => {
     if (!activeProject) return;
+    const incompleteStep = getEditorialStepCompletion(activeProject).slice(0, 10).findIndex(done => !done);
+    if (incompleteStep >= 0) {
+      showToast(`O pacote ainda não está completo: verifique a etapa ${incompleteStep + 1} antes da exportação.`);
+      return;
+    }
     try {
-      showToast('Empacotando projeto completo KDP em ZIP...');
+      showToast('Preparando pacote para conferência…');
       const zipBlob = await KdpPackager.createKdpPackage(activeProject);
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
@@ -1024,7 +916,11 @@ export const BookCreatorTab: React.FC = () => {
       a.download = `${(activeProject.title || 'livro').replace(/[^a-zA-Z0-9]/g, '_')}_KDP_Package.zip`;
       a.click();
       URL.revokeObjectURL(url);
-      showToast('✓ Pacote KDP baixado com sucesso!');
+      const exportedProject = { ...activeProject, kdpPackageGeneratedAt: Date.now(), updatedAt: Date.now() };
+      setActiveProject(exportedProject);
+      await db.saveBookProject(exportedProject);
+      await loadProjects();
+      showToast('Pacote exportado para conferência. Isso não significa aprovação do KDP.');
     } catch (err: any) {
       alert(`Falha ao gerar pacote ZIP: ${err.message}`);
     }
@@ -1186,7 +1082,7 @@ export const BookCreatorTab: React.FC = () => {
         </div>
       )}
 
-      {/* HEADER CORPORATIVO TOTVS / ENTERPRISE */}
+      {/* Cabeçalho do estúdio editorial */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -1199,24 +1095,12 @@ export const BookCreatorTab: React.FC = () => {
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, letterSpacing: '-0.5px', color: '#ffffff' }}>
-              Plataforma Editorial KDP
+            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, letterSpacing: '-0.4px', color: '#ffffff' }}>
+              Estúdio editorial
             </h1>
-            <span style={{
-              background: '#1e293b',
-              border: '1px solid #3b82f6',
-              color: '#38bdf8',
-              fontSize: '11px',
-              fontWeight: 700,
-              padding: '3px 10px',
-              borderRadius: '4px',
-              letterSpacing: '0.5px'
-            }}>
-              ENTERPRISE EDITION
-            </span>
           </div>
           <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-            Pipeline autônomo baseado nos frameworks <code>kdp-book</code>, <code>libriscribe</code>, <code>Velith</code> e <code>book-generator</code>.
+            Planeje, escreva, revise e exporte seus projetos em um único fluxo.
           </p>
         </div>
 
@@ -1273,7 +1157,7 @@ export const BookCreatorTab: React.FC = () => {
                 boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)'
               }}
             >
-              + Criar Novo Livro
+              + Novo projeto
             </button>
           )}
         </div>
@@ -1289,15 +1173,17 @@ export const BookCreatorTab: React.FC = () => {
               background: '#0f172a',
               border: '1px solid #334155',
               borderRadius: '8px',
-              padding: '60px 24px',
+              padding: '44px 24px',
               textAlign: 'center'
             }}>
-              <div style={{ fontSize: '40px', marginBottom: '16px' }}>📖</div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 8px 0', color: '#f8fafc' }}>
-                Nenhum projeto editorial cadastrado
+              <div style={{ width: '44px', height: '44px', margin: '0 auto 14px', display: 'grid', placeItems: 'center', borderRadius: '12px', background: '#183253', color: '#8fc5ff' }}>
+                <BookOpen size={22} />
+              </div>
+              <h2 style={{ fontSize: '18px', fontWeight: 650, margin: '0 0 8px 0', color: '#f8fafc' }}>
+                Comece um projeto editorial
               </h2>
               <p style={{ color: '#94a3b8', maxWidth: '540px', margin: '0 auto 24px auto', fontSize: '14px', lineHeight: 1.6 }}>
-                Gere livros completos prontos para publicação na Amazon KDP a partir de um segmento ou ideia principal. Todo o conceito, outline, bíblia, manuscrito, capa e pacote KDP são gerados em etapas estruturadas.
+                Organize a ideia, desenvolva o manuscrito e revise os metadados. Você pode salvar o trabalho e continuar depois.
               </p>
               <button
                 onClick={() => setView('create_wizard')}
@@ -1312,7 +1198,7 @@ export const BookCreatorTab: React.FC = () => {
                   cursor: 'pointer'
                 }}
               >
-                Criar Primeiro Livro KDP
+                Criar projeto
               </button>
             </div>
           ) : (
@@ -1408,7 +1294,7 @@ export const BookCreatorTab: React.FC = () => {
               CRIAR NOVO LIVRO
             </h2>
             <p style={{ margin: '0 0 24px 0', fontSize: '13px', color: '#94a3b8' }}>
-              Informe a ideia, tema ou segmento da obra. A inteligência artificial identificará o nicho, público-alvo, formato, outline e desenvolverá todo o pacote editorial KDP.
+              Descreva a ideia ou o tema para iniciar um projeto editorial. Revise os textos e valide os arquivos exportados no Previewer do KDP antes de publicar.
             </p>
 
             {/* Campo Principal */}
@@ -1554,54 +1440,10 @@ export const BookCreatorTab: React.FC = () => {
               </div>
             </div>
 
-            {/* Modo de Execução */}
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#cbd5e1' }}>
-                Modo de Operação do Pipeline:
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div
-                  onClick={() => setWizardExecutionMode('assisted')}
-                  style={{
-                    border: `1px solid ${wizardExecutionMode === 'assisted' ? '#3b82f6' : '#334155'}`,
-                    background: wizardExecutionMode === 'assisted' ? 'rgba(59, 130, 246, 0.12)' : '#1e293b',
-                    borderRadius: '6px',
-                    padding: '14px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: '13px', color: '#f8fafc', marginBottom: '4px' }}>
-                    MODO ASSISTIDO (Recomendado)
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.4 }}>
-                    A IA para após cada etapa para aprovação humana (Conceito → Estrutura → Capítulos → Revisão).
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => setWizardExecutionMode('automatic')}
-                  style={{
-                    border: `1px solid ${wizardExecutionMode === 'automatic' ? '#3b82f6' : '#334155'}`,
-                    background: wizardExecutionMode === 'automatic' ? 'rgba(59, 130, 246, 0.12)' : '#1e293b',
-                    borderRadius: '6px',
-                    padding: '14px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: '13px', color: '#f8fafc', marginBottom: '4px' }}>
-                    MODO AUTOMÁTICO
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.4 }}>
-                    A IA executa todo o fluxo de ponta a ponta sem interrupção e entrega a obra pronta para auditoria.
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Seleção do Motor de IA */}
             <div style={{ marginBottom: '24px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#cbd5e1' }}>
-                Motor de Inteligência Artificial para Execução:
+                Modo de geração para os rascunhos:
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
                 <div
@@ -1615,11 +1457,10 @@ export const BookCreatorTab: React.FC = () => {
                   }}
                 >
                   <div style={{ fontWeight: 700, fontSize: '13px', color: '#f8fafc', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>⚡ Motor Local Embutido</span>
-                    <span style={{ fontSize: '9px', background: '#10b981', color: '#fff', padding: '1px 6px', borderRadius: '3px' }}>RECOMENDADO</span>
+                    <span>⚡ Estrutura local</span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.4 }}>
-                    100% offline, sem gastar tokens, sem precisar instalar Ollama e sem falhas de conexão.
+                    Sem modelo de linguagem externo; produz estruturas e textos-base. Não substitui pesquisa, apuração nem escrita editorial.
                   </div>
                 </div>
 
@@ -1634,10 +1475,10 @@ export const BookCreatorTab: React.FC = () => {
                   }}
                 >
                   <div style={{ fontWeight: 700, fontSize: '13px', color: '#f8fafc', marginBottom: '3px' }}>
-                    🦙 Ollama Local (No seu PC)
+                    🦙 Modelo local via Ollama
                   </div>
                   <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.4 }}>
-                    Executa via Ollama na porta 11434 com modelos locais (Llama 3.1, Mistral, etc.).
+                    O prompt permanece no serviço local do computador. A qualidade depende do modelo instalado e requer revisão.
                   </div>
                 </div>
 
@@ -1652,10 +1493,10 @@ export const BookCreatorTab: React.FC = () => {
                   }}
                 >
                   <div style={{ fontWeight: 700, fontSize: '13px', color: '#f8fafc', marginBottom: '3px' }}>
-                    🌐 Nuvem / API Externa
+                    🌐 Provedor externo
                   </div>
                   <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.4 }}>
-                    Utiliza OpenAI (GPT-4o), Anthropic Claude ou OpenRouter configurados.
+                    Envia o conteúdo necessário ao provedor configurado. Consulte os termos e a política de dados desse serviço.
                   </div>
                 </div>
               </div>
@@ -1782,23 +1623,6 @@ export const BookCreatorTab: React.FC = () => {
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
-                onClick={handleWriteAllChapters}
-                disabled={isGenerating}
-                style={{
-                  background: '#8b5cf6',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px 14px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                {isGenerating ? '⏳ Redigindo Obra...' : '🚀 Escrever Todos os Capítulos'}
-              </button>
-
-              <button
                 onClick={handleDownloadZipPackage}
                 style={{
                   background: '#10b981',
@@ -1839,17 +1663,18 @@ export const BookCreatorTab: React.FC = () => {
           {/* ESTEIRA DE TAREFAS LINEAR KDP (WORKFLOW STEPPER)                          */}
           {/* ========================================================================= */}
           {(() => {
+            const completion = getEditorialStepCompletion(activeProject);
             const workflowSteps: { id: SubTabType; stepIndex: number; label: string; icon: string; check: boolean }[] = [
-              { id: 'tree', stepIndex: 0, label: 'Esteira Editorial', icon: '🌳', check: activeProject.pipelineStage === 'completed' },
-              { id: 'concept', stepIndex: 1, label: '1. Título & Conceito', icon: '🎯', check: Boolean(activeProject.kdpConcept?.title) },
-              { id: 'outline', stepIndex: 2, label: '2. Sumário', icon: '📐', check: Boolean(activeProject.kdpChapters && activeProject.kdpChapters.length > 0) },
-              { id: 'bible', stepIndex: 3, label: '3. Bíblia da Obra', icon: '🧠', check: Boolean(activeProject.kdpBible && (activeProject.kdpBible.coreConcepts?.length || activeProject.kdpBible.characters?.length)) },
-              { id: 'editorial', stepIndex: 4, label: '4. Preliminares', icon: '📝', check: Boolean(activeProject.editorialElements?.introduction || activeProject.editorialElements?.preface) },
-              { id: 'cover', stepIndex: 5, label: '5. Capa KDP', icon: '🎨', check: Boolean(activeProject.kdpCoverDesign?.geometry || activeProject.kdpCoverDesign?.frontCoverUrl) },
-              { id: 'writer', stepIndex: 6, label: '6. Escrita do Livro', icon: '✍️', check: (activeProject.kdpChapters?.reduce((s, c) => s + (c.wordCount || 0), 0) || 0) >= 1500 },
-              { id: 'quality', stepIndex: 7, label: '7. Auditoria KDP', icon: '🛡️', check: Boolean(activeProject.kdpQualityReport?.overallScore) },
-              { id: 'metadata', stepIndex: 8, label: '8. Metadados', icon: '🏷️', check: Boolean(activeProject.kdpMetadata?.keywords?.length) },
-              { id: 'export', stepIndex: 9, label: '9. Compilação', icon: '📦', check: activeProject.status === 'CONCLUÍDO' || activeProject.status === 'PUBLICADO' }
+              { id: 'tree', stepIndex: 0, label: 'Visão geral', icon: '☷', check: false },
+              { id: 'concept', stepIndex: 1, label: '1. Conceito', icon: '1', check: completion[0] },
+              { id: 'bible', stepIndex: 2, label: '2. Referências da obra', icon: '2', check: completion[1] },
+              { id: 'outline', stepIndex: 3, label: '3. Sumário', icon: '3', check: completion[2] },
+              { id: 'editorial', stepIndex: 4, label: '4. Elementos editoriais', icon: '4', check: completion[3] && completion[7] },
+              { id: 'cover', stepIndex: 5, label: '5. Capa', icon: '5', check: completion[4] },
+              { id: 'writer', stepIndex: 6, label: '6. Manuscrito', icon: '6', check: completion[5] && completion[6] },
+              { id: 'quality', stepIndex: 9, label: '9. Revisão', icon: '9', check: completion[8] },
+              { id: 'metadata', stepIndex: 10, label: '10. Metadados', icon: '10', check: completion[9] },
+              { id: 'export', stepIndex: 11, label: '11. Exportação', icon: '11', check: completion[10] }
             ];
 
             const currentIndex = workflowSteps.findIndex(s => s.id === activeSubTab);
@@ -1933,7 +1758,7 @@ export const BookCreatorTab: React.FC = () => {
                       borderRadius: '4px',
                       textTransform: 'uppercase'
                     }}>
-                      Etapa {currentIndex + 1} de {workflowSteps.length}
+                      {currentStep.id === 'tree' ? 'Resumo' : `Etapa ${currentStep.stepIndex} de 11`}
                     </span>
                     <span>
                       Você está em: <strong style={{ color: '#ffffff' }}>{currentStep.label}</strong>
@@ -1982,7 +1807,7 @@ export const BookCreatorTab: React.FC = () => {
           })()}
 
           {/* ========================================================================= */}
-          {/* SUB-ABA 0: ÁRVORE EDITORIAL BEST-SELLER COM CHECKS (PASSO A PASSO)        */}
+          {/* SUB-ABA 0: fluxo editorial passo a passo */}
           {/* ========================================================================= */}
           {activeSubTab === 'tree' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1999,7 +1824,7 @@ export const BookCreatorTab: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                       <span style={{ fontSize: '24px' }}>🌳</span>
                       <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                        Árvore Editorial do Livro (Best-Seller Workflow)
+                        Fluxo editorial
                       </h3>
                       <span style={{
                         fontSize: '11px',
@@ -2010,62 +1835,32 @@ export const BookCreatorTab: React.FC = () => {
                         borderRadius: '12px',
                         border: '1px solid #4338ca'
                       }}>
-                        KDP Best-Seller Edition
+                        Etapas do projeto
                       </span>
                     </div>
                     <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: 1.6 }}>
-                      Esteira completa de publicação inspirada nas maiores editoras comerciais. Cada nó representa uma etapa canônica: execute passo a passo, visualize o checkmark verde (✓) em cada estágio e refine o conteúdo a qualquer momento.
+                      Acompanhe as etapas do projeto, revise cada resultado e atualize o conteúdo antes da exportação.
                     </p>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={executeFullTreeStepByStep}
-                      disabled={isGenerating}
-                      style={{
-                        background: isGenerating ? '#475569' : 'linear-gradient(135deg, #2563eb, #7c3aed)',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '12px 22px',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        cursor: isGenerating ? 'not-allowed' : 'pointer',
-                        boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {isGenerating ? `⏳ Executando Passo ${treeRunningStep || '...'}...` : '🚀 Executar Toda a Árvore Editorial (Passo a Passo com Checks)'}
-                    </button>
-                  </div>
+                </div>
+
+                <div style={{ marginTop: '16px', padding: '12px 14px', border: '1px solid #334155', borderRadius: '8px', background: 'rgba(2, 6, 23, 0.45)', color: '#cbd5e1', fontSize: '12px', lineHeight: 1.6 }}>
+                  Cada ação cria um rascunho para uma parte específica. Revise e edite antes de avançar. O sistema não confirma fatos, fontes, originalidade nem aprovação do KDP; confira esses pontos por conta própria.
                 </div>
 
                 {/* Barra de Progresso Global */}
                 <div style={{ marginTop: '20px' }}>
                   {(() => {
-                    const completedCount = [
-                      Boolean(activeProject.kdpConcept?.title),
-                      Boolean(activeProject.kdpBible && (activeProject.kdpBible.characters?.length || activeProject.kdpBible.coreConcepts?.length)),
-                      Boolean(activeProject.kdpChapters && activeProject.kdpChapters.length > 0),
-                      Boolean(activeProject.editorialElements?.preface || activeProject.editorialElements?.introduction),
-                      Boolean(activeProject.kdpCoverDesign?.geometry),
-                      Boolean(activeProject.kdpChapters?.[0]?.prose && (activeProject.kdpChapters[0].wordCount || 0) >= 800),
-                      Boolean(activeProject.kdpChapters && activeProject.kdpChapters.length > 1 && activeProject.kdpChapters.slice(1).every(c => c.prose && (c.wordCount || 0) >= 800)),
-                      Boolean(activeProject.editorialElements?.conclusion && (activeProject.editorialElements?.appendices?.length || activeProject.editorialElements?.references?.length)),
-                      Boolean(activeProject.kdpEditorReport?.score && activeProject.kdpQualityReport),
-                      Boolean(activeProject.pipelineStage === 'completed' || activeProject.status === 'CONCLUÍDO')
-                    ].filter(Boolean).length;
-                    const percent = Math.round((completedCount / 10) * 100);
+                    const completedCount = getEditorialStepCompletion(activeProject).filter(Boolean).length;
+                    const percent = Math.round((completedCount / 11) * 100);
 
                     return (
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#e2e8f0' }}>
-                            Progresso da Esteira Editorial: {completedCount} de 10 etapas concluídas
-                          </span>
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: '#e2e8f0' }}>
+                                  {completedCount} de 11 etapas com conteúdo disponível
+                                </span>
                           <span style={{ fontSize: '12px', fontWeight: 800, color: percent === 100 ? '#34d399' : '#38bdf8' }}>
                             {percent}%
                           </span>
@@ -2077,6 +1872,9 @@ export const BookCreatorTab: React.FC = () => {
                             background: percent === 100 ? 'linear-gradient(90deg, #10b981, #059669)' : 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
                             transition: 'width 0.4s ease'
                           }} />
+                        </div>
+                        <div style={{ marginTop: '7px', color: '#94a3b8', fontSize: '11px' }}>
+                          A barra mede a presença de rascunhos salvos; não mede revisão, apuração de fatos nem aprovação para publicação.
                         </div>
                       </div>
                     );
@@ -2090,9 +1888,9 @@ export const BookCreatorTab: React.FC = () => {
                   {
                     step: 1,
                     icon: '🎯',
-                    title: '1. Conceito, Título Magnético & Subtítulo',
-                    desc: 'Definição do título de alto impacto comercial, subtítulo magnético, promessa central de transformação e nicho editorial KDP.',
-                    isDone: Boolean(activeProject.kdpConcept?.title),
+                    title: '1. Ideia e conceito',
+                    desc: 'Organize a proposta, público e promessa do livro. A IA pode sugerir opções; escolha e ajuste o que representa sua intenção.',
+                    isDone: getEditorialStepCompletion(activeProject)[0],
                     preview: activeProject.kdpConcept?.title 
                       ? `Título: "${activeProject.kdpConcept.title}" • Subtítulo: "${activeProject.kdpConcept.subtitle || ''}" • Promessa: "${activeProject.kdpConcept.promise}"`
                       : 'Aguardando definição do conceito editorial e promessa de transformação.',
@@ -2101,20 +1899,20 @@ export const BookCreatorTab: React.FC = () => {
                   {
                     step: 2,
                     icon: '📜',
-                    title: '2. Bíblia da Obra & Cânone Editorial',
-                    desc: 'Cânone de personagens e avatares, tom de voz, regras invioláveis do universo e guia estilístico para escrita.',
-                    isDone: Boolean(activeProject.kdpBible && (activeProject.kdpBible.characters?.length || activeProject.kdpBible.coreConcepts?.length)),
+                    title: '2. Guia de conteúdo da obra',
+                    desc: 'Registre conceitos, personagens e tom de voz para manter consistência. Para não ficção, anote também as alegações que exigem fonte.',
+                    isDone: getEditorialStepCompletion(activeProject)[1],
                     preview: activeProject.kdpBible 
-                      ? `${activeProject.kdpBible.characters?.length || 0} personagens/avatares definidos • ${activeProject.kdpBible.coreConcepts?.length || 0} conceitos centrais • Tom: "${activeProject.kdpBible.styleGuide?.tone || activeProject.kdpConcept?.tone || 'Autoritativo'}"`
-                      : 'Cânone da obra e perfis arquetípicos pendentes.',
+                      ? `${activeProject.kdpBible.characters?.length || 0} personagens e ${activeProject.kdpBible.coreConcepts?.length || 0} conceitos registrados. Verifique nomes, dados e afirmações.`
+                      : 'Guia ainda não criado.',
                     tab: 'bible' as const
                   },
                   {
                     step: 3,
                     icon: '📑',
-                    title: '3. Sumário & Arquitetura de Capítulos (Outline)',
-                    desc: 'Estrutura detalhada de capítulos, objetivos didáticos, metas de palavras e ganchos de curiosidade entre capítulos.',
-                    isDone: Boolean(activeProject.kdpChapters && activeProject.kdpChapters.length > 0),
+                    title: '3. Sumário e plano de capítulos',
+                    desc: 'Defina a sequência, os objetivos e os tópicos de cada capítulo antes de redigir.',
+                    isDone: getEditorialStepCompletion(activeProject)[2],
                     preview: activeProject.kdpChapters?.length 
                       ? `${activeProject.kdpChapters.length} capítulos planejados com metas de palavras (~${(activeProject.kdpChapters.reduce((s, c) => s + (c.targetWordCount || 0), 0)).toLocaleString()} palavras)`
                       : 'Sumário estruturado e planejamento de capítulos pendente.',
@@ -2123,78 +1921,89 @@ export const BookCreatorTab: React.FC = () => {
                   {
                     step: 4,
                     icon: '📖',
-                    title: '4. Páginas Preliminares & Prefácio de Autoridade',
-                    desc: 'Folha de Rosto, Aviso Legal e Direitos Autorais KDP, Dedicatória, Epígrafe, Prefácio de autoridade e Introdução transformadora.',
-                    isDone: Boolean(activeProject.editorialElements?.preface || activeProject.editorialElements?.introduction),
-                    preview: activeProject.editorialElements?.preface 
-                      ? `Folha de Rosto, Copyright KDP, Prefácio e Introdução prontos para diagramação.`
-                      : 'Páginas preliminares e prefácio de abertura pendentes.',
+                    title: '4. Páginas iniciais',
+                    desc: 'Prepare folha de rosto e aviso de direitos. Confira cuidadosamente titularidade, licença e qualquer declaração legal.',
+                    isDone: getEditorialStepCompletion(activeProject)[3],
+                    preview: activeProject.editorialElements?.titlePage?.title
+                      ? 'Páginas iniciais registradas. Confirme autoria, avisos legais e direitos antes de usar.'
+                      : 'Páginas iniciais ainda não criadas.',
                     tab: 'editorial' as const
                   },
                   {
                     step: 5,
                     icon: '🎨',
-                    title: '5. Estúdio de Capa & Geometria KDP',
-                    desc: 'Capa frontal cinematográfica, cálculo milimétrico da lombada KDP (para impressão física) e texto de contracapa (blurbs e bullets).',
-                    isDone: Boolean(activeProject.kdpCoverDesign?.geometry),
-                    preview: activeProject.kdpCoverDesign?.geometry 
-                      ? `Lombada: ${(activeProject.kdpCoverDesign.geometry.spineWidthInches * 25.4).toFixed(1)}mm (${activeProject.kdpCoverDesign.geometry.spineWidthInches}") • Contracapa persuasiva e geometria KDP calculada.`
-                      : 'Geometria de capa e prompts de arte pendentes.',
+                    title: '5. Capa e especificações',
+                    desc: 'Crie a direção visual e confira formato e dimensões. Verifique licenças de imagens e as especificações atuais do KDP.',
+                    isDone: getEditorialStepCompletion(activeProject)[4],
+                    preview: activeProject.kdpCoverDesign?.geometry
+                      ? `Dimensão de lombada calculada: ${(activeProject.kdpCoverDesign.geometry.spineWidthInches * 25.4).toFixed(1)} mm. Confira no Previewer do KDP.`
+                      : 'Especificações da capa ainda não criadas.',
                     tab: 'cover' as const
                   },
                   {
                     step: 6,
                     icon: '⚡',
-                    title: '6. Capítulo 1: O Gancho de Best-Seller',
-                    desc: 'Abertura magnética de alta tensão, incidente incitante, quebra de paradigma contraintuitivo nas 3 primeiras linhas e retenção brutal.',
-                    isDone: Boolean(activeProject.kdpChapters?.[0]?.prose && (activeProject.kdpChapters[0].wordCount || 0) >= 800),
+                    title: '6. Rascunho do capítulo 1',
+                    desc: 'Gere ou escreva a primeira parte. Confira voz, clareza, exemplos, citações e adequação ao leitor.',
+                    isDone: getEditorialStepCompletion(activeProject)[5],
                     preview: activeProject.kdpChapters?.[0]?.prose 
-                      ? `Capítulo 1 redigido (${activeProject.kdpChapters[0].wordCount || 0} palavras) com abertura de alta tensão e gancho de best-seller.`
-                      : 'Abertura eletrizante e redação do Capítulo 1 pendente.',
+                      ? `Capítulo 1 redigido (${activeProject.kdpChapters[0].wordCount || 0} palavras). Revise o ritmo e a adequação ao público.`
+                      : 'Capítulo 1 ainda não tem rascunho.',
                     tab: 'writer' as const
                   },
                   {
                     step: 7,
                     icon: '📚',
-                    title: '7. Corpo da Obra: Demais Capítulos (2 a N)',
-                    desc: 'Redação aprofundada de todos os capítulos subsequentes com continuidade holística, estudos de caso e exercícios práticos.',
-                    isDone: Boolean(activeProject.kdpChapters && activeProject.kdpChapters.length > 1 && activeProject.kdpChapters.slice(1).every(c => c.prose && (c.wordCount || 0) >= 800)),
-                    preview: activeProject.kdpChapters && activeProject.kdpChapters.length > 1 
-                      ? `${activeProject.kdpChapters.slice(1).filter(c => c.prose && (c.wordCount || 0) >= 800).length} de ${activeProject.kdpChapters.length - 1} capítulos restantes redigidos com alta densidade.`
-                      : 'Desenvolvimento e redação dos demais capítulos pendente.',
+                    title: '7. Demais capítulos',
+                    desc: 'Trabalhe nos capítulos restantes individualmente e mantenha o progresso visível; revise cada rascunho antes de usá-lo.',
+                    isDone: getEditorialStepCompletion(activeProject)[6],
+                    preview: activeProject.kdpChapters && activeProject.kdpChapters.length > 1
+                      ? `${activeProject.kdpChapters.slice(1).filter(chapter => chapter.prose?.trim()).length} de ${activeProject.kdpChapters.length - 1} capítulos têm rascunho. A ação gera apenas o próximo capítulo pendente.`
+                      : 'Crie o sumário antes de redigir os demais capítulos.',
                     tab: 'writer' as const
                   },
                   {
                     step: 8,
                     icon: '💡',
-                    title: '8. Conclusão, Apêndices Práticos & Referências',
-                    desc: 'Conclusão mobilizadora, roteiro de ação prática, apêndices com checklists, glossário de termos e bibliografia verificada.',
-                    isDone: Boolean(activeProject.editorialElements?.conclusion && (activeProject.editorialElements?.appendices?.length || activeProject.editorialElements?.references?.length)),
-                    preview: activeProject.editorialElements?.conclusion 
-                      ? `Conclusão inspiradora • ${activeProject.editorialElements.appendices?.length || 0} apêndices práticos • ${activeProject.editorialElements.references?.length || 0} referências bibliográficas.`
-                      : 'Conclusão acionável, apêndices e bibliografia pendentes.',
+                    title: '8. Conclusão e material complementar',
+                    desc: 'Redija o fechamento. Inclua referências apenas quando puder conferir que existem e apoiam as afirmações citadas.',
+                    isDone: getEditorialStepCompletion(activeProject)[7],
+                    preview: activeProject.editorialElements?.conclusion
+                      ? `Conclusão disponível • ${activeProject.editorialElements.appendices?.length || 0} apêndices • ${activeProject.editorialElements.references?.length || 0} referências (não verificadas automaticamente).`
+                      : 'Conclusão ainda não criada.',
                     tab: 'editorial' as const
                   },
                   {
                     step: 9,
                     icon: '🔍',
-                    title: '9. Auditoria Editorial & Quality Gate KDP',
-                    desc: 'Leitura crítica profunda do editor-chefe (score de 1 a 100), checagem de consistência interna e validação técnica dos requisitos da Amazon KDP.',
-                    isDone: Boolean(activeProject.kdpEditorReport?.score && activeProject.kdpQualityReport),
-                    preview: activeProject.kdpEditorReport?.score 
-                      ? `Score Editorial: ${activeProject.kdpEditorReport.score}/100 • Parecer do Editor-Chefe aprovado • Quality Gate KDP: ${activeProject.kdpQualityReport?.passed ? '✓ APROVADO' : 'PENDENTE'}`
-                      : 'Auditoria técnica de publicação e leitura crítica pendente.',
+                    title: '9. Revisão editorial e checklist',
+                    desc: 'Use o relatório como auxílio, não como certificação. Revise manualmente texto, fontes, direitos, acessibilidade e arquivos no Previewer do KDP.',
+                    isDone: getEditorialStepCompletion(activeProject)[8],
+                    preview: activeProject.kdpEditorReport
+                      ? `Relatório disponível (nota indicativa: ${activeProject.kdpEditorReport.score}/100). Não é certificação nem detector de plágio.`
+                      : 'Relatório de revisão ainda não gerado.',
                     tab: 'quality' as const
                   },
                   {
                     step: 10,
                     icon: '🚀',
-                    title: '10. Compilação Final KDP (EPUB, PDF, Metadados & .ZIP)',
-                    desc: 'Geração dos arquivos finais diagramados para Kindle e Capa Comum, 7 palavras-chave e categorias oficiais para publicação.',
-                    isDone: Boolean(activeProject.pipelineStage === 'completed' || activeProject.status === 'CONCLUÍDO'),
-                    preview: activeProject.pipelineStage === 'completed' || activeProject.status === 'CONCLUÍDO' 
-                      ? `Metadados e 7 keywords KDP prontos • Pacote .ZIP completo disponível para publicação imediata na Amazon KDP.`
-                      : 'Compilação e pacote definitivo para publicação pendente.',
+                    title: '10. Metadados',
+                    desc: 'Revise título, descrição, categorias e palavras-chave. Confirme direitos e evite alegações comerciais sem comprovação.',
+                    isDone: getEditorialStepCompletion(activeProject)[9],
+                    preview: activeProject.kdpMetadata?.keywords7?.length
+                      ? `${activeProject.kdpMetadata.keywords7.length} palavras-chave cadastradas. Confira se são relevantes, permitidas e verdadeiras.`
+                      : 'Descrição e palavras-chave ainda precisam ser preparadas.',
+                    tab: 'metadata' as const
+                  },
+                  {
+                    step: 11,
+                    icon: '📦',
+                    title: '11. Exportar arquivos',
+                    desc: 'Gere o pacote para conferência. A exportação não significa aprovação da Amazon; valide cada arquivo no Previewer do KDP.',
+                    isDone: getEditorialStepCompletion(activeProject)[10],
+                    preview: activeProject.kdpPackageGeneratedAt
+                      ? `Pacote exportado em ${new Date(activeProject.kdpPackageGeneratedAt).toLocaleString()}. Faça a validação final antes de enviar.`
+                      : 'Pacote ainda não exportado.',
                     tab: 'export' as const
                   }
                 ].map((item) => {
@@ -2248,7 +2057,7 @@ export const BookCreatorTab: React.FC = () => {
                                   alignItems: 'center',
                                   gap: '4px'
                                 }}>
-                                  ✓ CONCLUÍDO
+                                  RASCUNHO DISPONÍVEL · REVISAR
                                 </span>
                               )}
                               {isCurrent && (
@@ -2273,7 +2082,7 @@ export const BookCreatorTab: React.FC = () => {
                                   padding: '2px 8px',
                                   borderRadius: '6px'
                                 }}>
-                                  ○ PENDENTE
+                                  PENDENTE
                                 </span>
                               )}
                             </div>
@@ -2296,8 +2105,8 @@ export const BookCreatorTab: React.FC = () => {
 
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                           <button
-                            onClick={() => handleRunSingleStep(item.step)}
-                            disabled={isGenerating}
+                            onClick={() => item.step === 11 ? handleDownloadZipPackage() : handleRunSingleStep(item.step)}
+                            disabled={isGenerating || (item.step === 7 && item.isDone)}
                             style={{
                               background: item.isDone ? '#1e293b' : '#2563eb',
                               color: '#ffffff',
@@ -2312,7 +2121,7 @@ export const BookCreatorTab: React.FC = () => {
                               gap: '6px'
                             }}
                           >
-                            {isCurrent ? '⏳ Executando...' : item.isDone ? '🔄 Regerar Passo' : '⚡ Executar Passo'}
+                            {isCurrent ? 'Executando…' : item.step === 7 ? 'Gerar próximo capítulo' : item.step === 11 ? (item.isDone ? 'Exportar novamente' : 'Exportar pacote') : item.isDone ? 'Gerar novamente' : 'Gerar rascunho'}
                           </button>
 
                           <button
@@ -2362,7 +2171,7 @@ export const BookCreatorTab: React.FC = () => {
                   gap: '4px'
                 }}>
                   {pipelineLogs.length === 0 ? (
-                    <span style={{ color: '#475569', fontStyle: 'italic' }}>Nenhum log registrado ainda. Clique em "Executar Passo" ou no botão mestre para iniciar.</span>
+                    <span style={{ color: '#475569', fontStyle: 'italic' }}>Nenhum registro ainda. Escolha uma etapa para gerar um rascunho.</span>
                   ) : (
                     pipelineLogs.map((log, i) => (
                       <span key={i} style={{ color: log.includes('❌') ? '#f87171' : log.includes('✓') ? '#34d399' : '#94a3b8' }}>
@@ -2488,7 +2297,7 @@ export const BookCreatorTab: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={executeFullTreeStepByStep}
+                  onClick={() => handleRunSingleStep(3)}
                   disabled={isGenerating}
                   style={{
                     background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
@@ -2504,7 +2313,7 @@ export const BookCreatorTab: React.FC = () => {
                     gap: '6px'
                   }}
                 >
-                  {isGenerating ? '⏳ Escrevendo e Auditando...' : '✓ [APROVAR ESTRUTURA E AVANÇAR NA ÁRVORE EDITORIAL]'}
+                  {isGenerating ? 'Gerando sumário…' : 'Gerar rascunho do sumário'}
                 </button>
               </div>
 
@@ -2871,7 +2680,7 @@ export const BookCreatorTab: React.FC = () => {
                 <div>
                   <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#38bdf8' }}>Créditos e Copyright:</h4>
                   <p style={{ background: '#1e293b', padding: '14px', borderRadius: '6px', fontSize: '12px', lineHeight: 1.6, color: '#cbd5e1', whiteSpace: 'pre-wrap' }}>
-                    {activeProject.editorialElements?.copyrightNotice || `© ${new Date().getFullYear()} ${activeProject.author}. Todos os direitos reservados.`}
+                    {activeProject.editorialElements?.copyrightNotice || 'Aviso de direitos autorais pendente. Confirme titularidade, permissões e requisitos legais antes de publicar.'}
                   </p>
                 </div>
               </div>
@@ -3037,9 +2846,9 @@ export const BookCreatorTab: React.FC = () => {
                       <div style={{ borderTop: '1px solid #1e293b', paddingTop: '12px' }}>
                         <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>DESTAQUES:</div>
                         <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '10px', color: '#94a3b8', lineHeight: 1.5 }}>
-                          <li>Pesquisa aprofundada e dados verificados</li>
-                          <li>Narrativa de alta retenção e imersão</li>
-                          <li>Edição preparada para Amazon Kindle & Print</li>
+                          <li>Descrição sugerida; revise as afirmações</li>
+                          <li>Confira direitos de texto e imagem</li>
+                          <li>Valide dimensões no Previewer do KDP</li>
                         </ul>
                       </div>
                     </div>
@@ -3058,13 +2867,8 @@ export const BookCreatorTab: React.FC = () => {
                       marginTop: '20px',
                       border: '1px solid #cbd5e1'
                     }}>
-                      <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', height: '36px', width: '100%', justifyContent: 'center' }}>
-                        {[3, 1, 2, 4, 1, 3, 2, 1, 4, 2, 1, 3, 2, 4, 1, 2].map((h, i) => (
-                          <span key={i} style={{ width: `${h}px`, height: '100%', background: '#000000' }}></span>
-                        ))}
-                      </div>
                       <div style={{ fontSize: '7px', color: '#64748b', fontWeight: 700, marginTop: '2px' }}>
-                        KDP BARCODE SAFE ZONE
+                        Área reservada para código oficial do KDP
                       </div>
                     </div>
                   </div>
@@ -3120,7 +2924,7 @@ export const BookCreatorTab: React.FC = () => {
                       : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
                     border: '1px solid #334155'
                   }}>
-                    {/* Selo Best-Seller */}
+                    {/* Identificação da prévia; não representa classificação de vendas. */}
                     <div style={{
                       alignSelf: 'flex-start',
                       background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
@@ -3132,7 +2936,7 @@ export const BookCreatorTab: React.FC = () => {
                       boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
                       letterSpacing: '0.5px'
                     }}>
-                      ★ BEST-SELLER KDP
+                      PRÉVIA DE CAPA
                     </div>
 
                     {/* Caixa de Título e Subtítulo */}
@@ -3242,13 +3046,13 @@ export const BookCreatorTab: React.FC = () => {
                   </h3>
                   <div style={{ fontSize: '12px', color: '#94a3b8' }}>
                     Status: <strong style={{ color: activeProject.kdpQualityReport?.isReadyForKdp ? '#10b981' : '#f59e0b' }}>
-                      {activeProject.kdpQualityReport?.isReadyForKdp ? '✓ PRONTO PARA ENVIO AO AMAZON KDP' : '⚠️ REVISÃO NECESSÁRIA'}
+                      {activeProject.kdpQualityReport?.isReadyForKdp ? '✓ CHECKLIST CONCLUÍDO · REVISE NO PREVIEWER DO KDP' : '⚠️ REVISÃO NECESSÁRIA'}
                     </strong>
                   </div>
                 </div>
 
-                <div style={{ fontSize: '28px', fontWeight: 800, color: (activeProject.kdpQualityReport?.overallScore || 90) >= 80 ? '#10b981' : '#f59e0b' }}>
-                  {activeProject.kdpQualityReport?.overallScore || 95} / 100
+                <div style={{ fontSize: '28px', fontWeight: 800, color: (activeProject.kdpQualityReport?.overallScore ?? 0) >= 80 ? '#10b981' : '#f59e0b' }}>
+                  {activeProject.kdpQualityReport ? `${activeProject.kdpQualityReport.overallScore} / 100` : '—'}
                 </div>
               </div>
 

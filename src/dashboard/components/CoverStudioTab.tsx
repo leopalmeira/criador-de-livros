@@ -2,71 +2,136 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../database/local-database';
 import { BookProject, TrimSize, PaperType } from '../../types/book-project';
 import { jsPDF } from 'jspdf';
-import { LocalAiEngine } from '../../services/local-ai-engine';
+import { 
+  ImageGenerationService, 
+  ART_STYLE_PRESETS, 
+  ArtStyleOption 
+} from '../../services/image-generation-service';
+import { 
+  Sparkles, 
+  RefreshCw, 
+  Download, 
+  Save, 
+  Layers, 
+  Eye, 
+  Sliders, 
+  Wand2, 
+  Check, 
+  ExternalLink,
+  BookOpen
+} from 'lucide-react';
 
 interface CoverStudioProps {
   initialProjectId?: string;
   onOpenBookCreator?: (projectId: string) => void;
 }
 
-const TRIM_DIMENSIONS: Record<TrimSize, { widthInches: number; heightInches: number; label: string }> = {
+const TRIM_DIMENSIONS: Record<string, { widthInches: number; heightInches: number; label: string }> = {
   '5x8': { widthInches: 5.0, heightInches: 8.0, label: '5" x 8" (Compacto / Literatura)' },
+  '5.25x8': { widthInches: 5.25, heightInches: 8.0, label: '5.25" x 8" (Pocket Premium)' },
   '5.5x8.5': { widthInches: 5.5, heightInches: 8.5, label: '5.5" x 8.5" (Trade Paperback)' },
   '6x9': { widthInches: 6.0, heightInches: 9.0, label: '6" x 9" (Padrão KDP Mais Vendido)' },
   '7x10': { widthInches: 7.0, heightInches: 10.0, label: '7" x 10" (Didático / Guias Técnicos)' },
+  '7.5x9.25': { widthInches: 7.5, heightInches: 9.25, label: '7.5" x 9.25" (Manual / Compêndio)' },
+  '8x10': { widthInches: 8.0, heightInches: 10.0, label: '8" x 10" (Livro Ilustrado Grande)' },
+  '8.5x8.5': { widthInches: 8.5, heightInches: 8.5, label: '8.5" x 8.5" (Quadrado / Infantil)' },
   '8.5x11': { widthInches: 8.5, heightInches: 11.0, label: '8.5" x 11" (Workbook / Apostilas)' },
+  'custom': { widthInches: 6.0, heightInches: 9.0, label: 'Personalizado' },
   'kindle-ebook': { widthInches: 5.33, heightInches: 8.53, label: 'Kindle eBook (1600 x 2560 px)' }
 };
 
-const COVER_STYLES = [
-  { id: 'dark-luxury', name: 'Dark & Dourado (Best-Seller)', bg: 'linear-gradient(135deg, #090a0f 0%, #171b26 100%)', textColor: '#f8fafc', accentColor: '#fbbf24', font: 'Cinzel, Georgia, serif' },
-  { id: 'business-navy', name: 'Executivo & Navy Blue', bg: 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e3a8a 100%)', textColor: '#ffffff', accentColor: '#38bdf8', font: 'Montserrat, sans-serif' },
-  { id: 'minimalist-clean', name: 'Minimalista Editorial Clean', bg: '#f8fafc', textColor: '#0f172a', accentColor: '#2563eb', font: 'Inter, sans-serif' },
-  { id: 'epic-fantasy', name: 'Fantasia & Mistério Escuro', bg: 'linear-gradient(135deg, #180928 0%, #2e1065 50%, #030712 100%)', textColor: '#f3e8ff', accentColor: '#c084fc', font: 'Cinzel, Georgia, serif' },
-  { id: 'high-tech-neon', name: 'Cyberpunk & Sci-Fi Neon', bg: 'linear-gradient(135deg, #020617 0%, #082f49 100%)', textColor: '#e0f2fe', accentColor: '#06b6d4', font: 'Space Grotesk, sans-serif' },
-  { id: 'warm-mindset', name: 'Desenvolvimento Pessoal & Solar', bg: 'linear-gradient(135deg, #451a03 0%, #78350f 50%, #1c1917 100%)', textColor: '#fffbeb', accentColor: '#f59e0b', font: 'Georgia, serif' }
+const TYPOGRAPHY_PRESETS = [
+  { id: 'cinzel', name: 'Cinzel (Nobre & Dramático)', font: "'Cinzel', Georgia, serif" },
+  { id: 'playfair', name: 'Playfair (Editorial Literário)', font: "'Playfair Display', Georgia, serif" },
+  { id: 'montserrat', name: 'Montserrat (Best-Seller Moderno)', font: "'Montserrat', sans-serif" },
+  { id: 'garamond', name: 'Garamond (Clássico Refinado)', font: "'Garamond', Georgia, serif" },
+  { id: 'inter', name: 'Inter (Minimalista Tecnológico)', font: "'Inter', sans-serif" }
 ];
+
+async function resolveCoverImageData(source: string): Promise<string> {
+  if (source.startsWith('data:image/')) return source;
+  const response = await fetch(source);
+  if (!response.ok) throw new Error('Não foi possível carregar a imagem da capa.');
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Não foi possível preparar a imagem para exportação.'));
+    reader.readAsDataURL(blob);
+  });
+}
 
 export const CoverStudioTab: React.FC<CoverStudioProps> = ({ initialProjectId, onOpenBookCreator }) => {
   const [projects, setProjects] = useState<BookProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || '');
   
   // Dados da Capa
-  const [title, setTitle] = useState('O PODER DA DISCIPLINA INABALÁVEL');
-  const [subtitle, setSubtitle] = useState('Estratégias Científicas Para Dominar a Sua Mente e Destravar Alta Performance');
-  const [author, setAuthor] = useState('Carlos Eduardo Mendes');
-  const [publisher, setPublisher] = useState('BookIntel Publishing');
-  const [badgeText, setBadgeText] = useState('★ #1 BEST-SELLER INTERNACIONAL ★');
+  const [title, setTitle] = useState('');
+  const [subtitle, setSubtitle] = useState('');
+  const [author, setAuthor] = useState('');
+  const [publisher, setPublisher] = useState('');
+  const [badgeText, setBadgeText] = useState('EDIÇÃO DEFINITIVA');
   const [showBadge, setShowBadge] = useState(true);
   
   // Contracapa & Lombada
-  const [backSynopsis, setBackSynopsis] = useState(
-    'A maioria das pessoas falha não por falta de talento, mas pela incapacidade de sustentar o foco no longo prazo.\n\nNesta obra definitiva, você descobrirá como reprogramar seus gatilhos de procrastinação, criar rotinas inquebráveis e atingir objetivos que pareciam impossíveis.\n\n✓ O segredo neurológico do autofoco\n✓ Como manter o ritmo mesmo sem motivação\n✓ O método passo a passo aplicado por executivos de ponta'
-  );
-  const [authorBio, setAuthorBio] = useState('Carlos Eduardo Mendes é pesquisador em neurociência comportamental e consultor de líderes empresariais em mais de 12 países.');
-  const [isbnCode, setIsbnCode] = useState('978-65-00-12345-6');
+  const [backSynopsis, setBackSynopsis] = useState('');
+  const [authorBio, setAuthorBio] = useState('');
+  const [isbnCode, setIsbnCode] = useState('');
   
   // Parâmetros Técnicos KDP
   const [trimSize, setTrimSize] = useState<TrimSize>('6x9');
   const [paperType, setPaperType] = useState<PaperType>('bw-white');
   const [pageCount, setPageCount] = useState<number>(180);
-  const [selectedStyleId, setSelectedStyleId] = useState<string>('dark-luxury');
+  const [selectedFontId, setSelectedFontId] = useState<string>('cinzel');
+  const [useDarkScrim, setUseDarkScrim] = useState<boolean>(true);
   
-  // Imagem de Fundo / IA
+  // Geração de Imagem Realista com IA (FLUX.1)
+  const [selectedArtStyle, setSelectedArtStyle] = useState<ArtStyleOption>('realistic-photo');
+  const [customArtPrompt, setCustomArtPrompt] = useState<string>('');
   const [coverImageUrl, setCoverImageUrl] = useState<string>('');
-  const [aiPrompt, setAiPrompt] = useState('Dramatic cinematic lighting, golden compass on ancient marble texture, high contrast, elegant photorealistic, 8k resolution');
+  const [aiVariationSeed, setAiVariationSeed] = useState<number>(() => Math.floor(Math.random() * 900000) + 100000);
   const [isGeneratingAiArt, setIsGeneratingAiArt] = useState(false);
+  const [artHistory, setArtHistory] = useState<string[]>([]);
   
   // Modo de Visualização
   const [viewMode, setViewMode] = useState<'wrap' | 'front' | '3d'>('wrap');
   const [isSaving, setIsSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
-  
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 4000);
+  };
+
+  const loadFromProject = (p: BookProject) => {
+    setSelectedProjectId(p.id);
+    setTitle(p.title || 'Título da Obra');
+    setSubtitle(p.subtitle || '');
+    setAuthor(p.author || 'Autor da Obra');
+    setTrimSize(p.trimSize || '6x9');
+    setPaperType(p.paperType || 'bw-white');
+    setPageCount(p.actualPages || p.estimatedPages || 160);
+    
+    setBackSynopsis(p.kdpCoverDesign?.backCoverBlurb || p.kdpConcept?.shortSynopsis || p.description || '');
+    setAuthorBio(p.kdpCoverDesign?.authorBio || '');
+    setIsbnCode(p.kdpCoverDesign?.isbnCode || '');
+    setPublisher(p.kdpCoverDesign?.publisher || 'Publicação Independente');
+    setBadgeText(p.kdpCoverDesign?.badgeText || 'BEST-SELLER KDP');
+    setShowBadge(p.kdpCoverDesign?.showBadge ?? true);
+
+    const savedCoverImage = p.kdpCoverDesign?.frontImageUrl || (p.kdpCoverDesign as any)?.frontCoverUrl;
+    if (savedCoverImage) {
+      setCoverImageUrl(savedCoverImage);
+      if (!artHistory.includes(savedCoverImage)) {
+        setArtHistory(prev => [savedCoverImage, ...prev].slice(0, 8));
+      }
+    } else {
+      // Se não tiver capa salva, inicializa com uma arte realista baseada no tema
+      const autoPrompt = ImageGenerationService.buildCoverPrompt(p, 'realistic-photo', '', 42);
+      const initialUrl = ImageGenerationService.getPollinationsUrl(autoPrompt, 1200, 1800, 42);
+      setCoverImageUrl(initialUrl);
+      setArtHistory([initialUrl]);
+    }
   };
 
   useEffect(() => {
@@ -80,26 +145,6 @@ export const CoverStudioTab: React.FC<CoverStudioProps> = ({ initialProjectId, o
       }
     });
   }, [initialProjectId]);
-
-  const loadFromProject = (p: BookProject) => {
-    setSelectedProjectId(p.id);
-    setTitle(p.title || 'Título da Obra');
-    setSubtitle(p.subtitle || '');
-    setAuthor(p.author || 'Autor da Obra');
-    setTrimSize(p.trimSize || '6x9');
-    setPaperType(p.paperType || 'bw-white');
-    setPageCount(p.actualPages || p.estimatedPages || 160);
-    
-    if (p.kdpConcept?.synopsis) {
-      setBackSynopsis(p.kdpConcept.synopsis);
-    }
-    if (p.kdpCoverDesign?.frontCoverUrl) {
-      setCoverImageUrl(p.kdpCoverDesign.frontCoverUrl);
-    }
-    if (p.kdpCoverDesign?.spineText) {
-      // mantém
-    }
-  };
 
   const handleProjectSelect = (id: string) => {
     setSelectedProjectId(id);
@@ -116,66 +161,48 @@ export const CoverStudioTab: React.FC<CoverStudioProps> = ({ initialProjectId, o
   const totalCoverWidthInches = (trimCfg.widthInches * 2) + spineWidthInches + 0.25; // 0.125 bleed em cada lado
   const totalCoverHeightInches = trimCfg.heightInches + 0.25; // 0.125 bleed topo e rodapé
 
-  const currentStyle = COVER_STYLES.find(s => s.id === selectedStyleId) || COVER_STYLES[0];
+  const currentFont = TYPOGRAPHY_PRESETS.find(f => f.id === selectedFontId) || TYPOGRAPHY_PRESETS[0];
 
-  // Gera arte de fundo com IA
-  const handleGenerateAiCoverArt = async () => {
+  // GERAÇÃO REAL DE ILUSTRAÇÃO/ARTE COM IA (FLUX.1)
+  const handleGenerateRealisticArt = async (customSeed?: number) => {
+    const proj = projects.find(p => p.id === selectedProjectId) || {
+      title,
+      topic: title,
+      kdpBookType: 'non-fiction'
+    } as any;
+
     setIsGeneratingAiArt(true);
+    const nextSeed = customSeed !== undefined ? customSeed : Math.floor(Math.random() * 900000) + 100000;
+    setAiVariationSeed(nextSeed);
+
     try {
-      // Simula / chama motor IA local para gerar arte visual e obter DataURL
-      const canvas = document.createElement('canvas');
-      canvas.width = 1200;
-      canvas.height = 1800;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        // Renderiza arte generativa procedural de altíssima qualidade
-        const grad = ctx.createRadialGradient(600, 700, 50, 600, 900, 1000);
-        if (selectedStyleId === 'dark-luxury') {
-          grad.addColorStop(0, '#1f1b2e');
-          grad.addColorStop(0.5, '#0b0c16');
-          grad.addColorStop(1, '#020307');
-        } else if (selectedStyleId === 'business-navy') {
-          grad.addColorStop(0, '#1e3a8a');
-          grad.addColorStop(0.6, '#0f172a');
-          grad.addColorStop(1, '#020617');
-        } else if (selectedStyleId === 'epic-fantasy') {
-          grad.addColorStop(0, '#581c87');
-          grad.addColorStop(0.5, '#2e1065');
-          grad.addColorStop(1, '#090514');
-        } else {
-          grad.addColorStop(0, '#0284c7');
-          grad.addColorStop(0.7, '#0369a1');
-          grad.addColorStop(1, '#082f49');
-        }
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 1200, 1800);
+      const prompt = ImageGenerationService.buildCoverPrompt(proj, selectedArtStyle, customArtPrompt, nextSeed);
+      const imageUrl = ImageGenerationService.getPollinationsUrl(prompt, 1200, 1800, nextSeed);
+      
+      // Pré-carrega a imagem
+      await new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = resolve;
+        img.onerror = resolve; // fallback gracioso
+        img.src = imageUrl;
+      });
 
-        // Geometria e partículas elegantes
-        ctx.strokeStyle = currentStyle.accentColor;
-        ctx.lineWidth = 3;
-        ctx.globalAlpha = 0.35;
-        for (let i = 0; i < 6; i++) {
-          ctx.beginPath();
-          ctx.arc(600, 750, 120 + i * 65, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-
-        // Linhas ornamentais best-seller
-        ctx.beginPath();
-        ctx.moveTo(350, 1200);
-        ctx.lineTo(850, 1200);
-        ctx.stroke();
-
-        ctx.globalAlpha = 1.0;
-        const dataUrl = canvas.toDataURL('image/png');
-        setCoverImageUrl(dataUrl);
-        showToast('✓ Nova Arte de Capa Gerada com Sucesso!');
-      }
+      setCoverImageUrl(imageUrl);
+      setArtHistory(prev => [imageUrl, ...prev.filter(u => u !== imageUrl)].slice(0, 8));
+      showToast('✓ Nova ilustração realista gerada com sucesso pela IA!');
     } catch (e: any) {
-      alert(`Falha ao gerar imagem: ${e.message}`);
+      showToast(`Falha ao gerar arte: ${e.message}`);
     } finally {
       setIsGeneratingAiArt(false);
     }
+  };
+
+  const handleAutoPrompt = () => {
+    const proj = projects.find(p => p.id === selectedProjectId);
+    const topic = proj?.topic || title || 'Sucesso e Transformação';
+    setCustomArtPrompt(`cinematic hyper-realistic visual concept symbolizing ${topic}, dramatic atmospheric lighting, 8k resolution, award-winning book cover art`);
+    showToast('Prompt de alta conversão gerado para a capa!');
   };
 
   // Salva no projeto selecionado
@@ -190,171 +217,175 @@ export const CoverStudioTab: React.FC<CoverStudioProps> = ({ initialProjectId, o
     setIsSaving(true);
     try {
       proj.kdpCoverDesign = {
-        frontCoverUrl: coverImageUrl || undefined,
-        backCoverText: backSynopsis,
-        spineText: `${title} — ${author}`,
+        frontPrompt: customArtPrompt,
+        backPrompt: backSynopsis,
+        title,
+        subtitle,
+        author,
+        backCoverBlurb: backSynopsis,
         authorBio,
         isbnCode,
+        publisher,
+        badgeText,
+        showBadge,
+        frontImageUrl: coverImageUrl,
         geometry: {
           trimSize,
           pageCount,
           paperType,
-          spineWidthInches,
-          totalWidthInches: totalCoverWidthInches,
-          totalHeightInches: totalCoverHeightInches
+          spineWidthInches: parseFloat(spineWidthInches.toFixed(3)),
+          totalCoverWidthInches: parseFloat(totalCoverWidthInches.toFixed(3)),
+          totalCoverHeightInches: parseFloat(totalCoverHeightInches.toFixed(3)),
+          bleedInches: 0.125,
+          spineText: `${title} — ${author}`
         }
       };
-      proj.updatedAt = Date.now();
+
       await db.saveBookProject(proj);
-      showToast(`✓ Capa salva com sucesso no livro "${proj.title}"!`);
-    } catch (err: any) {
-      alert(`Erro ao salvar: ${err.message}`);
+      setProjects(prev => prev.map(p => p.id === proj.id ? proj : p));
+      showToast('✓ Capa e arte hiper-realista salvas no projeto!');
+    } catch (e: any) {
+      alert(`Erro ao salvar: ${e.message}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const [isOptimizingAi, setIsOptimizingAi] = useState(false);
-
-  // Otimização e Direção de Arte de Capa com IA (Google Gemini com fallback)
-  const handleOptimizeCoverWithAi = async () => {
-    setIsOptimizingAi(true);
-    try {
-      const settings = await db.getSettings();
-      const aiSettings = settings.aiSettings || {
-        provider: 'gemini',
-        apiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || '',
-        fallbackApiKey: (import.meta as any).env?.VITE_GEMINI_FALLBACK_API_KEY || '',
-        model: 'gemini-2.0-flash'
-      };
-      const aiService = new AiService(aiSettings);
-
-      const prompt = `Você é o diretor de arte e copywriter editorial sênior da Amazon KDP.
-Com base no título: "${title}" e subtítulo: "${subtitle}".
-Retorne estritamente um JSON com este formato:
-{
-  "title": "TÍTULO BEST-SELLER EM MAIÚSCULAS",
-  "subtitle": "Subtítulo altamente magnético e comercial de alto impacto",
-  "backSynopsis": "Sinopse de alto impacto de 3 parágrafos para a contracapa com gatilhos mentais e 3 tópicos iniciados por ✓",
-  "aiPrompt": "Prompt em inglês para arte cinematográfica 8k realista de capa",
-  "badgeText": "★ #1 BEST-SELLER NA AMAZON ★"
-}`;
-
-      const res = await aiService.structuredCompletion<any>(
-        'Responda estritamente em formato JSON válido.',
-        prompt,
-        data => Boolean(data && data.title)
-      );
-
-      if (res && res.title) {
-        setTitle(res.title);
-        if (res.subtitle) setSubtitle(res.subtitle);
-        if (res.backSynopsis) setBackSynopsis(res.backSynopsis);
-        if (res.aiPrompt) setAiPrompt(res.aiPrompt);
-        if (res.badgeText) setBadgeText(res.badgeText);
-        showToast('✓ Conceito e Copy da Capa Otimizados com IA!');
-      }
-    } catch (err: any) {
-      console.warn('Fallback na otimização de capa:', err);
-      showToast('Aviso: Otimização concluída com motor de segurança.');
-    } finally {
-      setIsOptimizingAi(false);
-    }
-  };
-
-  // Exporta PNG de Alta Resolução (300 DPI)
-  const handleDownloadPng = () => {
+  // Exporta imagem em alta resolução (300 DPI)
+  const handleDownloadPng = async () => {
+    showToast('Renderizando imagem em alta resolução (300 DPI)...');
     const canvas = document.createElement('canvas');
-    const widthPx = Math.round(totalCoverWidthInches * 300);
-    const heightPx = Math.round(totalCoverHeightInches * 300);
-    canvas.width = widthPx;
-    canvas.height = heightPx;
+    canvas.width = Math.round(totalCoverWidthInches * 300);
+    canvas.height = Math.round(totalCoverHeightInches * 300);
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Fundo
-    ctx.fillStyle = currentStyle.id === 'minimalist-clean' ? '#ffffff' : '#0b0f19';
-    ctx.fillRect(0, 0, widthPx, heightPx);
+    // Fundo escuro base
+    ctx.fillStyle = '#0b0f19';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Divisões da Jaqueta: Back | Spine | Front
-    const trimWidthPx = Math.round(trimCfg.widthInches * 300);
-    const spineWidthPx = Math.round(spineWidthInches * 300);
-    const bleedPx = Math.round(0.125 * 300);
+    const frontX = Math.round((0.125 + trimCfg.widthInches + spineWidthInches) * 300);
+    const frontWidth = Math.round(trimCfg.widthInches * 300);
+    const fullHeight = canvas.height;
 
-    const backX = bleedPx;
-    const spineX = backX + trimWidthPx;
-    const frontX = spineX + spineWidthPx;
+    // Renderiza arte frontal
+    if (coverImageUrl) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = coverImageUrl;
+        });
+        ctx.drawImage(img, frontX, 0, frontWidth, fullHeight);
+      } catch {
+        // mantém fundo sólido
+      }
+    }
 
-    // Renderiza Frente
-    ctx.fillStyle = currentStyle.textColor;
-    ctx.font = `bold 64px ${currentStyle.font}`;
+    // Scrim escuro para legibilidade da tipografia
+    if (useDarkScrim) {
+      const scrimGrad = ctx.createLinearGradient(0, 0, 0, fullHeight);
+      scrimGrad.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
+      scrimGrad.addColorStop(0.35, 'rgba(0, 0, 0, 0.15)');
+      scrimGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.2)');
+      scrimGrad.addColorStop(1, 'rgba(0, 0, 0, 0.85)');
+      ctx.fillStyle = scrimGrad;
+      ctx.fillRect(frontX, 0, frontWidth, fullHeight);
+    }
+
+    // Tipografia Frontal
+    ctx.font = `bold 72px ${currentFont.font}`;
+    ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
-    ctx.fillText(title.substring(0, 45), frontX + (trimWidthPx / 2), 400);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = 20;
+    ctx.fillText(title, frontX + frontWidth / 2, 450, frontWidth - 100);
 
-    ctx.font = '28px sans-serif';
-    ctx.fillStyle = currentStyle.accentColor;
-    ctx.fillText(subtitle.substring(0, 60), frontX + (trimWidthPx / 2), 480);
+    if (subtitle) {
+      ctx.font = '32px Inter, sans-serif';
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(subtitle, frontX + frontWidth / 2, 580, frontWidth - 140);
+    }
 
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillStyle = currentStyle.textColor;
-    ctx.fillText(author, frontX + (trimWidthPx / 2), heightPx - 300);
+    ctx.font = 'bold 44px Inter, sans-serif';
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(author, frontX + frontWidth / 2, fullHeight - 200);
 
-    // Renderiza Lombada
+    // Lombada
+    const spineCenterX = Math.round((0.125 + trimCfg.widthInches + spineWidthInches / 2) * 300);
     ctx.save();
-    ctx.translate(spineX + (spineWidthPx / 2), heightPx / 2);
-    ctx.rotate(Math.PI / 2);
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillStyle = currentStyle.textColor;
-    ctx.textAlign = 'center';
+    ctx.translate(spineCenterX, fullHeight / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.font = 'bold 28px Inter, sans-serif';
+    ctx.fillStyle = '#e2e8f0';
     ctx.fillText(`${title} • ${author}`, 0, 0);
     ctx.restore();
 
-    // Renderiza Contracapa
-    ctx.font = '24px sans-serif';
-    ctx.fillStyle = currentStyle.textColor;
+    // Contracapa
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 32px Inter, sans-serif';
+    ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'left';
+    ctx.fillText('SOBRE A OBRA', 120, 300);
+
+    ctx.font = '26px Inter, sans-serif';
+    ctx.fillStyle = '#cbd5e1';
     const lines = backSynopsis.split('\n');
     lines.forEach((l, idx) => {
-      ctx.fillText(l.substring(0, 50), backX + 80, 400 + (idx * 34));
+      ctx.fillText(l.substring(0, 55), 120, 360 + idx * 40);
     });
 
     const link = document.createElement('a');
-    link.download = `capa-kdp-fullwrap-${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.png`;
+    link.download = `capa-kdp-fullwrap-${title.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'livro'}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
-    showToast('✓ Arquivo PNG 300 DPI baixado com sucesso!');
+    showToast('✓ Arquivo PNG 300 DPI de alta definição baixado!');
   };
 
   // Exporta PDF Full-Wrap Pronto para Impressão KDP
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     try {
+      showToast('Gerando PDF Full-Wrap KDP...');
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'in',
         format: [totalCoverWidthInches, totalCoverHeightInches]
       });
 
-      // Background
-      pdf.setFillColor(currentStyle.id === 'minimalist-clean' ? 255 : 15, currentStyle.id === 'minimalist-clean' ? 255 : 23, currentStyle.id === 'minimalist-clean' ? 255 : 42);
+      pdf.setFillColor(15, 23, 42);
       pdf.rect(0, 0, totalCoverWidthInches, totalCoverHeightInches, 'F');
 
       const frontX = 0.125 + trimCfg.widthInches + spineWidthInches;
+
+      if (coverImageUrl) {
+        try {
+          const imageData = await resolveCoverImageData(coverImageUrl);
+          const imageFormat = imageData.includes('image/png') ? 'PNG' : 'JPEG';
+          pdf.addImage(imageData, imageFormat, frontX, 0, trimCfg.widthInches, totalCoverHeightInches);
+        } catch {
+          // ignora
+        }
+      }
       
-      // Título Frontal
-      pdf.setTextColor(currentStyle.id === 'minimalist-clean' ? 0 : 255, currentStyle.id === 'minimalist-clean' ? 0 : 255, currentStyle.id === 'minimalist-clean' ? 0 : 255);
-      pdf.setFontSize(28);
-      pdf.text(title, frontX + (trimCfg.widthInches / 2), 2.5, { align: 'center', maxWidth: trimCfg.widthInches - 1 });
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(26);
+      pdf.text(title, frontX + (trimCfg.widthInches / 2), 2.8, { align: 'center', maxWidth: trimCfg.widthInches - 1 });
 
-      // Subtítulo Frontal
-      pdf.setFontSize(14);
-      pdf.text(subtitle, frontX + (trimCfg.widthInches / 2), 3.4, { align: 'center', maxWidth: trimCfg.widthInches - 1 });
+      if (subtitle) {
+        pdf.setFontSize(13);
+        pdf.setTextColor(251, 191, 36);
+        pdf.text(subtitle, frontX + (trimCfg.widthInches / 2), 3.8, { align: 'center', maxWidth: trimCfg.widthInches - 1 });
+      }
 
-      // Autor
-      pdf.setFontSize(18);
+      pdf.setTextColor(248, 250, 252);
+      pdf.setFontSize(16);
       pdf.text(author, frontX + (trimCfg.widthInches / 2), trimCfg.heightInches - 1.2, { align: 'center' });
 
       // Contracapa
       pdf.setFontSize(11);
+      pdf.setTextColor(203, 213, 225);
       pdf.text(backSynopsis, 0.125 + 0.6, 2.0, { maxWidth: trimCfg.widthInches - 1.2 });
 
       // Lombada
@@ -362,15 +393,15 @@ Retorne estritamente um JSON com este formato:
       const spineCenterX = 0.125 + trimCfg.widthInches + (spineWidthInches / 2);
       pdf.text(`${title} — ${author}`, spineCenterX, totalCoverHeightInches / 2, { angle: 90, align: 'center' });
 
-      pdf.save(`capa-kdp-impressao-${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`);
-      showToast('✓ PDF Full-Wrap de Impressão KDP gerado com sucesso!');
+      pdf.save(`capa-kdp-${title.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'livro'}.pdf`);
+      showToast('✓ PDF da capa exportado no padrão de impressão KDP!');
     } catch (e: any) {
-      alert(`Falha ao gerar PDF: ${e.message}`);
+      showToast(`Falha ao gerar PDF: ${e.message}`);
     }
   };
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 10px 40px 10px' }}>
+    <div className="cover-studio-container" style={{ maxWidth: '1440px', margin: '0 auto', padding: '0 12px 40px 12px' }}>
       {/* Toast Feedback */}
       {toastMsg && (
         <div style={{
@@ -381,7 +412,7 @@ Retorne estritamente um JSON com este formato:
           color: '#ffffff',
           padding: '12px 20px',
           borderRadius: '8px',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+          boxShadow: '0 6px 20px rgba(0, 0, 0, 0.5)',
           zIndex: 9999,
           fontWeight: 700,
           fontSize: '13px'
@@ -390,127 +421,113 @@ Retorne estritamente um JSON com este formato:
         </div>
       )}
 
-      {/* Header do Estúdio de Capa */}
+      {/* HEADER DO ESTÚDIO DE CAPA */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         background: '#0f172a',
-        border: '1px solid #1e293b',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
         borderRadius: '12px',
-        padding: '20px 24px',
-        marginBottom: '24px',
+        padding: '16px 24px',
+        marginBottom: '20px',
         flexWrap: 'wrap',
-        gap: '16px'
+        gap: '12px'
       }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '28px' }}>🎨</span>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#f8fafc' }}>
-                Estúdio Profissional de Capas KDP (Cover Studio)
-              </h1>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-                Criação de capas comerciais, jaqueta completa (frente, lombada e contracapa), cálculo milimétrico de espessura e mockup 3D.
-              </p>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#ffffff'
+          }}>
+            <BookOpen size={22} />
+          </div>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
+              Estúdio Profissional de Capas KDP com IA Realista
+            </h2>
+            <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+              Geração de artes cinematográficas 8K via FLUX.1 / SDXL, cálculo milimétrico de lombada e exportação 300 DPI.
+            </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
-            onClick={handleOptimizeCoverWithAi}
-            disabled={isOptimizingAi}
+            onClick={handleSaveToProject}
+            disabled={isSaving}
             style={{
-              background: 'linear-gradient(135deg, #4338ca, #6366f1)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '10px 18px',
-              fontSize: '13px',
-              fontWeight: 800,
-              cursor: isOptimizingAi ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
+              background: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '9px 16px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer'
             }}
           >
-            <span>✨</span> {isOptimizingAi ? 'Otimizando com Gemini...' : 'Otimizar Copy & Capa com IA'}
+            <Save size={14} /> {isSaving ? 'Salvando...' : 'Salvar Capa'}
           </button>
-
-          {selectedProjectId && (
-            <button
-              onClick={handleSaveToProject}
-              disabled={isSaving}
-              style={{
-                background: '#2563eb',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '10px 18px',
-                fontSize: '13px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              💾 {isSaving ? 'Salvando...' : 'Salvar no Livro'}
-            </button>
-          )}
 
           <button
             onClick={handleDownloadPng}
             style={{
-              background: '#059669',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '10px 18px',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '6px',
+              background: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '9px 16px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer'
             }}
           >
-            📥 Baixar PNG 300 DPI
+            <Download size={14} /> Baixar PNG 300 DPI
           </button>
 
           <button
             onClick={handleDownloadPdf}
             style={{
-              background: '#7c3aed',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '10px 18px',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '6px',
+              background: '#334155',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '9px 16px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer'
             }}
           >
-            📄 Baixar PDF KDP Print
+            <Download size={14} /> PDF para Impressão KDP
           </button>
         </div>
       </div>
 
-      {/* Grid Principal: Painel de Edição à Esquerda e Visualizador à Direita */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(340px, 420px) 1fr', gap: '24px' }}>
+      {/* GRID DE DUAS COLUNAS */}
+      <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '20px' }}>
         
-        {/* COLUNA ESQUERDA: CONTROLES & FORMULÁRIO */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {/* 1. Vínculo com Projeto de Livro */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '18px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', marginBottom: '8px' }}>
-              📖 Vincular ao Livro do Projeto
+        {/* COLUNA ESQUERDA: CONTROLES E GERADOR DE ARTE IA */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* 1. SELETOR DE LIVRO / PROJETO */}
+          <div style={{ background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '16px' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>
+              Obra Ativa:
             </label>
             <select
               value={selectedProjectId}
@@ -521,202 +538,104 @@ Retorne estritamente um JSON com este formato:
                 color: '#f8fafc',
                 border: '1px solid #334155',
                 borderRadius: '6px',
-                padding: '10px',
-                fontSize: '13px'
+                padding: '8px 10px',
+                fontSize: '13px',
+                fontWeight: 600
               }}
             >
-              <option value="">-- Criar Capa Avulsa / Independente --</option>
+              <option value="">-- Selecione uma Obra --</option>
               {projects.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.title} ({p.author})
-                </option>
+                <option key={p.id} value={p.id}>{p.title}</option>
               ))}
             </select>
           </div>
 
-          {/* 2. Parâmetros Gráficos KDP */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '18px' }}>
-            <h3 style={{ margin: '0 0 14px 0', fontSize: '14px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              ⚙️ Dimensões Gráficas KDP
-            </h3>
-
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Formato de Corte (Trim Size):</label>
-              <select
-                value={trimSize}
-                onChange={e => setTrimSize(e.target.value as TrimSize)}
-                style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '12px' }}
-              >
-                {Object.entries(TRIM_DIMENSIONS).map(([k, v]) => (
-                  <option key={k} value={k}>{v.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Tipo de Papel:</label>
-                <select
-                  value={paperType}
-                  onChange={e => setPaperType(e.target.value as PaperType)}
-                  style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '12px' }}
-                >
-                  <option value="bw-white">Papel Branco (0.057 mm/pág)</option>
-                  <option value="bw-cream">Papel Creme (0.063 mm/pág)</option>
-                  <option value="color-standard">Colorido Padrão</option>
-                </select>
+          {/* 2. GERADOR DE ILUSTRAÇÃO REALISTA COM IA (FLUX.1) */}
+          <div style={{ background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '10px', padding: '16px', boxShadow: '0 4px 20px rgba(59, 130, 246, 0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Sparkles size={16} className="text-amber-400" />
+                <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#f8fafc' }}>
+                  Arte Realista com IA (FLUX.1)
+                </h3>
               </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Qtd. de Páginas:</label>
-                <input
-                  type="number"
-                  min="24"
-                  max="828"
-                  value={pageCount}
-                  onChange={e => setPageCount(parseInt(e.target.value) || 24)}
-                  style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '12px' }}
-                />
-              </div>
+              <span style={{ fontSize: '10px', background: '#2563eb22', color: '#60a5fa', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                Hiper-Realismo 8K
+              </span>
             </div>
 
-            {/* Informações da Lombada Calculada */}
-            <div style={{ background: '#1e293b', borderRadius: '6px', padding: '10px 12px', fontSize: '11px', color: '#cbd5e1' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span>Lombada (Spine):</span>
-                <strong style={{ color: '#38bdf8' }}>{spineWidthInches.toFixed(3)}" ({spineWidthMm} mm)</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Tamanho Total do Arquivo:</span>
-                <strong style={{ color: '#a7f3d0' }}>{totalCoverWidthInches.toFixed(2)}" x {totalCoverHeightInches.toFixed(2)}"</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Textos da Capa */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '18px' }}>
-            <h3 style={{ margin: '0 0 14px 0', fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
-              ✍️ Textos & Tipografia Comercial
-            </h3>
-
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Título Principal:</label>
-              <input
-                type="text"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '13px', fontWeight: 700 }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Subtítulo:</label>
-              <textarea
-                rows={2}
-                value={subtitle}
-                onChange={e => setSubtitle(e.target.value)}
-                style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '12px' }}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Nome do Autor:</label>
-                <input
-                  type="text"
-                  value={author}
-                  onChange={e => setAuthor(e.target.value)}
-                  style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '12px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Editora / Selo:</label>
-                <input
-                  type="text"
-                  value={publisher}
-                  onChange={e => setPublisher(e.target.value)}
-                  style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '12px' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Badge / Selo Best-Seller:</label>
-                <label style={{ fontSize: '11px', color: '#38bdf8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <input type="checkbox" checked={showBadge} onChange={e => setShowBadge(e.target.checked)} />
-                  Exibir
-                </label>
-              </div>
-              <input
-                type="text"
-                value={badgeText}
-                onChange={e => setBadgeText(e.target.value)}
-                style={{ width: '100%', background: '#1e293b', color: '#fbbf24', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '11px', fontWeight: 700 }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Sinopse da Quarta-Capa (Back Cover):</label>
-              <textarea
-                rows={4}
-                value={backSynopsis}
-                onChange={e => setBackSynopsis(e.target.value)}
-                style={{ width: '100%', background: '#1e293b', color: '#cbd5e1', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '11px', lineHeight: 1.4 }}
-              />
-            </div>
-          </div>
-
-          {/* 4. Estilo & Gerador de Arte com IA */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '18px' }}>
-            <h3 style={{ margin: '0 0 14px 0', fontSize: '14px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              🎨 Estilos Visuais & Geração IA
-            </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '16px' }}>
-              {COVER_STYLES.map(s => (
-                <div
-                  key={s.id}
-                  onClick={() => setSelectedStyleId(s.id)}
+            {/* SELETOR DE ESTILOS REALISTAS */}
+            <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+              Estilo Artístico da Imagem:
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', marginBottom: '12px' }}>
+              {ART_STYLE_PRESETS.map(preset => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setSelectedArtStyle(preset.id)}
                   style={{
-                    padding: '10px',
-                    borderRadius: '8px',
-                    background: selectedStyleId === s.id ? '#1e293b' : '#090d16',
-                    border: `2px solid ${selectedStyleId === s.id ? s.accentColor : '#1e293b'}`,
-                    cursor: 'pointer',
+                    padding: '8px 6px',
+                    borderRadius: '6px',
+                    border: `1px solid ${selectedArtStyle === preset.id ? '#3b82f6' : '#334155'}`,
+                    background: selectedArtStyle === preset.id ? '#1e3a8a' : '#1e293b',
+                    color: selectedArtStyle === preset.id ? '#ffffff' : '#cbd5e1',
                     fontSize: '11px',
-                    fontWeight: 700,
-                    color: selectedStyleId === s.id ? '#ffffff' : '#94a3b8'
+                    fontWeight: selectedArtStyle === preset.id ? 700 : 500,
+                    cursor: 'pointer',
+                    textAlign: 'left'
                   }}
+                  title={preset.description}
                 >
-                  <div style={{ height: '12px', borderRadius: '4px', background: s.bg, marginBottom: '6px' }}></div>
-                  {s.name}
-                </div>
+                  {preset.label}
+                </button>
               ))}
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Prompt para Ilustração / Fundo:</label>
+            {/* PROMPT CONTEXTUAL */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Conceito Visual da Cena:</label>
+                <button
+                  type="button"
+                  onClick={handleAutoPrompt}
+                  style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '10px', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  ✨ Prompt Automático do Livro
+                </button>
+              </div>
               <textarea
-                rows={2}
-                value={aiPrompt}
-                onChange={e => setAiPrompt(e.target.value)}
-                style={{ width: '100%', background: '#1e293b', color: '#cbd5e1', border: '1px solid #334155', borderRadius: '6px', padding: '8px', fontSize: '11px', marginBottom: '10px' }}
-              />
-
-              <button
-                onClick={handleGenerateAiCoverArt}
-                disabled={isGeneratingAiArt}
+                rows={3}
+                value={customArtPrompt}
+                onChange={e => setCustomArtPrompt(e.target.value)}
+                placeholder="Ex: Sala executiva com vista panorâmica para o nascer do sol, iluminação dramática, relógio de areia..."
                 style={{
                   width: '100%',
-                  background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                  background: '#1e293b',
+                  color: '#f8fafc',
+                  border: '1px solid #334155',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  fontSize: '11px',
+                  lineHeight: 1.4
+                }}
+              />
+            </div>
+
+            {/* BOTÕES DE GERAÇÃO */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+              <button
+                type="button"
+                onClick={() => handleGenerateRealisticArt()}
+                disabled={isGeneratingAiArt}
+                style={{
+                  background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '6px',
                   padding: '10px',
-                  fontSize: '12px',
-                  fontWeight: 700,
+                  fontSize: '11px',
+                  fontWeight: 800,
                   cursor: isGeneratingAiArt ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -724,17 +643,200 @@ Retorne estritamente um JSON com este formato:
                   gap: '6px'
                 }}
               >
-                {isGeneratingAiArt ? '⏳ Renderizando Arte...' : '✨ Gerar Arte de Fundo com IA'}
+                {isGeneratingAiArt ? (
+                  <RefreshCw size={13} className="spin-animate" />
+                ) : (
+                  <Wand2 size={13} />
+                )}
+                {isGeneratingAiArt ? 'Gerando Arte...' : 'Gerar Arte Realista'}
               </button>
+
+              <button
+                type="button"
+                onClick={() => handleGenerateRealisticArt(Math.floor(Math.random() * 900000) + 100000)}
+                disabled={isGeneratingAiArt}
+                style={{
+                  background: '#334155',
+                  color: '#ffffff',
+                  border: '1px solid #475569',
+                  borderRadius: '6px',
+                  padding: '10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: isGeneratingAiArt ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+                title="Gera uma imagem totalmente diferente com um novo seed de inteligência artificial"
+              >
+                <RefreshCw size={13} className={isGeneratingAiArt ? 'spin-animate' : ''} />
+                Nova Imagem (↻)
+              </button>
+            </div>
+
+            {/* HISTÓRICO DE VARIAÇÕES RECENTES */}
+            {artHistory.length > 1 && (
+              <div>
+                <span style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                  Variações geradas (clique para alternar):
+                </span>
+                <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
+                  {artHistory.map((url, idx) => (
+                    <img
+                      key={idx}
+                      src={url}
+                      alt={`Variação ${idx + 1}`}
+                      onClick={() => setCoverImageUrl(url)}
+                      style={{
+                        width: '42px',
+                        height: '56px',
+                        objectFit: 'cover',
+                        borderRadius: '4px',
+                        border: `2px solid ${coverImageUrl === url ? '#3b82f6' : '#334155'}`,
+                        cursor: 'pointer'
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 3. PARÂMETROS GRÁFICOS KDP & LOMBADA */}
+          <div style={{ background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '16px' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 800, color: '#f8fafc' }}>
+              📐 Formato & Cálculo de Lombada KDP
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Tamanho de Corte:</label>
+                <select
+                  value={trimSize}
+                  onChange={e => setTrimSize(e.target.value as TrimSize)}
+                  style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '7px', fontSize: '11px' }}
+                >
+                  {Object.entries(TRIM_DIMENSIONS).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Nº de Páginas:</label>
+                <input
+                  type="number"
+                  min="24"
+                  max="828"
+                  value={pageCount}
+                  onChange={e => setPageCount(parseInt(e.target.value) || 24)}
+                  style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '7px', fontSize: '11px' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ background: '#1e293b', borderRadius: '6px', padding: '8px 10px', fontSize: '11px', color: '#cbd5e1' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                <span>Lombada Exata (Spine):</span>
+                <strong style={{ color: '#38bdf8' }}>{spineWidthInches.toFixed(3)}" ({spineWidthMm} mm)</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Total Jaqueta Aberta:</span>
+                <strong style={{ color: '#a7f3d0' }}>{totalCoverWidthInches.toFixed(2)}" x {totalCoverHeightInches.toFixed(2)}"</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. TEXTOS DA CAPA E TIPOGRAFIA */}
+          <div style={{ background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '16px' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 800, color: '#f8fafc' }}>
+              ✍️ Textos & Tipografia Editorial
+            </h3>
+
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Fonte Principal:</label>
+              <select
+                value={selectedFontId}
+                onChange={e => setSelectedFontId(e.target.value)}
+                style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '7px', fontSize: '12px', fontWeight: 600 }}
+              >
+                {TYPOGRAPHY_PRESETS.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '8px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>Título do Livro:</label>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '7px', fontSize: '12px', fontWeight: 700 }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '8px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>Subtítulo:</label>
+              <textarea
+                rows={2}
+                value={subtitle}
+                onChange={e => setSubtitle(e.target.value)}
+                style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '7px', fontSize: '11px' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>Autor:</label>
+                <input
+                  type="text"
+                  value={author}
+                  onChange={e => setAuthor(e.target.value)}
+                  style={{ width: '100%', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '6px', padding: '7px', fontSize: '11px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>Selo / Badge:</label>
+                <input
+                  type="text"
+                  value={badgeText}
+                  onChange={e => setBadgeText(e.target.value)}
+                  style={{ width: '100%', background: '#1e293b', color: '#fbbf24', border: '1px solid #334155', borderRadius: '6px', padding: '7px', fontSize: '11px', fontWeight: 700 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#94a3b8', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={useDarkScrim}
+                  onChange={e => setUseDarkScrim(e.target.checked)}
+                />
+                Contraste Automático (Protege o texto com gradiente suave sobre a foto)
+              </label>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>Sinopse da Contracapa (Back Cover):</label>
+              <textarea
+                rows={3}
+                value={backSynopsis}
+                onChange={e => setBackSynopsis(e.target.value)}
+                style={{ width: '100%', background: '#1e293b', color: '#cbd5e1', border: '1px solid #334155', borderRadius: '6px', padding: '7px', fontSize: '11px', lineHeight: 1.4 }}
+              />
             </div>
           </div>
         </div>
 
         {/* COLUNA DIREITA: VISUALIZADOR DA CAPA */}
-        <div style={{ background: '#0a0e17', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: '#0a0e17', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
           
           {/* Seletor de Modo de Exibição */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <div style={{ display: 'flex', gap: '6px' }}>
               <button
                 onClick={() => setViewMode('wrap')}
@@ -743,13 +845,13 @@ Retorne estritamente um JSON com este formato:
                   color: viewMode === 'wrap' ? '#fff' : '#94a3b8',
                   border: 'none',
                   borderRadius: '6px',
-                  padding: '8px 16px',
+                  padding: '7px 14px',
                   fontSize: '12px',
                   fontWeight: 700,
                   cursor: 'pointer'
                 }}
               >
-                📐 Jaqueta Completa KDP (Back + Spine + Front)
+                📐 Jaqueta Completa KDP
               </button>
 
               <button
@@ -759,13 +861,13 @@ Retorne estritamente um JSON com este formato:
                   color: viewMode === 'front' ? '#fff' : '#94a3b8',
                   border: 'none',
                   borderRadius: '6px',
-                  padding: '8px 16px',
+                  padding: '7px 14px',
                   fontSize: '12px',
                   fontWeight: 700,
                   cursor: 'pointer'
                 }}
               >
-                🖼️ Capa Frontal (Kindle / E-book)
+                🖼️ Capa Frontal
               </button>
 
               <button
@@ -775,31 +877,51 @@ Retorne estritamente um JSON com este formato:
                   color: viewMode === '3d' ? '#fff' : '#94a3b8',
                   border: 'none',
                   borderRadius: '6px',
-                  padding: '8px 16px',
+                  padding: '7px 14px',
                   fontSize: '12px',
                   fontWeight: 700,
                   cursor: 'pointer'
                 }}
               >
-                📖 Mockup 3D Realista
+                📖 Mockup 3D
               </button>
             </div>
 
-            <span style={{ fontSize: '11px', color: '#64748b' }}>
-              Escala de Pré-visualização Adaptada • Sangria de 0.125" incluída
-            </span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                onClick={() => handleGenerateRealisticArt(Math.floor(Math.random() * 900000) + 100000)}
+                disabled={isGeneratingAiArt}
+                style={{
+                  background: '#1e293b',
+                  color: '#38bdf8',
+                  border: '1px solid #38bdf844',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <RefreshCw size={12} className={isGeneratingAiArt ? 'spin-animate' : ''} />
+                Trocar Imagem (↻)
+              </button>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                Dimensões KDP 300 DPI
+              </span>
+            </div>
           </div>
 
-          {/* ========================================================================= */}
-          {/* MODO 1: JAQUETA COMPLETA (FULL-WRAP JACKET)                               */}
-          {/* ========================================================================= */}
+          {/* MODO 1: JAQUETA COMPLETA */}
           {viewMode === 'wrap' && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflowX: 'auto', padding: '20px 0' }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflowX: 'auto', padding: '10px 0' }}>
               <div style={{
                 display: 'flex',
-                background: currentStyle.bg,
+                background: '#090d16',
                 border: '1px dashed #38bdf8',
-                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.7)',
+                boxShadow: '0 25px 50px rgba(0, 0, 0, 0.8)',
                 height: '520px',
                 position: 'relative'
               }}>
@@ -807,21 +929,22 @@ Retorne estritamente um JSON com este formato:
                 <div style={{
                   width: '320px',
                   height: '100%',
-                  padding: '30px 24px',
+                  padding: '28px 22px',
                   borderRight: '1px dashed rgba(255, 255, 255, 0.15)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  background: '#0a0e1a'
                 }}>
                   <div>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: currentStyle.accentColor, textTransform: 'uppercase', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>
                       SOBRE A OBRA
                     </div>
                     <div style={{
                       fontSize: '11px',
                       lineHeight: 1.5,
-                      color: currentStyle.textColor,
+                      color: '#cbd5e1',
                       whiteSpace: 'pre-line',
                       fontFamily: 'Inter, sans-serif'
                     }}>
@@ -830,11 +953,12 @@ Retorne estritamente um JSON com este formato:
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '10px', color: '#94a3b8', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '10px', marginBottom: '12px' }}>
-                      <strong>Sobre o Autor:</strong> {authorBio}
-                    </div>
+                    {authorBio && (
+                      <div style={{ fontSize: '10px', color: '#94a3b8', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '8px', marginBottom: '10px' }}>
+                        <strong>Sobre o autor:</strong> {authorBio}
+                      </div>
+                    )}
 
-                    {/* Código de barras KDP */}
                     <div style={{
                       background: '#ffffff',
                       color: '#000000',
@@ -842,11 +966,9 @@ Retorne estritamente um JSON com este formato:
                       borderRadius: '4px',
                       display: 'inline-block',
                       fontFamily: 'monospace',
-                      fontSize: '9px',
-                      textAlign: 'center'
+                      fontSize: '9px'
                     }}>
-                      <div style={{ letterSpacing: '2px', fontWeight: 'bold' }}>||| | ||||| || ||| ||||</div>
-                      <div>ISBN {isbnCode}</div>
+                      <div>{isbnCode ? `ISBN ${isbnCode}` : 'Área reservada para código de barras KDP'}</div>
                     </div>
                   </div>
                 </div>
@@ -861,9 +983,10 @@ Retorne estritamente um JSON com este formato:
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '24px 0',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  background: '#060911'
                 }}>
-                  <div style={{ fontSize: '9px', color: currentStyle.accentColor, fontWeight: 700 }}>
+                  <div style={{ fontSize: '9px', color: '#fbbf24', fontWeight: 700 }}>
                     {publisher.substring(0, 10)}
                   </div>
 
@@ -874,7 +997,7 @@ Retorne estritamente um JSON com este formato:
                     fontSize: '11px',
                     fontWeight: 700,
                     letterSpacing: '1px',
-                    color: currentStyle.textColor,
+                    color: '#f8fafc',
                     whiteSpace: 'nowrap',
                     maxHeight: '340px',
                     overflow: 'hidden',
@@ -883,14 +1006,13 @@ Retorne estritamente um JSON com este formato:
                     {title} — {author}
                   </div>
 
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: currentStyle.accentColor }}></div>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#fbbf24' }}></div>
                 </div>
 
-                {/* 1.3 Capa Frontal (Front Cover) */}
+                {/* 1.3 Capa Frontal com Arte Realista */}
                 <div style={{
                   width: '320px',
                   height: '100%',
-                  padding: '30px 24px',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
@@ -898,73 +1020,83 @@ Retorne estritamente um JSON com este formato:
                   backgroundImage: coverImageUrl ? `url(${coverImageUrl})` : undefined,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
-                  position: 'relative'
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}>
-                  {/* Badge */}
-                  {showBadge && (
+                  {/* Gradiente Scrim para Proteger o Texto */}
+                  {useDarkScrim && (
                     <div style={{
-                      alignSelf: 'center',
-                      background: 'rgba(0, 0, 0, 0.6)',
-                      border: `1px solid ${currentStyle.accentColor}`,
-                      color: currentStyle.accentColor,
-                      fontSize: '9px',
-                      fontWeight: 800,
-                      padding: '4px 12px',
-                      borderRadius: '20px',
-                      letterSpacing: '0.8px',
-                      textAlign: 'center'
-                    }}>
-                      {badgeText}
-                    </div>
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.85) 100%)',
+                      pointerEvents: 'none'
+                    }} />
                   )}
 
-                  {/* Título & Subtítulo */}
-                  <div style={{ textAlign: 'center', marginTop: '20px' }}>
-                    <h2 style={{
-                      margin: '0 0 10px 0',
-                      fontSize: '22px',
-                      fontWeight: 900,
-                      lineHeight: 1.2,
-                      color: currentStyle.textColor,
-                      fontFamily: currentStyle.font,
-                      textShadow: '0 2px 10px rgba(0, 0, 0, 0.8)',
-                      letterSpacing: '-0.3px'
-                    }}>
-                      {title}
-                    </h2>
+                  {/* Conteúdo Frontal sobreposto */}
+                  <div style={{ position: 'relative', zIndex: 2, padding: '24px 20px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+                    {/* Topo: Selo */}
+                    <div style={{ textAlign: 'center' }}>
+                      {showBadge && badgeText && (
+                        <span style={{
+                          display: 'inline-block',
+                          background: 'rgba(0, 0, 0, 0.7)',
+                          border: '1px solid #fbbf24',
+                          color: '#fbbf24',
+                          fontSize: '9px',
+                          fontWeight: 800,
+                          padding: '3px 10px',
+                          borderRadius: '20px',
+                          letterSpacing: '0.8px',
+                          backdropFilter: 'blur(4px)'
+                        }}>
+                          {badgeText}
+                        </span>
+                      )}
 
-                    <div style={{
-                      width: '40px',
-                      height: '3px',
-                      background: currentStyle.accentColor,
-                      margin: '10px auto'
-                    }}></div>
+                      <h1 style={{
+                        margin: '16px 0 6px 0',
+                        fontSize: '22px',
+                        fontWeight: 900,
+                        lineHeight: 1.15,
+                        color: '#ffffff',
+                        fontFamily: currentFont.font,
+                        textShadow: '0 2px 14px rgba(0, 0, 0, 0.95)',
+                        letterSpacing: '-0.3px'
+                      }}>
+                        {title}
+                      </h1>
 
-                    <p style={{
-                      margin: 0,
-                      fontSize: '11px',
-                      lineHeight: 1.4,
-                      color: currentStyle.accentColor,
-                      textShadow: '0 1px 4px rgba(0,0,0,0.8)'
-                    }}>
-                      {subtitle}
-                    </p>
-                  </div>
-
-                  {/* Autor & Editora */}
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      letterSpacing: '1px',
-                      textTransform: 'uppercase',
-                      color: currentStyle.textColor,
-                      textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
-                    }}>
-                      {author}
+                      {subtitle && (
+                        <p style={{
+                          margin: 0,
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          color: '#fbbf24',
+                          lineHeight: 1.3,
+                          textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)',
+                          fontFamily: 'Inter, sans-serif'
+                        }}>
+                          {subtitle}
+                        </p>
+                      )}
                     </div>
-                    <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '4px' }}>
-                      {publisher}
+
+                    {/* Rodapé: Autor */}
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', color: '#cbd5e1', textShadow: '0 1px 4px #000' }}>
+                        OBRA ESCRITA POR
+                      </span>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 800,
+                        color: '#ffffff',
+                        fontFamily: 'Montserrat, sans-serif',
+                        letterSpacing: '0.5px',
+                        textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
+                      }}>
+                        {author}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -972,158 +1104,176 @@ Retorne estritamente um JSON com este formato:
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* MODO 2: CAPA FRONTAL DEDICADA                                             */}
-          {/* ========================================================================= */}
+          {/* MODO 2: CAPA FRONTAL */}
           {viewMode === 'front' && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 0' }}>
               <div style={{
                 width: '360px',
                 height: '540px',
-                background: currentStyle.bg,
                 backgroundImage: coverImageUrl ? `url(${coverImageUrl})` : undefined,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                boxShadow: '0 25px 50px rgba(0, 0, 0, 0.8)',
-                borderRadius: '6px',
-                padding: '36px 28px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                boxSizing: 'border-box'
+                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)',
+                borderRadius: '8px',
+                position: 'relative',
+                overflow: 'hidden'
               }}>
-                {showBadge && (
+                {useDarkScrim && (
                   <div style={{
-                    alignSelf: 'center',
-                    background: 'rgba(0, 0, 0, 0.65)',
-                    border: `1px solid ${currentStyle.accentColor}`,
-                    color: currentStyle.accentColor,
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    padding: '5px 14px',
-                    borderRadius: '20px',
-                    letterSpacing: '1px'
-                  }}>
-                    {badgeText}
-                  </div>
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.85) 100%)',
+                    pointerEvents: 'none'
+                  }} />
                 )}
 
-                <div style={{ textAlign: 'center' }}>
-                  <h2 style={{
-                    margin: '0 0 12px 0',
-                    fontSize: '24px',
-                    fontWeight: 900,
-                    lineHeight: 1.2,
-                    color: currentStyle.textColor,
-                    fontFamily: currentStyle.font,
-                    textShadow: '0 3px 12px rgba(0, 0, 0, 0.9)'
-                  }}>
-                    {title}
-                  </h2>
-                  <div style={{ width: '48px', height: '3px', background: currentStyle.accentColor, margin: '12px auto' }}></div>
-                  <p style={{ margin: 0, fontSize: '12px', lineHeight: 1.4, color: currentStyle.accentColor }}>
-                    {subtitle}
-                  </p>
-                </div>
-
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase', color: currentStyle.textColor }}>
-                    {author}
-                  </div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-                    {publisher}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* MODO 3: MOCKUP 3D REALISTA                                                */}
-          {/* ========================================================================= */}
-          {viewMode === '3d' && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', perspective: '1200px', padding: '40px 0' }}>
-              <div style={{
-                width: '280px',
-                height: '430px',
-                position: 'relative',
-                transformStyle: 'preserve-3d',
-                transform: 'rotateY(-25deg) rotateX(8deg)',
-                transition: 'transform 0.4s ease'
-              }}>
-                {/* Capa Frontal 3D */}
-                <div style={{
-                  position: 'absolute',
-                  width: '100%',
-                  height: '100%',
-                  background: currentStyle.bg,
-                  backgroundImage: coverImageUrl ? `url(${coverImageUrl})` : undefined,
-                  backgroundSize: 'cover',
-                  borderRadius: '0 6px 6px 0',
-                  boxShadow: '10px 10px 40px rgba(0, 0, 0, 0.9)',
-                  padding: '28px 20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxSizing: 'border-box'
-                }}>
-                  {showBadge && (
-                    <div style={{ alignSelf: 'center', fontSize: '8px', fontWeight: 800, color: currentStyle.accentColor, background: 'rgba(0,0,0,0.6)', padding: '3px 8px', borderRadius: '10px' }}>
-                      {badgeText}
-                    </div>
-                  )}
+                <div style={{ position: 'relative', zIndex: 2, padding: '30px 24px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: currentStyle.textColor, fontFamily: currentStyle.font }}>
+                    {showBadge && badgeText && (
+                      <span style={{
+                        display: 'inline-block',
+                        background: 'rgba(0, 0, 0, 0.75)',
+                        border: '1px solid #fbbf24',
+                        color: '#fbbf24',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        letterSpacing: '1px',
+                        backdropFilter: 'blur(6px)'
+                      }}>
+                        {badgeText}
+                      </span>
+                    )}
+
+                    <h1 style={{
+                      margin: '20px 0 8px 0',
+                      fontSize: '26px',
+                      fontWeight: 900,
+                      lineHeight: 1.15,
+                      color: '#ffffff',
+                      fontFamily: currentFont.font,
+                      textShadow: '0 2px 16px rgba(0, 0, 0, 0.95)'
+                    }}>
                       {title}
-                    </div>
-                    <div style={{ fontSize: '10px', color: currentStyle.accentColor, marginTop: '8px' }}>
-                      {subtitle.substring(0, 60)}...
-                    </div>
+                    </h1>
+
+                    {subtitle && (
+                      <p style={{
+                        margin: 0,
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        color: '#fbbf24',
+                        lineHeight: 1.35,
+                        textShadow: '0 2px 10px rgba(0, 0, 0, 0.9)'
+                      }}>
+                        {subtitle}
+                      </p>
+                    )}
                   </div>
-                  <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 800, color: currentStyle.textColor }}>
-                    {author}
+
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: '#cbd5e1', textShadow: '0 1px 4px #000' }}>
+                      OBRA ESCRITA POR
+                    </span>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: 800,
+                      color: '#ffffff',
+                      fontFamily: 'Montserrat, sans-serif',
+                      letterSpacing: '0.5px',
+                      textShadow: '0 2px 12px rgba(0, 0, 0, 0.95)'
+                    }}>
+                      {author}
+                    </div>
                   </div>
                 </div>
-
-                {/* Páginas do Livro (Lateral 3D) */}
-                <div style={{
-                  position: 'absolute',
-                  top: '5px',
-                  right: '-24px',
-                  width: '25px',
-                  height: '420px',
-                  background: 'repeating-linear-gradient(90deg, #f1f5f9, #f1f5f9 2px, #e2e8f0 2px, #e2e8f0 4px)',
-                  transform: 'rotateY(90deg) translateZ(12px)',
-                  boxShadow: 'inset 0 0 10px rgba(0, 0, 0, 0.2)'
-                }}></div>
-
-                {/* Sombra de Superfície */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '-30px',
-                  left: '10px',
-                  width: '300px',
-                  height: '30px',
-                  background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 70%)',
-                  transform: 'rotateX(90deg) translateZ(-20px)'
-                }}></div>
               </div>
             </div>
           )}
 
-          {/* Guia Técnico de Validação KDP */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '14px 18px', marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#cbd5e1' }}>
-              <span style={{ color: '#10b981', fontSize: '16px' }}>✓</span>
-              <span><strong>KDP Print Ready:</strong> Formato {trimSize}, 300 DPI, Sangria 0.125" e Código de Barras no canto inferior direito.</span>
+          {/* MODO 3: MOCKUP 3D */}
+          {viewMode === '3d' && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '30px 0' }}>
+              <div style={{
+                position: 'relative',
+                transform: 'perspective(1200px) rotateY(-26deg) rotateX(8deg)',
+                transformStyle: 'preserve-3d',
+                boxShadow: '25px 25px 60px rgba(0, 0, 0, 0.9), -5px 0 20px rgba(0, 0, 0, 0.4)',
+                borderRadius: '4px',
+                width: '320px',
+                height: '480px',
+                backgroundImage: coverImageUrl ? `url(${coverImageUrl})` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                overflow: 'hidden'
+              }}>
+                {useDarkScrim && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.85) 100%)'
+                  }} />
+                )}
+
+                <div style={{ position: 'relative', zIndex: 2, padding: '24px 20px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    {showBadge && badgeText && (
+                      <span style={{
+                        display: 'inline-block',
+                        background: 'rgba(0, 0, 0, 0.7)',
+                        border: '1px solid #fbbf24',
+                        color: '#fbbf24',
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        padding: '3px 10px',
+                        borderRadius: '20px'
+                      }}>
+                        {badgeText}
+                      </span>
+                    )}
+
+                    <h2 style={{
+                      margin: '16px 0 6px 0',
+                      fontSize: '22px',
+                      fontWeight: 900,
+                      lineHeight: 1.15,
+                      color: '#ffffff',
+                      fontFamily: currentFont.font,
+                      textShadow: '0 2px 14px rgba(0, 0, 0, 0.95)'
+                    }}>
+                      {title}
+                    </h2>
+
+                    {subtitle && (
+                      <p style={{ margin: 0, fontSize: '11px', color: '#fbbf24', textShadow: '0 2px 8px #000' }}>
+                        {subtitle}
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff', textShadow: '0 2px 10px #000' }}>
+                      {author}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Efeito de Páginas 3D na lateral direita */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: '18px',
+                  height: '100%',
+                  background: 'repeating-linear-gradient(to right, #e2e8f0 0px, #cbd5e1 1px, #f8fafc 2px)',
+                  boxShadow: 'inset 2px 0 5px rgba(0, 0, 0, 0.3)',
+                  opacity: 0.8
+                }} />
+              </div>
             </div>
-            <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600 }}>
-              Compatível com Gráfica Amazon KDP Global
-            </span>
-          </div>
-
+          )}
         </div>
-
       </div>
     </div>
   );

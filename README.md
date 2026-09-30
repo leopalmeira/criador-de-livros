@@ -1,16 +1,15 @@
 # BookIntel & KDP Studio • Plataforma Profissional de Inteligência e Criação de Livros KDP
 
-O **BookIntel & KDP Studio** é uma plataforma corporativa completa integrada em uma extensão para o **Google Chrome (Manifest V3)**, unindo inteligência avançada de mercado na Amazon e um estúdio editorial autônomo baseado em inteligência artificial para o **Amazon Kindle Direct Publishing (KDP)**.
+O **BookIntel & KDP Studio** é uma extensão Chromium (Manifest V3) para pesquisa de livros na Amazon e organização de projetos editoriais voltados ao **Kindle Direct Publishing (KDP)**. Os dados do usuário são armazenados no navegador; provedores de IA e serviços de imagem podem receber solicitações quando usados.
 
-A plataforma adota uma interface séria, funcional e de padrão **TOTVS / ERP Enterprise**, sem recursos puramente cosméticos ou geradores simplistas de única chamada.
+O aplicativo reúne estimativas de mercado, projetos editoriais, ferramentas de capa e exportação. Estimativas não são dados oficiais da Amazon, conteúdo gerado por IA requer revisão e os arquivos exportados devem ser conferidos no Previewer do KDP antes de qualquer publicação.
 
 ---
 
 ## 🚀 Principais Módulos
 
-### 1. KDP Studio Editorial (Geração de Livros em Etapas)
-Inspirado na arquitetura dos projetos de referência `ShonP/kdp-book`, `wesleyscholl/book-generator`, `libriscribe` e `Velith`:
-- **Fluxo Editorial Completo**: Transforma uma ideia bruta (`"Quero criar um livro de hábitos para adultos"`) em um projeto estruturado, revisado e empacotado para o KDP.
+### 1. Estúdio editorial
+- **Fluxo por etapas**: Ajuda a organizar uma ideia em conceito, estrutura, capítulos, metadados e exportações. O resultado precisa de revisão editorial e validação técnica antes de ser publicado.
 - **10 Agentes Especializados de IA**:
   1. *Idea Analyst*: Mapeamento de nicho, tamanho e formato.
   2. *Concept Agent*: Proposta de valor e seleção de 3 a 5 opções de títulos.
@@ -21,7 +20,7 @@ Inspirado na arquitetura dos projetos de referência `ShonP/kdp-book`, `wesleysc
   7. *Editor & Style*: Revisão de ritmo, concisão, clareza e eliminação de clichês.
   8. *Cover Geometry*: Cálculo paramétrico da lombada KDP (`páginas × espessura + sangria`).
   9. *Metadata & SEO*: Descrição comercial persuasiva em HTML e 7 palavras-chave oficiais.
-  10. *Quality Gate*: Auditoria pré-publicação com 8 verificações técnicas de integridade.
+  10. *Quality Gate*: Checklist editorial básico; não substitui os validadores oficiais nem garante aprovação do KDP.
 - **Editor de 3 Colunas**: Navegação estrutural à esquerda, editor Markdown no centro e assistente de IA com versionamento e restauração à direita.
 - **Retomada de Projetos**: Estado 100% persistente no IndexedDB; projetos interrompidos podem ser continuados a qualquer momento.
 - **Controle de Custos e Tokens**: Exibição transparente de tokens consumidos, chamadas realizadas e custo estimado em R$ (BRL) e $ (USD).

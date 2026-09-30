@@ -13,6 +13,7 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
+        index: resolve(__dirname, 'index.html'),
         popup: resolve(__dirname, 'popup.html'),
         dashboard: resolve(__dirname, 'dashboard.html'),
         background: resolve(__dirname, 'src/background/index.ts')

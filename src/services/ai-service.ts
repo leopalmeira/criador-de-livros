@@ -17,8 +17,8 @@ export interface AiCompletionOptions {
 export class AiService {
   private settings: AiSettings;
 
-  constructor(settings: AiSettings) {
-    this.settings = settings;
+  constructor(settings?: AiSettings) {
+    this.settings = settings || { provider: 'local-builtin' };
   }
 
   getProvider(): string {
@@ -98,13 +98,13 @@ export class AiService {
       return {
         success: false,
         message: 'A IA respondeu vazio ou com erro.',
-        modelUsed: this.settings.model
+        modelUsed: this.settings.model || ''
       };
     } catch (err: any) {
       return {
         success: false,
         message: `Falha na conexão: ${err.message || 'Erro desconhecido'}`,
-        modelUsed: this.settings.model
+        modelUsed: this.settings.model || ''
       };
     }
   }
@@ -319,13 +319,9 @@ export class AiService {
 
   // --- IMPLEMENTAÇÃO GOOGLE GEMINI (SUPORTE NATIVO AO NOVO FORMATO AQ. / AIza COM ROTAÇÃO E FALLBACK) ---
   private async callGemini(messages: ChatMessage[], temperature: number, options: AiCompletionOptions = {}): Promise<string> {
-    const envKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-    const envFallbackKey = (import.meta as any).env?.VITE_GEMINI_FALLBACK_API_KEY || '';
     const rawKeys = [
       this.settings.apiKey?.trim(),
-      this.settings.fallbackApiKey?.trim(),
-      envKey?.trim(),
-      envFallbackKey?.trim()
+      this.settings.fallbackApiKey?.trim()
     ].filter(Boolean) as string[];
 
     const uniqueKeys = Array.from(new Set(rawKeys));
@@ -740,7 +736,7 @@ export class AiService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'api-key': apiKey
+            'api-key': apiKey || ''
           },
           body: JSON.stringify({
             prompt: cleanPrompt,

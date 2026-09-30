@@ -9,6 +9,7 @@ import { RawBookData } from '../types';
 import { defaultSalesEstimator } from '../estimators/sales-estimation-model';
 import { defaultRoyaltyEstimator } from '../estimators/royalty-estimation-model';
 import { defaultOpportunityCalculator } from '../estimators/opportunity-score';
+import { logger } from '../utils/logger';
 
 class BookIntelContentApp {
   private parser = getParserForUrl(window.location.href);

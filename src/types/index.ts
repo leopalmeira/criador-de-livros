@@ -297,10 +297,10 @@ export type ImageProviderType = 'builtin-flux' | 'fooocus' | 'sd-webui' | 'comfy
 
 export interface AiSettings {
   provider: 'gemini' | 'openai' | 'openrouter' | 'anthropic' | 'azure' | 'ollama' | 'custom' | 'local-builtin';
-  apiKey: string;
+  apiKey?: string;
   fallbackApiKey?: string;
   baseUrl?: string;
-  model: string;
+  model?: string;
   azureEndpoint?: string;
   azureApiKey?: string;
   azureImageEndpoint?: string;
@@ -336,8 +336,6 @@ export interface DebugLogEntry {
 
 export type { 
   BookProject, 
-  OutlineChapter, 
-  ProjectTask, 
   ProjectStatus, 
   ProjectPriority, 
   ProjectSummary,
@@ -352,12 +350,18 @@ export type {
   IBookBible,
   IBookScene,
   IBookChapter,
-  IBookEditorIssue,
   IBookEditorReport,
   IBookCoverDesign,
   IBookMetadataKdp,
-  IBookQualityIssue,
   IBookQualityReport,
+  QualityCheckItem,
+  CoverGeometry,
+  EditorialElements,
+  BookMemory,
+  BookVisualPage,
+  BookVersionItem,
+  PageLayoutSettings,
+  TypographySettings,
   PipelineStage
 } from './book-project';
 export { BOOK_TYPE_CONFIGS } from './book-project';

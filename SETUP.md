@@ -6,7 +6,7 @@ Este documento orienta a instalação, configuração dos provedores de IA e exe
 
 ## 1. Requisitos do Sistema
 
-- **Node.js**: v18.0.0 ou superior (recomendado v20+)
+- **Node.js**: v20.19.0+ ou v22.12.0+
 - **NPM**: v9.0.0 ou superior
 - **Navegador**: Google Chrome, Brave, Edge ou qualquer navegador baseado em Chromium com suporte a Manifest V3.
 - **Hardware (opcional para IA Local)**:
@@ -47,24 +47,9 @@ Os artefatos finais serão gerados no diretório `dist/`.
 
 ---
 
-## 3. Configuração do `.env`
+## 3. Configuração dos provedores de IA
 
-Copie o arquivo `.env.example` para `.env`:
-
-```bash
-cp .env.example .env
-```
-
-Edite as chaves conforme os provedores que desejar utilizar:
-```env
-# Provedores de IA Suportados
-GEMINI_API_KEY=
-OPENAI_API_KEY=
-GROQ_API_KEY=
-ANTHROPIC_API_KEY=
-DEEPSEEK_API_KEY=
-OLLAMA_URL=http://localhost:11434
-```
+Configure provedor, modelo e chave na tela **Configurações** da extensão. Não coloque chaves privadas em arquivos `.env` usados pelo Vite: valores incorporados ao bundle podem ser extraídos da extensão distribuída. Para usar Ollama, inicie o serviço local e selecione o modelo instalado. Solicitações para provedores em nuvem enviam o conteúdo do prompt ao serviço correspondente.
 
 ---
 

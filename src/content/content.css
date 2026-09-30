@@ -613,6 +613,19 @@
   overflow: hidden !important;
 }
 
+.bi-ca-chart-empty {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 16px !important;
+  color: #64748b !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  text-align: center !important;
+}
+
 .bi-ca-svg {
   width: 100% !important;
   height: 100% !important;

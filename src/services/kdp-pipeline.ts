@@ -425,15 +425,12 @@ Gere a Bíblia completa da obra em JSON.`;
       const targetWords = chapter.targetWordCount && chapter.targetWordCount >= 2000 ? chapter.targetWordCount : 2500;
       const isFirstChapter = chapter.index === 1;
       const chapter1SpecialDirective = isFirstChapter ? `
-ATENÇÃO EDITORIAL DE BEST-SELLER PARA O CAPÍTULO 1 (CRÍTICO):
-- Este é o capítulo mais importante do livro para a retenção do leitor e conversão na Amazon KDP!
-- ABERTURA MAGNÉTICA IMEDIATA: É estritamente proibido começar com introduções burocráticas, cumprimentos ou conceitos mornos.
-- Comece com uma "Ruptura de Padrão" (Pattern Interrupt) ou um "Incidente Incitante" dramático e visceral já nas primeiras 3 linhas.
-- Crie uma tensão magnética inescapável (Curiosity Gap) que prenda a atenção do leitor e o faça devorar as páginas.
-- Apresente um dilema de alto impacto, uma revelação chocante ou um estudo de caso contraintuitivo sobre "${concept.title}".` : '';
+    DIRETRIZ PARA O PRIMEIRO CAPÍTULO:
+    - Apresente o tema, o contexto e a pergunta central com clareza, sem prometer resultados que o conteúdo não possa sustentar.
+    - Use um exemplo concreto somente se for ficcional ou fornecido pelo autor; identifique exemplos hipotéticos como tais.
+    - Evite sensacionalismo e alegações promocionais não comprovadas.` : '';
 
-      const systemPrompt = `Você é um autor premiado, ghostwriter sênior e especialista editorial em best-sellers para a Amazon KDP.
-Sua missão é escrever o capítulo COMPLETO, profundo e extenso, com ALTA densidade de conteúdo, pronto para publicação comercial definitiva no KDP.
+      const systemPrompt = `Você é um assistente editorial. Gere um RASCUNHO para revisão e edição pelo autor; nunca apresente o resultado como validado ou pronto para publicação.
 ${chapter1SpecialDirective}
 
 DIRETRIZES DE EXTENSÃO E DENSIDADE (CRÍTICO PARA O KDP):
@@ -449,7 +446,10 @@ DIRETRIZES DE EXTENSÃO E DENSIDADE (CRÍTICO PARA O KDP):
   5. Reflexões profundas e exercícios práticos de autoanálise.
 - Idioma: ${language}.
 - Tom da narrativa: "${concept.tone}".
-- Respeite fielmente os fatos, nomes e personagens da Bíblia da obra.
+- Produza texto original. Não imite o estilo identificável de autores específicos e não reproduza trechos protegidos.
+- Não invente citações, fontes, estudos, estatísticas, credenciais, experiências ou fatos. Se faltar base, sinalize [VERIFICAR FONTE] ou use um exemplo explicitamente hipotético.
+- Use informações da Bíblia da obra como material fornecido pelo usuário; não trate essas informações como fatos externos verificados.
+- Preserve os fatos, nomes e personagens fornecidos pelo autor.
 - NÃO repita o título do capítulo no início. Comece diretamente com uma abertura envolvente que capture o leitor na primeira linha.
 ${isChildren ? '- Formato Infantil: Narrativa rimada, musical e encantadora, com vocabulário rico e formatado para leitura dinâmica.' : ''}
 - Retorne DIRETAMENTE o texto do capítulo em Markdown puro (NÃO envolva em JSON, NÃO use formatação de bloco de código json).`;
@@ -483,13 +483,9 @@ Escreva agora a prosa completa e aprofundada deste capítulo (retorne apenas o t
         prose = prose.replace(/^```\w*\s*/i, '').replace(/```\s*$/, '').trim();
       }
 
-      // Se por qualquer motivo a IA gerou menos de 1500 caracteres, recorre ao motor local de alta densidade
+      // Não substitui silenciosamente uma resposta curta por texto genérico: a etapa continua pendente para nova tentativa ou edição.
       if (prose.length < 1500) {
-        console.warn(`[KdpPipeline] Texto gerado muito curto (${prose.length} caracteres). Elevando volume com Motor Local de Alta Densidade.`);
-        const localFallback = LocalAiEngine.writeChapter(concept, bible, chapter, bookType, previousSummary);
-        if (localFallback.prose.length > prose.length) {
-          prose = localFallback.prose;
-        }
+        throw new Error(`O rascunho retornado ficou muito curto (${prose.length} caracteres). Tente novamente ou escreva esta parte manualmente.`);
       }
 
       const wordCount = prose.split(/\s+/).filter(Boolean).length;
@@ -639,18 +635,19 @@ Faça o parecer editorial completo em JSON.`;
     const year = new Date().getFullYear();
 
     try {
-      const systemPrompt = `Você é um diagramador editorial profissional e bibliógrafo de publicações para o Amazon KDP.
-Escreva os elementos editoriais de abertura e encerramento do livro.
+      const systemPrompt = `Você é um assistente editorial que prepara rascunhos para revisão do autor. Não apresente resultados como prontos para publicação.
 
 Itens obrigatórios:
 - halfTitle: título curto
-- titlePage: objeto com title, subtitle, author, publisher ("Publicação Independente KDP"), year ("${year}")
-- copyrightNotice: aviso legal completo de direitos autorais
-- preface: prefácio ou mensagem preliminar do autor contextualizando o porquê desta obra ter sido escrita
-- introduction: introdução completa e envolvente de 4 a 6 parágrafos, preparando o leitor para o conteúdo
-- conclusion: conclusão inspiradora de 4 a 6 parágrafos, resumindo os principais ensinamentos e convocando para a ação
-- acknowledgements: agradecimentos profissionais
-- aboutAuthor: biografia do autor em 2 a 3 parágrafos, estabelecendo autoridade e conexão com os leitores
+    - titlePage: objeto com title, subtitle, author, publisher (string vazia; não presuma uma editora) e year ("${year}")
+    - copyrightNotice: aviso para o autor preencher e revisar titularidade e permissões; não dê aconselhamento legal nem presuma que o autor detém direitos
+    - preface: rascunho genérico marcado para revisão; não invente motivações ou experiências pessoais do autor
+    - introduction: introdução de rascunho sobre o tema e escopo; não invente fatos, estudos, estatísticas ou fontes
+    - conclusion: síntese de rascunho compatível com o conteúdo fornecido; sem promessas ou recomendações sem suporte
+    - acknowledgements: string vazia, salvo nomes/contribuições fornecidos pelo autor
+    - aboutAuthor: string vazia; não invente biografia, credenciais ou experiência
+    - Não crie citações, referências, fontes, atribuições ou alegações de verificação. Marque afirmações sem suporte como [VERIFICAR FONTE].
+    - Evite imitar estilos de autores específicos. Todo conteúdo é rascunho que requer conferência humana.
 
 Retorne EXCLUSIVAMENTE em formato JSON:
 {
@@ -659,7 +656,7 @@ Retorne EXCLUSIVAMENTE em formato JSON:
     "title": "${concept.title}",
     "subtitle": "${concept.subtitle || ''}",
     "author": "${author}",
-    "publisher": "Publicação Independente KDP",
+    "publisher": "",
     "year": "${year}"
   },
   "copyrightNotice": "string",
@@ -667,7 +664,7 @@ Retorne EXCLUSIVAMENTE em formato JSON:
   "introduction": "string",
   "conclusion": "string",
   "acknowledgements": "string",
-  "aboutAuthor": "string"
+  "aboutAuthor": ""
 }`;
 
       const userPrompt = `Título: ${concept.title}
@@ -703,12 +700,15 @@ Gere todos os elementos editoriais em JSON.`;
 
     const trimDims: Record<TrimSize, [number, number]> = {
       '5x8': [5, 8],
+      '5.25x8': [5.25, 8],
       '5.5x8.5': [5.5, 8.5],
       '6x9': [6, 9],
       '7x10': [7, 10],
       '7.5x9.25': [7.5, 9.25],
+      '8x10': [8, 10],
       '8.5x8.5': [8.5, 8.5],
-      '8.5x11': [8.5, 11]
+      '8.5x11': [8.5, 11],
+      'custom': [6, 9]
     };
     const [w, h] = trimDims[trim] || [6, 9];
     const totalW = (w * 2) + spineInches + (bleedInches * 2);
@@ -872,7 +872,11 @@ Gere o pacote completo de metadados KDP em JSON.`;
     });
 
     // 3. Metadados KDP
-    const hasMetadata = !!(project.kdpMetadata?.keywords7 && project.kdpMetadata.keywords7.length >= 5 && project.kdpMetadata.commercialLongDescription);
+    const hasMetadata = !!(
+      project.kdpMetadata?.keywords7?.length === 7 &&
+      project.kdpMetadata.keywords7.every(keyword => keyword.trim().length > 0) &&
+      project.kdpMetadata.commercialLongDescription?.trim()
+    );
     checks.push({
       id: 'chk_metadata',
       name: 'Metadados e SEO KDP',
@@ -907,7 +911,12 @@ Gere o pacote completo de metadados KDP em JSON.`;
     const blockerCount = checks.filter(c => !c.passed && c.severity === 'blocker').length;
     const warningCount = checks.filter(c => !c.passed && c.severity === 'warning').length;
     const overallScore = Math.max(20, Math.round(100 - (blockerCount * 30) - (warningCount * 10)));
-    const isReadyForKdp = blockerCount === 0;
+    const isReadyForKdp = blockerCount === 0 && warningCount === 0;
+    const recommendations = blockerCount > 0
+      ? ['Corrija os bloqueadores antes de gerar o pacote final KDP.']
+      : warningCount > 0
+        ? ['Revise os avisos antes de exportar. Depois, valide os arquivos no Previewer do KDP.']
+        : ['Checklist interno concluído. Valide os arquivos no Previewer do KDP antes de publicar.'];
 
     return {
       overallScore,
@@ -916,7 +925,7 @@ Gere o pacote completo de metadados KDP em JSON.`;
       blockerCount,
       warningCount,
       checks,
-      recommendations: blockerCount > 0 ? ['Corrija os bloqueadores antes de gerar o pacote final KDP.'] : ['Obra validada com sucesso para submissão ao Amazon KDP.'],
+      recommendations,
       timestamp: Date.now()
     };
   }

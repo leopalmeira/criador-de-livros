@@ -1,5 +1,4 @@
-const envGeminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-const envGeminiFallbackKey = (import.meta as any).env?.VITE_GEMINI_FALLBACK_API_KEY || '';
+import type { AppSettings, SalesModelConfig } from '../types/index';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultMarketplace: 'amazon.com.br',
@@ -78,8 +77,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   aiSettings: {
     provider: 'gemini',
-    apiKey: envGeminiKey,
-    fallbackApiKey: envGeminiFallbackKey,
+    apiKey: '',
+    fallbackApiKey: '',
     baseUrl: '',
     model: 'gemini-2.0-flash',
     azureEndpoint: '',
