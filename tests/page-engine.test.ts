@@ -1,8 +1,37 @@
 import { describe, it, expect } from 'vitest';
 import { PageEngine } from '../src/services/page-engine';
+import { EditorialHtmlBuilder } from '../src/services/formats/editorial-html';
 import { calculateKdpBindingMargin, BookProject } from '../src/types/book-project';
 
 describe('PageEngine & Diagramação Editorial KDP', () => {
+  it('gera documento paginado, escapa conteúdo e usa dimensões e margens do projeto', () => {
+    const project = {
+      id: 'editorial-html',
+      title: '<script>alert(1)</script>',
+      subtitle: 'Subtítulo',
+      author: 'Autora',
+      language: 'Português',
+      trimSize: '6x9',
+      pageSettings: {
+        trimSize: '6x9',
+        margins: { top: 0.8, bottom: 0.8, inside: 0.9, outside: 0.5 },
+        hasRunningHeaders: true,
+        hasPageNumbers: true
+      },
+      kdpChapters: [{ index: 1, title: 'Capítulo 1', prose: 'Texto do capítulo.' }],
+      images: []
+    } as unknown as BookProject;
+
+    const html = EditorialHtmlBuilder.build(project);
+
+    expect(html).toContain('@page');
+    expect(html).toContain('size: 6in 9in');
+    expect(html).toContain('0.9in');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('break-before: right');
+  });
+
   it('deve calcular a margem de encadernação KDP (Gutter) com base nas regras oficiais da Amazon', () => {
     // 24 a 150 págs -> 0.375 pol
     expect(calculateKdpBindingMargin(50)).toBe(0.375);
@@ -53,6 +82,11 @@ describe('PageEngine & Diagramação Editorial KDP', () => {
       tasks: [],
       notes: '',
       competitorsAsins: [],
+      currentStage: 'research',
+      stageProgress: [],
+      stageContents: [],
+      stageVersions: [],
+      stageApprovals: [],
       kdpChapters: [
         {
           index: 1,

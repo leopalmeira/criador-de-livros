@@ -14,8 +14,10 @@ import json
 import subprocess
 import threading
 import time
+import tempfile
+import shutil
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
@@ -24,6 +26,7 @@ KDP_BOOK_DIR = BASE_DIR / "kdp-book"
 
 # Estado de execuções ativas
 RUNS = {}
+PDF_RENDER_LOCK = threading.Lock()
 
 def get_python_cmd():
     return sys.executable
@@ -172,6 +175,101 @@ class BridgeHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if path == "/api/render-pdf":
+            origin = self.headers.get("Origin", "")
+            origin_url = urlparse(origin)
+            allowed_extension = origin_url.scheme == "chrome-extension" and bool(origin_url.netloc)
+            allowed_dev_server = origin in {
+                "http://localhost:3000",
+                "http://127.0.0.1:3000"
+            }
+            if not (allowed_extension or allowed_dev_server):
+                self.send_json(403, {"error": "Origem não autorizada para renderização."})
+                return
+
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length <= 0 or content_length > 12 * 1024 * 1024:
+                self.send_json(413, {"error": "O HTML deve ter entre 1 byte e 12 MB."})
+                return
+
+            try:
+                payload = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                self.send_json(400, {"error": "JSON inválido."})
+                return
+
+            html_document = payload.get("html")
+            if not isinstance(html_document, str) or "<html" not in html_document.lower():
+                self.send_json(400, {"error": "Documento HTML inválido."})
+                return
+
+            node_path = shutil.which("node")
+            cli_entry = BASE_DIR / "node_modules" / "@vivliostyle" / "cli" / "dist" / "cli.js"
+            if not node_path or not cli_entry.is_file():
+                self.send_json(503, {"error": "Vivliostyle CLI não está instalada neste workspace."})
+                return
+
+            title = str(payload.get("title") or "Livro")[:200]
+            author = str(payload.get("author") or "Autor")[:200]
+            language = str(payload.get("language") or "pt-BR")[:32]
+
+            if not PDF_RENDER_LOCK.acquire(blocking=False):
+                self.send_json(429, {"error": "Já existe uma paginação em andamento. Tente novamente em instantes."})
+                return
+
+            try:
+                try:
+                    with tempfile.TemporaryDirectory(prefix="bookintel-vivliostyle-") as temp_dir:
+                        temp_path = Path(temp_dir)
+                        input_path = temp_path / "manuscript.html"
+                        output_path = temp_path / "interior.pdf"
+                        input_path.write_text(html_document, encoding="utf-8")
+
+                        result = subprocess.run(
+                            [
+                                node_path,
+                                str(cli_entry),
+                                "build",
+                                "--single-doc",
+                                "--output", str(output_path),
+                                "--title", title,
+                                "--author", author,
+                                "--language", language,
+                                "--viewer-param", "allowScripts=false",
+                                "--log-level", "silent",
+                                str(input_path)
+                            ],
+                            cwd=BASE_DIR,
+                            capture_output=True,
+                            text=True,
+                            timeout=240,
+                            check=False
+                        )
+                        if result.returncode != 0 or not output_path.is_file():
+                            details = (result.stderr or result.stdout or "Falha sem detalhes")[-4000:]
+                            self.send_json(500, {"error": f"Vivliostyle não conseguiu gerar o PDF: {details}"})
+                            return
+
+                        pdf_bytes = output_path.read_bytes()
+                        if not pdf_bytes.startswith(b"%PDF-"):
+                            self.send_json(500, {"error": "A saída do Vivliostyle não é um PDF válido."})
+                            return
+
+                    self.send_response(200)
+                    self.send_cors_headers()
+                    self.send_header("Content-Type", "application/pdf")
+                    self.send_header("Content-Length", str(len(pdf_bytes)))
+                    self.send_header("Content-Disposition", 'attachment; filename="interior.pdf"')
+                    self.end_headers()
+                    self.wfile.write(pdf_bytes)
+                except subprocess.TimeoutExpired:
+                    self.send_json(504, {"error": "A diagramação excedeu o limite de 240 segundos."})
+                except OSError as error:
+                    self.send_json(500, {"error": f"Falha ao gravar ou ler arquivos temporários: {error}"})
+            finally:
+                PDF_RENDER_LOCK.release()
+            return
+
         if path == "/api/generate":
             content_length = int(self.headers.get("Content-Length", 0))
             body_bytes = self.rfile.read(content_length)
@@ -295,7 +393,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
 def run_server():
     server_address = ('127.0.0.1', PORT)
-    httpd = HTTPServer(server_address, BridgeHandler)
+    httpd = ThreadingHTTPServer(server_address, BridgeHandler)
     print("=" * 60)
     print(f"  🚀 BookIntel - Servidor Ponte kdp-book Ativo")
     print(f"  URL Local: http://127.0.0.1:{PORT}")

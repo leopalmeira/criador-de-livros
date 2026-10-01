@@ -24,6 +24,7 @@ import {
 } from '../../types/book-project';
 import { KdpBookPipeline } from '../../services/kdp-pipeline';
 import { AiService } from '../../services/ai-service';
+import { MigrationService } from '../../services/migration-service';
 
 interface WizardNewBookProps {
   onCancel: () => void;
@@ -145,24 +146,20 @@ export const WizardNewBook: React.FC<WizardNewBookProps> = ({
     const projId = `proj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
     const autoStages: string[] = [];
-    if (autoCreateConcept) autoStages.push('concept');
-    if (autoCreateOutline) autoStages.push('outline');
-    if (autoCreateBible) autoStages.push('bible');
-    if (autoWriteAllChapters) {
-      autoStages.push('all_chapters');
-    } else {
-      autoStages.push('chapter_1');
-    }
-    if (autoCreateCover) autoStages.push('cover');
-    if (autoCreateIllustrations) autoStages.push('illustrations');
-    if (autoCreateMetadata) autoStages.push('metadata');
     if (autonomousFullBook) {
-      autoStages.push('review');
-      autoStages.push('quality');
-      autoStages.push('export');
+      autoStages.push('full_book');
+    } else {
+      if (autoCreateConcept) autoStages.push('concept');
+      if (autoCreateOutline) autoStages.push('outline');
+      if (autoCreateBible) autoStages.push('bible');
+      autoStages.push(autoWriteAllChapters ? 'all_chapters' : 'chapter_1');
+      if (autoCreateIllustrations) autoStages.push('illustrations');
+      if (autoCreateCover) autoStages.push('cover');
+      if (autoCreateMetadata) autoStages.push('metadata');
+      autoStages.push('review', 'quality', 'layout');
     }
 
-    const newProject: BookProject = {
+    const newProject = MigrationService.migrateProject({
       id: projId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -192,7 +189,7 @@ export const WizardNewBook: React.FC<WizardNewBookProps> = ({
       tasks: [],
       notes: '',
       competitorsAsins: []
-    };
+    });
 
     onCreateProject(newProject, autoStages);
   };
@@ -546,7 +543,7 @@ export const WizardNewBook: React.FC<WizardNewBookProps> = ({
                       />
                     </div>
                     <p className="text-xs text-muted mt-1 leading-relaxed">
-                      A IA gerará a <strong>obra completa de ponta a ponta</strong>: Conceito editorial, Sumário, Memória de Personagens, <strong>Redação de Todos os Capítulos</strong>, <strong>Capa Realista com IA</strong> e <strong>Ilustrações para Cada Capítulo</strong>.
+                      A IA gerará a <strong>obra completa de ponta a ponta</strong>: Conceito editorial, Sumário, Memória de Personagens, <strong>Redação de Todos os Capítulos</strong>, <strong>Capa Realista com IA</strong>, <strong>Ilustrações para Cada Capítulo</strong>, diagramação das páginas, auditoria e pacote final para a Amazon.
                     </p>
                     <p className="text-xs text-secondary mt-1 font-medium">
                       ✏️ <em>Totalmente editável: após a geração, você pode trocar a capa, gerar novas variações de imagens, editar textos e diagramar livremente.</em>
