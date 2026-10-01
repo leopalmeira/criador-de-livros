@@ -57,20 +57,6 @@ export function formatNumber(value: number | undefined | null, decimals: number 
   }).format(value);
 }
 
-export function formatCompactNumber(value: number | undefined | null): string {
-  if (value === undefined || value === null || isNaN(value)) {
-    return 'N/D';
-  }
-
-  if (value >= 1000000) {
-    return (value / 1000000).toFixed(1) + 'M';
-  }
-  if (value >= 1000) {
-    return (value / 1000).toFixed(1) + 'K';
-  }
-  return value.toString();
-}
-
 export function formatBsr(bsr: number | undefined | null): string {
   if (bsr === undefined || bsr === null || isNaN(bsr) || bsr <= 0) {
     return 'N/D';

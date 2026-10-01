@@ -3,17 +3,16 @@ import JSZip from 'jszip';
 import { BookProject } from '../../types/book-project';
 import { EpubBuilder } from './epub-builder';
 import { PdfBuilder } from './pdf-builder';
-import { EditorialHtmlBuilder } from './editorial-html';
 
 export class KdpPackager {
   /**
    * Gera o pacote completo em formato .ZIP organizado para publicação direta no Amazon KDP
    */
-  public static async createKdpPackage(project: BookProject, interiorPdf?: Blob): Promise<Blob> {
-    return this.packageFullKdpBundle(project, interiorPdf);
+  public static async createKdpPackage(project: BookProject): Promise<Blob> {
+    return this.packageFullKdpBundle(project);
   }
 
-  public static async packageFullKdpBundle(project: BookProject, interiorPdf?: Blob): Promise<Blob> {
+  public static async packageFullKdpBundle(project: BookProject): Promise<Blob> {
     const zip = new JSZip();
     const slug = (project.title || 'livro-kdp')
       .toLowerCase()
@@ -30,7 +29,7 @@ export class KdpPackager {
     rootFolder.folder('ebook')?.file(`${slug}.epub`, epubBlob);
 
     // 2. paperback/interior.pdf & cover-full-wrap.pdf
-    const interiorPdfBlob = interiorPdf || await PdfBuilder.buildInteriorPdf(project);
+    const interiorPdfBlob = await PdfBuilder.buildInteriorPdf(project);
     const coverWrapPdfBlob = await PdfBuilder.buildCoverWrapPdf(project, project.actualPages || project.estimatedPages || 150);
     const paperbackFolder = rootFolder.folder('paperback');
     paperbackFolder?.file('interior.pdf', interiorPdfBlob);
@@ -40,7 +39,7 @@ export class KdpPackager {
     const manuscriptFolder = rootFolder.folder('manuscript');
     manuscriptFolder?.file('manuscript.pdf', interiorPdfBlob);
     manuscriptFolder?.file('manuscript.md', this.generateMarkdownManuscript(project));
-    manuscriptFolder?.file('manuscript.html', EditorialHtmlBuilder.build(project));
+    manuscriptFolder?.file('manuscript.html', this.generateHtmlManuscript(project));
 
     // 4. cover/ (full-wrap.pdf & metadados visuais)
     const coverFolder = rootFolder.folder('cover');
@@ -85,6 +84,38 @@ export class KdpPackager {
     }
 
     return md;
+  }
+
+  private static generateHtmlManuscript(p: BookProject): string {
+    const chapters = (p.kdpChapters || []).map(ch => `
+      <section class="chapter">
+        <h2>Capítulo ${ch.index}: ${ch.title}</h2>
+        <div class="prose">${(ch.prose || '').split(/\n\s*\n/).map(para => `<p>${para}</p>`).join('')}</div>
+      </section>
+    `).join('\n');
+
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>${p.title}</title>
+  <style>
+    body { font-family: Georgia, serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 20px; color: #222; }
+    h1 { font-family: sans-serif; text-align: center; margin-bottom: 5px; }
+    h2.subtitle { font-family: sans-serif; text-align: center; color: #666; font-weight: normal; margin-top: 0; }
+    .author { text-align: center; font-weight: bold; margin-bottom: 40px; }
+    .chapter { margin-top: 50px; page-break-before: always; }
+    p { text-indent: 1.5em; margin: 0 0 10px 0; text-align: justify; }
+  </style>
+</head>
+<body>
+  <h1>${p.title}</h1>
+  ${p.subtitle ? `<h2 class="subtitle">${p.subtitle}</h2>` : ''}
+  <div class="author">Por ${p.author}</div>
+  <hr/>
+  ${chapters}
+</body>
+</html>`;
   }
 
   private static generateCoverPromptsText(p: BookProject): string {

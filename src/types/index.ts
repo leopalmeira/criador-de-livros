@@ -362,14 +362,7 @@ export type {
   BookVersionItem,
   PageLayoutSettings,
   TypographySettings,
-  PipelineStage,
-  EditorialStageKey,
-  EditorialStageId,
-  StageStatus,
-  StageContent,
-  StageVersion,
-  StageApproval,
-  StageProgress
+  PipelineStage
 } from './book-project';
-export { BOOK_TYPE_CONFIGS, EDITORIAL_STAGES } from './book-project';
+export { BOOK_TYPE_CONFIGS } from './book-project';
 

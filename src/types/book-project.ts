@@ -947,96 +947,6 @@ export type PipelineStage =
   | 'completed' 
   | 'error';
 
-// --- 13 ETAPAS OFICIAIS FIXAS ---
-export const EDITORIAL_STAGES = [
-  { id: '01', key: 'research', label: 'Research', icon: 'Search', description: 'Pesquisa estruturada: tema, nicho, público, concorrência, referências' },
-  { id: '02', key: 'analytics', label: 'Analytics', icon: 'BarChart2', description: 'Inteligência de mercado: Amazon, BSR, royalty, rentabilidade' },
-  { id: '03', key: 'titles', label: 'Book Titles', icon: 'Type', description: 'Títulos e subtítulos comerciais com ganchos magnéticos' },
-  { id: '04', key: 'resources', label: 'Resources', icon: 'Library', description: 'Biblioteca de recursos: PDFs, links, notas, referências' },
-  { id: '05', key: 'persona', label: 'Author Persona', icon: 'User', description: 'Persona editorial do autor: voz, tom, estilo, posicionamento' },
-  { id: '06', key: 'purpose', label: 'Purpose', icon: 'Target', description: 'Propósito: promessa, problema, transformação, proposta de valor' },
-  { id: '07', key: 'details', label: 'Book Details', icon: 'BookOpen', description: 'Detalhes dinâmicos por tipo de produto (gênero, personagens, etc.)' },
-  { id: '08', key: 'bio', label: 'Author Bio', icon: 'PenTool', description: 'Biografia do autor gerada e versionada' },
-  { id: '09', key: 'outline', label: 'Outline', icon: 'ListOrdered', description: 'Estrutura de capítulos aprovada (obrigatória)' },
-  { id: '10', key: 'write', label: 'Write', icon: 'PenTool', description: 'Produção do conteúdo: capítulos, cenas, ilustrações' },
-  { id: '11', key: 'description', label: 'Description', icon: 'FileText', description: 'Descrição comercial, keywords, categorias KDP' },
-  { id: '12', key: 'cover', label: 'Book Cover', icon: 'Image', description: 'Capa full-wrap: frente, lombada, contracapa' },
-  { id: '13', key: 'finish', label: 'Finish', icon: 'CheckCircle2', description: 'Checklist final, validação, exportação PDF/EPUB/ZIP' }
-] as const;
-
-export type EditorialStageKey = typeof EDITORIAL_STAGES[number]['key'];
-export type EditorialStageId = typeof EDITORIAL_STAGES[number]['id'];
-
-export type StageStatus = 
-  | 'NOT_STARTED' 
-  | 'IN_PROGRESS' 
-  | 'REVIEW' 
-  | 'APPROVED' 
-  | 'COMPLETED'
-  | 'DRAFT'
-  | 'GENERATING'
-  | 'GENERATED'
-  | 'REJECTED'
-  | 'ERROR';
-
-export interface MarketReference {
-  id: string;
-  projectId: string;
-  source: string;
-  sourceUrl?: string;
-  marketplace: string;
-  title: string;
-  author: string;
-  category?: string;
-  bsr?: number;
-  rating?: number;
-  reviewCount?: number;
-  price?: number;
-  currency?: string;
-  format?: string;
-  pageCount?: number;
-  trimSize?: string;
-  inkType?: string;
-  collectedAt: number;
-  selectionReason?: string;
-  relationToProject?: string;
-}
-
-export interface StageContent {
-  stageKey: EditorialStageKey;
-  data: Record<string, any>;
-  updatedAt: number;
-  updatedBy: 'user' | 'ai';
-  version: number;
-}
-
-export interface StageVersion {
-  id: string;
-  stageKey: EditorialStageKey;
-  versionTag: string;
-  timestamp: number;
-  snapshot: Record<string, any>;
-  author: 'user' | 'ai';
-  changeSummary: string;
-}
-
-export interface StageApproval {
-  stageKey: EditorialStageKey;
-  status: StageStatus;
-  approvedAt?: number;
-  approvedBy?: string;
-  reviewNotes?: string;
-  previousStatus: StageStatus;
-}
-
-export interface StageProgress {
-  stageKey: EditorialStageKey;
-  status: StageStatus;
-  progress: number;
-  lastUpdated: number;
-  contentHash?: string;
-}
-
 // --- CONFIGURAÇÃO DE DIAGRAMAÇÃO E PÁGINAS ---
 export interface PageMargins {
   top: number;       // polegadas (padrão 0.75)
@@ -1212,7 +1122,7 @@ export interface BookProject {
   keywords: string[];
   targetAudience: string;
   
-  // Pipeline Editorial (Legado - mantido para compatibilidade)
+  // Pipeline Editorial
   topic: string;
   kdpBookType: BookType;
   kdpConcept?: IBookConcept;
@@ -1245,13 +1155,6 @@ export interface BookProject {
   notes: string;
   outline?: Array<{ id: string; order: number; title: string; description: string; wordCount?: number; status: string }>;
   competitorsAsins: string[];
-  
-  // --- NOVO: SISTEMA DE 13 ETAPAS COM STATUS INDIVIDUAL ---
-  currentStage: EditorialStageKey;
-  stageProgress: StageProgress[];
-  stageContents: StageContent[];
-  stageVersions: StageVersion[];
-  stageApprovals: StageApproval[];
 }
 
 export interface ProjectSummary {

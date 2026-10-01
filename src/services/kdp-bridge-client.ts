@@ -130,35 +130,6 @@ export class KdpBridgeClient {
       return null;
     }
   }
-
-  async renderPdf(params: {
-    html: string;
-    title: string;
-    author: string;
-    language: string;
-  }): Promise<Blob> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 250_000);
-    try {
-      const res = await fetch(`${this.baseUrl}/api/render-pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-        signal: controller.signal
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Falha ao gerar PDF (HTTP ${res.status}).`);
-      }
-      const pdf = await res.blob();
-      if (pdf.type !== 'application/pdf' || pdf.size < 5) {
-        throw new Error('O bridge retornou uma saída PDF inválida.');
-      }
-      return pdf;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
 }
 
 export const defaultKdpBridge = new KdpBridgeClient();

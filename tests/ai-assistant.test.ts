@@ -36,11 +36,6 @@ describe('AiAssistantService & Memória do Livro', () => {
     tasks: [],
     notes: '',
     competitorsAsins: [],
-    currentStage: 'research',
-    stageProgress: [],
-    stageContents: [],
-    stageVersions: [],
-    stageApprovals: [],
     bookMemory: {
       characters: [
         { id: '1', name: 'Laura', role: 'Protagonista', appearance: 'Cabelos castanhos, olhos atentos', personality: 'Determinada e analítica' },

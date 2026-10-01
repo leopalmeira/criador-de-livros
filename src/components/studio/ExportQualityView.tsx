@@ -17,8 +17,6 @@ import { AiService } from '../../services/ai-service';
 import { PdfBuilder } from '../../services/formats/pdf-builder';
 import { EpubBuilder } from '../../services/formats/epub-builder';
 import { KdpPackager } from '../../services/formats/kdp-packager';
-import { EditorialHtmlBuilder } from '../../services/formats/editorial-html';
-import { defaultKdpBridge } from '../../services/kdp-bridge-client';
 
 interface ExportQualityViewProps {
   project: BookProject;
@@ -39,13 +37,6 @@ export const ExportQualityView: React.FC<ExportQualityViewProps> = ({
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
-  const generateVivliostylePdf = () => defaultKdpBridge.renderPdf({
-    html: EditorialHtmlBuilder.build(project),
-    title: project.title || 'Livro',
-    author: project.author || 'Autor',
-    language: project.language || 'pt-BR'
-  });
-
   const handleRunChecks = () => {
     const pipeline = new KdpBookPipeline(aiService);
     const rep = pipeline.runQualityGate(project);
@@ -56,11 +47,9 @@ export const ExportQualityView: React.FC<ExportQualityViewProps> = ({
   const handleDownloadInteriorPdf = async () => {
     setIsExporting('pdf-interior');
     try {
-      const blob = await generateVivliostylePdf();
+      const blob = await PdfBuilder.buildInteriorPdf(project);
       downloadBlob(blob, `${project.title || 'Livro'}_Interior_${project.trimSize}.pdf`);
-      setDownloadSuccess('PDF paginado pelo Vivliostyle baixado com sucesso.');
-    } catch (error) {
-      setDownloadSuccess(`Não foi possível gerar o PDF Vivliostyle. Inicie o bridge local e tente novamente. ${error instanceof Error ? error.message : ''}`);
+      setDownloadSuccess('PDF do Miolo Interior baixado com sucesso!');
     } finally {
       setIsExporting(null);
     }
@@ -92,13 +81,10 @@ export const ExportQualityView: React.FC<ExportQualityViewProps> = ({
   const handleDownloadCompleteZip = async () => {
     setIsExporting('zip-complete');
     try {
-      const interiorPdf = await generateVivliostylePdf();
-      const blob = await KdpPackager.createKdpPackage(project, interiorPdf);
+      const blob = await KdpPackager.createKdpPackage(project);
       downloadBlob(blob, `Pacote_Completo_KDP_${project.title || 'Livro'}.zip`);
       onUpdateProject({ ...project, kdpPackageGeneratedAt: Date.now() });
-      setDownloadSuccess('Pacote KDP baixado. O PDF do miolo e o preview usam o mesmo documento Vivliostyle.');
-    } catch (error) {
-      setDownloadSuccess(`O pacote não foi criado porque a paginação Vivliostyle falhou. Inicie o bridge local e tente novamente. ${error instanceof Error ? error.message : ''}`);
+      setDownloadSuccess('Pacote Completo KDP ZIP baixado com sucesso!');
     } finally {
       setIsExporting(null);
     }

@@ -32,7 +32,6 @@ import { EpubBuilder } from '../../services/formats/epub-builder';
 import { PdfBuilder } from '../../services/formats/pdf-builder';
 import { KdpPackager } from '../../services/formats/kdp-packager';
 import { formatCurrency, formatNumber } from '../../utils/formatters';
-import { MigrationService } from '../../services/migration-service';
 
 const STATUS_COLORS: Record<ProjectStatus, string> = {
   'IDEIA': '#94a3b8',
@@ -299,7 +298,7 @@ export const BookCreatorTab: React.FC = () => {
       );
 
       // Salva projeto preliminar
-      const initialProject = MigrationService.migrateProject({
+      const initialProject: BookProject = {
         id: generateId(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -337,7 +336,7 @@ export const BookCreatorTab: React.FC = () => {
         ],
         notes: `Criado no Estúdio editorial em ${new Date().toLocaleDateString('pt-BR')}`,
         competitorsAsins: []
-      });
+      };
 
       await db.saveBookProject(initialProject);
       await loadProjects();

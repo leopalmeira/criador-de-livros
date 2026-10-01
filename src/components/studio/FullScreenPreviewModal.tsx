@@ -7,17 +7,9 @@ import {
   ZoomOut, 
   Maximize, 
   Minimize, 
-  BookOpen,
-  Printer
+  BookOpen 
 } from 'lucide-react';
-import type { PageViewMode } from '@vivliostyle/core';
-import { BookProject } from '../../types/book-project';
-import { EditorialHtmlBuilder } from '../../services/formats/editorial-html';
-
-const LazyRenderer = React.lazy(async () => {
-  const { Renderer } = await import('@vivliostyle/react');
-  return { default: Renderer };
-});
+import { BookProject, BookVisualPage, TRIM_SIZE_METRICS } from '../../types/book-project';
 
 interface FullScreenPreviewModalProps {
   project: BookProject;
@@ -32,34 +24,24 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
   onClose,
   initialPageNumber = 1
 }) => {
+  if (!isOpen) return null;
+
+  const pages: BookVisualPage[] = project.visualPages || [];
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(Math.max(0, initialPageNumber - 1));
-  const [pageCount, setPageCount] = useState(0);
   const [zoomScale, setZoomScale] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [source, setSource] = useState('');
-  const [previewError, setPreviewError] = useState('');
 
   const trim = project.pageSettings?.trimSize || project.trimSize || '6x9';
+  const metric = TRIM_SIZE_METRICS[trim] || TRIM_SIZE_METRICS['6x9'];
+  const aspectRatio = metric.heightInches / metric.widthInches;
 
-  useEffect(() => {
-    const html = EditorialHtmlBuilder.build(project);
-    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-    setSource(url);
-    setPageCount(0);
-    setPreviewError('');
-    return () => URL.revokeObjectURL(url);
-  }, [project]);
-
-  useEffect(() => {
-    if (isOpen) setCurrentPageIndex(Math.max(0, initialPageNumber - 1));
-  }, [isOpen, initialPageNumber]);
+  const currentPage = pages[currentPageIndex] || pages[0];
 
   // Teclado para navegar com setas
   useEffect(() => {
-    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ') {
-        setCurrentPageIndex(prev => Math.min(pageCount - 1, prev + 1));
+        setCurrentPageIndex(prev => Math.min(pages.length - 1, prev + 1));
       } else if (e.key === 'ArrowLeft') {
         setCurrentPageIndex(prev => Math.max(0, prev - 1));
       } else if (e.key === 'Escape') {
@@ -68,30 +50,13 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, pageCount]);
-
-  if (!isOpen) return null;
+  }, [pages.length]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
     } else {
       document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
-    }
-  };
-
-  const handlePrint = async () => {
-    try {
-      const { printHTML } = await import('@vivliostyle/core');
-      printHTML(EditorialHtmlBuilder.build(project), {
-        title: project.title || 'Livro',
-        hideIframe: true,
-        removeIframe: true,
-        errorCallback: setPreviewError,
-        printCallback: (printWindow) => printWindow.print()
-      });
-    } catch (error) {
-      setPreviewError(error instanceof Error ? error.message : 'Falha ao preparar impressão.');
     }
   };
 
@@ -106,7 +71,7 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
         </div>
 
         <div className="preview-page-counter">
-          <span>{pageCount ? `Página ${Math.min(currentPageIndex + 1, pageCount)} de ${pageCount}` : 'Calculando páginas...'}</span>
+          <span>Página {currentPageIndex + 1} de {pages.length}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -132,10 +97,6 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
             {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
           </button>
 
-          <button className="btn-icon-subtle ml-2" onClick={handlePrint} title="Imprimir ou salvar como PDF" disabled={!source}>
-            <Printer size={16} />
-          </button>
-
           {/* FECHAR */}
           <button className="btn-icon-subtle ml-2" onClick={onClose} title="Sair do Preview">
             <X size={18} />
@@ -154,34 +115,60 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
           <ChevronLeft size={32} />
         </button>
 
-        <div className="vivliostyle-preview-frame" style={{ transform: `scale(${zoomScale})` }}>
-          {source && (
-            <React.Suspense fallback={<p className="preview-loading-message">Carregando motor de paginação...</p>}>
-              <LazyRenderer
-                source={source}
-                page={currentPageIndex + 1}
-                zoom={1}
-                bookMode={false}
-                renderAllPages
-                pageViewMode={'singlePage' as PageViewMode}
-                fitToScreen
-                background="#090c10"
-                style={{ width: 'min(92vw, 900px)', height: 'calc(100vh - 8rem)', minHeight: '420px' }}
-                onLoad={(state) => setPageCount(state.epageCount)}
-                onNavigation={(state) => setCurrentPageIndex(Math.max(0, state.epage))}
-                onError={setPreviewError}
-              />
-            </React.Suspense>
+        {/* FOLHA DO LIVRO EDITORIAL REALISTA */}
+        <div 
+          className="preview-book-sheet"
+          style={{
+            transform: `scale(${zoomScale})`,
+            maxWidth: '680px',
+            width: '92%',
+            minHeight: '840px'
+          }}
+        >
+          {/* CABEÇALHO DA PÁGINA */}
+          {currentPage?.headerText && (
+            <div className="preview-sheet-header">
+              <span>{currentPage.headerText}</span>
+            </div>
           )}
-          {previewError && <p role="alert" className="preview-error-message">{previewError}</p>}
-          {source && !pageCount && !previewError && <p className="preview-loading-message">Diagramando páginas...</p>}
+
+          {/* CONTEÚDO EDITORIAL */}
+          <div className="preview-sheet-elements">
+            {currentPage?.elements?.map((elem, idx) => (
+              <div key={elem.id} className={`preview-elem elem-${elem.type}`}>
+                {elem.type === 'chapter-title' ? (
+                  <h3 className="preview-chapter-title">{elem.content}</h3>
+                ) : elem.type === 'heading' ? (
+                  <h4 className="preview-heading">{elem.content}</h4>
+                ) : elem.type === 'quote' ? (
+                  <blockquote className="preview-quote">{elem.content}</blockquote>
+                ) : elem.type === 'callout' ? (
+                  <div className="preview-callout">{elem.content}</div>
+                ) : elem.type === 'image' && elem.imageUrl ? (
+                  <div className="preview-img-box">
+                    <img src={elem.imageUrl} alt={elem.caption || "Ilustração do Livro"} />
+                    {elem.caption && <span className="preview-img-caption">{elem.caption}</span>}
+                  </div>
+                ) : (
+                  <p className="preview-paragraph">{elem.content}</p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* NÚMERO DA PÁGINA */}
+          {currentPage?.footerText && (
+            <div className="preview-sheet-footer">
+              <span>{currentPage.footerText}</span>
+            </div>
+          )}
         </div>
 
         {/* NAVEGAÇÃO DIREITA */}
         <button 
           className="btn-nav-page-floating nav-right" 
-          onClick={() => setCurrentPageIndex(Math.min(pageCount - 1, currentPageIndex + 1))}
-          disabled={!pageCount || currentPageIndex >= pageCount - 1}
+          onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))}
+          disabled={currentPageIndex >= pages.length - 1}
         >
           <ChevronRight size={32} />
         </button>

@@ -7,7 +7,6 @@ import {
 import { EpubBuilder } from '../src/services/formats/epub-builder';
 import { PdfBuilder } from '../src/services/formats/pdf-builder';
 import { KdpPackager } from '../src/services/formats/kdp-packager';
-import JSZip from 'jszip';
 
 describe('Teste de Ponta a Ponta - Gerador Editorial KDP (Item 47)', () => {
   it('deve gerar e validar o projeto completo de teste: "Disciplina e construção de hábitos para adultos que querem melhorar sua produtividade"', async () => {
@@ -45,11 +44,6 @@ describe('Teste de Ponta a Ponta - Gerador Editorial KDP (Item 47)', () => {
       tasks: [],
       notes: '',
       competitorsAsins: [],
-      currentStage: 'research',
-      stageProgress: [],
-      stageContents: [],
-      stageVersions: [],
-      stageApprovals: [],
       estimatedPages: targetPages,
       actualPages: 162,
       trimSize: '6x9',
@@ -246,14 +240,8 @@ describe('Teste de Ponta a Ponta - Gerador Editorial KDP (Item 47)', () => {
     expect(coverWrapPdfBlob.size).toBeGreaterThan(1000);
 
     // 5. Geração do Pacote KDP (.ZIP)
-    const vivliostylePdf = new Blob(['%PDF-1.7\nvivliostyle-rendered-interior'], { type: 'application/pdf' });
-    const kdpZipBlob = await KdpPackager.createKdpPackage(project, vivliostylePdf);
+    const kdpZipBlob = await KdpPackager.createKdpPackage(project);
     expect(kdpZipBlob).toBeDefined();
     expect(kdpZipBlob.size).toBeGreaterThan(5000);
-
-    const archive = await JSZip.loadAsync(kdpZipBlob);
-    const packagedInterior = archive.file(/\/paperback\/interior\.pdf$/)[0];
-    expect(packagedInterior).toBeDefined();
-    await expect(packagedInterior!.async('string')).resolves.toBe('%PDF-1.7\nvivliostyle-rendered-interior');
   });
 });

@@ -24,14 +24,12 @@ interface ProductionTreeViewProps {
   project: BookProject;
   onNavigateToStage: (stageId: string, param?: any) => void;
   onExecutePipelineStage?: (stageId: string) => void;
-  isRunning?: boolean;
 }
 
 export const ProductionTreeView: React.FC<ProductionTreeViewProps> = ({
   project,
   onNavigateToStage,
-  onExecutePipelineStage,
-  isRunning = false
+  onExecutePipelineStage
 }) => {
   const chapters = project.kdpChapters || [];
   const completedChaptersCount = chapters.filter(c => c.prose && c.prose.trim().length > 100).length;
@@ -125,15 +123,10 @@ export const ProductionTreeView: React.FC<ProductionTreeViewProps> = ({
           <button 
             className="btn-ai-director-action"
             onClick={() => onExecutePipelineStage?.('complete_all')}
-            disabled={isRunning}
             title="Concluir 100% da linha de produção automaticamente"
           >
             <Play size={14} className="fill-current text-slate-900" />
-            <span>
-              {isRunning
-                ? '🤖 Produção em andamento...'
-                : '⚡ Concluir Toda a Produção com IA (100%)'}
-            </span>
+            <span>⚡ Concluir Toda a Produção com IA (100%)</span>
           </button>
         </div>
       ) : (

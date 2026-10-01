@@ -14,7 +14,6 @@ import {
   ProjectSummary 
 } from '../types/book-project';
 import { DEFAULT_SETTINGS, DEFAULT_SALES_MODELS } from './defaults';
-import { MigrationService } from '../services/migration-service';
 
 const DB_NAME = 'BookIntelDB';
 const DB_VERSION = 2; // Incrementado para suportar bookProjects
@@ -393,14 +392,7 @@ class LocalDatabase {
       const tx = db.transaction('bookProjects', 'readonly');
       const store = tx.objectStore('bookProjects');
       const req = store.get(id);
-      req.onsuccess = () => {
-        const project = req.result || null;
-        if (project && MigrationService.needsMigration(project)) {
-          resolve(MigrationService.migrateProject(project));
-        } else {
-          resolve(project);
-        }
-      };
+      req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => reject(req.error);
     });
   }
@@ -412,9 +404,7 @@ class LocalDatabase {
       const store = tx.objectStore('bookProjects');
       const req = store.getAll();
       req.onsuccess = () => {
-        const list: BookProject[] = (req.result || []).map(p => 
-          MigrationService.needsMigration(p) ? MigrationService.migrateProject(p) : p
-        );
+        const list: BookProject[] = req.result || [];
         list.sort((a, b) => b.updatedAt - a.updatedAt);
         resolve(list);
       };
@@ -562,10 +552,7 @@ class LocalDatabase {
     if (bookProjects && Array.isArray(bookProjects)) {
       const tx = db.transaction('bookProjects', 'readwrite');
       const store = tx.objectStore('bookProjects');
-      for (const p of bookProjects) {
-        const migrated = MigrationService.needsMigration(p) ? MigrationService.migrateProject(p) : p;
-        store.put(migrated);
-      }
+      for (const p of bookProjects) store.put(p);
     }
 
     if (settings) {
