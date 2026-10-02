@@ -23,9 +23,11 @@ import { KdpBookPipeline } from '../../services/kdp-pipeline';
 import { AiService } from '../../services/ai-service';
 import { AiAssistantService } from '../../services/ai-assistant-service';
 import { PageEngine } from '../../services/page-engine';
+import { getDefaultStageStatuses } from '../../types/stages';
 import { LocalAiEngine } from '../../services/local-ai-engine';
 import { GeminiBookGeneratorService } from '../../services/gemini-book-generator';
 import { BoxSuggestionService } from '../../services/box-suggestion-service';
+import { EditorialControlBar } from './EditorialControlBar';
 import '../../styles/outline-planning.css';
 
 interface OutlinePlanningViewProps {
@@ -33,13 +35,17 @@ interface OutlinePlanningViewProps {
   onUpdateProject: (updated: BookProject) => void;
   onNavigateToEditorChapter: (chapterIndex: number) => void;
   aiService: AiService;
+  onContinue?: () => void;
+  onPrev?: () => void;
 }
 
 export const OutlinePlanningView: React.FC<OutlinePlanningViewProps> = ({
   project,
   onUpdateProject,
   onNavigateToEditorChapter,
-  aiService
+  aiService,
+  onContinue,
+  onPrev
 }) => {
   const [chapters, setChapters] = useState<IBookChapter[]>(project.kdpChapters || []);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -261,8 +267,52 @@ export const OutlinePlanningView: React.FC<OutlinePlanningViewProps> = ({
     }
   };
 
+  const isApproved = project.stageStatuses?.outline === 'APROVADO' ||
+                     project.editorialStageApprovals?.['outline']?.status === 'APROVADO';
+
+  const handleApproveStructure = () => {
+    if (chapters.length === 0) {
+      alert('Gere ou crie ao menos um capítulo na estrutura antes de aprovar.');
+      return;
+    }
+
+    onUpdateProject({
+      ...project,
+      kdpChapters: chapters,
+      stageStatuses: {
+        ...(project.stageStatuses || getDefaultStageStatuses()),
+        outline: 'COMPLETED'
+      },
+      editorialStageApprovals: {
+        ...(project.editorialStageApprovals || {}),
+        outline: {
+          stageId: 'outline',
+          status: 'APROVADO',
+          approvedAt: Date.now(),
+          approvedBy: 'user',
+          notes: `Estrutura de sumário com ${chapters.length} capítulos aprovada formalmente.`
+        }
+      }
+    });
+  };
+
   return (
     <div className="outline-view-container">
+      {/* BARRA DE CONTROLE EDITORIAL */}
+      <EditorialControlBar
+        stageId="outline"
+        stageLabel="Estrutura & Sumário de Capítulos"
+        status={isApproved ? 'APROVADO' : chapters.length > 0 ? 'AGUARDANDO_APROVACAO' : 'PENDENTE'}
+        isApproved={isApproved}
+        canApprove={chapters.length > 0}
+        approveButtonText={isApproved ? '✓ ESTRUTURA APROVADA' : 'APROVAR ESTRUTURA'}
+        approvalWarning={chapters.length === 0 ? 'Gere os capítulos do sumário para aprovar.' : undefined}
+        onPrev={onPrev}
+        onNext={isApproved ? onContinue : undefined}
+        onRegenerate={handleRegenerateOutline}
+        onApprove={handleApproveStructure}
+      />
+
       {/* 1. TOPO: BARRA DE STATUS GLOBAL DO SUMÁRIO */}
       <div className="outline-top-summary-bar">
         <div className="outline-stats-group">

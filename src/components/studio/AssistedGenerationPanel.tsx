@@ -146,7 +146,7 @@ export const AssistedGenerationPanel: React.FC<Props> = ({
     if (found) return found.status;
     // Verifica se a etapa já foi completada no projeto
     const stageStatus = project.stageStatuses?.[stageId];
-    if (stageStatus === 'COMPLETED' || stageStatus === 'APPROVED') return 'approved';
+    if (stageStatus === 'COMPLETED' || (stageStatus as any) === 'APROVADO' || (stageStatus as any) === 'APPROVED') return 'approved';
     return 'pending';
   };
 

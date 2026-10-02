@@ -424,14 +424,14 @@ export class EditorialBlueprintEngine {
     if (!updated.estimatedPages || (bp.isIllustrationOrActivity && updated.estimatedPages > 120)) {
       updated.estimatedPages = bp.defaultPages;
       updated.actualPages = bp.defaultPages;
-      updated.targetPages = bp.defaultPages;
+      (updated as any).targetPages = bp.defaultPages;
     }
 
     // 2. Stage Data garantido
     const stageData = { ...(updated.stageData || {}) };
 
     // Etapa 5: Voz & Persona (NUNCA VAZIA)
-    const personaData = stageData['author-persona'] || {};
+    const personaData = (stageData['author-persona'] || {}) as any;
     if (!personaData.inspirationAuthors || !personaData.authorDescription) {
       stageData['author-persona'] = {
         inspirationAuthors: personaData.inspirationAuthors || bp.persona.inspirationAuthors,
@@ -447,7 +447,7 @@ export class EditorialBlueprintEngine {
     }
 
     // Etapa 7: Ficha Editorial (CALIBRADA PARA O NICHO)
-    const detailsData = stageData['book-details'] || {};
+    const detailsData = (stageData['book-details'] || {}) as any;
     if (!detailsData.wordCount || (bp.isIllustrationOrActivity && detailsData.wordCount.includes('k'))) {
       stageData['book-details'] = {
         wordCount: bp.details.wordCountLabel,
@@ -458,13 +458,13 @@ export class EditorialBlueprintEngine {
     }
 
     // Etapa 8: Biografia do Autor (NUNCA MAIS "L. P. OLIVEIRA CORPORATIVO" PARA MANDALAS)
-    const bioData = stageData['author-bio'] || {};
+    const bioData = (stageData['author-bio'] || {}) as any;
     const defaultAuthor = bp.penNameOptions[0];
     if (!updated.author || updated.author === 'Leandro Palmeira' || updated.author === 'L. P. Oliveira' || !bioData.generatedBio) {
       updated.author = defaultAuthor;
       stageData['author-bio'] = {
         personalDetails: bioData.personalDetails || bp.bio.personalDetails,
-        nameType: bp.bio.nameType,
+        nameType: bp.bio.nameType as any,
         background: bioData.background || bp.bio.background,
         achievements: bioData.achievements || bp.bio.achievements,
         generatedBio: bioData.generatedBio || bp.bio.generatedBio,
@@ -496,7 +496,7 @@ export class EditorialBlueprintEngine {
       }));
 
       updated.kdpChapters = generatedChapters;
-      updated.totalChapters = generatedChapters.length;
+      (updated as any).totalChapters = generatedChapters.length;
     }
 
     updated.stageData = stageData;

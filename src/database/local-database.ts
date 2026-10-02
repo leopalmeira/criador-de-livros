@@ -390,53 +390,156 @@ class LocalDatabase {
   }
 
   // --- PROJETOS DE LIVROS (BOOK CREATOR) ---
+  private memoryProjects: Map<string, BookProject> = new Map();
+
   async saveBookProject(project: BookProject): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('bookProjects', 'readwrite');
-      const store = tx.objectStore('bookProjects');
-      project.updatedAt = Date.now();
-      const req = store.put(project);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+    project.updatedAt = Date.now();
+    this.memoryProjects.set(project.id, { ...project });
+
+    // 1. Tentar persistência no IndexedDB
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('bookProjects', 'readwrite');
+        const store = tx.objectStore('bookProjects');
+        const req = store.put(project);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (idbErr: any) {
+      // Se estiver em ambiente Node/Server, salvar diretamente no ProjectStorageService
+      if (typeof window === 'undefined') {
+        try {
+          const { ProjectStorageService } = await import('../services/project-storage-service');
+          await ProjectStorageService.saveProject(project);
+        } catch {}
+      }
+    }
+
+    // 2. Sincronização assíncrona com a API REST do Backend
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      try {
+        fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(project)
+        }).catch(() => {});
+      } catch {}
+    }
   }
 
   async getBookProject(id: string): Promise<BookProject | null> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('bookProjects', 'readonly');
-      const store = tx.objectStore('bookProjects');
-      const req = store.get(id);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
+    // 1. Tentar IndexedDB
+    try {
+      const db = await this.getDB();
+      const proj = await new Promise<BookProject | null>((resolve, reject) => {
+        const tx = db.transaction('bookProjects', 'readonly');
+        const store = tx.objectStore('bookProjects');
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+      if (proj) return proj;
+    } catch {}
+
+    // 2. Tentar memória local
+    if (this.memoryProjects.has(id)) {
+      return this.memoryProjects.get(id) || null;
+    }
+
+    // 3. Tentar servidor via REST
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      try {
+        const res = await fetch(`/api/projects/${encodeURIComponent(id)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.project) return data.project;
+        }
+      } catch {}
+    } else if (typeof window === 'undefined') {
+      try {
+        const { ProjectStorageService } = await import('../services/project-storage-service');
+        return await ProjectStorageService.getProject(id);
+      } catch {}
+    }
+
+    return null;
   }
 
   async getAllBookProjects(): Promise<BookProject[]> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('bookProjects', 'readonly');
-      const store = tx.objectStore('bookProjects');
-      const req = store.getAll();
-      req.onsuccess = () => {
-        const list: BookProject[] = req.result || [];
-        list.sort((a, b) => b.updatedAt - a.updatedAt);
-        resolve(list);
-      };
-      req.onerror = () => reject(req.error);
-    });
+    let projectsList: BookProject[] = [];
+
+    // 1. Tentar IndexedDB
+    try {
+      const db = await this.getDB();
+      projectsList = await new Promise<BookProject[]>((resolve, reject) => {
+        const tx = db.transaction('bookProjects', 'readonly');
+        const store = tx.objectStore('bookProjects');
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {}
+
+    // Se estiver vazio no IndexedDB, tentar no servidor ou na memória
+    if (projectsList.length === 0) {
+      if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+        try {
+          const res = await fetch('/api/projects');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.projects)) {
+              projectsList = data.projects;
+            }
+          }
+        } catch {}
+      } else if (typeof window === 'undefined') {
+        try {
+          const { ProjectStorageService } = await import('../services/project-storage-service');
+          projectsList = await ProjectStorageService.listProjects();
+        } catch {}
+      }
+    }
+
+    // Mesclar com memória
+    if (this.memoryProjects.size > 0) {
+      const memList = Array.from(this.memoryProjects.values());
+      const existingIds = new Set(projectsList.map(p => p.id));
+      for (const m of memList) {
+        if (!existingIds.has(m.id)) {
+          projectsList.push(m);
+        }
+      }
+    }
+
+    projectsList.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    return projectsList;
   }
 
   async deleteBookProject(id: string): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('bookProjects', 'readwrite');
-      const store = tx.objectStore('bookProjects');
-      const req = store.delete(id);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+    this.memoryProjects.delete(id);
+
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('bookProjects', 'readwrite');
+        const store = tx.objectStore('bookProjects');
+        const req = store.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {}
+
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      try {
+        fetch(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+      } catch {}
+    } else if (typeof window === 'undefined') {
+      try {
+        const { ProjectStorageService } = await import('../services/project-storage-service');
+        await ProjectStorageService.deleteProject(id);
+      } catch {}
+    }
   }
 
   async getProjectSummaries(): Promise<ProjectSummary[]> {

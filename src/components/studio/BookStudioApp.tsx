@@ -19,6 +19,7 @@ import {
 
 // Componentes das Etapas
 import { ResearchStage } from './stages/ResearchStage';
+import { MarketResearchStage } from './stages/MarketResearchStage';
 import { BookTitlesStage } from './stages/BookTitlesStage';
 import { ResourcesStage } from './stages/ResourcesStage';
 import { AuthorPersonaStage } from './stages/AuthorPersonaStage';
@@ -650,17 +651,69 @@ export const BookStudioApp: React.FC = () => {
 
     switch (currentStage) {
       case 'research':
-        return <ResearchStage project={activeProject} onUpdateProject={handleUpdateProject} />;
+        return (
+          <MarketResearchStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            onContinue={() => {
+              setCurrentStage('book-titles');
+              handleUpdateProject({ ...activeProject, currentStage: 'book-titles' });
+            }}
+          />
+        );
       case 'book-titles':
-        return <BookTitlesStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
-      case 'resources':
-        return <ResourcesStage project={activeProject} onUpdateProject={handleUpdateProject} />;
-      case 'author-persona':
-        return <AuthorPersonaStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
+        return (
+          <BookTitlesStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            aiService={aiService}
+            onContinue={() => {
+              setCurrentStage('purpose');
+              handleUpdateProject({ ...activeProject, currentStage: 'purpose' });
+            }}
+            onPrev={() => setCurrentStage('research')}
+          />
+        );
       case 'purpose':
-        return <PurposeStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
+        return (
+          <PurposeStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            aiService={aiService}
+            onContinue={() => {
+              setCurrentStage('book-details');
+              handleUpdateProject({ ...activeProject, currentStage: 'book-details' });
+            }}
+            onPrev={() => setCurrentStage('book-titles')}
+          />
+        );
       case 'book-details':
         return <BookDetailsStage project={activeProject} onUpdateProject={handleUpdateProject} />;
+      case 'author-persona':
+        return (
+          <AuthorPersonaStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            aiService={aiService}
+            onContinue={() => {
+              setCurrentStage('resources');
+              handleUpdateProject({ ...activeProject, currentStage: 'resources' });
+            }}
+            onPrev={() => setCurrentStage('book-details')}
+          />
+        );
+      case 'resources':
+        return (
+          <ResourcesStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            onContinue={() => {
+              setCurrentStage('outline');
+              handleUpdateProject({ ...activeProject, currentStage: 'outline' });
+            }}
+            onPrev={() => setCurrentStage('author-persona')}
+          />
+        );
       case 'author-bio':
         return <AuthorBioStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
       case 'outline':
@@ -672,6 +725,7 @@ export const BookStudioApp: React.FC = () => {
             onNavigateToWrite={(chapterIndex) => {
               if (chapterIndex !== undefined) setSelectedEditorChapter(chapterIndex);
               setCurrentStage('write');
+              handleUpdateProject({ ...activeProject, currentStage: 'write' });
             }}
           />
         );
@@ -683,6 +737,10 @@ export const BookStudioApp: React.FC = () => {
             onOpenMemoryModal={() => setIsMemoryModalOpen(true)}
             onOpenPreview={() => setIsPreviewModalOpen(true)}
             initialChapterIndex={selectedEditorChapter}
+            onNavigateToFinish={() => {
+              setCurrentStage('description');
+              handleUpdateProject({ ...activeProject, currentStage: 'description' });
+            }}
           />
         );
       case 'description':
@@ -692,7 +750,10 @@ export const BookStudioApp: React.FC = () => {
           <BookCoverStage
             project={activeProject}
             onUpdateProject={handleUpdateProject}
-            onContinue={() => setCurrentStage('finish')}
+            onContinue={() => {
+              setCurrentStage('finish');
+              handleUpdateProject({ ...activeProject, currentStage: 'finish' });
+            }}
           />
         );
       case 'finish':

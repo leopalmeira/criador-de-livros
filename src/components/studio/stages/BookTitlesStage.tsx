@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { BookProject } from '../../../types/book-project';
-import { BookTitlesData, TitleOption } from '../../../types/stages';
+import { BookTitlesData, TitleOption, getDefaultStageStatuses } from '../../../types/stages';
 import { AiService } from '../../../services/ai-service';
 import { Sparkles, Check } from 'lucide-react';
 import { BoxSuggestionService } from '../../../services/box-suggestion-service';
+import { EditorialControlBar } from '../EditorialControlBar';
 
 interface Props {
   project: BookProject;
   onUpdateProject: (p: BookProject) => void;
   aiService: AiService;
+  onContinue?: () => void;
+  onPrev?: () => void;
 }
 
-export const BookTitlesStage: React.FC<Props> = ({ project, onUpdateProject, aiService }) => {
+export const BookTitlesStage: React.FC<Props> = ({ project, onUpdateProject, aiService, onContinue, onPrev }) => {
   const data: BookTitlesData = project.stageData?.['book-titles'] || {
     generatedTitles: [],
     selectedTitleId: '',
@@ -80,8 +83,52 @@ Apenas o array JSON, sem introdução ou texto extra.`;
     });
   };
 
+  const isApproved = project.stageStatuses?.['book-titles'] === 'APROVADO' ||
+                     project.editorialStageApprovals?.['book-titles']?.status === 'APROVADO';
+
+  const handleApproveTitle = () => {
+    if (!data.customTitle.trim()) {
+      alert('Selecione ou digite um título para aprovar esta etapa.');
+      return;
+    }
+
+    onUpdateProject({
+      ...project,
+      title: data.customTitle.trim(),
+      subtitle: data.customSubtitle?.trim() || project.subtitle,
+      stageStatuses: {
+        ...(project.stageStatuses || getDefaultStageStatuses()),
+        'book-titles': 'COMPLETED'
+      },
+      editorialStageApprovals: {
+        ...(project.editorialStageApprovals || {}),
+        'book-titles': {
+          stageId: 'book-titles',
+          status: 'APROVADO',
+          approvedAt: Date.now(),
+          approvedBy: 'user',
+          notes: `Título aprovado: "${data.customTitle.trim()}"`
+        }
+      }
+    });
+  };
+
   return (
     <div className="stage-form-container">
+      <EditorialControlBar
+        stageId="book-titles"
+        stageLabel="Títulos & Subtítulos"
+        status={isApproved ? 'APROVADO' : data.customTitle.trim() ? 'AGUARDANDO_APROVACAO' : 'PENDENTE'}
+        isApproved={isApproved}
+        canApprove={!!data.customTitle.trim()}
+        approveButtonText={isApproved ? '✓ TÍTULO APROVADO' : 'APROVAR TÍTULO'}
+        approvalWarning={!data.customTitle.trim() ? 'Digite ou selecione um título para aprovar.' : undefined}
+        onPrev={onPrev}
+        onNext={isApproved ? onContinue : undefined}
+        onRegenerate={generateTitles}
+        onApprove={handleApproveTitle}
+      />
+
       <div className="stage-intro-block">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>

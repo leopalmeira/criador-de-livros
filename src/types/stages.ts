@@ -18,10 +18,18 @@ export type StageId =
   | 'finish';
 
 export type StageStatus =
+  | 'PENDENTE'
+  | 'GERANDO'
+  | 'AGUARDANDO_APROVACAO'
+  | 'APROVADO'
+  | 'EDITANDO'
+  | 'REGENERANDO'
+  | 'CONCLUIDO'
+  | 'ERRO'
+  // Compatibilidade com estados legados:
   | 'NOT_STARTED'
   | 'IN_PROGRESS'
   | 'REVIEW'
-  | 'APPROVED'
   | 'COMPLETED';
 
 export interface StageDefinition {

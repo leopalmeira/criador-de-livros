@@ -8,6 +8,8 @@ import { AmazonLiveService } from './services/amazon-live-service';
 import { COLORING_THEMES } from './services/coloring-themes-catalog';
 import { ColoringBookService } from './services/coloring-book-service';
 import { InvestigativeValidator } from './services/investigative-validator';
+import { ProjectStorageService } from './services/project-storage-service';
+import { BackendEditorialService } from './services/backend-editorial-service';
 
 const projectRoot = process.cwd();
 
@@ -99,6 +101,290 @@ app.post('/api/sudoku-investigativo/validate', (req, res) => {
     res.status(200).json({ success: true, report });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================
+// ROTAS DO PROCESSO EDITORIAL CONTROLADO POR APROVAÇÃO (EDITORIAL BOOK ENGINE)
+// ============================================================
+app.get('/api/projects', async (_req, res) => {
+  try {
+    const projects = await ProjectStorageService.listProjects();
+    res.status(200).json({ success: true, count: projects.length, projects });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/projects/:id', async (req, res) => {
+  try {
+    const project = await ProjectStorageService.getProject(req.params.id);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Projeto não encontrado.' });
+    }
+    res.status(200).json({ success: true, project });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/projects', async (req, res) => {
+  try {
+    const projectData = req.body;
+    if (!projectData || !projectData.id) {
+      return res.status(400).json({ success: false, error: 'Dados do projeto inválidos ou sem ID.' });
+    }
+    const saved = await ProjectStorageService.saveProject(projectData);
+    res.status(200).json({ success: true, project: saved });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    const deleted = await ProjectStorageService.deleteProject(req.params.id);
+    res.status(200).json({ success: deleted });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/stages/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stageId, notes, versionTag } = req.body || {};
+    if (!stageId) {
+      return res.status(400).json({ success: false, error: 'stageId é obrigatório para aprovação.' });
+    }
+    const project = await ProjectStorageService.getProject(id);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Projeto não encontrado.' });
+    }
+
+    if (!project.editorialStageApprovals) project.editorialStageApprovals = {};
+    if (!project.stageStatuses) project.stageStatuses = {} as any;
+
+    project.editorialStageApprovals[stageId] = {
+      stageId,
+      status: 'APROVADO',
+      approvedAt: Date.now(),
+      approvedBy: 'user',
+      notes,
+      versionTag
+    };
+    if (!project.stageStatuses) {
+      project.stageStatuses = {} as any;
+    }
+    (project.stageStatuses as any)[stageId] = 'APROVADO';
+
+    await ProjectStorageService.logAudit(
+      id,
+      'STAGE_APPROVED',
+      `Etapa "${stageId}" aprovada formalmente pelo usuário.`,
+      true,
+      stageId
+    );
+
+    const saved = await ProjectStorageService.saveProject(project);
+    res.status(200).json({ success: true, project: saved });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/chapters/generate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { chapterIndex } = req.body || {};
+    if (chapterIndex === undefined || chapterIndex === null) {
+      return res.status(400).json({ success: false, error: 'chapterIndex é obrigatório.' });
+    }
+    const project = await ProjectStorageService.getProject(id);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Projeto não encontrado.' });
+    }
+
+    const gen = await BackendEditorialService.generateChapter(project, Number(chapterIndex));
+    if (!project.kdpChapters) project.kdpChapters = [];
+
+    const existingCh = project.kdpChapters[chapterIndex] || {
+      index: Number(chapterIndex),
+      title: gen.chapterTitle,
+      summary: '',
+      targetWordCount: 2000,
+      scenes: []
+    };
+
+    existingCh.prose = gen.prose;
+    existingCh.wordCount = gen.wordCount;
+    existingCh.status = 'AGUARDANDO_APROVACAO';
+
+    // Salvar versão gerada por IA
+    const ver = {
+      id: `ver_ia_${Date.now()}`,
+      chapterIndex: Number(chapterIndex),
+      type: 'ia_generated' as const,
+      timestamp: Date.now(),
+      prose: gen.prose,
+      wordCount: gen.wordCount,
+      summary: existingCh.summary || '',
+      authorType: 'ai' as const,
+      note: 'Geração com contexto editorial da Bíblia do Livro'
+    };
+
+    project.kdpChapters[chapterIndex] = existingCh;
+    await ProjectStorageService.saveChapterVersion(id, Number(chapterIndex), ver);
+
+    await ProjectStorageService.logAudit(
+      id,
+      'CHAPTER_GENERATED',
+      `Capítulo ${Number(chapterIndex) + 1} ("${existingCh.title}") gerado via IA (${gen.wordCount} palavras). Aguardando aprovação.`,
+      true,
+      'write',
+      Number(chapterIndex)
+    );
+
+    const saved = await ProjectStorageService.saveProject(project);
+    res.status(200).json({ success: true, chapter: saved.kdpChapters?.[Number(chapterIndex)] });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/chapters/:chapterIndex/approve', async (req, res) => {
+  try {
+    const { id, chapterIndex } = req.params;
+    const idx = Number(chapterIndex);
+    const project = await ProjectStorageService.getProject(id);
+    if (!project || !project.kdpChapters || !project.kdpChapters[idx]) {
+      return res.status(404).json({ success: false, error: 'Capítulo não encontrado no projeto.' });
+    }
+
+    project.kdpChapters[idx].status = 'APROVADO';
+    project.kdpChapters[idx].approvedAt = Date.now();
+    if (!project.chapterApprovals) project.chapterApprovals = {};
+    project.chapterApprovals[idx] = true;
+
+    await ProjectStorageService.logAudit(
+      id,
+      'CHAPTER_APPROVED',
+      `Capítulo ${idx + 1} ("${project.kdpChapters[idx].title}") APROVADO pelo usuário e marcado como imutável nesta versão.`,
+      true,
+      'write',
+      idx
+    );
+
+    const saved = await ProjectStorageService.saveProject(project);
+    res.status(200).json({ success: true, chapter: saved.kdpChapters?.[idx] });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/chapters/:chapterIndex/versions', async (req, res) => {
+  try {
+    const { id, chapterIndex } = req.params;
+    const idx = Number(chapterIndex);
+    const { prose, wordCount, type, note, summary } = req.body || {};
+
+    const project = await ProjectStorageService.getProject(id);
+    if (!project || !project.kdpChapters || !project.kdpChapters[idx]) {
+      return res.status(404).json({ success: false, error: 'Capítulo não encontrado no projeto.' });
+    }
+
+    const version = {
+      id: `ver_${Date.now()}`,
+      chapterIndex: idx,
+      type: type || 'manual_edit',
+      timestamp: Date.now(),
+      prose: prose || project.kdpChapters[idx].prose || '',
+      wordCount: wordCount || (prose ? prose.split(/\s+/).filter(Boolean).length : 0),
+      summary: summary || project.kdpChapters[idx].summary || '',
+      authorType: type === 'ia_generated' ? 'ai' as const : 'user' as const,
+      note: note || 'Edição manual do usuário'
+    };
+
+    project.kdpChapters[idx].prose = version.prose;
+    project.kdpChapters[idx].wordCount = version.wordCount;
+    project.kdpChapters[idx].hasManualEdits = true;
+    project.kdpChapters[idx].status = 'EDITANDO';
+
+    await ProjectStorageService.saveChapterVersion(id, idx, version);
+    await ProjectStorageService.logAudit(
+      id,
+      'CHAPTER_EDITED',
+      `Capítulo ${idx + 1} editado manualmente pelo usuário (${version.wordCount} palavras). Nova versão arquivada.`,
+      true,
+      'write',
+      idx
+    );
+
+    const saved = await ProjectStorageService.saveProject(project);
+    res.status(200).json({ success: true, chapter: saved.kdpChapters?.[idx] });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/chapters/:chapterIndex/versions', async (req, res) => {
+  try {
+    const { id, chapterIndex } = req.params;
+    const versions = await ProjectStorageService.getChapterVersions(id, Number(chapterIndex));
+    res.status(200).json({ success: true, versions });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/review', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = await ProjectStorageService.getProject(id);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Projeto não encontrado.' });
+    }
+
+    const suggestions = await BackendEditorialService.reviewManuscript(project);
+    project.reviewSuggestions = suggestions;
+    const saved = await ProjectStorageService.saveProject(project);
+
+    res.status(200).json({ success: true, suggestions, count: suggestions.length });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/quality-gate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = await ProjectStorageService.getProject(id);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Projeto não encontrado.' });
+    }
+
+    const checklist = BackendEditorialService.evaluateQualityGate(project);
+    project.qualityGate = checklist;
+    const isReady = Object.values(checklist).every(Boolean);
+    if (isReady) {
+      project.isFinalized = true;
+      project.status = 'PUBLICADO';
+    }
+
+    const saved = await ProjectStorageService.saveProject(project);
+    res.status(200).json({ success: true, checklist, isReady, project: saved });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/audit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const logs = await ProjectStorageService.getAuditLogs(id);
+    res.status(200).json({ success: true, logs });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

@@ -27,7 +27,7 @@ export class SudokuKdpPdfBuilder {
   public static async buildInteriorPdf(
     config: SudokuBookConfig,
     cases: InvestigationCase[]
-  ): Promise<{ blob: Blob; url: string; totalPages: number }> {
+  ): Promise<{ blob: Blob; url: string; totalPages: number; doc?: jsPDF }> {
     const [widthMm, heightMm] = this.getDimensionsMm(config.trimFormat);
     const doc = new jsPDF({
       orientation: 'portrait',

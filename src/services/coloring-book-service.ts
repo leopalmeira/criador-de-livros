@@ -283,7 +283,7 @@ export class ColoringBookService {
   /**
    * Gera a Capa do livro de colorir
    */
-  public static async generateCoverImage(config: ColoringBookConfig): string {
+  public static async generateCoverImage(config: ColoringBookConfig): Promise<string> {
     const coverPrompt = this.buildCoverPrompt(config);
     const cleanPrompt = encodeURIComponent(coverPrompt);
     const coverUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=1200&height=1800&model=flux&nologo=true`;
@@ -478,13 +478,17 @@ export class ColoringBookService {
       topic: `Livro de colorir no nicho ${config.theme}`,
       kdpBookType: 'coloring-book',
       kdpChapters: chapters,
-      coverDesign: {
-        theme: config.theme,
-        primaryColor: '#1e293b',
-        secondaryColor: '#3b82f6',
-        frontCoverUrl: coverUrl || '',
-        status: 'approved'
-      }
+      coverImageUrl: coverUrl || '',
+      kdpCoverDesign: {
+        frontImageUrl: coverUrl || '',
+        status: 'approved' as any
+      } as any,
+      pipelineStage: 'idle',
+      pipelineProgress: 0,
+      pipelineLog: [],
+      tasks: [],
+      notes: '',
+      competitorsAsins: []
     };
 
     try {

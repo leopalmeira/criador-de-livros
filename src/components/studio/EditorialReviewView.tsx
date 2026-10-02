@@ -7,176 +7,310 @@ import {
   Wand2, 
   RefreshCw, 
   ArrowRight,
-  ShieldCheck,
-  FileText
+  ShieldCheck, 
+  FileText,
+  Check,
+  X,
+  Sparkles,
+  Lock
 } from 'lucide-react';
-import { BookProject, IBookEditorReport } from '../../types/book-project';
-import { KdpBookPipeline } from '../../services/kdp-pipeline';
-import { AiService } from '../../services/ai-service';
+import { BookProject, ChapterReviewSuggestion } from '../../types/book-project';
+import { EditorialControlBar } from './EditorialControlBar';
+import { BackendEditorialService } from '../../services/backend-editorial-service';
 
 interface EditorialReviewViewProps {
   project: BookProject;
   onUpdateProject: (updated: BookProject) => void;
-  onNavigateToChapter: (chapterIndex: number) => void;
-  aiService: AiService;
+  onNavigateToChapter?: (chapterIndex: number) => void;
+  onNavigateToLayout?: () => void;
+  onContinueToLayout?: () => void;
 }
 
 export const EditorialReviewView: React.FC<EditorialReviewViewProps> = ({
   project,
   onUpdateProject,
   onNavigateToChapter,
-  aiService
+  onContinueToLayout
 }) => {
-  const [report, setReport] = useState<IBookEditorReport | null>(project.kdpEditorReport || null);
   const [isReviewing, setIsReviewing] = useState<boolean>(false);
+  const [suggestions, setSuggestions] = useState<ChapterReviewSuggestion[]>(
+    project.reviewSuggestions || []
+  );
+
+  const isApproved = project.manuscriptApprovedAt !== undefined || 
+                     project.editorialStageApprovals?.['manuscript']?.status === 'APROVADO';
 
   const handleRunReview = async () => {
     setIsReviewing(true);
     try {
-      const pipeline = new KdpBookPipeline(aiService);
-      const generated = await pipeline.reviewManuscript(
-        project.kdpConcept || {
-          title: project.title,
-          hook: '',
-          audience: project.targetAudience,
-          tone: '',
-          targetWordCount: 25000,
-          targetChapterCount: 10,
-          targetPages: project.estimatedPages,
-          trimSize: project.trimSize,
-          paperType: project.paperType,
-          comparableTitles: [],
-          themes: [],
-          shortSynopsis: project.description,
-          longSynopsis: project.description,
-          promise: project.title,
-          differentiator: ''
-        },
-        project.kdpChapters || [],
-        project.kdpBible || { characters: [], locations: [], styleGuide: { artStyle: '', palette: [], tone: '' } },
-        project.language
-      );
-
-      if (generated) {
-        setReport(generated);
-        onUpdateProject({
-          ...project,
-          kdpEditorReport: generated
+      let results: ChapterReviewSuggestion[] = [];
+      try {
+        const res = await fetch(`/api/projects/${encodeURIComponent(project.id)}/review`, {
+          method: 'POST'
         });
+        if (res.ok) {
+          const json = await res.json();
+          results = json.suggestions || [];
+        }
+      } catch {}
+
+      if (results.length === 0) {
+        results = await BackendEditorialService.reviewManuscript(project);
       }
+
+      setSuggestions(results);
+      onUpdateProject({
+        ...project,
+        reviewSuggestions: results
+      });
     } finally {
       setIsReviewing(false);
     }
   };
 
+  const handleAcceptSuggestion = (id: string) => {
+    const target = suggestions.find(s => s.id === id);
+    if (!target) return;
+
+    // Aplica a sugestão no capítulo correspondente se houver substituição direta
+    const chapters = [...(project.kdpChapters || [])];
+    const ch = chapters[target.chapterIndex];
+    if (ch && ch.prose && target.snippet && target.suggestion) {
+      // Se a sugestão for substituição direta de termo
+      if (target.snippet.includes('...')) {
+        const cleanSnippet = target.snippet.replace(/\.\.\./g, '').trim();
+        if (cleanSnippet && ch.prose.includes(cleanSnippet)) {
+          const rep = target.suggestion.replace(/^Substituir por [^"]*"([^"]+)".*$/, '$1');
+          ch.prose = ch.prose.replace(cleanSnippet, rep);
+          ch.hasManualEdits = true;
+        }
+      }
+    }
+
+    const updatedSuggestions = suggestions.map(s => 
+      s.id === id ? { ...s, status: 'accepted' as const } : s
+    );
+
+    setSuggestions(updatedSuggestions);
+    onUpdateProject({
+      ...project,
+      kdpChapters: chapters,
+      reviewSuggestions: updatedSuggestions
+    });
+  };
+
+  const handleIgnoreSuggestion = (id: string) => {
+    const updated = suggestions.map(s => 
+      s.id === id ? { ...s, status: 'ignored' as const } : s
+    );
+    setSuggestions(updated);
+    onUpdateProject({
+      ...project,
+      reviewSuggestions: updated
+    });
+  };
+
+  const handleAcceptAll = () => {
+    suggestions.forEach(s => {
+      if (s.status === 'pending') {
+        handleAcceptSuggestion(s.id);
+      }
+    });
+  };
+
+  const handleApproveManuscript = () => {
+    const unreviewed = suggestions.filter(s => s.status === 'pending');
+    if (unreviewed.length > 0) {
+      const confirm = window.confirm(
+        `Existem ${unreviewed.length} apontamento(s) pendentes de decisão (Aceitar/Ignorar).\nDeseja aprovar o manuscrito assim mesmo?`
+      );
+      if (!confirm) return;
+    }
+
+    const updated: BookProject = {
+      ...project,
+      manuscriptApprovedAt: Date.now(),
+      editorialStageApprovals: {
+        ...(project.editorialStageApprovals || {}),
+        manuscript: {
+          stageId: 'manuscript',
+          status: 'APROVADO',
+          approvedAt: Date.now(),
+          approvedBy: 'user',
+          notes: 'Revisão ortográfica, gramatical e de continuidade aprovada pelo autor.'
+        }
+      }
+    };
+
+    onUpdateProject(updated);
+  };
+
+  const pendingCount = suggestions.filter(s => s.status === 'pending').length;
+
   return (
-    <div className="editorial-review-view-container">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
+    <div className="editorial-review-view-container space-y-6">
+      {/* BARRA DE CONTROLE EDITORIAL */}
+      <EditorialControlBar
+        stageId="manuscript_review"
+        stageLabel="Revisão Ortográfica & Continuidade Literária"
+        status={isApproved ? 'APROVADO' : suggestions.length > 0 ? 'AGUARDANDO_APROVACAO' : 'PENDENTE'}
+        isApproved={isApproved}
+        canApprove={suggestions.length > 0 || (project.kdpChapters || []).length > 0}
+        approveButtonText={isApproved ? '✓ MANUSCRITO REVISADO & APROVADO' : 'APROVAR MANUSCRITO REVISADO'}
+        onNext={isApproved ? onContinueToLayout : undefined}
+        onRegenerate={handleRunReview}
+        onApprove={handleApproveManuscript}
+      />
+
+      {/* HEADER DE REVISÃO */}
+      <div className="flex justify-between items-center bg-slate-900 border border-slate-800 rounded-xl p-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Edit3 size={22} className="text-pink-400" />
-            <h3 className="text-xl font-bold">Revisão Editorial & Leitura Crítica</h3>
+            <Edit3 size={20} className="text-pink-400" />
+            <h3 className="text-base font-bold text-white">Auditoria Editorial PT-BR & Continuidade da Bíblia</h3>
           </div>
-          <p className="text-xs text-muted">
-            Auditoria heurística de continuidade, ritmo, voz narrativa e furos de consistência.
+          <p className="text-xs text-slate-400">
+            A IA não altera o manuscrito automaticamente. Cada sugestão é submetida à sua decisão individual.
           </p>
         </div>
 
-        <button 
-          className="btn-primary-action" 
-          onClick={handleRunReview}
-          disabled={isReviewing}
-        >
-          <Wand2 size={15} />
-          {isReviewing ? 'Examinando Manuscrito...' : 'Executar Leitura Crítica com IA'}
-        </button>
-      </div>
-
-      {report ? (
-        <div className="space-y-6">
-          {/* PLACAR EDITORIAL */}
-          <div className="p-5 bg-surface-elevated rounded-xl border border-border-subtle flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-pink-500/20 text-pink-400 border border-pink-500/40 flex items-center justify-center font-bold text-2xl">
-                {report.score || 85}
-              </div>
-              <div>
-                <h4 className="font-bold text-base">Parecer do Editor Executivo</h4>
-                <p className="text-xs text-muted max-w-xl">{report.summary}</p>
-              </div>
-            </div>
-
-            <div className="text-right">
-              <span className="text-xs text-muted block mb-1">Capítulos para Revisão</span>
-              <span className="font-bold text-lg text-amber-400">
-                {report.chaptersToRevise?.length || 0} capítulos
-              </span>
-            </div>
-          </div>
-
-          {/* PONTOS FORTES */}
-          {report.strengths && report.strengths.length > 0 && (
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-              <h4 className="font-bold text-sm text-emerald-400 mb-2">Pontos Fortes da Obra</h4>
-              <ul className="text-xs text-slate-300 space-y-1">
-                {report.strengths.map((str, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
-                    <CheckCircle2 size={13} className="text-emerald-400" />
-                    <span>{str}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="flex items-center gap-2.5">
+          {pendingCount > 0 && (
+            <button
+              type="button"
+              onClick={handleAcceptAll}
+              className="px-3.5 py-2 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-colors"
+            >
+              Aceitar Todas as Sugestões
+            </button>
           )}
 
-          {/* LISTA DE APONTAMENTOS / ISSUES */}
+          <button
+            type="button"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+            onClick={handleRunReview}
+            disabled={isReviewing}
+          >
+            <Wand2 size={14} className={isReviewing ? 'animate-spin' : ''} />
+            {isReviewing ? 'Examinando Manuscrito...' : 'Executar Revisão Geral'}
+          </button>
+        </div>
+      </div>
+
+      {/* RESULTADOS DA AUDITORIA */}
+      {suggestions.length > 0 ? (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center text-xs text-slate-400">
+            <span>
+              Total de apontamentos: <strong className="text-white">{suggestions.length}</strong>
+            </span>
+            <span>
+              Pendentes de decisão: <strong className={pendingCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{pendingCount}</strong>
+            </span>
+          </div>
+
           <div className="space-y-3">
-            <h4 className="font-bold text-sm">Apontamentos Críticos ({report.issues?.length || 0})</h4>
-            {report.issues?.map((issue, idx) => (
-              <div key={idx} className="p-3.5 bg-surface-elevated border border-border-subtle rounded-lg flex justify-between items-center">
-                <div className="flex items-start gap-3">
-                  {issue.severity === 'blocker' ? (
-                    <XCircle size={18} className="text-rose-400 mt-0.5" />
-                  ) : issue.severity === 'important' ? (
-                    <AlertTriangle size={18} className="text-amber-400 mt-0.5" />
-                  ) : (
-                    <CheckCircle2 size={18} className="text-blue-400 mt-0.5" />
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      {issue.chapterIndex && (
-                        <span className="badge-cap">Cap. {issue.chapterIndex}</span>
+            {suggestions.map((item, idx) => {
+              const isAccepted = item.status === 'accepted';
+              const isIgnored = item.status === 'ignored';
+
+              return (
+                <div
+                  key={item.id || idx}
+                  className={`p-4 rounded-xl border transition-all ${
+                    isAccepted
+                      ? 'bg-emerald-950/20 border-emerald-500/40 opacity-75'
+                      : isIgnored
+                      ? 'bg-slate-900/40 border-slate-800 opacity-50'
+                      : 'bg-slate-900 border-slate-700/80 shadow-md'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                          Capítulo {item.chapterIndex + 1}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          item.type === 'continuity'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            : item.type === 'style'
+                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        }`}>
+                          {item.type === 'continuity' ? 'Continuidade da Bíblia' : item.type === 'style' ? 'Estilo / Clichê' : 'Gramática / Ortografia'}
+                        </span>
+                        {isAccepted && (
+                          <span className="text-[10px] font-bold text-emerald-400">✓ Aceito</span>
+                        )}
+                        {isIgnored && (
+                          <span className="text-[10px] font-bold text-slate-500">Ignorado</span>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-slate-300">
+                        <strong className="text-slate-400">Problema detectado:</strong> {item.problem}
+                      </div>
+
+                      {item.snippet && (
+                        <div className="text-xs bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-slate-400">
+                          "{item.snippet}"
+                        </div>
                       )}
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase">
-                        {issue.category}
-                      </span>
+
+                      <div className="text-xs text-emerald-400">
+                        <strong className="text-slate-300">Sugestão editorial:</strong> {item.suggestion}
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-200">{issue.note}</p>
+
+                    {/* Botões de Ação */}
+                    {!isAccepted && !isIgnored && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleAcceptSuggestion(item.id)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 shadow transition-colors"
+                          title="Aceitar e aplicar a sugestão no capítulo"
+                        >
+                          <Check size={13} /> Aceitar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleIgnoreSuggestion(item.id)}
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-medium border border-slate-700 transition-colors"
+                          title="Ignorar esta sugestão"
+                        >
+                          <X size={13} /> Ignorar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onNavigateToChapter && onNavigateToChapter(item.chapterIndex)}
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-medium border border-slate-700 transition-colors"
+                          title="Abrir no editor individual"
+                        >
+                          Editar no Cap. {item.chapterIndex + 1} →
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {issue.chapterIndex && (
-                  <button 
-                    className="btn-tiny-action text-blue-400 font-semibold text-xs whitespace-nowrap ml-3"
-                    onClick={() => onNavigateToChapter(issue.chapterIndex!)}
-                  >
-                    Abrir Cap. {issue.chapterIndex} →
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (
-        <div className="p-12 text-center bg-surface-elevated border border-border-subtle rounded-xl">
-          <Edit3 size={40} className="text-muted mx-auto mb-3" />
-          <h4 className="font-bold text-base mb-1">Nenhuma leitura crítica realizada ainda</h4>
-          <p className="text-xs text-muted mb-4 max-w-md mx-auto">
-            Execute a leitura crítica para auditar o ritmo de parágrafos, consistência com personagens e coesão dos capítulos.
+        <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+          <Edit3 size={40} className="text-slate-600 mx-auto" />
+          <h4 className="font-bold text-base text-white">Nenhuma revisão executada ainda</h4>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            Clique no botão abaixo para rodar a auditoria em todos os capítulos aprovados. A análise verifica ortografia, gramática, clichês e consistência com os fatos da Bíblia do Livro.
           </p>
-          <button className="btn-primary-action mx-auto" onClick={handleRunReview}>
-            <Wand2 size={14} /> Iniciar Auditoria Editorial
+          <button
+            type="button"
+            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs inline-flex items-center gap-2 shadow-lg"
+            onClick={handleRunReview}
+          >
+            <Wand2 size={14} /> Executar Revisão Geral do Manuscrito
           </button>
         </div>
       )}

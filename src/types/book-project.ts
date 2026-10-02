@@ -782,15 +782,100 @@ export interface IBookScene {
   illustrationBrief?: string;
 }
 
+export type ChapterVersionType = 'ia_generated' | 'auto_reviewed' | 'manual_edit' | 'regenerated';
+
 export interface ChapterVersion {
   id: string;
   chapterIndex: number;
+  versionNumber?: number;
+  type?: ChapterVersionType;
   timestamp: number;
   prose: string;
   wordCount: number;
   summary: string;
   authorType: 'ai' | 'user';
   note?: string;
+}
+
+export type EditorialStateStatus =
+  | 'PENDENTE'
+  | 'GERANDO'
+  | 'AGUARDANDO_APROVACAO'
+  | 'APROVADO'
+  | 'EDITANDO'
+  | 'REGENERANDO'
+  | 'CONCLUIDO'
+  | 'ERRO';
+
+export interface StageApproval {
+  stageId: string;
+  status: EditorialStateStatus;
+  approvedAt?: number;
+  approvedBy: 'user';
+  versionTag?: string;
+  notes?: string;
+}
+
+export interface ChapterReviewSuggestion {
+  id: string;
+  chapterIndex: number;
+  type: 'orthographic' | 'grammar' | 'continuity' | 'repetition' | 'style';
+  snippet: string;
+  problem: string;
+  suggestion: string;
+  status: 'pending' | 'accepted' | 'ignored' | 'edited';
+  userEditedContent?: string;
+  createdAt: number;
+}
+
+export interface PdfVersionItem {
+  id: string;
+  versionTag: string; // Ex: "v1", "v2"
+  generatedAt: number;
+  pageCount: number;
+  changeSummary: string;
+  fileName?: string;
+  downloadUrl?: string;
+  isCurrent: boolean;
+}
+
+export interface QualityGateChecklist {
+  projectExists: boolean;
+  conceptApproved: boolean;
+  titleApproved: boolean;
+  purposeApproved: boolean;
+  sheetApproved: boolean;
+  personaApproved: boolean;
+  bibleApproved: boolean;
+  structureApproved: boolean;
+  allChaptersExist: boolean;
+  allChaptersApproved: boolean;
+  manuscriptConsolidated: boolean;
+  orthographicReviewDone: boolean;
+  grammarReviewDone: boolean;
+  continuityReviewDone: boolean;
+  criticalErrorsResolved: boolean;
+  manualEditsPersisted: boolean;
+  layoutDone: boolean;
+  paginationCalculated: boolean;
+  previewGenerated: boolean;
+  previewApproved: boolean;
+  synopsisFilled: boolean;
+  metadataFilled: boolean;
+  coverSelected: boolean;
+  qualityGateExecuted: boolean;
+  finalPdfGenerated: boolean;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  projectId: string;
+  timestamp: number;
+  action: string;
+  stageId?: string;
+  chapterIndex?: number;
+  details: string;
+  userConfirmed: boolean;
 }
 
 export interface IBookChapter {
@@ -801,9 +886,9 @@ export interface IBookChapter {
   purpose?: string;
   goal?: string;
   pov?: string;
-  targetWordCount: number;
+  targetWordCount?: number;
   estimatedPages?: number;
-  scenes: IBookScene[];
+  scenes?: IBookScene[];
   sections?: (string | { title: string })[];
   subtopics?: string[];
   connectionPrev?: string;
@@ -813,7 +898,10 @@ export interface IBookChapter {
   notes?: string[];
   illustrations?: string[];
   versions?: ChapterVersion[];
-  status?: 'PENDENTE' | 'ESCREVENDO' | 'RASCUNHO' | 'REVISADO' | 'APROVADO';
+  status?: EditorialStateStatus | 'ESCREVENDO' | 'RASCUNHO' | 'REVISADO' | 'draft';
+  editorialStatus?: EditorialStateStatus;
+  hasManualEdits?: boolean;
+  approvedAt?: number;
 }
 
 export interface ContinuityIssue {
@@ -1234,6 +1322,18 @@ export interface BookProject {
   notes: string;
   outline?: Array<{ id: string; order: number; title: string; description: string; wordCount?: number; status: string }>;
   competitorsAsins: string[];
+
+  // Processo Editorial Controlado por Aprovação do Usuário
+  editorialStageApprovals?: Record<string, StageApproval>;
+  chapterApprovals?: Record<number, boolean>;
+  reviewSuggestions?: ChapterReviewSuggestion[];
+  pdfVersions?: PdfVersionItem[];
+  currentPdfVersion?: string;
+  qualityGate?: QualityGateChecklist;
+  auditLogs?: AuditLogEntry[];
+  manuscriptApprovedAt?: number;
+  layoutApprovedAt?: number;
+  isFinalized?: boolean;
 }
 
 export interface ProjectSummary {

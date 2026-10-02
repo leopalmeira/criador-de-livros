@@ -56,7 +56,7 @@ describe('InvestigativeStoryGenerator & InvestigativeValidator', () => {
     difficulty: 'medio',
     timePeriod: 'vitoriana',
     location: 'mansao',
-    storyStyle: 'agatha-christie',
+    storyStyle: 'misterio_classico',
     trimFormat: '8.5x11',
     hasBleed: false
   };
@@ -114,9 +114,9 @@ describe('SudokuInvestigativeService & SudokuKdpPdfBuilder', () => {
       suspectsPerCase: 4,
       sudokusPerCase: 2,
       difficulty: 'facil',
-      timePeriod: 'anos-1920',
+      timePeriod: 'anos1950',
       location: 'trem',
-      storyStyle: 'sherlock-holmes',
+      storyStyle: 'policial_classico',
       trimFormat: '8.5x11',
       hasBleed: false
     };
@@ -143,9 +143,9 @@ describe('SudokuInvestigativeService & SudokuKdpPdfBuilder', () => {
       suspectsPerCase: 3,
       sudokusPerCase: 2,
       difficulty: 'facil',
-      timePeriod: 'moderna',
-      location: 'galeria',
-      storyStyle: 'true-crime',
+      timePeriod: 'atual',
+      location: 'museu',
+      storyStyle: 'noir',
       trimFormat: '8.5x11',
       hasBleed: false
     };

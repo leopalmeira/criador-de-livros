@@ -252,25 +252,59 @@ export const BookIntelDashboard: React.FC<Props> = ({
                   {projects.map(p => {
                     const chapters = p.kdpChapters?.length || 0;
                     const words = p.kdpChapters?.reduce((s, c) => s + (c.wordCount || 0), 0) || 0;
+                    const isPublished = p.status === 'PUBLICADO';
+                    const pdfVersionCount = (p.pdfVersions || []).length;
+                    const currentVersion = p.currentPdfVersion || (pdfVersionCount > 0 ? `v${pdfVersionCount}` : 'v1');
+
                     return (
                       <div
                         key={p.id}
                         className="project-row-card"
                         onClick={() => onOpenProject(p.id)}
+                        style={{
+                          borderLeft: isPublished ? '4px solid #10b981' : '4px solid #3b82f6',
+                          transition: 'all 0.2s ease'
+                        }}
                       >
                         <div className="project-row-main">
-                          <div className="project-row-icon">
-                            <BookOpen size={18} color="#2563eb" />
+                          <div className="project-row-icon" style={{
+                            backgroundColor: isPublished ? '#ecfdf5' : '#eff6ff',
+                            color: isPublished ? '#059669' : '#2563eb'
+                          }}>
+                            <BookOpen size={18} />
                           </div>
                           <div>
-                            <h4 className="project-row-title">{p.title || 'Livro Sem Título'}</h4>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <h4 className="project-row-title">{p.title || 'Livro Sem Título'}</h4>
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                backgroundColor: isPublished ? '#d1fae5' : '#dbeafe',
+                                color: isPublished ? '#065f46' : '#1e40af'
+                              }}>
+                                {isPublished ? '● FINALIZADO / PUBLICADO' : '● EM PRODUÇÃO'}
+                              </span>
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                backgroundColor: '#f1f5f9',
+                                color: '#475569',
+                                border: '1px solid #cbd5e1'
+                              }}>
+                                {currentVersion} ({pdfVersionCount} PDF{pdfVersionCount !== 1 ? 's' : ''})
+                              </span>
+                            </div>
                             <span className="project-row-meta">
                               {p.author || 'Autor não definido'} • {p.kdpBookType || 'Não-Ficção'} • {chapters} capítulos • {words.toLocaleString('pt-BR')} palavras
                             </span>
                           </div>
                         </div>
 
-                        <div className="project-row-actions" onClick={(e) => e.stopPropagation()}>
+                        <div className="project-row-actions" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <button
                             className="btn-icon-soft"
                             onClick={(e) => onDuplicateProject(p.id, e)}
@@ -285,12 +319,46 @@ export const BookIntelDashboard: React.FC<Props> = ({
                           >
                             <Trash2 size={14} />
                           </button>
+
+                          {/* BOTÃO ABRIR LIVRO */}
+                          <button
+                            className="btn-icon-soft"
+                            onClick={() => onOpenProject(p.id)}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              borderRadius: 6,
+                              backgroundColor: '#f8fafc',
+                              color: '#334155',
+                              border: '1px solid #cbd5e1',
+                              cursor: 'pointer'
+                            }}
+                            title="Abrir visualização do livro"
+                          >
+                            ABRIR LIVRO
+                          </button>
+
+                          {/* BOTÃO EDITAR LIVRO (SEM BLOQUEIO MESMO FINALIZADO) */}
                           <button
                             className="btn-open-proj-arrow"
                             onClick={() => onOpenProject(p.id)}
-                            title="Continuar Edição"
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              borderRadius: 6,
+                              backgroundColor: isPublished ? '#059669' : '#2563eb',
+                              color: '#ffffff',
+                              border: 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              cursor: 'pointer'
+                            }}
+                            title="Editar livro (gera novo PDF mantendo o anterior)"
                           >
-                            Editar <ArrowRight size={14} />
+                            EDITAR LIVRO <ArrowRight size={13} />
                           </button>
                         </div>
                       </div>

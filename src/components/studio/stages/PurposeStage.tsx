@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { BookProject } from '../../../types/book-project';
-import { PurposeData } from '../../../types/stages';
+import { PurposeData, getDefaultStageStatuses } from '../../../types/stages';
 import { AiService } from '../../../services/ai-service';
 import { Sparkles, Tag, Plus } from 'lucide-react';
+import { EditorialControlBar } from '../EditorialControlBar';
 
 interface Props {
   project: BookProject;
   onUpdateProject: (p: BookProject) => void;
   aiService: AiService;
+  onContinue?: () => void;
+  onPrev?: () => void;
 }
 
 const SUGGESTED_TAGS = [
@@ -18,7 +21,7 @@ const SUGGESTED_TAGS = [
   'Alta Densidade de Valor', 'Metodologia Própria', 'Clareza & Foco'
 ];
 
-export const PurposeStage: React.FC<Props> = ({ project, onUpdateProject, aiService }) => {
+export const PurposeStage: React.FC<Props> = ({ project, onUpdateProject, aiService, onContinue, onPrev }) => {
   const data: PurposeData = project.stageData?.purpose || {
     focusTags: [],
     customTags: [],
@@ -100,8 +103,50 @@ Retorne em formato legível, profissional e inspirador.`;
     }
   };
 
+  const isApproved = project.stageStatuses?.purpose === 'APROVADO' ||
+                     project.editorialStageApprovals?.purpose?.status === 'APROVADO';
+
+  const handleApprovePurpose = () => {
+    if (!data.generatedProposal?.trim() && data.focusTags.length === 0) {
+      alert('Gere uma proposta editorial ou selecione pilares de foco antes de aprovar.');
+      return;
+    }
+
+    onUpdateProject({
+      ...project,
+      stageStatuses: {
+        ...(project.stageStatuses || getDefaultStageStatuses()),
+        purpose: 'COMPLETED'
+      },
+      editorialStageApprovals: {
+        ...(project.editorialStageApprovals || {}),
+        purpose: {
+          stageId: 'purpose',
+          status: 'APROVADO',
+          approvedAt: Date.now(),
+          approvedBy: 'user',
+          notes: 'Proposta editorial e pilares de valor aprovados pelo autor.'
+        }
+      }
+    });
+  };
+
   return (
     <div className="stage-form-container">
+      <EditorialControlBar
+        stageId="purpose"
+        stageLabel="Proposta Editorial"
+        status={isApproved ? 'APROVADO' : data.generatedProposal ? 'AGUARDANDO_APROVACAO' : 'PENDENTE'}
+        isApproved={isApproved}
+        canApprove={!!data.generatedProposal || data.focusTags.length > 0}
+        approveButtonText={isApproved ? '✓ PROPOSTA APROVADA' : 'APROVAR PROPOSTA'}
+        approvalWarning={!data.generatedProposal ? 'Gere ou escreva a proposta editorial para aprovar.' : undefined}
+        onPrev={onPrev}
+        onNext={isApproved ? onContinue : undefined}
+        onRegenerate={generateProposal}
+        onApprove={handleApprovePurpose}
+      />
+
       <div className="stage-intro-block">
         <h3>Proposta Editorial & Pilares de Valor</h3>
         <p>Selecione as áreas de ênfase da sua obra e gere uma proposta de alto nível. Este documento servirá como bússola para garantir que cada capítulo cumpra a promessa de transformação do livro.</p>

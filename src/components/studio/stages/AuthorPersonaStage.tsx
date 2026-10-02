@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { BookProject } from '../../../types/book-project';
-import { AuthorPersonaData } from '../../../types/stages';
+import { AuthorPersonaData, getDefaultStageStatuses } from '../../../types/stages';
 import { AiService } from '../../../services/ai-service';
 import { Sparkles, Save, Check } from 'lucide-react';
+import { EditorialControlBar } from '../EditorialControlBar';
 
 interface Props {
   project: BookProject;
   onUpdateProject: (p: BookProject) => void;
   aiService: AiService;
+  onContinue?: () => void;
+  onPrev?: () => void;
 }
 
-export const AuthorPersonaStage: React.FC<Props> = ({ project, onUpdateProject, aiService }) => {
+export const AuthorPersonaStage: React.FC<Props> = ({ project, onUpdateProject, aiService, onContinue, onPrev }) => {
   const data: AuthorPersonaData = project.stageData?.['author-persona'] || {
     inspirationAuthors: '',
     authorDescription: '',
@@ -68,13 +71,56 @@ Escreva como um parágrafo editorial contínuo e diretivo que a IA utilizará pa
     }
   };
 
+  const isApproved = project.stageStatuses?.['author-persona'] === 'APROVADO' ||
+                     project.editorialStageApprovals?.['author-persona']?.status === 'APROVADO';
+
   const handleSavePersona = () => {
+    updateData({ savedPersonaName: data.savedPersonaName || 'Persona Autoral' });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2000);
   };
 
+  const handleApprovePersona = () => {
+    if (!data.generatedPersona?.trim()) {
+      alert('Gere ou escreva a persona autoral antes de aprovar esta etapa.');
+      return;
+    }
+
+    onUpdateProject({
+      ...project,
+      stageStatuses: {
+        ...(project.stageStatuses || getDefaultStageStatuses()),
+        'author-persona': 'COMPLETED'
+      },
+      editorialStageApprovals: {
+        ...(project.editorialStageApprovals || {}),
+        'author-persona': {
+          stageId: 'author-persona',
+          status: 'APROVADO',
+          approvedAt: Date.now(),
+          approvedBy: 'user',
+          notes: 'Voz e persona editorial aprovadas pelo autor.'
+        }
+      }
+    });
+  };
+
   return (
     <div className="stage-form-container">
+      <EditorialControlBar
+        stageId="author-persona"
+        stageLabel="Voz & Persona do Autor"
+        status={isApproved ? 'APROVADO' : data.generatedPersona ? 'AGUARDANDO_APROVACAO' : 'PENDENTE'}
+        isApproved={isApproved}
+        canApprove={!!data.generatedPersona}
+        approveButtonText={isApproved ? '✓ VOZ & PERSONA APROVADA' : 'APROVAR VOZ'}
+        approvalWarning={!data.generatedPersona ? 'Gere ou escreva a persona antes de aprovar.' : undefined}
+        onPrev={onPrev}
+        onNext={isApproved ? onContinue : undefined}
+        onRegenerate={generatePersona}
+        onApprove={handleApprovePersona}
+      />
+
       <div className="stage-intro-block">
         <h3>Voz Editorial & Persona do Autor</h3>
         <p>Defina a personalidade da escrita do seu livro. A persona calibrada garante consistência de tom, profundidade narrativa e conexão humana genuína ao longo de todos os capítulos.</p>

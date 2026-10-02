@@ -135,13 +135,17 @@ export class SudokuInvestigativeService {
       topic: `Sudoku Investigativo Criminal: ${config.theme}`,
       kdpBookType: 'puzzle-book',
       kdpChapters: chapters,
-      coverDesign: {
-        theme: config.theme,
-        primaryColor: '#0f172a',
-        secondaryColor: '#f59e0b',
-        frontCoverUrl: coverUrl || '',
-        status: 'approved'
-      }
+      coverImageUrl: coverUrl || '',
+      kdpCoverDesign: {
+        frontImageUrl: coverUrl || '',
+        status: 'approved' as any
+      } as any,
+      pipelineStage: 'idle',
+      pipelineProgress: 0,
+      pipelineLog: [],
+      tasks: [],
+      notes: '',
+      competitorsAsins: []
     };
 
     try {
