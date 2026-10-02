@@ -19,7 +19,6 @@ import {
 
 // Componentes das Etapas
 import { ResearchStage } from './stages/ResearchStage';
-import { AnalyticsStage } from './stages/AnalyticsStage';
 import { BookTitlesStage } from './stages/BookTitlesStage';
 import { ResourcesStage } from './stages/ResourcesStage';
 import { AuthorPersonaStage } from './stages/AuthorPersonaStage';
@@ -47,7 +46,6 @@ import { PublishSuccessModal } from './PublishSuccessModal';
 // Ícones por estágio
 const STAGE_ICONS: Record<StageId, React.ReactNode> = {
   'research': <Search size={15} />,
-  'analytics': <BarChart3 size={15} />,
   'book-titles': <Type size={15} />,
   'resources': <FolderOpen size={15} />,
   'author-persona': <User size={15} />,
@@ -101,6 +99,15 @@ export const BookStudioApp: React.FC = () => {
     }).catch(() => {});
   }, [reloadProjects]);
 
+  // Migração defensiva: caso um projeto salvo esteja em uma etapa removida (ex: analytics)
+  useEffect(() => {
+    if (activeProject && !STAGES.some(s => s.id === currentStage)) {
+      const fallback: StageId = (currentStage as string) === 'analytics' ? 'book-titles' : 'research';
+      setCurrentStage(fallback);
+      handleUpdateProject({ ...activeProject, currentStage: fallback });
+    }
+  }, [activeProject, currentStage]);
+
   // Atualizar projeto com salvamento automático
   const handleUpdateProject = async (updated: BookProject) => {
     setActiveProject(updated);
@@ -123,7 +130,10 @@ export const BookStudioApp: React.FC = () => {
         ensured.stageStatuses = getDefaultStageStatuses();
       }
       setActiveProject(ensured);
-      setCurrentStage(ensured.currentStage || 'research');
+      const initialStage = (ensured.currentStage && STAGES.some(s => s.id === ensured.currentStage))
+        ? (ensured.currentStage as StageId)
+        : 'research';
+      setCurrentStage(initialStage);
       setMode('project-editor');
     }
   };
@@ -410,15 +420,6 @@ export const BookStudioApp: React.FC = () => {
         if (!topic) return { isValid: false, reason: 'O tópico ou tema central do livro é obrigatório na Etapa 1.' };
         return { isValid: true };
       }
-      case 'analytics': {
-        const hasData = Boolean(
-          data.analytics?.aiAnalysisSummary?.trim() ||
-          (data.analytics?.marketReferences && data.analytics.marketReferences.length > 0) ||
-          data.analytics?.searchKeywords?.trim()
-        );
-        if (!hasData) return { isValid: false, reason: 'Gere ou preencha a análise de mercado antes de avançar.' };
-        return { isValid: true };
-      }
       case 'book-titles': {
         const t = data['book-titles']?.customTitle?.trim() || data['book-titles']?.selectedTitleId || activeProject.title?.trim();
         if (!t) return { isValid: false, reason: 'Selecione ou digite um título definitivo para a obra.' };
@@ -560,8 +561,6 @@ export const BookStudioApp: React.FC = () => {
     switch (currentStage) {
       case 'research':
         return <ResearchStage project={activeProject} onUpdateProject={handleUpdateProject} />;
-      case 'analytics':
-        return <AnalyticsStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
       case 'book-titles':
         return <BookTitlesStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
       case 'resources':
@@ -666,12 +665,12 @@ export const BookStudioApp: React.FC = () => {
 
   return (
     <div className="app-layout editor-layout">
-      {/* ===== SIDEBAR ESQUERDA (13 ETAPAS COAUTHOR) ===== */}
+      {/* ===== SIDEBAR ESQUERDA (12 ETAPAS COAUTHOR) ===== */}
       <aside className="editor-sidebar">
         <div className="sidebar-top">
-          <div className="sidebar-step-badge">Etapa {stageNum} de 13</div>
+          <div className="sidebar-step-badge">Etapa {stageNum} de {STAGES.length}</div>
           <span className="sidebar-stage-name">{stageLabel}</span>
-          <div className="sidebar-progress-track" title={`${completedCount} de 13 etapas concluídas`}>
+          <div className="sidebar-progress-track" title={`${completedCount} de ${STAGES.length} etapas concluídas`}>
             <div className="sidebar-progress-bar" style={{ width: `${Math.max(6, progressPercent)}%` }} />
           </div>
           <span className="sidebar-progress-text">{progressPercent}% concluído</span>
@@ -730,7 +729,7 @@ export const BookStudioApp: React.FC = () => {
           </div>
 
           <div className="header-stage-info">
-            <span className="header-stage-badge">Etapa {stageNum} de 13</span>
+            <span className="header-stage-badge">Etapa {stageNum} de {STAGES.length}</span>
             <h2 className="header-stage-title">{stageLabel}</h2>
           </div>
 
@@ -807,7 +806,7 @@ export const BookStudioApp: React.FC = () => {
             </div>
             <div className="guided-flow-right">
               <span className="guided-flow-status">
-                <Check size={12} /> Linha de Raciocínio Conectada (13 Etapas)
+                <Check size={12} /> Linha de Raciocínio Conectada ({STAGES.length} Etapas)
               </span>
             </div>
           </div>

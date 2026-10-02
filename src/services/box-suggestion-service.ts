@@ -1966,23 +1966,6 @@ export class BoxSuggestionService {
         break;
       }
 
-      case 'analytics': {
-        const refs = domain === 'fantasy-sword-sorcery' ? [
-          { id: '1', title: 'Conan, o Bárbaro', author: 'Robert E. Howard', collectedAt: Date.now() },
-          { id: '2', title: 'A Lâmina da Traição', author: 'Joe Abercrombie', collectedAt: Date.now() }
-        ] : [
-          { id: '1', title: 'Hábitos Atômicos', author: 'James Clear', collectedAt: Date.now() },
-          { id: '2', title: 'A Única Coisa', author: 'Gary Keller', collectedAt: Date.now() }
-        ];
-
-        updated.stageData.analytics = {
-          marketReferences: refs,
-          analysisNotes: `Foco em elementos de alto engajamento no gênero ${domain}.`,
-          aiAnalysisSummary: `Análise estruturada do nicho ${updated.topic || domain} com alto potencial comercial na Amazon.`
-        };
-        break;
-      }
-
       default:
         break;
     }

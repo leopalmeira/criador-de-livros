@@ -46,7 +46,6 @@ describe('ProgressivePageEngine & EditorialContextService - Processo Editorial U
       ],
       stageStatuses: {
         'research': 'COMPLETED',
-        'analytics': 'COMPLETED',
         'book-titles': 'COMPLETED',
         'resources': 'COMPLETED',
         'author-persona': 'COMPLETED',
