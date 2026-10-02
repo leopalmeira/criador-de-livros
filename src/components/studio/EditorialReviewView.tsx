@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { BookProject, ChapterReviewSuggestion } from '../../types/book-project';
 import { EditorialControlBar } from './EditorialControlBar';
-import { BackendEditorialService } from '../../services/backend-editorial-service';
+import { EditorialReviewEngine } from '../../services/editorial-review-engine';
 
 interface EditorialReviewViewProps {
   project: BookProject;
@@ -55,7 +55,7 @@ export const EditorialReviewView: React.FC<EditorialReviewViewProps> = ({
       } catch {}
 
       if (results.length === 0) {
-        results = await BackendEditorialService.reviewManuscript(project);
+        results = EditorialReviewEngine.reviewManuscript(project);
       }
 
       setSuggestions(results);

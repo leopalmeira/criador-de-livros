@@ -25,15 +25,19 @@ var init_project_storage_service = __esm({
   "src/services/project-storage-service.ts"() {
     "use strict";
     ProjectStorageService = class {
-      static BASE_DIR = path2.join(process.cwd(), "data", "projects");
+      static get BASE_DIR() {
+        const cwd = typeof process !== "undefined" && typeof process.cwd === "function" ? process.cwd() : "";
+        return typeof path2 !== "undefined" && path2.join ? path2.join(cwd, "data", "projects") : "data/projects";
+      }
       static ensureDir(dirPath) {
-        if (!fs2.existsSync(dirPath)) {
+        if (typeof fs2 !== "undefined" && fs2.existsSync && !fs2.existsSync(dirPath)) {
           fs2.mkdirSync(dirPath, { recursive: true });
         }
       }
       static getProjectDir(projectId) {
         const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, "_");
-        const projectDir = path2.join(this.BASE_DIR, safeId);
+        const base = this.BASE_DIR;
+        const projectDir = typeof path2 !== "undefined" && path2.join ? path2.join(base, safeId) : `${base}/${safeId}`;
         this.ensureDir(projectDir);
         return projectDir;
       }
@@ -182,8 +186,13 @@ import path from "path";
 var BackendCoverService = class {
   static activeJobs = /* @__PURE__ */ new Map();
   static activeProjectsInProgress = /* @__PURE__ */ new Set();
-  static BASE_DIR = process.cwd();
-  static STORAGE_DIR = path.join(process.cwd(), "covers");
+  static get BASE_DIR() {
+    return typeof process !== "undefined" && typeof process.cwd === "function" ? process.cwd() : "";
+  }
+  static get STORAGE_DIR() {
+    const base = this.BASE_DIR;
+    return typeof path !== "undefined" && path.join ? path.join(base, "covers") : "covers";
+  }
   /**
    * Obtém a chave de API do Google AI Studio configurada
    */
@@ -191,18 +200,20 @@ var BackendCoverService = class {
     if (payload?.apiKey && payload.apiKey.trim().length > 0) {
       return payload.apiKey.trim();
     }
+    const env = typeof process !== "undefined" && process.env ? process.env : {};
     const candidates = [
-      process.env.GEMINI_API_KEY,
-      process.env.GOOGLE_API_KEY,
-      process.env.VITE_GEMINI_API_KEY,
-      process.env.VITE_GEMINI_FALLBACK_API_KEY
+      env.GEMINI_API_KEY,
+      env.GOOGLE_API_KEY,
+      env.VITE_GEMINI_API_KEY,
+      env.VITE_GEMINI_FALLBACK_API_KEY
     ];
     for (const c of candidates) {
       if (c && c.trim().length > 0) return c.trim();
     }
     try {
-      const envPath = path.resolve(this.BASE_DIR, ".env");
-      if (fs.existsSync(envPath)) {
+      const baseDir = this.BASE_DIR;
+      const envPath = typeof path !== "undefined" && path.resolve ? path.resolve(baseDir, ".env") : ".env";
+      if (typeof fs !== "undefined" && fs.existsSync && fs.existsSync(envPath)) {
         const content = fs.readFileSync(envPath, "utf8");
         const lines = content.split("\n");
         for (const line of lines) {

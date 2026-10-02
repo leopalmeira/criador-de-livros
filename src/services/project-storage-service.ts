@@ -3,17 +3,21 @@ import path from 'path';
 import { BookProject, ChapterVersion, AuditLogEntry, PdfVersionItem } from '../types/book-project';
 
 export class ProjectStorageService {
-  private static BASE_DIR = path.join(process.cwd(), 'data', 'projects');
+  public static get BASE_DIR(): string {
+    const cwd = typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+    return typeof path !== 'undefined' && path.join ? path.join(cwd, 'data', 'projects') : 'data/projects';
+  }
 
   private static ensureDir(dirPath: string) {
-    if (!fs.existsSync(dirPath)) {
+    if (typeof fs !== 'undefined' && fs.existsSync && !fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
     }
   }
 
   public static getProjectDir(projectId: string): string {
     const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const projectDir = path.join(this.BASE_DIR, safeId);
+    const base = this.BASE_DIR;
+    const projectDir = typeof path !== 'undefined' && path.join ? path.join(base, safeId) : `${base}/${safeId}`;
     this.ensureDir(projectDir);
     return projectDir;
   }

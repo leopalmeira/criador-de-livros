@@ -395,12 +395,120 @@ function kdpAiBackendPlugin() {
           res.end(JSON.stringify({ success: false, error: err.message }));
         }
       });
+
+      // Endpoints de Projetos Editoriais REST (Persistência & Auditoria)
+      server.middlewares.use('/api/projects', async (req: any, res: any, next: any) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        try {
+          const { ProjectStorageService } = await import('./src/services/project-storage-service');
+          const { EditorialReviewEngine } = await import('./src/services/editorial-review-engine');
+          const reqUrl = new URL(req.url, 'http://localhost');
+          const parts = reqUrl.pathname.split('/').filter(Boolean);
+
+          // GET /api/projects
+          if (req.method === 'GET' && parts.length === 0) {
+            const list = await ProjectStorageService.listProjects();
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, count: list.length, projects: list }));
+            return;
+          }
+
+          // POST /api/projects
+          if (req.method === 'POST' && parts.length === 0) {
+            let body = '';
+            req.on('data', (chunk: any) => { body += chunk; });
+            req.on('end', async () => {
+              try {
+                const project = JSON.parse(body || '{}');
+                const saved = await ProjectStorageService.saveProject(project);
+                res.setHeader('Content-Type', 'application/json');
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, project: saved }));
+              } catch (e: any) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: e.message }));
+              }
+            });
+            return;
+          }
+
+          const projectId = parts[0];
+
+          // GET /api/projects/:id
+          if (req.method === 'GET' && parts.length === 1) {
+            const proj = await ProjectStorageService.getProject(projectId);
+            if (!proj) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ success: false, error: 'Projeto não encontrado' }));
+              return;
+            }
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, project: proj }));
+            return;
+          }
+
+          // DELETE /api/projects/:id
+          if (req.method === 'DELETE' && parts.length === 1) {
+            await ProjectStorageService.deleteProject(projectId);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, deleted: true }));
+            return;
+          }
+
+          // POST /api/projects/:id/review
+          if (req.method === 'POST' && parts[1] === 'review') {
+            const proj = await ProjectStorageService.getProject(projectId);
+            const suggestions = EditorialReviewEngine.reviewManuscript(proj || ({} as any));
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, count: suggestions.length, suggestions }));
+            return;
+          }
+
+          // POST /api/projects/:id/quality-gate
+          if (req.method === 'POST' && parts[1] === 'quality-gate') {
+            const proj = await ProjectStorageService.getProject(projectId);
+            const checklist = EditorialReviewEngine.evaluateQualityGate(proj || ({} as any));
+            const passed = Object.values(checklist).every(v => v === true);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, passed, checklist }));
+            return;
+          }
+
+          next();
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
     }
   };
 }
 
 export default defineConfig({
   base: '',
+  define: {
+    'process.env': {},
+    'process.cwd': '(() => "")'
+  },
+  server: {
+    port: 5173,
+    host: true
+  },
   plugins: [react(), kdpAiBackendPlugin()],
   test: {
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],

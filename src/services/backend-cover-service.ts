@@ -67,8 +67,14 @@ export class BackendCoverService {
   private static activeJobs: Map<string, CoverJobProgress> = new Map();
   private static activeProjectsInProgress: Set<string> = new Set();
 
-  private static BASE_DIR = process.cwd();
-  private static STORAGE_DIR = path.join(process.cwd(), 'covers');
+  public static get BASE_DIR(): string {
+    return typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+  }
+
+  public static get STORAGE_DIR(): string {
+    const base = this.BASE_DIR;
+    return typeof path !== 'undefined' && path.join ? path.join(base, 'covers') : 'covers';
+  }
 
   /**
    * Obtém a chave de API do Google AI Studio configurada
@@ -78,12 +84,14 @@ export class BackendCoverService {
       return payload.apiKey.trim();
     }
 
+    const env = typeof process !== 'undefined' && process.env ? process.env : {};
+
     // Variáveis de ambiente padrão
     const candidates = [
-      process.env.GEMINI_API_KEY,
-      process.env.GOOGLE_API_KEY,
-      process.env.VITE_GEMINI_API_KEY,
-      process.env.VITE_GEMINI_FALLBACK_API_KEY
+      env.GEMINI_API_KEY,
+      env.GOOGLE_API_KEY,
+      env.VITE_GEMINI_API_KEY,
+      env.VITE_GEMINI_FALLBACK_API_KEY
     ];
 
     for (const c of candidates) {
@@ -92,8 +100,9 @@ export class BackendCoverService {
 
     // Leitura direta do arquivo .env como fallback garantido
     try {
-      const envPath = path.resolve(this.BASE_DIR, '.env');
-      if (fs.existsSync(envPath)) {
+      const baseDir = this.BASE_DIR;
+      const envPath = typeof path !== 'undefined' && path.resolve ? path.resolve(baseDir, '.env') : '.env';
+      if (typeof fs !== 'undefined' && fs.existsSync && fs.existsSync(envPath)) {
         const content = fs.readFileSync(envPath, 'utf8');
         const lines = content.split('\n');
         for (const line of lines) {
