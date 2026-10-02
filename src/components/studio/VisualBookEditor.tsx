@@ -42,6 +42,12 @@ import { PageEngine } from '../../services/page-engine';
 import { AiAssistantService, AiAssistAction } from '../../services/ai-assistant-service';
 import { AiService } from '../../services/ai-service';
 import { LocalAiEngine } from '../../services/local-ai-engine';
+import { ShowMeTheStoryEngine } from '../../services/show-me-the-story-engine';
+import { EditorialArtService } from '../../services/editorial-art-service';
+import { WatermarkArtService } from '../../services/watermark-art-service';
+import { ProgressivePageEngine } from '../../services/progressive-page-engine';
+import { EditorialContextService } from '../../services/editorial-context-service';
+import '../../styles/visual-book-editor.css';
 
 interface VisualBookEditorProps {
   project: BookProject;
@@ -71,6 +77,14 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
   const [isAutosaving, setIsAutosaving] = useState<boolean>(false);
   const [lastSavedTime, setLastSavedTime] = useState<string>('');
 
+  // Estados de Geração Progressiva de Páginas (Seções 8, 9, 10, 11 e 14)
+  const [isProgressiveGenerating, setIsProgressiveGenerating] = useState<boolean>(false);
+  const [progressiveSuccessMsg, setProgressiveSuccessMsg] = useState<string>('');
+
+  // Estados da Sombra Temática da História (0% a 5% de opacidade)
+  const [enableWatermark, setEnableWatermark] = useState<boolean>(true);
+  const [watermarkOpacity, setWatermarkOpacity] = useState<number>(3.0);
+
   // Estados de Expansão de Capítulo com IA
   const [isExpandModalOpen, setIsExpandModalOpen] = useState<boolean>(false);
   const [expandMode, setExpandMode] = useState<'examples' | 'theory' | 'dialogues' | 'double_length' | 'custom'>('examples');
@@ -80,14 +94,20 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
 
   const aiAssistantRef = useRef<AiAssistantService | null>(null);
 
-  // Inicializa páginas visuais e configurações
+  // Inicializa o esqueleto de páginas editoriais reais progressivas
   useEffect(() => {
     let proj = PageEngine.ensureProjectSettings(project);
     let visualPages = proj.visualPages;
 
+    // Se não houver páginas cadastradas, inicializa o esqueleto com os capítulos do sumário
     if (!visualPages || visualPages.length === 0) {
-      visualPages = PageEngine.generateVisualPagesFromManuscript(proj);
-      proj = { ...proj, visualPages };
+      visualPages = ProgressivePageEngine.initializeBookSkeleton(proj);
+      proj = {
+        ...proj,
+        visualPages,
+        actualPages: visualPages.length,
+        lastGeneratedPage: 1
+      };
       onUpdateProject(proj);
     }
 
@@ -106,6 +126,85 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
     const aiSettings = (project as any).aiSettings || { provider: 'local-builtin' };
     aiAssistantRef.current = new AiAssistantService(new AiService(aiSettings));
   }, [project.id]);
+
+  // Executa a geração progressiva da página selecionada sob restrição de título e objetivo
+  const handleGenerateCurrentPageProgressively = async () => {
+    const pageToGen = pages[selectedPageIndex];
+    if (isProgressiveGenerating || !pageToGen) return;
+
+    setIsProgressiveGenerating(true);
+    setProgressiveSuccessMsg('');
+    setAiMessage(`⚡ Escrevendo e diagramando Página #${pageToGen.pageNumber} ("${pageToGen.title || 'Seção'}")...`);
+
+    try {
+      const aiSettings = (project as any).aiSettings || { provider: 'local-builtin' };
+      const ai = new AiService(aiSettings);
+      const { updatedProject, generatedPage } = await ProgressivePageEngine.generatePageProgressively(
+        project,
+        selectedPageIndex,
+        ai
+      );
+
+      const newPages = updatedProject.visualPages || pages;
+      setPages(newPages);
+      onUpdateProject(updatedProject);
+      setProgressiveSuccessMsg(`✅ Página #${generatedPage.pageNumber} gerada, diagramada e aprovada!`);
+      setTimeout(() => setProgressiveSuccessMsg(''), 3500);
+    } catch (err: any) {
+      setAiMessage(`Erro na geração: ${err.message || 'Falha ao processar.'}`);
+    } finally {
+      setIsProgressiveGenerating(false);
+      setTimeout(() => setAiMessage(''), 1800);
+    }
+  };
+
+  // Regenera exclusivamente a página selecionada preservando contexto do livro
+  const handleRegenerateCurrentPage = async () => {
+    const pageToRegen = pages[selectedPageIndex];
+    if (isProgressiveGenerating || !pageToRegen) return;
+
+    setIsProgressiveGenerating(true);
+    setProgressiveSuccessMsg('');
+    setAiMessage(`🔄 Regenerando Página #${pageToRegen.pageNumber} mantendo contexto editorial...`);
+
+    try {
+      const aiSettings = (project as any).aiSettings || { provider: 'local-builtin' };
+      const ai = new AiService(aiSettings);
+      const { updatedProject, generatedPage } = await ProgressivePageEngine.regenerateSinglePage(
+        project,
+        selectedPageIndex,
+        ai
+      );
+
+      const newPages = updatedProject.visualPages || pages;
+      setPages(newPages);
+      onUpdateProject(updatedProject);
+      setProgressiveSuccessMsg(`✅ Página #${generatedPage.pageNumber} regenerada com sucesso!`);
+      setTimeout(() => setProgressiveSuccessMsg(''), 3500);
+    } catch (err: any) {
+      setAiMessage(`Erro ao regenerar: ${err.message || 'Falha ao processar.'}`);
+    } finally {
+      setIsProgressiveGenerating(false);
+      setTimeout(() => setAiMessage(''), 1800);
+    }
+  };
+
+  // Função para gerar em lote com Show Me The Story (se desejado pelo autor)
+  const handleGenerateFullBookManuscript = () => {
+    setIsAiLoading(true);
+    setAiMessage('⚡ Redigindo e diagramando todo o livro com Show Me The Story Engine...');
+    try {
+      const fullProj = ShowMeTheStoryEngine.generateStoryBook(project, project.estimatedPages || 150);
+      setPages(fullProj.visualPages || []);
+      setSelectedPageIndex(0);
+      onUpdateProject(fullProj);
+    } finally {
+      setTimeout(() => {
+        setIsAiLoading(false);
+        setAiMessage('');
+      }, 600);
+    }
+  };
 
   const currentPage = pages[selectedPageIndex] || pages[0];
 
@@ -207,8 +306,43 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
   const handleUpdateElementContent = (elemId: string, content: string) => {
     if (!currentPage) return;
     const updatedElements = currentPage.elements.map(e => e.id === elemId ? { ...e, content } : e);
-    const newPages = pages.map((p, idx) => idx === selectedPageIndex ? { ...p, elements: updatedElements } : p);
-    commitPagesUpdate(newPages);
+    const fullText = updatedElements.map(e => e.content).join('\n\n');
+
+    // Atualiza a memória estruturada da página oficial editada manualmente (Regra 20)
+    const updatedMemory = EditorialContextService.extractPageStructuredMemory(
+      currentPage.pageNumber,
+      currentPage.title || `Página ${currentPage.pageNumber}`,
+      currentPage.goal || 'Desenvolvimento do conteúdo editorial',
+      fullText,
+      `Capítulo ${currentPage.chapterIndex || 1}`,
+      currentPage.sectionTitle
+    );
+
+    const newPages = pages.map((p, idx) => 
+      idx === selectedPageIndex 
+        ? { ...p, elements: updatedElements, rawText: fullText, status: 'approved' as const, pageContext: updatedMemory } 
+        : p
+    );
+
+    const updatedPageContexts = {
+      ...(project.pageContexts || {}),
+      [currentPage.pageNumber]: updatedMemory
+    };
+
+    setPages(newPages);
+    setIsAutosaving(true);
+    const updated: BookProject = {
+      ...project,
+      visualPages: newPages,
+      actualPages: newPages.length,
+      pageContexts: updatedPageContexts,
+      updatedAt: Date.now()
+    };
+    onUpdateProject(updated);
+    setTimeout(() => {
+      setIsAutosaving(false);
+      setLastSavedTime(new Date().toLocaleTimeString());
+    }, 400);
   };
 
   const handleDeleteElement = (elemId: string) => {
@@ -218,7 +352,7 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
     commitPagesUpdate(newPages);
   };
 
-  // Ações de IA Contextual
+  // Ações de IA Contextual — texto aplicado DIRETAMENTE na página (sem passo intermediário de "inserir")
   const handleRunAiAction = async (action: AiAssistAction) => {
     if (!currentPage || isAiLoading) return;
     setIsAiLoading(true);
@@ -236,20 +370,26 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
         setAiAnalysisNotes(res.analysisNotes);
         setAiMessage(res.text || 'Análise concluída com sucesso.');
       } else if (res.text) {
-        // Se for melhoria ou continuação, atualiza ou adiciona parágrafo
         if (action === 'continue' || action === 'expand') {
-          handleAddElement('paragraph');
-          setTimeout(() => {
-            const lastElem = currentPage.elements[currentPage.elements.length - 1];
-            if (lastElem) handleUpdateElementContent(lastElem.id, res.text);
-          }, 100);
+          // Adiciona novo parágrafo direto com o texto — sem elemento vazio intermediário
+          const newElem = {
+            id: `elem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            type: 'paragraph' as const,
+            content: res.text,
+            alignment: 'justify' as const
+          };
+          const updatedElements = [...currentPage.elements, newElem];
+          const newPages = pages.map((p, idx) =>
+            idx === selectedPageIndex ? { ...p, elements: updatedElements } : p
+          );
+          commitPagesUpdate(newPages);
         } else {
-          // Atualiza o primeiro parágrafo selecionado
+          // Substitui o primeiro parágrafo selecionado diretamente
           if (currentPage.elements.length > 0) {
             handleUpdateElementContent(currentPage.elements[0].id, res.text);
           }
         }
-        setAiMessage('Texto aprimorado aplicado diretamente à página!');
+        setAiMessage('✅ Texto aprimorado aplicado diretamente à página!');
       }
     } catch (err: any) {
       setAiMessage(`Erro na operação: ${err.message || 'Falha ao processar.'}`);
@@ -259,11 +399,15 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
   };
 
   // Executa a expansão e enriquecimento do capítulo com IA
+  // Texto inserido DIRETAMENTE nas páginas — modal fecha automático ao concluir
   const handleExecuteChapterExpansion = async () => {
     const targetChapter = project.kdpChapters?.find(c => c.index === currentPage?.chapterIndex) || project.kdpChapters?.[0];
     if (!targetChapter) return;
     setIsExpanding(true);
     setExpandSuccessMessage('');
+
+    // Guarda índice da página atual para manter o foco após rediagramação
+    const savedPageIndex = selectedPageIndex;
 
     try {
       const concept = project.kdpConcept || {
@@ -302,8 +446,8 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
         expandCustomPrompt
       );
 
-      const updatedChapters: IBookChapter[] = (project.kdpChapters || []).map(ch => 
-        ch.index === targetChapter.index 
+      const updatedChapters: IBookChapter[] = (project.kdpChapters || []).map(ch =>
+        ch.index === targetChapter.index
           ? { ...ch, prose: result.prose, wordCount: result.totalWords, status: 'REVISADO' as const }
           : ch
       );
@@ -313,7 +457,7 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
         kdpChapters: updatedChapters
       };
 
-      // Recalcula as páginas visuais do livro com o novo texto diagramado
+      // Recalcula as páginas visuais com o novo texto
       const newPages = PageEngine.generateVisualPagesFromManuscript(updatedProject);
       updatedProject = {
         ...updatedProject,
@@ -324,7 +468,17 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
 
       setPages(newPages);
       onUpdateProject(updatedProject);
-      setExpandSuccessMessage(`Sucesso! +${result.addedWords} palavras adicionadas (Total: ${result.totalWords} palavras). As páginas do livro foram diagramadas com perfeição!`);
+
+      // Mantém o foco na mesma página (ou na última do capítulo expandido se saiu do range)
+      const newIdx = Math.min(savedPageIndex, newPages.length - 1);
+      setSelectedPageIndex(newIdx);
+
+      // Fecha o modal automaticamente com mensagem de sucesso brevemente exibida
+      setExpandSuccessMessage(`✅ +${result.addedWords} palavras adicionadas ao Capítulo (Total: ${result.totalWords} palavras). Páginas rediagramadas!`);
+      setTimeout(() => {
+        setIsExpandModalOpen(false);
+        setExpandSuccessMessage('');
+      }, 2200);
     } catch (err: any) {
       setExpandSuccessMessage(`Erro ao expandir: ${err.message || 'Falha ao processar.'}`);
     } finally {
@@ -390,17 +544,80 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
             <span>Memória do Livro</span>
           </button>
 
-          {/* AUMENTAR TEXTO DO CAPÍTULO COM IA */}
+          {/* NAVEGAÇÃO RÁPIDA ENTRE PÁGINAS */}
+          <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700/80 rounded-lg p-0.5">
+            <button
+              type="button"
+              className="px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+              onClick={() => setSelectedPageIndex(Math.max(0, selectedPageIndex - 1))}
+              disabled={selectedPageIndex === 0}
+              title="Página Anterior"
+            >
+              ←
+            </button>
+            <span className="text-[11px] font-semibold text-slate-300 px-1">
+              #{currentPage?.pageNumber || selectedPageIndex + 1}
+            </span>
+            <button
+              type="button"
+              className="px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+              onClick={() => setSelectedPageIndex(Math.min(pages.length - 1, selectedPageIndex + 1))}
+              disabled={selectedPageIndex >= pages.length - 1}
+              title="Próxima Página"
+            >
+              →
+            </button>
+          </div>
+
+          {/* BOTÃO PRINCIPAL: GERAÇÃO PROGRESSIVA DA PÁGINA (SEÇÕES 8, 9 E 10) */}
+          {(!currentPage?.elements || currentPage.elements.filter(e => e.type === 'paragraph').length === 0 || currentPage.status === 'pending') ? (
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-600/20 border border-emerald-400/30 transition-all cursor-pointer disabled:opacity-50"
+              onClick={handleGenerateCurrentPageProgressively}
+              disabled={isProgressiveGenerating}
+              title="Escrever e diagramar esta página respeitando o título e objetivo com IA"
+            >
+              {isProgressiveGenerating ? (
+                <>
+                  <RefreshCw size={14} className="spin-animate text-white" />
+                  <span>Gerando #{currentPage?.pageNumber}...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} className="text-amber-200" />
+                  <span>⚡ Gerar Página #{currentPage?.pageNumber || selectedPageIndex + 1} com IA</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/50 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              onClick={handleRegenerateCurrentPage}
+              disabled={isProgressiveGenerating}
+              title="Regenerar apenas o conteúdo desta página com IA"
+            >
+              <RefreshCw size={13} className={isProgressiveGenerating ? 'spin-animate text-blue-400' : 'text-slate-400'} />
+              <span>Regenerar #{currentPage?.pageNumber}</span>
+            </button>
+          )}
+
+          {/* FEEDBACK DE SUCESSO DA GERAÇÃO */}
+          {progressiveSuccessMsg && (
+            <span className="text-[11px] font-semibold text-emerald-400 animate-in fade-in">
+              {progressiveSuccessMsg}
+            </span>
+          )}
+
+          {/* GERAR E DIAGRAMAR TODO O LIVRO COM IA SEGUNDO META DE PÁGINAS */}
           <button 
-            className="btn-pill-expand-chapter flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md transition-all border border-blue-400/30"
-            onClick={() => {
-              setExpandSuccessMessage('');
-              setIsExpandModalOpen(true);
-            }}
-            title="Aumentar o volume de texto deste capítulo com IA (Exemplos, Diálogos e Teoria)"
+            className="btn-generate-full-book"
+            onClick={handleGenerateFullBookManuscript}
+            title="Redigir e diagramar todas as páginas do livro de acordo com o total de páginas escolhido"
           >
-            <Sparkles size={14} className="text-amber-300" />
-            <span>⚡ Aumentar Texto (IA)</span>
+            <Sparkles size={14} />
+            <span>⚡ Livro Completo ({project.estimatedPages || 150} P.)</span>
           </button>
         </div>
 
@@ -415,6 +632,41 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
               <span className="saved-text" title={`Último salvamento às ${lastSavedTime || 'recente'}`}>
                 <Check size={14} className="text-emerald-400" /> Salvo ✓
               </span>
+            )}
+          </div>
+
+          {/* CONTROLE DE SOMBRA / FILIGRANA TEMÁTICA DA HISTÓRIA (0 A 5%) */}
+          <div className="flex items-center gap-2 px-2.5 py-1 bg-slate-800/80 border border-slate-700/60 rounded-lg text-xs mr-2">
+            <button
+              type="button"
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded transition-colors font-semibold text-[11px] ${
+                enableWatermark 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+              onClick={() => setEnableWatermark(!enableWatermark)}
+              title="Alterna a exibição da silhueta/sombra temática da história em cada página."
+            >
+              <Sparkles size={12} />
+              <span>Sombra: {enableWatermark ? 'LIGADA' : 'DESLIGADA'}</span>
+            </button>
+
+            {enableWatermark && (
+              <div className="flex items-center gap-1.5 pl-2 border-l border-slate-700">
+                <span className="text-[10px] text-slate-300 whitespace-nowrap">
+                  <strong className="text-blue-400">{watermarkOpacity.toFixed(1)}%</strong>
+                </span>
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  step="0.5"
+                  value={watermarkOpacity}
+                  onChange={(e) => setWatermarkOpacity(parseFloat(e.target.value))}
+                  className="w-16 accent-blue-500 cursor-pointer h-1"
+                  title="Ajuste a intensidade da sombra temática (0% a 5% de opacidade)"
+                />
+              </div>
             )}
           </div>
 
@@ -539,10 +791,34 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
                 </div>
               )}
 
-              {/* CABEÇALHO CORRENTE */}
+              {/* SOMBRA / FILIGRANA TEMÁTICA DA HISTÓRIA (0% A 5% DE OPACIDADE, ROTATIVA E NUNCA SE REPETE) */}
+              {enableWatermark && watermarkOpacity > 0 && (
+                <div 
+                  className="editor-sheet-watermark"
+                  style={{
+                    position: 'absolute',
+                    inset: '20% 12% 12% 12%',
+                    backgroundImage: `url("${WatermarkArtService.getWatermarkSvgDataUrl(selectedPageIndex + 1, currentPage?.chapterIndex || 1, watermarkOpacity)}")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'center',
+                    backgroundSize: 'contain',
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  title={`Sombra temática: ${WatermarkArtService.getMotifForPage(selectedPageIndex + 1, currentPage?.chapterIndex || 1).name}`}
+                />
+              )}
+
+              {/* CABEÇALHO CORRENTE (SEM NOME DO AUTOR) */}
               {currentPage?.headerText && currentPage?.type !== 'chapter-opener' && (
-                <div className="page-running-header" style={{ fontFamily: typography.fontFamily }}>
-                  <span>{currentPage.headerText}</span>
+                <div className="page-running-header" style={{ fontFamily: typography.fontFamily, position: 'relative', zIndex: 2 }}>
+                  <span>
+                    {currentPage.headerText
+                      .replace(new RegExp(`por\\s*${project.author || ''}`, 'i'), '')
+                      .replace(new RegExp(`${project.author || ''}`, 'i'), '')
+                      .trim() || project.title}
+                  </span>
                 </div>
               )}
 
@@ -556,6 +832,44 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
                   textAlign: typography.textAlign
                 }}
               >
+                {/* BANNER EDITORIAL DE PÁGINA PROGRESSIVA PENDENTE (SEÇÕES 8, 9, 10 E 15) */}
+                {currentPage?.status === 'pending' && !currentPage.elements.some(e => e.type === 'paragraph') && (
+                  <div className="pending-editorial-box my-4 p-5 rounded-xl border border-blue-200 bg-blue-50/70 text-slate-800 text-center shadow-sm">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold tracking-wide uppercase mb-2">
+                      <Sparkles size={12} /> Restrição Editorial da Página
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 mb-1">
+                      {currentPage.title || `Página #${currentPage.pageNumber}`}
+                    </h3>
+                    {currentPage.goal && (
+                      <p className="text-xs text-slate-600 mb-4 max-w-md mx-auto leading-relaxed">
+                        <strong>Objetivo:</strong> {currentPage.goal}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleGenerateCurrentPageProgressively}
+                      disabled={isProgressiveGenerating}
+                      className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isProgressiveGenerating ? (
+                        <>
+                          <RefreshCw size={14} className="spin-animate text-white" />
+                          <span>Escrevendo e Diagramando Conteúdo Completo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={14} className="text-amber-200" />
+                          <span>⚡ Gerar Conteúdo Completo Desta Página</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[10px] text-slate-400 mt-2">
+                      Geração progressiva com memória estruturada e continuidade com a página anterior.
+                    </p>
+                  </div>
+                )}
+
                 {currentPage?.elements && currentPage.elements.length > 0 ? (
                   currentPage.elements.map((elem, elemIdx) => (
                     <div 
@@ -637,7 +951,16 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
                         </div>
                       ) : elem.type === 'image' && elem.imageUrl ? (
                         <div className="page-image-container my-3 p-1 rounded-lg border border-slate-200/80 bg-white/40 text-center shadow-sm">
-                          <img src={elem.imageUrl} alt="Ilustração do Livro" className="w-full max-h-56 object-cover rounded-md mx-auto" />
+                          <img 
+                            src={elem.imageUrl} 
+                            alt="Ilustração do Livro" 
+                            className="w-full max-h-56 object-cover rounded-md mx-auto" 
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.onerror = null;
+                              target.src = EditorialArtService.getEditorialFallbackSvg(elem.caption || 'Ilustração do Livro', project.title);
+                            }}
+                          />
                           {elem.caption && <span className="image-caption-text block text-[10px] text-slate-500 italic mt-1.5 px-2">{elem.caption}</span>}
                         </div>
                       ) : (
@@ -703,6 +1026,33 @@ export const VisualBookEditor: React.FC<VisualBookEditorProps> = ({
                     <button className="btn-add-initial-text" onClick={() => handleAddElement('paragraph')}>
                       <Plus size={14} /> Adicionar Texto
                     </button>
+                  </div>
+                )}
+
+                {/* AÇÕES DE CONTINUIDADE EDITORIAL DA PÁGINA (SEÇÕES 11, 15 E 21) */}
+                {currentPage?.elements?.some(e => e.type === 'paragraph') && (
+                  <div className="page-continuity-footer-bar mt-6 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
+                    <button
+                      type="button"
+                      onClick={handleRegenerateCurrentPage}
+                      disabled={isProgressiveGenerating}
+                      className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer bg-transparent border-none text-[11px]"
+                      title="Regenerar apenas esta página preservando o contexto editorial"
+                    >
+                      <RefreshCw size={11} className={isProgressiveGenerating ? 'spin-animate text-blue-500' : ''} />
+                      <span>Regenerar esta página</span>
+                    </button>
+
+                    {selectedPageIndex < pages.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPageIndex(selectedPageIndex + 1)}
+                        className="flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer bg-transparent border-none text-[11px]"
+                      >
+                        <span>Avançar para Página #{selectedPageIndex + 2}</span>
+                        <span>→</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

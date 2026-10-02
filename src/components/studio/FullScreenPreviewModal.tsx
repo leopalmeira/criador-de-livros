@@ -9,7 +9,11 @@ import {
   Minimize, 
   BookOpen 
 } from 'lucide-react';
-import { BookProject, BookVisualPage, TRIM_SIZE_METRICS } from '../../types/book-project';
+import { EditorialArtService } from '../../services/editorial-art-service';
+import { WatermarkArtService } from '../../services/watermark-art-service';
+import { Sparkles, Layers } from 'lucide-react';
+import { BookProject, BookVisualPage, PageElement, TRIM_SIZE_METRICS } from '../../types/book-project';
+import { PageEngine } from '../../services/page-engine';
 
 interface FullScreenPreviewModalProps {
   project: BookProject;
@@ -26,10 +30,17 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const pages: BookVisualPage[] = project.visualPages || [];
+  const pages: BookVisualPage[] = (project.visualPages && project.visualPages.length > 0)
+    ? project.visualPages
+    : PageEngine.generateVisualPagesFromManuscript(project);
+
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(Math.max(0, initialPageNumber - 1));
   const [zoomScale, setZoomScale] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Estados da Sombra Temática da História (Marca d'água de 0% a 5%)
+  const [enableWatermark, setEnableWatermark] = useState<boolean>(true);
+  const [watermarkOpacity, setWatermarkOpacity] = useState<number>(3.0); // 0 a 5%
 
   const trim = project.pageSettings?.trimSize || project.trimSize || '6x9';
   const metric = TRIM_SIZE_METRICS[trim] || TRIM_SIZE_METRICS['6x9'];
@@ -68,6 +79,41 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
           <BookOpen size={18} className="text-primary-accent" />
           <span className="font-semibold text-sm">{project.title}</span>
           <span className="text-xs text-muted">({trim})</span>
+        </div>
+
+        {/* CONTROLE DE SOMBRA / FILIGRANA TEMÁTICA DA HISTÓRIA (0 A 5%) */}
+        <div className="flex items-center gap-2 px-3 py-1 bg-slate-800/80 border border-slate-700/60 rounded-lg text-xs">
+          <button
+            type="button"
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors font-semibold ${
+              enableWatermark 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
+            onClick={() => setEnableWatermark(!enableWatermark)}
+            title="Alterna a exibição da silhueta/sombra temática da história em cada página."
+          >
+            <Sparkles size={13} />
+            <span>Sombra Temática: {enableWatermark ? 'LIGADA' : 'DESLIGADA'}</span>
+          </button>
+
+          {enableWatermark && (
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
+              <span className="text-[11px] text-slate-300 whitespace-nowrap">
+                Intensidade: <strong className="text-blue-400">{watermarkOpacity.toFixed(1)}%</strong>
+              </span>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.5"
+                value={watermarkOpacity}
+                onChange={(e) => setWatermarkOpacity(parseFloat(e.target.value))}
+                className="w-24 accent-blue-500 cursor-pointer h-1.5"
+                title="Deslize para ajustar a opacidade da sombra temática (de 0% a 5% de pixel)."
+              />
+            </div>
+          )}
         </div>
 
         <div className="preview-page-counter">
@@ -122,19 +168,44 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
             transform: `scale(${zoomScale})`,
             maxWidth: '680px',
             width: '92%',
-            minHeight: '840px'
+            minHeight: '840px',
+            position: 'relative'
           }}
         >
-          {/* CABEÇALHO DA PÁGINA */}
+          {/* SOMBRA / FILIGRANA TEMÁTICA DA HISTÓRIA (0% A 5% DE OPACIDADE, ROTATIVA E NUNCA SE REPETE) */}
+          {enableWatermark && watermarkOpacity > 0 && (
+            <div 
+              className="preview-sheet-watermark"
+              style={{
+                position: 'absolute',
+                inset: '20% 12% 12% 12%',
+                backgroundImage: `url("${WatermarkArtService.getWatermarkSvgDataUrl(currentPageIndex + 1, currentPage?.chapterIndex || 1, watermarkOpacity)}")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center',
+                backgroundSize: 'contain',
+                pointerEvents: 'none',
+                zIndex: 1,
+                transition: 'opacity 0.2s ease'
+              }}
+              title={`Sombra temática da página: ${WatermarkArtService.getMotifForPage(currentPageIndex + 1, currentPage?.chapterIndex || 1).name}`}
+            />
+          )}
+
+          {/* CABEÇALHO DA PÁGINA (SEM NOME DO AUTOR) */}
           {currentPage?.headerText && (
-            <div className="preview-sheet-header">
-              <span>{currentPage.headerText}</span>
+            <div className="preview-sheet-header" style={{ position: 'relative', zIndex: 2 }}>
+              <span>
+                {currentPage.headerText
+                  .replace(new RegExp(`por\\s*${project.author || ''}`, 'i'), '')
+                  .replace(new RegExp(`${project.author || ''}`, 'i'), '')
+                  .trim() || project.title}
+              </span>
             </div>
           )}
 
           {/* CONTEÚDO EDITORIAL */}
-          <div className="preview-sheet-elements">
-            {currentPage?.elements?.map((elem, idx) => (
+          <div className="preview-sheet-elements" style={{ position: 'relative', zIndex: 2 }}>
+            {currentPage?.elements?.map((elem: PageElement, idx: number) => (
               <div key={elem.id} className={`preview-elem elem-${elem.type}`}>
                 {elem.type === 'chapter-title' ? (
                   <h3 className="preview-chapter-title">{elem.content}</h3>
@@ -146,7 +217,15 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
                   <div className="preview-callout">{elem.content}</div>
                 ) : elem.type === 'image' && elem.imageUrl ? (
                   <div className="preview-img-box">
-                    <img src={elem.imageUrl} alt={elem.caption || "Ilustração do Livro"} />
+                    <img 
+                      src={elem.imageUrl} 
+                      alt={elem.caption || "Ilustração do Livro"} 
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.onerror = null;
+                        target.src = EditorialArtService.getEditorialFallbackSvg(elem.caption || 'Ilustração do Livro', project.title);
+                      }}
+                    />
                     {elem.caption && <span className="preview-img-caption">{elem.caption}</span>}
                   </div>
                 ) : (

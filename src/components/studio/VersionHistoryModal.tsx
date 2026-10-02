@@ -6,8 +6,7 @@ import {
   Copy, 
   Plus, 
   Save, 
-  Clock, 
-  Check 
+  Clock 
 } from 'lucide-react';
 import { BookProject, BookVersionItem } from '../../types/book-project';
 
@@ -44,25 +43,30 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
   };
 
   return (
-    <div className="modal-backdrop-overlay">
-      <div className="version-modal-card">
+    <div className="modal-backdrop-overlay" onClick={onClose}>
+      <div className="version-modal-card" onClick={(e) => e.stopPropagation()}>
         {/* HEADER */}
-        <div className="flex justify-between items-center pb-3 border-b border-border-subtle">
-          <div className="flex items-center gap-2">
-            <History size={18} className="text-primary-accent" />
-            <h3 className="font-bold text-base">Histórico de Versões & Backup</h3>
+        <div className="modal-header-row">
+          <div className="modal-title-group">
+            <History size={20} className="modal-header-icon" />
+            <div>
+              <h3 className="modal-title">Histórico de Versões & Backups</h3>
+              <p className="modal-subtitle">Grave pontos de restauração da obra para editar com tranquilidade total.</p>
+            </div>
           </div>
-          <button className="btn-icon-subtle" onClick={onClose}><X size={16} /></button>
+          <button className="btn-modal-close" onClick={onClose} title="Fechar">
+            <X size={18} />
+          </button>
         </div>
 
         {/* AÇÕES DE DUPLICAR E CRIAR VERSÃO */}
-        <div className="flex justify-between items-center mt-4 mb-4">
+        <div className="version-actions-bar">
           <button className="btn-subtle" onClick={onDuplicateProject}>
             <Copy size={14} /> Duplicar Todo o Projeto
           </button>
 
           {!isCreating && (
-            <button className="btn-primary-action" onClick={() => setIsCreating(true)}>
+            <button className="btn-primary-action-sm" onClick={() => setIsCreating(true)}>
               <Plus size={14} /> Criar Ponto de Restauração
             </button>
           )}
@@ -70,32 +74,32 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
 
         {/* FORMULÁRIO DE NOVA VERSÃO */}
         {isCreating && (
-          <div className="p-3 bg-surface-elevated rounded-xl border border-border-subtle mb-4">
-            <h4 className="text-xs font-semibold mb-2">Salvar Ponto de Restauração Atual</h4>
-            <div className="form-group-field mb-2">
-              <label>Nome / Identificador da Versão</label>
+          <div className="version-create-form">
+            <h4 className="version-form-title">Gravar Ponto de Restauração Atual</h4>
+            <div className="form-group mb-2">
+              <label className="form-label-sm">Nome / Identificador da Versão</label>
               <input 
                 type="text" 
-                className="input-text-standard"
-                placeholder="Ex: v1.1 - Capítulos 1 a 4 revisados"
+                className="form-input"
+                placeholder="Ex: v1.1 - Revisão dos capítulos 1 a 4 concluída"
                 value={newVersionName}
                 onChange={(e) => setNewVersionName(e.target.value)}
               />
             </div>
-            <div className="form-group-field mb-3">
-              <label>Resumo das Modificações</label>
+            <div className="form-group mb-3">
+              <label className="form-label-sm">Resumo das Modificações Realizadas</label>
               <textarea 
                 rows={2}
-                className="textarea-standard"
-                placeholder="Principais mudanças feitas nesta versão..."
+                className="form-textarea"
+                placeholder="Descreva brevemente o que foi alterado ou adicionado nesta etapa..."
                 value={newVersionSummary}
                 onChange={(e) => setNewVersionSummary(e.target.value)}
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="version-form-buttons">
               <button className="btn-subtle" onClick={() => setIsCreating(false)}>Cancelar</button>
-              <button className="btn-primary-glow" onClick={handleSave}>
-                <Save size={13} /> Gravar Versão
+              <button className="btn-primary-action-sm" onClick={handleSave}>
+                <Save size={14} /> Gravar Versão
               </button>
             </div>
           </div>
@@ -106,29 +110,29 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
           {versions.length > 0 ? (
             versions.map((ver) => (
               <div key={ver.id} className="version-item-card">
-                <div className="flex justify-between items-start mb-1">
-                  <div className="flex items-center gap-2">
+                <div className="version-item-header">
+                  <div className="version-item-left">
                     <span className="badge-version-tag">{ver.versionTag}</span>
-                    <h5 className="font-semibold text-sm">{ver.name}</h5>
+                    <h5 className="version-item-title">{ver.name}</h5>
                   </div>
-                  <span className="text-xs text-muted">
-                    {new Date(ver.timestamp).toLocaleString()}
+                  <span className="version-item-date">
+                    {new Date(ver.timestamp).toLocaleString('pt-BR')}
                   </span>
                 </div>
 
-                {ver.summary && <p className="text-xs text-muted mb-3">{ver.summary}</p>}
+                {ver.summary && <p className="version-item-summary">{ver.summary}</p>}
 
-                <div className="flex justify-end">
+                <div className="version-item-footer">
                   <button 
                     className="btn-restore-version"
                     onClick={() => {
-                      if (window.confirm(`Tem certeza que deseja restaurar a versão "${ver.name}"? O estado atual será substituído.`)) {
+                      if (window.confirm(`Tem certeza que deseja restaurar a versão "${ver.name}"? O estado atual do livro será substituído pelo conteúdo deste backup.`)) {
                         onRestoreVersion(ver);
                         onClose();
                       }
                     }}
                   >
-                    <RotateCcw size={13} /> Restaurar Esta Versão
+                    <RotateCcw size={13} /> Restaurar Este Backup
                   </button>
                 </div>
               </div>
@@ -136,8 +140,8 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
           ) : (
             <div className="empty-versions-box">
               <Clock size={36} className="text-muted mb-2" />
-              <p className="text-xs text-muted">Nenhum ponto de restauração salvo ainda.</p>
-              <p className="text-xs text-muted">Crie versões antes de grandes edições para ter segurança total.</p>
+              <p className="text-sm text-secondary font-medium">Nenhum ponto de restauração gravado ainda.</p>
+              <p className="text-xs text-muted">Crie backups antes de grandes revisões para alternar livremente entre versões da obra.</p>
             </div>
           )}
         </div>

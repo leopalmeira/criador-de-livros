@@ -1,6 +1,8 @@
 // Tipos para a Plataforma Profissional de Criação de Livros KDP (Book Engine)
 // Arquitetura baseada nas referências ShonP/kdp-book, wesleyscholl/book-generator, libriscribe e Velith
 
+import type { StageId, StageStatus, StageDataMap } from './stages';
+
 export type ProjectStatus = 'IDEIA' | 'CONCEITO' | 'OUTLINE' | 'BIBLE' | 'ESCREVENDO' | 'REVISÃO' | 'DIAGRAMAÇÃO' | 'VALIDAÇÃO' | 'PUBLICADO' | 'ARQUIVADO';
 export type ProjectPriority = 'ALTA' | 'MÉDIA' | 'BAIXA';
 export type ExecutionMode = 'automatic' | 'assisted';
@@ -774,10 +776,13 @@ export interface IBookChapter {
   title: string;
   summary: string;
   objective?: string;
+  purpose?: string;
+  goal?: string;
   pov?: string;
   targetWordCount: number;
   estimatedPages?: number;
   scenes: IBookScene[];
+  sections?: (string | { title: string })[];
   subtopics?: string[];
   connectionPrev?: string;
   connectionNext?: string;
@@ -1013,15 +1018,36 @@ export type VisualPageType =
   | 'about-author' 
   | 'blank';
 
+export interface BookPageContext {
+  pageNumber: number;
+  title: string;
+  goal: string;
+  chapterTitle?: string;
+  sectionTitle?: string;
+  keyPoints: string[];
+  establishedFacts: string[];
+  conceptsIntroduced: string[];
+  pendingQuestions: string[];
+  summary: string;
+  connectionToNext: string;
+  status: 'draft' | 'validated' | 'approved';
+  updatedAt: number;
+}
+
 export interface BookVisualPage {
   id: string;
   pageNumber: number;
   chapterIndex?: number;
   type: VisualPageType;
+  title?: string; // Título específico da página (Restrição Editorial Obrigatória)
+  goal?: string; // Objetivo temático e pedagógico da página
+  sectionTitle?: string; // Seção do capítulo à qual pertence
   headerText?: string;
   footerText?: string;
   elements: PageElement[];
   rawText?: string;
+  status?: 'pending' | 'draft' | 'validated' | 'approved';
+  pageContext?: BookPageContext;
 }
 
 // --- MEMÓRIA DO LIVRO (BOOK MEMORY) ---
@@ -1108,6 +1134,7 @@ export interface BookProject {
   title: string;
   subtitle?: string;
   author: string;
+  genre?: string;
   description: string;
   language: string;
   format: 'Kindle' | 'Capa Comum' | 'Capa Dura';
@@ -1133,6 +1160,7 @@ export interface BookProject {
   kdpMetadata?: IBookMetadataKdp;
   kdpQualityReport?: IBookQualityReport;
   kdpPackageGeneratedAt?: number;
+  publishedAt?: number;
   editorialElements?: EditorialElements;
   
   // Rastreabilidade e Custos
@@ -1145,10 +1173,39 @@ export interface BookProject {
   pageSettings?: PageLayoutSettings;
   typography?: TypographySettings;
   visualPages?: BookVisualPage[];
+  pageContexts?: Record<number, BookPageContext>;
+  lastGeneratedPage?: number;
   bookMemory?: BookMemory;
   images?: BookImageItem[];
   versions?: BookVersionItem[];
   coverImageUrl?: string;
+  cover_id?: string;
+  
+  // 13-Stage Editorial Pipeline Tracking
+  stageStatuses?: Record<StageId, StageStatus>;
+  stageData?: StageDataMap;
+  currentStage?: StageId;
+
+  // Direcionamento Editorial Guiado (Best Seller de Referência Amazon)
+  amazonReference?: {
+    asin?: string;
+    title: string;
+    subtitle?: string;
+    author: string;
+    rankBadge?: string;
+    rating?: number;
+    reviewCount?: number;
+    price?: number;
+    categoryTag?: string;
+    successFormula?: string;
+    suggestedProjectHook?: string;
+    suggestedTitle?: string;
+    suggestedSubtitle?: string;
+    targetAudience?: string;
+    narrativeStructure?: string;
+    competitiveEdge?: string;
+  };
+  guidedProjectLine?: string;
   
   // Tarefas manuais e notas
   tasks: Array<{ id: string; text: string; completed: boolean; category: string; createdAt: number }>;

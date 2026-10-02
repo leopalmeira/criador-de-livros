@@ -1,0 +1,784 @@
+/* ==========================================================================
+   VISUAL BOOK EDITOR — KDP Editorial Typesetting & Page Layout Engine
+   Design System Profissional no Padrão Amazon KDP / CoAuthor.ai
+   ========================================================================== */
+
+/* Container Principal do Editor */
+.visual-editor-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  background: #0f172a;
+  color: #f1f5f9;
+  overflow: hidden;
+  position: relative;
+  font-family: var(--font-ui, 'Inter', -apple-system, sans-serif);
+}
+
+/* ==========================================================================
+   1. BARRA SUPERIOR DE FERRAMENTAS (TOP TOOLBAR)
+   ========================================================================== */
+.editor-top-toolbar {
+  height: 52px;
+  min-height: 52px;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 30;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+.toolbar-left-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 240px;
+}
+
+.toolbar-left-group .badge-trim-size {
+  background: #334155;
+  color: #38bdf8;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.toolbar-center-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.zoom-controls-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 3px 6px;
+}
+
+.btn-icon-subtle {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-icon-subtle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.zoom-pct-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1;
+  min-width: 38px;
+  text-align: center;
+}
+
+.btn-toggle-guides {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-toggle-guides:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.btn-toggle-guides.active {
+  background: rgba(37, 99, 235, 0.2);
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.btn-pill-memory {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-pill-memory:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #f59e0b;
+}
+
+.btn-generate-full-book {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-generate-full-book:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.btn-pill-expand-chapter {
+  cursor: pointer;
+}
+
+.toolbar-right-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
+  justify-content: flex-end;
+}
+
+.autosave-status-indicator {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.saving-text {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #60a5fa;
+}
+
+.saved-text {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #34d399;
+}
+
+.spin-animate {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.btn-editor-preview {
+  background: #3b82f6;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-editor-preview:hover {
+  background: #2563eb;
+}
+
+/* ==========================================================================
+   2. ÁREA DE TRABALHO DE 3 COLUNAS (WORKSPACE GRID)
+   ========================================================================== */
+.editor-workspace-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 340px;
+  width: 100%;
+  height: calc(100vh - 52px);
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   COLUNA 1: SIDEBAR DE MINIATURAS DAS PÁGINAS
+   ========================================================================== */
+.editor-sidebar-thumbnails {
+  background: #1e293b;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.thumbnails-header {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.thumbnails-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btn-add-page-small {
+  background: #334155;
+  color: #f1f5f9;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-add-page-small:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.thumbnails-scroll-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.thumbnails-scroll-list::-webkit-scrollbar {
+  width: 6px;
+}
+.thumbnails-scroll-list::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+.thumbnail-card {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.thumbnail-card:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: #162032;
+}
+
+.thumbnail-card.selected {
+  border-color: #3b82f6;
+  background: #172554;
+  box-shadow: 0 0 0 1px #3b82f6, 0 4px 12px rgba(59, 130, 246, 0.25);
+}
+
+.thumbnail-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.thumbnail-num {
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.thumbnail-side-label {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.thumbnail-canvas-mini {
+  width: 100%;
+  background: #f8fafc;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  padding: 8px 6px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.mini-page-content-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mini-badge-type {
+  font-size: 8px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 4px;
+  border-radius: 2px;
+  width: fit-content;
+  margin-bottom: 2px;
+}
+
+.mini-line-preview {
+  height: 3px;
+  border-radius: 2px;
+  background: #cbd5e1;
+}
+
+.mini-line-preview.title-line {
+  height: 5px;
+  width: 70%;
+  margin: 0 auto 3px auto;
+  background: #0f172a;
+}
+
+.mini-line-preview.body-line {
+  width: 100%;
+  background: #94a3b8;
+}
+
+.thumbnail-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 4px;
+}
+
+.btn-tiny-action {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  padding: 3px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-tiny-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+.btn-tiny-action:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   COLUNA 2: PALCO CENTRAL DE DIAGRAMAÇÃO (CENTER STAGE & BOOK SHEET)
+   ========================================================================== */
+.editor-center-stage {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 20px 80px 20px;
+}
+
+.editor-center-stage::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.editor-center-stage::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+.book-page-canvas-wrapper {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  justify-content: center;
+}
+
+/* A Folha Realística de Livro KDP */
+.book-page-sheet {
+  background: #ffffff;
+  color: #1a1a1a;
+  border-radius: 2px;
+  box-shadow:
+    0 15px 35px rgba(0, 0, 0, 0.4),
+    0 3px 10px rgba(0, 0, 0, 0.2),
+    inset 0 0 2px rgba(0, 0, 0, 0.1);
+  position: relative;
+  transition: all 0.2s ease;
+  user-select: text;
+}
+
+/* Papel Creme / Pólen Luxo KDP */
+.book-page-sheet.paper-cream {
+  background: #fdfbf7;
+  color: #1e1b18;
+}
+
+/* Papel Branco KDP */
+.book-page-sheet.paper-white {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+/* Linhas Guia e Margens KDP */
+.kdp-guidelines-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.guide-inner-safe-box {
+  position: absolute;
+  border: 1px dashed rgba(56, 189, 248, 0.45);
+  border-radius: 2px;
+}
+
+.guide-safe-label {
+  position: absolute;
+  top: -18px;
+  left: 6px;
+  font-size: 9px;
+  font-family: monospace;
+  color: #38bdf8;
+  background: rgba(15, 23, 42, 0.85);
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+}
+
+.guide-bleed-outer {
+  position: absolute;
+  inset: 4px;
+  border: 1px dotted rgba(239, 68, 68, 0.3);
+}
+
+/* Cabeçalho Corrente (Running Header) */
+.page-running-header {
+  position: absolute;
+  top: 1.8rem;
+  left: 3.25rem;
+  right: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.12);
+  padding-bottom: 0.45rem;
+  user-select: none;
+}
+
+/* Container de Elementos da Página */
+.page-elements-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.page-element-block {
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.page-element-block:hover {
+  background: rgba(59, 130, 246, 0.04);
+  border-radius: 4px;
+}
+
+.page-element-block:hover .btn-remove-element {
+  opacity: 1;
+}
+
+.btn-remove-element {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ef4444;
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.editorial-drop-cap {
+  float: left;
+  font-size: 3.4em;
+  line-height: 0.8;
+  padding-top: 4px;
+  padding-right: 8px;
+  padding-bottom: 2px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.page-running-footer {
+  position: absolute;
+  bottom: 1.6rem;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.page-number-display {
+  font-size: 9pt;
+  font-family: 'Georgia', serif;
+  color: #475569;
+}
+
+/* ==========================================================================
+   COLUNA 3: PAINEL DE PROPRIEDADES E FERRAMENTAS (RIGHT PROPERTIES PANEL)
+   ========================================================================== */
+.editor-properties-panel {
+  background: #1e293b;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.panel-tab-headers {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0f172a;
+}
+
+.panel-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.panel-tab-btn:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.panel-tab-btn.active {
+  color: #38bdf8;
+  border-bottom-color: #38bdf8;
+  background: #1e293b;
+}
+
+.panel-content-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.panel-content-body::-webkit-scrollbar {
+  width: 6px;
+}
+.panel-content-body::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+.panel-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 14px 0;
+}
+
+.elements-button-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.btn-element-card {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.btn-element-card:hover {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+  transform: translateX(3px);
+}
+
+.form-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.select-field, .input-field {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #f1f5f9;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.select-field:focus, .input-field:focus {
+  border-color: #38bdf8;
+}
+
+.page-info-box {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+/* ==========================================================================
+   MODAL DE EXPANSÃO DE CAPÍTULO COM IA
+   ========================================================================== */
+.modal-expand-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+
+.modal-expand-container {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 580px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  animation: modalScaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScaleUp {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-expand-header {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-expand-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-expand-footer {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0f172a;
+}

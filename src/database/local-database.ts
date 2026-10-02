@@ -13,19 +13,26 @@ import {
   BookProject,
   ProjectSummary 
 } from '../types/book-project';
+import { CategoryMarketMetrics } from '../types/category-intelligence';
 import { DEFAULT_SETTINGS, DEFAULT_SALES_MODELS } from './defaults';
 
 const DB_NAME = 'BookIntelDB';
-const DB_VERSION = 2; // Incrementado para suportar bookProjects
+const DB_VERSION = 3; // Incrementado para suportar categoryMarketMetrics
 
 class LocalDatabase {
   private dbPromise: Promise<IDBDatabase> | null = null;
+
+  private inMemoryCategoryMetrics: CategoryMarketMetrics[] = [];
 
   private getDB(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
 
     this.dbPromise = new Promise((resolve, reject) => {
-      const indexedDB = self.indexedDB || (window as any).indexedDB;
+      const indexedDB = 
+        (typeof self !== 'undefined' ? self.indexedDB : undefined) ||
+        (typeof window !== 'undefined' ? (window as any).indexedDB : undefined) ||
+        (typeof globalThis !== 'undefined' ? (globalThis as any).indexedDB : undefined);
+
       if (!indexedDB) {
         reject(new Error('IndexedDB não suportado neste contexto.'));
         return;
@@ -33,7 +40,7 @@ class LocalDatabase {
 
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-      request.onupgradeneeded = (event) => {
+      request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
         const db = (event.target as IDBOpenDBRequest).result;
 
         // Tabela de Livros
@@ -79,13 +86,22 @@ class LocalDatabase {
           logStore.createIndex('level', 'level', { unique: false });
         }
 
-        // Projetos de Livros (Book Creator) - NOVO
+        // Projetos de Livros (Book Creator)
         if (!db.objectStoreNames.contains('bookProjects')) {
           const projStore = db.createObjectStore('bookProjects', { keyPath: 'id' });
           projStore.createIndex('status', 'status', { unique: false });
           projStore.createIndex('createdAt', 'createdAt', { unique: false });
           projStore.createIndex('updatedAt', 'updatedAt', { unique: false });
           projStore.createIndex('priority', 'priority', { unique: false });
+        }
+
+        // Histórico de Métricas de Mercado por Categoria (Item 16)
+        if (!db.objectStoreNames.contains('categoryMarketMetrics')) {
+          const metricsStore = db.createObjectStore('categoryMarketMetrics', { keyPath: 'id' });
+          metricsStore.createIndex('marketplace', 'marketplace', { unique: false });
+          metricsStore.createIndex('category', 'category', { unique: false });
+          metricsStore.createIndex('subcategory', 'subcategory', { unique: false });
+          metricsStore.createIndex('collected_at', 'collected_at', { unique: false });
         }
       };
 
@@ -560,6 +576,62 @@ class LocalDatabase {
     }
 
     return true;
+  }
+
+  // --- MÉTRICAS HISTÓRICAS DE CATEGORIA (ITEM 16) ---
+  async saveCategoryMetrics(metrics: CategoryMarketMetrics): Promise<void> {
+    try {
+      const db = await this.getDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('categoryMarketMetrics', 'readwrite');
+        const store = tx.objectStore('categoryMarketMetrics');
+        const req = store.put(metrics);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      // Fallback em memória para ambientes sem IndexedDB (Node / SSR / Vitest)
+      this.inMemoryCategoryMetrics.push(metrics);
+    }
+  }
+
+  async getCategoryMetricsHistory(marketplace: Marketplace, category: string, subcategory?: string): Promise<CategoryMarketMetrics[]> {
+    const matchCategory = (m: CategoryMarketMetrics) => {
+      if (m.marketplace !== marketplace) return false;
+      if (subcategory) {
+        return (m.category === category && m.subcategory === subcategory) ||
+               (m.category === category) ||
+               (m.subcategory === subcategory) ||
+               (m.category === subcategory);
+      }
+      return m.category === category || m.subcategory === category;
+    };
+
+    try {
+      const db = await this.getDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('categoryMarketMetrics', 'readonly');
+        const store = tx.objectStore('categoryMarketMetrics');
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const all: CategoryMarketMetrics[] = req.result || [];
+          const filtered = all
+            .filter(matchCategory)
+            .sort((a, b) => b.collected_at - a.collected_at);
+          resolve(filtered);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      return this.inMemoryCategoryMetrics
+        .filter(matchCategory)
+        .sort((a, b) => b.collected_at - a.collected_at);
+    }
+  }
+
+  async getLatestCategoryMetrics(marketplace: Marketplace, category: string, subcategory?: string): Promise<CategoryMarketMetrics | null> {
+    const history = await this.getCategoryMetricsHistory(marketplace, category, subcategory);
+    return history.length > 0 ? history[0] : null;
   }
 }
 

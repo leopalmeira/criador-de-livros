@@ -178,8 +178,8 @@ export const BookMemoryModal: React.FC<BookMemoryModalProps> = ({
   };
 
   return (
-    <div className="modal-backdrop-overlay">
-      <div className="memory-modal-container">
+    <div className="modal-backdrop-overlay" onClick={onClose}>
+      <div className="memory-modal-container" onClick={(e) => e.stopPropagation()}>
         {/* HEADER */}
         <div className="memory-modal-header">
           <div className="header-title-box">

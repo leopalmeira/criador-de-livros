@@ -8,10 +8,12 @@ import {
   TypographySettings,
   TRIM_SIZE_METRICS,
   calculateKdpBindingMargin,
-  BookImageItem
+  BookImageItem,
+  IBookChapter
 } from '../types/book-project';
 import { LocalAiEngine } from './local-ai-engine';
 import { ImageGenerationService } from './image-generation-service';
+import { EditorialArtService } from './editorial-art-service';
 
 export const DEFAULT_PAGE_SETTINGS: PageLayoutSettings = {
   trimSize: '6x9',
@@ -185,12 +187,22 @@ export class PageEngine {
           content: 'Sumário',
           alignment: 'center'
         },
-        ...chapters.map((ch, idx) => ({
-          id: createId('elem'),
-          type: 'paragraph' as PageElementType,
-          content: `Capítulo ${ch.index || idx + 1}: ${ch.title}`,
-          alignment: 'left' as const
-        }))
+        ...chapters.map((ch, idx) => {
+          const chNum = ch.index || idx + 1;
+          const rawTitle = (ch.title || '').trim();
+          const cleanTitle = rawTitle
+            .replace(new RegExp(`^cap[íi]tulo\\s*${chNum}[\\s:\\-–—]*`, 'i'), '')
+            .replace(/^cap[íi]tulo\\s*\d+[\\s:\\-–—]*/i, '')
+            .replace(/^cap\\.?\\s*\d+[\\s:\\-–—]*/i, '')
+            .trim() || `Capítulo ${chNum}`;
+
+          return {
+            id: createId('elem_toc_item'),
+            type: 'paragraph' as PageElementType,
+            content: `Capítulo ${chNum}: ${cleanTitle}`,
+            alignment: 'left' as const
+          };
+        })
       ]
     });
 
@@ -259,6 +271,9 @@ export class PageEngine {
     }
 
     // CAPÍTULOS
+    let lastIllustratedPageNum = 0;
+    let illustrationIndex = 0;
+
     chapters.forEach((chapter, chIdx) => {
       // Abre capítulo sempre na direita (página ímpar)
       if (pageNum % 2 === 0) {
@@ -393,37 +408,46 @@ export class PageEngine {
         chapterSubPage++;
         const pageElements: PageElement[] = [];
 
-        // Na página 2 do capítulo: coloca 1 parágrafo, DEPOIS A ILUSTRAÇÃO NO MEIO, DEPOIS MAIS TEXTO!
-        if (chapterSubPage === 2 && chapterImg?.dataUrl) {
-          if (blockIdx < remainingBlocks.length) {
-            const firstBlock = remainingBlocks[blockIdx++];
-            const isHeader = firstBlock.trim().startsWith('###') || firstBlock.trim().startsWith('##');
-            pageElements.push({
-              id: createId('elem'),
-              type: isHeader ? 'heading' : 'paragraph',
-              content: firstBlock.replace(/^#+\s*/, '').trim(),
-              alignment: isHeader ? 'left' : 'justify'
-            });
-          }
+        // Regra Editorial: Ilustração a cada ~15 páginas no miolo do livro
+        const shouldInsertIllustration = (pageNum - lastIllustratedPageNum >= 15);
 
-          // A ILUSTRAÇÃO NO MEIO DO TEXTO COM LEGENDA CONTEXTUAL!
+        if (shouldInsertIllustration && blockIdx < remainingBlocks.length) {
+          lastIllustratedPageNum = pageNum;
+          illustrationIndex++;
+
+          // 1 parágrafo antes da ilustração
+          const firstBlock = remainingBlocks[blockIdx++];
+          const isHeader = firstBlock.trim().startsWith('###') || firstBlock.trim().startsWith('##');
+          pageElements.push({
+            id: createId('elem'),
+            type: isHeader ? 'heading' : 'paragraph',
+            content: firstBlock.replace(/^#+\s*/, '').trim(),
+            alignment: isHeader ? 'left' : 'justify'
+          });
+
+          // Ilustração contextual condizente com o gênero e o capítulo
+          const artUrl = EditorialArtService.getIllustrationUrl(
+            project.kdpBookType || (project as any).genre || 'nonfiction', 
+            illustrationIndex
+          );
           pageElements.push({
             id: createId('elem_img'),
             type: 'image',
             content: '',
-            imageUrl: chapterImg.dataUrl,
-            caption: `Cena: Representação visual dos conceitos do Capítulo ${chNumber}`,
+            imageUrl: artUrl,
+            caption: `Ilustração ${illustrationIndex}: Cena referente ao Capítulo ${chNumber} — ${cleanTitle}`,
             alignment: 'center'
           });
 
+          // 1 parágrafo depois da ilustração (se houver)
           if (blockIdx < remainingBlocks.length) {
             const nextBlock = remainingBlocks[blockIdx++];
-            const isHeader = nextBlock.trim().startsWith('###') || nextBlock.trim().startsWith('##');
+            const isNextHeader = nextBlock.trim().startsWith('###') || nextBlock.trim().startsWith('##');
             pageElements.push({
               id: createId('elem'),
-              type: isHeader ? 'heading' : 'paragraph',
+              type: isNextHeader ? 'heading' : 'paragraph',
               content: nextBlock.replace(/^#+\s*/, '').trim(),
-              alignment: isHeader ? 'left' : 'justify'
+              alignment: isNextHeader ? 'left' : 'justify'
             });
           }
         } else {
@@ -577,4 +601,128 @@ export class PageEngine {
 
     return this.renumberPages(newPages);
   }
+
+  /**
+   * Garante a geração integral do manuscrito e diagramação completa das páginas
+   * rigorosamente dimensionadas de acordo com a quantidade de páginas escolhida pelo usuário.
+   */
+  public static ensureCompleteBookManuscript(project: BookProject, targetPagesCount?: number): BookProject {
+    const updated: BookProject = { ...project };
+    const targetPages = targetPagesCount || updated.actualPages || updated.estimatedPages || 150;
+    
+    // 1. Determina quantidade de capítulos ideal (entre 8 e 14)
+    const desiredChapterCount = updated.stageData?.['book-details']?.chapterCount || 
+      Math.max(6, Math.min(14, Math.round((targetPages - 14) / 12)));
+
+    let chapters: IBookChapter[] = updated.kdpChapters ? [...updated.kdpChapters] : [];
+
+    const bookTitle = updated.title || 'O Método dos Resultados';
+    const bookTopic = updated.topic || bookTitle;
+
+    // Modelos de títulos de capítulos estruturados se faltarem capítulos
+    const defaultChapterThemes = [
+      { title: 'O Despertar da Clareza: Onde Você Realmente Está', summary: 'Diagnóstico da sua rotina atual e identificação dos vazamentos de energia e tempo.' },
+      { title: 'A Anatomia do Hábito: A Ciência por Trás da Ação', summary: 'Como o cérebro processa gatilhos, rotinas e recompensas sem esforço consciente.' },
+      { title: 'Blindando seu Ambiente: Destrua as Tentações', summary: 'Por que o ambiente sempre vence a força de vontade e como redesenhar seus espaços.' },
+      { title: 'A Arquitetura do Foco Inabalável no Século XXI', summary: 'Estratégias práticas para eliminar distrações digitais e manter atenção profunda.' },
+      { title: 'O Plano dos 30 Dias: Execução Diária Implacável', summary: 'Cronograma passo a passo de implementação com checklists e métricas diárias.' },
+      { title: 'Superando o Platô: Como Manter a Constância nos Dias Difíceis', summary: 'Mecanismos psicológicos para não desistir diante de imprevistos e atritos.' },
+      { title: 'Alavancagem Máxima: Fazendo Mais com Menos Esforço', summary: 'Aplicação do Princípio de Pareto e delegação estratégica de tarefas.' },
+      { title: 'Decisões de Alto Impacto sob Incerteza e Pressão', summary: 'Modelos mentais para tomar escolhas difíceis com segurança e velocidade.' },
+      { title: 'A Mente Resiliente: Construindo Antifragilidade Emocional', summary: 'Como transformar fracassos pontuais em combustível para o crescimento contínuo.' },
+      { title: 'O Legado da Maestria: Consolidando Resultados para Toda a Vida', summary: 'Síntese integradora e compromisso duradouro com a evolução pessoal.' }
+    ];
+
+    while (chapters.length < desiredChapterCount) {
+      const idx = chapters.length;
+      const theme = defaultChapterThemes[idx % defaultChapterThemes.length];
+      chapters.push({
+        index: idx + 1,
+        title: theme.title,
+        summary: theme.summary,
+        targetWordCount: 2500,
+        wordCount: 0,
+        scenes: [],
+        subtopics: [
+          'Fundamentação conceitual e contexto prático',
+          'Análise cirúrgica dos mecanismos essenciais',
+          'Estudo de caso e lições observáveis',
+          'Metodologia de aplicação passo a passo',
+          'Plano de ação imediato para o leitor'
+        ],
+        prose: ''
+      });
+    }
+
+    // 2. Redige prosa profunda e completa para cada capítulo que esteja vazio ou curto
+    const concept = updated.kdpConcept || {
+      title: bookTitle,
+      subtitle: updated.subtitle || 'O Guia Prático e Definitivo',
+      hook: bookTopic,
+      audience: updated.targetAudience || 'Profissionais e leitores em busca de crescimento prático',
+      readingLevel: 'Intermediário',
+      tone: 'Inspirador, analítico e prático',
+      promise: updated.description || `Guia definitivo sobre ${bookTitle}`,
+      differentiator: 'Metodologia acionável passo a passo com profundidade e rigor editorial',
+      shortSynopsis: updated.description || bookTitle,
+      longSynopsis: updated.description || bookTitle,
+      targetWordCount: targetPages * 250,
+      targetChapterCount: chapters.length,
+      targetPages: targetPages,
+      trimSize: updated.trimSize || '6x9',
+      paperType: updated.paperType || 'bw-white',
+      comparableTitles: [],
+      themes: [bookTopic],
+      titleOptions: []
+    };
+
+    const bible = updated.kdpBible || {
+      characters: [],
+      locations: [],
+      styleGuide: { artStyle: 'realistic-photo', palette: ['#0f172a', '#2563eb', '#f8fafc'], tone: 'Editorial' }
+    };
+
+    chapters = chapters.map(ch => {
+      if (!ch.prose || ch.prose.length < 500) {
+        const written = LocalAiEngine.writeChapter(concept, bible, ch, updated.kdpBookType || 'self-help');
+        return {
+          ...ch,
+          prose: written.prose,
+          wordCount: written.wordCount,
+          status: 'REVISADO' as const
+        };
+      }
+      return ch;
+    });
+
+    updated.kdpChapters = chapters;
+
+    // 3. Garante elementos editoriais
+    if (!updated.editorialElements) {
+      updated.editorialElements = {
+        halfTitle: bookTitle,
+        titlePage: { 
+          title: bookTitle, 
+          subtitle: updated.subtitle || '', 
+          author: updated.author || 'Leandro Palmeira',
+          publisher: 'Publicação Independente KDP',
+          year: `${new Date().getFullYear()}`
+        },
+        copyrightNotice: `© ${new Date().getFullYear()} ${updated.author || 'Leandro Palmeira'}. Todos os direitos reservados.\nPublicado via Amazon Kindle Direct Publishing (KDP).\nProibida a reprodução sem autorização prévia.`,
+        dedication: 'Para todos aqueles que se recusam a aceitar a mediocridade e escolheram o caminho da evolução constante e disciplinada.',
+        epigraph: '“A disciplina é a ponte que liga os pensamentos aos resultados.”',
+        introduction: `Vivemos em uma época dominada pela sobrecarga de informações e pela escassez de clareza prática. Todos os dias, somos bombardeados por promessas fáceis, técnicas milagrosas e teorias mirabolantes que, no mundo real, raramente resistem ao teste do primeiro dia de trabalho intenso.\n\nEsta obra nasceu de uma necessidade urgente: substituir o ruído superficial por um método estruturado, científico e imediatamente aplicável. Ao longo destas páginas, você não encontrará fórmulas mágicas, mas sim os princípios comprovados e os sistemas de execução utilizados por profissionais de alta performance ao redor do mundo.\n\nCada capítulo foi desenhado como um bloco de construção progressivo. Ao absorver os conceitos e, acima de tudo, executar os planos de ação propostos ao término de cada seção, você construirá uma mentalidade blindada contra distrações e capaz de alcançar resultados duradouros. Seja bem-vindo à sua jornada de transformação.`,
+        conclusion: `Chegar ao término deste livro não representa o fim de uma tarefa, mas sim o início da sua fase mais importante: a prática deliberada e consistente.\n\nO conhecimento sem execução é apenas uma ilusão reconfortante. Agora que você tem em mãos os mapas conceituais, as ferramentas de diagnóstico e os planos de ação detalhados em cada capítulo, a responsabilidade pela mudança repousa inteiramente nas decisões que você tomará nas próximas vinte e quatro horas.\n\nNão espere que as condições sejam perfeitas para dar o primeiro passo; comece onde você está, use o que tem e mantenha a disciplina diária. O sucesso extraordinário é o resultado inevitável da soma de hábitos simples repetidos com determinação implacável ao longo do tempo.`
+      };
+    }
+
+    // 4. Gera todas as páginas visuais
+    const visualPages = this.generateVisualPagesFromManuscript(updated);
+    updated.visualPages = visualPages;
+    updated.actualPages = visualPages.length;
+    updated.estimatedPages = Math.max(targetPages, visualPages.length);
+
+    return updated;
+  }
 }
+

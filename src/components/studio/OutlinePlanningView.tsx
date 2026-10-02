@@ -24,6 +24,7 @@ import { AiService } from '../../services/ai-service';
 import { AiAssistantService } from '../../services/ai-assistant-service';
 import { PageEngine } from '../../services/page-engine';
 import { LocalAiEngine } from '../../services/local-ai-engine';
+import '../../styles/outline-planning.css';
 
 interface OutlinePlanningViewProps {
   project: BookProject;
@@ -224,188 +225,203 @@ export const OutlinePlanningView: React.FC<OutlinePlanningViewProps> = ({
   };
 
   return (
-    <div className="outline-planning-view-container">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <ListOrdered size={22} className="text-primary-accent" />
-            <h3 className="text-xl font-bold">Estrutura & Sumário de Capítulos (Outline)</h3>
+    <div className="outline-view-container">
+      {/* 1. TOPO: BARRA DE STATUS GLOBAL DO SUMÁRIO */}
+      <div className="outline-top-summary-bar">
+        <div className="outline-stats-group">
+          <div className="outline-stat-item">
+            <span className="stat-label">Capítulos Planejados</span>
+            <span className="stat-value">{chapters.length} <span>capítulos</span></span>
           </div>
-          <p className="text-xs text-muted">
-            Total: {chapters.length} capítulos planejados • {totalWords.toLocaleString()} palavras escritas (Meta: {targetWords.toLocaleString()}). Cada capítulo mantém a continuidade narrativa da obra.
-          </p>
+          <div className="outline-stat-item">
+            <span className="stat-label">Volume de Palavras</span>
+            <span className="stat-value">
+              {totalWords.toLocaleString()} <span>/ {targetWords.toLocaleString()} meta</span>
+            </span>
+          </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="outline-top-actions">
           <button 
-            className="btn-primary-action" 
-            onClick={handleRegenerateOutline}
-            disabled={isGenerating}
-            title="Recria toda a grade de capítulos em sequência lógica respeitando as regras do gênero e a Bíblia da obra."
-          >
-            <Wand2 size={15} className={isGenerating ? 'animate-spin' : ''} />
-            {isGenerating ? 'Gerando...' : 'Regerar Sumário com IA'}
-          </button>
-          <button 
-            className="btn-subtle" 
+            className="btn-outline-action secondary" 
             onClick={handleAddChapter}
             title="Adiciona um novo capítulo ao final do sumário."
           >
-            <Plus size={15} /> Adicionar Capítulo
+            <Plus size={14} /> Adicionar Capítulo
           </button>
           <button 
-            className="btn-primary-glow" 
+            className="btn-outline-action accent" 
+            onClick={handleRegenerateOutline}
+            disabled={isGenerating}
+            title="Recria toda a grade de capítulos em sequência lógica respeitando as regras do gênero."
+          >
+            <Wand2 size={14} className={isGenerating ? 'animate-spin' : ''} />
+            {isGenerating ? 'Gerando...' : 'Regerar Sumário com IA'}
+          </button>
+          <button 
+            className="btn-outline-action primary" 
             onClick={handleSave}
             title="Salva a estrutura e sincroniza a diagramação de páginas."
           >
-            <Save size={15} /> Salvar Estrutura
+            <Save size={14} /> Salvar Estrutura
           </button>
         </div>
       </div>
 
-      {/* LISTA DE CAPÍTULOS */}
-      <div className="space-y-3">
+      {/* 2. LISTA DE CARDS DE CAPÍTULO */}
+      <div className="outline-chapters-stack">
         {chapters.map((ch, idx) => {
           const isDone = Boolean(ch.prose && ch.prose.trim().length > 100);
           const titleKey = `${ch.index}_chapterTitle`;
           const summaryKey = `${ch.index}_chapterSummary`;
 
           return (
-            <div key={idx} className="p-4 bg-surface-elevated rounded-xl border border-border-subtle flex flex-col gap-3">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3 flex-1 mr-4">
-                  <div className="flex items-center gap-1.5" title={isDone ? 'Capítulo escrito com conteúdo substancial' : 'Capítulo ainda pendente de redação'}>
+            <div 
+              key={idx} 
+              className={`chapter-planning-card ${isDone ? 'done' : 'pending'}`}
+            >
+              {/* LINHA 1: TÍTULO DO CAPÍTULO & ORDENAÇÃO */}
+              <div className="chapter-header-row">
+                <div className="chapter-title-group">
+                  <div 
+                    className="chapter-index-pill" 
+                    title={isDone ? 'Capítulo com texto substancial' : 'Capítulo aguardando redação'}
+                  >
                     {isDone ? (
-                      <CheckCircle2 size={18} className="text-emerald-400" />
+                      <CheckCircle2 size={14} className="text-emerald-400" />
                     ) : (
-                      <Clock size={18} className="text-amber-400" />
+                      <Clock size={14} className="text-amber-400" />
                     )}
-                    <span className="font-bold text-sm text-primary-accent whitespace-nowrap">
-                      Cap. {ch.index}
-                    </span>
+                    <span>Cap. {ch.index}</span>
                   </div>
 
-                  <div className="flex-1 flex items-center gap-2">
+                  <div className="chapter-title-input-wrapper">
                     <input 
                       type="text" 
-                      className="input-text-standard font-semibold text-sm flex-1"
+                      className="chapter-title-input"
                       value={ch.title}
                       onChange={(e) => handleUpdateChapter(idx, 'title', e.target.value)}
                       placeholder="Título do Capítulo..."
-                      title="Título do capítulo: Deve antecipar a transformação e despertar curiosidade mantendo coerência com os anteriores."
+                      title="Título do capítulo: Deve antecipar o conflito/aprendizado e despertar curiosidade."
                     />
                     <button
                       type="button"
                       onClick={() => handleSuggestChapterField(ch.index, 'chapterTitle')}
                       disabled={suggestingField === titleKey}
-                      className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-md transition-colors whitespace-nowrap"
-                      title="Gera uma sugestão de título forte para este capítulo mantendo a ordem e continuidade da história. Clique novamente para gerar outra opção."
+                      className="btn-suggest-title-pill"
+                      title="Gera uma sugestão de título coerente com o contexto da história. Clique novamente para alternar."
                     >
                       {suggestingField === titleKey ? (
                         <RefreshCw size={11} className="animate-spin" />
                       ) : (
                         <Sparkles size={11} />
                       )}
-                      {suggestingField === titleKey ? 'Gerando...' : chapterIterations[titleKey] ? 'Outro título (↻)' : 'Sugerir Título'}
+                      <span>{suggestingField === titleKey ? 'Gerando...' : chapterIterations[titleKey] ? 'Outro título (↻)' : 'Sugerir Título'}</span>
                     </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span 
-                    className="badge-words text-xs cursor-help"
-                    title={`Progresso de palavras: ${ch.wordCount || 0} palavras escritas de uma meta estimada de ${ch.targetWordCount || 2000}.`}
-                  >
-                    {ch.wordCount || 0} / {ch.targetWordCount || 2000} palavras
-                  </span>
-
+                {/* BOTÕES DE ORDENAÇÃO E EXCLUSÃO */}
+                <div className="chapter-order-actions">
                   <button 
-                    className="btn-primary-action text-xs py-1 px-2.5"
-                    onClick={() => onNavigateToEditorChapter(ch.index)}
-                    title="Abre o editor visual focado na redação deste capítulo."
-                  >
-                    <Edit3 size={13} /> Escrever
-                  </button>
-
-                  <button 
-                    className="flex items-center gap-1 text-xs py-1 px-2.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 transition-all font-medium whitespace-nowrap"
-                    onClick={() => {
-                      setExpandFeedbackMsg('');
-                      setExpandModalChapter(ch);
-                    }}
-                    title="Aumentar o volume e profundidade do texto deste capítulo com IA (+ Exemplos, Casos Reais ou Teoria)"
-                  >
-                    <Sparkles size={12} className="text-amber-300" />
-                    <span>+ Expandir Texto</span>
-                  </button>
-
-                  <button 
-                    className="btn-icon-subtle"
+                    className="btn-icon-order"
                     onClick={() => handleMoveChapter(idx, 'up')}
                     disabled={idx === 0}
-                    title="Mover capítulo para cima no sumário"
+                    title="Mover capítulo para cima"
                   >
-                    <ArrowUp size={14} />
+                    <ArrowUp size={13} />
                   </button>
                   <button 
-                    className="btn-icon-subtle"
+                    className="btn-icon-order"
                     onClick={() => handleMoveChapter(idx, 'down')}
                     disabled={idx === chapters.length - 1}
-                    title="Mover capítulo para baixo no sumário"
+                    title="Mover capítulo para baixo"
                   >
-                    <ArrowDown size={14} />
+                    <ArrowDown size={13} />
                   </button>
                   <button 
-                    className="btn-icon-danger"
+                    className="btn-icon-order danger"
                     onClick={() => handleDeleteChapter(ch.index)}
-                    title="Excluir este capítulo do projeto"
+                    title="Excluir este capítulo"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={13} />
                   </button>
                 </div>
               </div>
 
-              {/* OBJETIVO E RESUMO DO CAPÍTULO */}
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border-subtle">
-                <div className="form-group-compact">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] text-muted flex items-center gap-1">
+              {/* LINHA 2: PROGRESSO DE PALAVRAS & AÇÕES DE REDAÇÃO */}
+              <div className="chapter-meta-action-bar">
+                <div className="chapter-word-counter">
+                  <BookOpen size={14} className="text-blue-400" />
+                  <span className="counter-pill">{ch.wordCount || 0}</span>
+                  <span className="target-pill">/ {ch.targetWordCount || 2000} palavras estimadas</span>
+                </div>
+
+                <div className="chapter-cta-group">
+                  <button 
+                    className="btn-chapter-write"
+                    onClick={() => onNavigateToEditorChapter(ch.index)}
+                    title="Abre o editor visual de manuscrito focado neste capítulo."
+                  >
+                    <Edit3 size={13} /> Escrever Capítulo
+                  </button>
+
+                  <button 
+                    className="btn-chapter-expand"
+                    onClick={() => {
+                      setExpandFeedbackMsg('');
+                      setExpandModalChapter(ch);
+                    }}
+                    title="Aumentar extensão e profundidade do texto com IA"
+                  >
+                    <Sparkles size={13} className="text-amber-300" />
+                    <span>+ Expandir Texto</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* LINHA 3: RESUMO DA CENA & OBJETIVO DRAMÁTICO (GRID 2 COLUNAS) */}
+              <div className="chapter-details-grid">
+                <div className="chapter-field-box">
+                  <div className="chapter-field-header">
+                    <label className="chapter-field-label">
                       Resumo da Cena / Conteúdo:
-                      <span title="Resumo essencial para a IA manter a continuidade da narrativa e evitar furos na história." className="cursor-help text-slate-400 hover:text-white">
-                        <Info size={12} />
+                      <span title="Guia essencial para a IA manter a continuidade da narrativa." className="cursor-help text-slate-400">
+                        <Info size={11} />
                       </span>
                     </label>
                     <button
                       type="button"
                       onClick={() => handleSuggestChapterField(ch.index, 'chapterSummary')}
                       disabled={suggestingField === summaryKey}
-                      className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 font-medium"
+                      className="btn-field-ai-suggest"
                       title="Sugerir novo resumo de cena coerente com os capítulos anteriores."
                     >
                       {suggestingField === summaryKey ? <RefreshCw size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                      {suggestingField === summaryKey ? 'Gerando...' : chapterIterations[summaryKey] ? 'Outro resumo (↻)' : 'Sugerir com IA'}
+                      <span>{suggestingField === summaryKey ? 'Gerando...' : chapterIterations[summaryKey] ? 'Outro resumo (↻)' : 'Sugerir com IA'}</span>
                     </button>
                   </div>
                   <textarea 
                     rows={2}
-                    className="textarea-standard text-xs"
+                    className="chapter-field-textarea"
                     value={ch.summary}
                     onChange={(e) => handleUpdateChapter(idx, 'summary', e.target.value)}
                     placeholder="O que é ensinado ou narrado neste capítulo..."
                   />
                 </div>
 
-                <div className="form-group-compact">
-                  <label className="text-[11px] text-muted flex items-center gap-1 mb-1">
-                    Objetivo Dramático / Lição Central:
-                    <span title="A revelação, aprendizado ou clímax deste capítulo que move a história adiante." className="cursor-help text-slate-400 hover:text-white">
-                      <Info size={12} />
-                    </span>
-                  </label>
+                <div className="chapter-field-box">
+                  <div className="chapter-field-header">
+                    <label className="chapter-field-label">
+                      Objetivo Dramático / Lição Central:
+                      <span title="A revelação ou clímax deste capítulo que move a narrativa adiante." className="cursor-help text-slate-400">
+                        <Info size={11} />
+                      </span>
+                    </label>
+                  </div>
                   <textarea 
                     rows={2}
-                    className="textarea-standard text-xs"
+                    className="chapter-field-textarea"
                     value={ch.objective || ''}
                     onChange={(e) => handleUpdateChapter(idx, 'objective', e.target.value)}
                     placeholder="Transformação que o leitor ou protagonista atinge..."

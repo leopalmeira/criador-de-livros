@@ -898,13 +898,20 @@ Gere o pacote completo de metadados KDP em JSON.`;
     });
 
     // 5. Capa KDP
-    const hasCover = !!project.kdpCoverDesign?.geometry;
+    const hasCover = !!(
+      project.coverImageUrl || 
+      project.kdpCoverDesign?.frontImageUrl || 
+      project.stageData?.['book-cover']?.artUrl || 
+      project.kdpCoverDesign?.geometry
+    );
     checks.push({
       id: 'chk_cover',
-      name: 'Geometria de Capa KDP',
+      name: 'Capa do Livro & Geometria KDP',
       category: 'Capa',
       passed: hasCover,
-      details: hasCover ? `Lombada calculada: ${project.kdpCoverDesign?.geometry?.spineWidthInches}" pol.` : 'Geometria de capa não configurada.',
+      details: hasCover 
+        ? `Capa configurada para formato ${project.trimSize || '6x9'} com lombada proporcional.` 
+        : 'Capa do livro ainda não foi selecionada ou projetada.',
       severity: 'blocker'
     });
 

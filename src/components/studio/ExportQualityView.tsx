@@ -37,6 +37,11 @@ export const ExportQualityView: React.FC<ExportQualityViewProps> = ({
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    const pipeline = new KdpBookPipeline(aiService);
+    setReport(pipeline.runQualityGate(project));
+  }, [project.coverImageUrl, project.kdpCoverDesign, project.kdpChapters, project.stageData]);
+
   const handleRunChecks = () => {
     const pipeline = new KdpBookPipeline(aiService);
     const rep = pipeline.runQualityGate(project);

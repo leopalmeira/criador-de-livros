@@ -1,6 +1,5 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import './dashboard.css';
 import '../components/studio/book-studio.css';
 import { BookStudioApp } from '../components/studio/BookStudioApp';
 

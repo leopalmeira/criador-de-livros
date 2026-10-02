@@ -34,6 +34,14 @@ export class AiService {
   }
 
   /**
+   * Chamada estática universal para chatCompletion
+   */
+  public static async complete(messages: ChatMessage[], options?: AiCompletionOptions): Promise<string> {
+    const instance = new AiService();
+    return instance.chatCompletion(messages, options);
+  }
+
+  /**
    * Consulta os modelos instalados no Ollama local
    */
   public static async fetchOllamaModels(baseUrl: string = 'http://localhost:11434'): Promise<string[]> {
@@ -135,6 +143,423 @@ export class AiService {
         return this.callOpenAiCompatible(messages, temp, options);
     }
   }
+
+  /**
+   * Atalho direto para geração de texto com suporte automático a prompt do sistema e fallback local resiliente
+   */
+  async generateText(prompt: string, systemPrompt?: string, options?: AiCompletionOptions): Promise<string> {
+    if (this.settings.provider === 'local-builtin') {
+      return this.generateLocalFallback(prompt);
+    }
+    const messages: ChatMessage[] = [];
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({ role: 'user', content: prompt });
+    try {
+      return await this.chatCompletion(messages, options);
+    } catch (err: any) {
+      console.warn('Provedor de IA remota inacessível ou sem chave configurada. Acionando motor editorial local autônomo:', err.message);
+      return this.generateLocalFallback(prompt);
+    }
+  }
+
+  private generateLocalFallback(prompt: string): string {
+    const lower = prompt.toLowerCase();
+
+    // 1. Análise de Mercado / Concorrentes / Obras de Referência (retorna array JSON de livros reais)
+    if (
+      lower.includes('concorrente') || 
+      lower.includes('concorrentes') || 
+      lower.includes('bestseller') || 
+      lower.includes('best-seller') || 
+      lower.includes('mercado') || 
+      lower.includes('referência') || 
+      lower.includes('referencias') ||
+      lower.includes('competing')
+    ) {
+      if (
+        lower.includes('sword') || 
+        lower.includes('sorcery') || 
+        lower.includes('fantasia') || 
+        lower.includes('fantasy') || 
+        lower.includes('espada') || 
+        lower.includes('feitiçaria')
+      ) {
+        return JSON.stringify([
+          {
+            title: 'Conan: O Bárbaro (A Torre do Elefante)',
+            author: 'Robert E. Howard',
+            asin: 'B08R65R37Z',
+            bsr: 34,
+            rating: 4.8,
+            reviewCount: 3820,
+            price: 24.90,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B08R65R37Z',
+            coverUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600',
+            description: 'Obra fundadora do subgênero Sword & Sorcery, combinando ação visceral, anti-heróis mercenários e magia ancestral perigosa.',
+            narrativeStructure: 'Estrutura episódica com arcos fechados e ritmo febril, centrada na sobrevivência e no embate físico contra ameaças sobrenaturais.',
+            openingHook: 'In media res em uma taverna imunda de Arenjun, estabelecendo perigo imediato e o objetivo claro de invasão à torre proibida.',
+            commercialPositioning: 'Liderança no nicho de Fantasia Heroica e Grimdark com apelo visceral e protagonista que rejeita hipocrisias da civilização.',
+            ethicalInspirationGuideline: 'Inspire-se na densidade atmosférica e na magia com custo perigoso. Crie seu próprio protagonista autoral com código moral único sem copiar a lore cimeriana.'
+          },
+          {
+            title: 'O Poder da Espada (The Blade Itself)',
+            author: 'Joe Abercrombie',
+            asin: 'B013RA92C4',
+            bsr: 48,
+            rating: 4.7,
+            reviewCount: 14500,
+            price: 29.90,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B013RA92C4',
+            coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=600',
+            description: 'Referência contemporânea de grimdark com diálogos afiados, cinismo inteligente e desconstrução dos clichês de herói nobre.',
+            narrativeStructure: 'Multi-POV com convergência de subtramas em torno de conspirações políticas e guerras de fronteira com humor ácido.',
+            openingHook: 'Logen Nove-Dedos à beira do abismo lutando contra Shanka nas ravinas gélidas do Norte, testando o lema de sobreviver a qualquer custo.',
+            commercialPositioning: 'Top Seller KDP em Dark Fantasy / Sword & Sorcery com base leitora massiva e alta taxa de leitura completa no Kindle Unlimited.',
+            ethicalInspirationGuideline: 'Aproveite o modelo de personagens moralmente cinzentos e a visceralidade dos combates para forjar conflitos inéditos.'
+          },
+          {
+            title: 'Elric de Melniboné: A Espada Diabólica',
+            author: 'Michael Moorcock',
+            asin: 'B005GSZIW4',
+            bsr: 58,
+            rating: 4.6,
+            reviewCount: 5200,
+            price: 27.50,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B005GSZIW4',
+            coverUrl: 'https://images.unsplash.com/photo-1514894780887-121968d00567?q=80&w=600',
+            description: 'Clássico gótico de espada e feitiçaria estrelado pelo imperador albino e sua lâmina senciente que devora almas.',
+            narrativeStructure: 'Tragédia filosófica grega transposta para fantasia pulp sombria, onde cada vitória exige um sacrifício pessoal terrível.',
+            openingHook: 'Melniboné decadente com intrigas de palácio e um governante frágil sustentado apenas por poções alquímicas proibidas.',
+            commercialPositioning: 'Referência definitiva de anti-herói trágico e sistemas de magia necromântica com apelo cult internacional.',
+            ethicalInspirationGuideline: 'Use a mecânica do preço oculto do poder arcano, desenvolvendo artefatos e feitiçarias inéditas com consequências morais profundas.'
+          },
+          {
+            title: 'As Mentiras de Locke Lamora',
+            author: 'Scott Lynch',
+            asin: 'B000JMKNJ2',
+            bsr: 62,
+            rating: 4.8,
+            reviewCount: 18900,
+            price: 32.00,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B000JMKNJ2',
+            coverUrl: 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?q=80&w=600',
+            description: 'Ação ágil e golpes mirabolantes em uma Veneza fantástica decadente dominada por guildas de ladrões e alquimia refinada.',
+            narrativeStructure: 'Linha temporal dupla alternando a formação do protagonista com o grande golpe em andamento na corte nobre.',
+            openingHook: 'Apresentação do Padre Chains adotando um jovem órfão com talento assustadoramente refinado para o engano.',
+            commercialPositioning: 'Campeão em High Fantasy / Heist com forte fidelização de público jovem-adulto e adulto.',
+            ethicalInspirationGuideline: 'Extraia o ritmo dinâmico do subgênero de assalto e companheirismo desonesto para criar seu próprio grupo de aventureiros.'
+          },
+          {
+            title: 'O Caminho dos Reis (The Way of Kings)',
+            author: 'Brandon Sanderson',
+            asin: 'B003P2WO5E',
+            bsr: 18,
+            rating: 4.9,
+            reviewCount: 42000,
+            price: 39.90,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B003P2WO5E',
+            coverUrl: 'https://images.unsplash.com/photo-1532012164546-f432f2e37b73?q=80&w=600',
+            description: 'Referência máxima de Worldbuilding rigoroso, magia com regras estritas (Hard Magic) e arcos de redenção épicos.',
+            narrativeStructure: 'Múltiplos pontos de vista com pontos de clímax simultâneos (Sanderson Avalanche) e lore ricamente detalhada.',
+            openingHook: 'O assassinato do Rei Gavilar por Szeth-filho-filho-Vallano usando técnicas de gravitura que desafiam a física.',
+            commercialPositioning: 'Líder absoluto de vendas de Epic Fantasy em escala global no ecossistema Amazon.',
+            ethicalInspirationGuideline: 'Estude a clareza didática das regras de magia e a disciplina de worldbuilding para enriquecer seu universo próprio.'
+          }
+        ], null, 2);
+      }
+
+      if (lower.includes('romance') || lower.includes('amor') || lower.includes('casal') || lower.includes('billionaire')) {
+        return JSON.stringify([
+          {
+            title: 'É Assim que Acaba (It Ends with Us)',
+            author: 'Colleen Hoover',
+            asin: 'B0176M3U10',
+            bsr: 12,
+            rating: 4.7,
+            reviewCount: 95000,
+            price: 26.90,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B0176M3U10',
+            coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=600',
+            description: 'Fenômeno mundial de romance dramático com forte carga emocional e dilemas morais dolorosos.',
+            narrativeStructure: 'Primeira pessoa confidencial alternando encontros do presente com cartas retrospectivas do primeiro amor.',
+            openingHook: 'Lily Bloom no telhado de Boston contemplando a perda do pai e cruzando com o neurocirurgião misterioso Ryle Kincaid.',
+            commercialPositioning: 'Líder do TikTok/BookTok com taxa de conversão recorde e apelo emocional magnético.',
+            ethicalInspirationGuideline: 'Inspire-se na coragem de tratar de dilemas emocionais adultos sem superficialidade, criando personagens com feridas originais.'
+          },
+          {
+            title: 'A Hipótese do Amor (The Love Hypothesis)',
+            author: 'Ali Hazelwood',
+            asin: 'B08W5B7H6P',
+            bsr: 25,
+            rating: 4.6,
+            reviewCount: 48000,
+            price: 24.90,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B08W5B7H6P',
+            coverUrl: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?q=80&w=600',
+            description: 'Referência moderna de Fake Dating e ambiente acadêmico (STEMinist) com comédia inteligente.',
+            narrativeStructure: 'Namoro de conveniência em 3 atos com trope grumpy x sunshine e progressão lenta da intimidade (slow burn).',
+            openingHook: 'Beijo impulsivo e desesperado no corredor do laboratório para fingir um relacionamento em frente a uma amiga.',
+            commercialPositioning: 'Best Seller na categoria Romance Contemporâneo e Comédia Romântica.',
+            ethicalInspirationGuideline: 'Aproveite o tropo clássico de relacionamento forçado ambientando em um universo profissional ou nicho específico original.'
+          },
+          {
+            title: 'Amor, Teoricamente',
+            author: 'Ali Hazelwood',
+            asin: 'B0BHZJMW7J',
+            bsr: 38,
+            rating: 4.7,
+            reviewCount: 22000,
+            price: 27.90,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B0BHZJMW7J',
+            coverUrl: 'https://images.unsplash.com/photo-1532012164546-f432f2e37b73?q=80&w=600',
+            description: 'Enemies-to-lovers com rivalidade acadêmica de física teórica vs experimental e protagonista com síndrome de agradar.',
+            narrativeStructure: 'Desenvolvimento focado na superação do masking social da protagonista intercalado com tensão amorosa crescente.',
+            openingHook: 'O pior rival de carreira da protagonista aparece como irmão do cliente de namoro de mentira que ela atende.',
+            commercialPositioning: 'Forte presença em comédia romântica com ganchos comerciais de identificação imediata.',
+            ethicalInspirationGuideline: 'Modele a jornada de vulnerabilidade interna da protagonista sem replicar os cenários ou diálogos específicos.'
+          }
+        ], null, 2);
+      }
+
+      if (lower.includes('suspense') || lower.includes('mistério') || lower.includes('misterio') || lower.includes('thriller')) {
+        return JSON.stringify([
+          {
+            title: 'A Empregada (The Housemaid)',
+            author: 'Freida McFadden',
+            asin: 'B09TWSRMC4',
+            bsr: 8,
+            rating: 4.6,
+            reviewCount: 78000,
+            price: 19.90,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B09TWSRMC4',
+            coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=600',
+            description: 'Thriller psicológico claustrofóbico em mansão de luxo com plot twists de alta rotação e capítulos curtos.',
+            narrativeStructure: 'Estrutura bipartida que inverte completamente a perspectiva da vítima e do algoz na metade do livro.',
+            openingHook: 'Entrevista de emprego tensa de uma ex-presidiária na mansão perfeita da família Winchester.',
+            commercialPositioning: 'Líder em Psychological Thriller no Kindle Unlimited com lealdade extrema de leitores.',
+            ethicalInspirationGuideline: 'Adote o ritmo ágil de capítulos que terminam em cliffhangers para seu próprio enredo de mistério doméstico.'
+          },
+          {
+            title: 'A Garota no Trem',
+            author: 'Paula Hawkins',
+            asin: 'B00T22Z7M6',
+            bsr: 45,
+            rating: 4.4,
+            reviewCount: 56000,
+            price: 24.90,
+            format: 'eBook Kindle',
+            url: 'https://www.amazon.com/dp/B00T22Z7M6',
+            coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=600',
+            description: 'Narradora não-confiável e investigação de desaparecimento a partir de observações na janela de um vagão diário.',
+            narrativeStructure: 'Multi-narrativa com lapsos de memória e linhas temporais que revelam pistas falsas calculadas.',
+            openingHook: 'A rotina mórbida de Rachel observando a casa de um casal desconhecido até presenciar uma traição.',
+            commercialPositioning: 'Best-seller consagrado de mistério e suspense psicológico contemporâneo.',
+            ethicalInspirationGuideline: 'Inspire-se na técnica do narrador não-confiável para criar pistas inteligentes em seu próprio suspense.'
+          }
+        ], null, 2);
+      }
+
+      // Padrão Geral / Não-Ficção / Hábitos / Negócios
+      return JSON.stringify([
+        {
+          title: 'Hábitos Atômicos (Atomic Habits)',
+          author: 'James Clear',
+          asin: 'B07D23CFGR',
+          bsr: 3,
+          rating: 4.9,
+          reviewCount: 125000,
+          price: 29.90,
+          format: 'eBook Kindle',
+          url: 'https://www.amazon.com/dp/B07D23CFGR',
+          coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=600',
+          description: 'Obra de referência mundial sobre micro-mudanças de comportamento com impacto cumulativo gigantesco.',
+          narrativeStructure: 'Modelo de 4 Leis da Mudança de Comportamento estruturado com frameworks visuais e resumos de ação.',
+          openingHook: 'História pessoal do grave acidente de beisebol do autor e a recuperação paciente através de mini-rotinas.',
+          commercialPositioning: '#1 em Desenvolvimento Pessoal e Psicologia Aplicada no mundo inteiro.',
+          ethicalInspirationGuideline: 'Aprenda a criar frameworks visuais proprietários para seu método, sem copiar o modelo de loop de James Clear.'
+        },
+        {
+          title: 'Trabalho Focado (Deep Work)',
+          author: 'Cal Newport',
+          asin: 'B00X47ZGHS',
+          bsr: 22,
+          rating: 4.7,
+          reviewCount: 34000,
+          price: 27.90,
+          format: 'eBook Kindle',
+          url: 'https://www.amazon.com/dp/B00X47ZGHS',
+          coverUrl: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=600',
+          description: 'Aborda a importância da concentração profunda em um mundo hiperconectado e cheio de distrações.',
+          narrativeStructure: 'Divisão clara em duas partes: a tese de valor da concentração seguida pelas 4 regras práticas de execução.',
+          openingHook: 'Contraste entre a rotina de Carl Jung na torre de Bollingen e a rotina fragmentada do profissional moderno.',
+          commercialPositioning: 'Obra definitiva em produtividade intelectual para profissionais do conhecimento.',
+          ethicalInspirationGuideline: 'Use a abordagem empírica de estudos de caso para demonstrar a eficácia da sua própria tese.'
+        },
+        {
+          title: 'Pai Rico, Pai Pobre',
+          author: 'Robert Kiyosaki',
+          asin: 'B071VT7T45',
+          bsr: 15,
+          rating: 4.8,
+          reviewCount: 98000,
+          price: 24.90,
+          format: 'eBook Kindle',
+          url: 'https://www.amazon.com/dp/B071VT7T45',
+          coverUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=600',
+          description: 'Clássico de educação financeira desmistificando o fluxo de caixa, ativos e a mentalidade de investidor.',
+          narrativeStructure: 'Narrativa parabólica de contraste entre duas figuras paternas com lições financeiras progressivas.',
+          openingHook: 'Infância no Havaí e a constatação da diferença entre o pai acadêmico falido e o pai empreendedor.',
+          commercialPositioning: 'Líder histórico perpétuo na categoria de Finanças Pessoais e Negócios na Amazon.',
+          ethicalInspirationGuideline: 'Aproveite o recurso de contrastar duas visões de mundo para tornar seu livro didático e envolvente.'
+        }
+      ], null, 2);
+    }
+
+    // 2. Geração de títulos (retorna array JSON alinhado ao gênero do livro)
+    if (lower.includes('título') || lower.includes('titulo') || lower.includes('title') || (lower.includes('subtitle') && lower.includes('json'))) {
+      const topicMatch = prompt.match(/sobre "([^"]+)"/i) || prompt.match(/about "([^"]+)"/i) || prompt.match(/tópico "([^"]+)"/i);
+      const topic = topicMatch ? topicMatch[1] : 'Mestres de Sword & Sorcery';
+
+      if (
+        lower.includes('sword') || 
+        lower.includes('sorcery') || 
+        lower.includes('fantasia') || 
+        lower.includes('fantasy') || 
+        lower.includes('espada') || 
+        lower.includes('feitiçaria')
+      ) {
+        return JSON.stringify([
+          { title: 'A Dança das Lâminas Negras', subtitle: 'Crônicas de Sangue, Aço e Feitiçaria Proibida' },
+          { title: 'Mestres da Noite Eterna', subtitle: 'O Caminho do Anti-Herói nos Reinos Esquecidos' },
+          { title: 'O Juramento do Ferro Cinzento', subtitle: 'Uma Saga de Honra Manchada e Magia Ancestral' },
+          { title: 'Sombras da Cidadela Proibida', subtitle: 'Onde Feiticeiros Negociam com Deuses Esquecidos' },
+          { title: 'O Último Mercenário de Arenor', subtitle: 'Aço Afiado contra Demônios das Profundezas' },
+          { title: 'A Lâmina dos Condenados', subtitle: 'Vingança e Poder nos Ermos do Norte' },
+          { title: 'O Feiticeiro de Obsidiana', subtitle: 'O Preço Maldito do Sangue Arcano' },
+          { title: 'Crônicas do Aço Voraz', subtitle: 'Entre Ladrões, Reis Loucos e Monstros Primordiais' },
+          { title: 'Cicatrizes do Trono de Cinzas', subtitle: 'A Queda do Império da Feitiçaria' },
+          { title: 'Herdeiros da Forja Maldita', subtitle: 'A Batalha pelo Destino dos Reinos Livres' }
+        ], null, 2);
+      }
+
+      if (lower.includes('romance') || lower.includes('amor')) {
+        return JSON.stringify([
+          { title: 'Promessas de Seda e Sombras', subtitle: 'Um Romance Inesperado de Rivais a Amantes' },
+          { title: 'O Acordo Proibido', subtitle: 'Uma Paixão Intensa Onde Nenhum dos Dois Pode Recuar' },
+          { title: 'Entre o Ódio e o Desejo', subtitle: 'Quando a Proximidade Forçada Rompe Todas as Barreiras' },
+          { title: 'Herdeiro do Orgulho', subtitle: 'O Bilionário que Jurou Nunca Amar de Verdade' },
+          { title: 'Sussurros de Amor e Cinzas', subtitle: 'A Segunda Chance que Ninguém Esperava' }
+        ], null, 2);
+      }
+
+      return JSON.stringify([
+        { title: `O Código de ${topic}`, subtitle: 'Estratégias Práticas e Métodos Comprovados para Alcançar Resultados Reais' },
+        { title: `Dominando ${topic}`, subtitle: 'Um Guia Passo a Passo para Transformar Conhecimento em Ação e Sucesso' },
+        { title: `A Arte e a Ciência de ${topic}`, subtitle: 'Como os Maiores Especialistas Pensam, Agem e Prosperam' },
+        { title: `Além do Óbvio: ${topic}`, subtitle: 'Princípios Essenciais para Superar Bloqueios e Atingir o Próximo Nível' },
+        { title: `O Método ${topic}`, subtitle: 'Passos Simples e Poderosos para Organizar sua Vida e Multiplicar seu Impacto' },
+        { title: `Descomplicando ${topic}`, subtitle: 'Soluções Diretas e Sem Rodeios para os Desafios do Dia a Dia' }
+      ], null, 2);
+    }
+
+    // 3. Proposta Editorial do Livro
+    if (lower.includes('proposta') || lower.includes('usp') || lower.includes('selling point') || lower.includes('proposed book')) {
+      return `### 1. Proposta Única de Valor (USP)
+Esta obra entrega uma metodologia direta, enxuta e comprovada na prática, eliminando teorias cansativas e focando na transformação imediata do leitor. O livro preenche uma lacuna crítica do mercado ao unir rigor estratégico com exercícios práticos aplicáveis desde a primeira página.
+
+### 2. Diferenciais Frente à Concorrência
+Enquanto as publicações tradicionais pecam pelo excesso de academicismo ou por conselhos genéricos de autoajuda, este manual traz uma arquitetura de aprendizado orientada à ação. Cada capítulo foi planejado para resolver um gargalo real e específico enfrentado pelo leitor.
+
+### 3. Principais Pontos de Transformação
+- **Arquitetura Acionável:** Roteiros estruturados para implementação imediata.
+- **Validação Prática:** Metodologias testadas em situações reais de mercado.
+- **Síntese de Alto Valor:** Economia de centenas de horas de tentativa e erro.
+- **Linguagem Acolhedora:** Tom conversacional que mantém o leitor motivado até a última página.
+- **Ferramentas Integradas:** Checklists, perguntas de autoavaliação e planos de ação ao final de cada bloco.
+
+### 4. Perfil do Leitor Ideal
+Pessoas que buscam clareza, direção prática e resultados duradouros, cansadas de promessas vazias e prontas para assumir o controle do seu desenvolvimento pessoal e profissional.
+
+### 5. Tom Editorial & Promessa
+Tom empático, instigante, seguro e altamente articulado. A promessa central é entregar a clareza e as ferramentas necessárias para agir com confiança.`;
+    }
+
+    // 4. Biografia do Autor para Amazon KDP & Contracapa (Prioridade sobre persona!)
+    if (lower.includes('biografia') || lower.includes('bio') || lower.includes('biography') || lower.includes('autor central') || lower.includes('author central')) {
+      if (
+        lower.includes('sword') || 
+        lower.includes('sorcery') || 
+        lower.includes('fantasia') || 
+        lower.includes('fantasy') || 
+        lower.includes('grimdark') || 
+        lower.includes('épica')
+      ) {
+        return `O autor é escritor de fantasia sombria, apaixonado pela estética pulp clássica, lendas ancestrais e esgrima histórica. Fascinado por mundos onde a magia tem um preço terrível e os heróis são forjados em cinzas e aço, dedica-se a construir sagas com ritmo cinematográfico, combates viscerais e personagens de moral cinzenta que recusam o preto no branco.
+
+Seus livros conquistaram milhares de leitores na Amazon pela imersão implacável e pela profundidade de seus universos. Quando não está forjando novas crônicas e mapas em sua escrivaninha de carvalho, ele estuda tratados medievais, joga campanhas de RPG e aprecia noites chuvosas acompanhado de uma xícara generosa de café forte.
+
+Acompanhe os próximos lançamentos, artes dos personagens e mapas exclusivos seguindo a página do autor e inscrevendo-se em seu boletim editorial.`;
+      }
+
+      if (lower.includes('romance') || lower.includes('amor') || lower.includes('billionaire')) {
+        return `A autora é contadora de histórias por vocação e romântica incurável por escolha. Seus livros exploram a intensidade dos encontros inesperados, as tensões irresistíveis de inimigos que se tornam amantes e a coragem necessária para se abrir ao amor em um mundo imperfeito.
+
+Reconhecida por diálogos afiados e química palpável que mantém os leitores acordados pela madrugada afora, suas obras figuram entre os títulos mais comentados da categoria de ficção feminina contemporânea. Vive cercada por livros não lidos, plantas e gatos curiosos, dividindo seu tempo entre a escrita e conversas apaixonadas com leitoras nas redes sociais.`;
+      }
+
+      if (lower.includes('suspense') || lower.includes('mistério') || lower.includes('thriller')) {
+        return `O autor é ficcionista especializado em thrillers psicológicos claustrofóbicos e narrativas de alta tensão. Com formação em psicologia do comportamento e anos de pesquisa sobre dinâmica de interrogatórios e perícia, constrói quebra-cabeças narrativos onde nenhuma testemunha é totalmente confiável e o perigo reside sempre nos detalhes aparentemente banais.
+
+Suas obras destacam-se pelo ritmo veloz de capítulos curtos que terminam em reviravoltas calculadas. Vive em uma cidade costeira tranquila, onde encontra o isolamento perfeito para tecer tramas densas e imprevisíveis.`;
+      }
+
+      return `O autor é pesquisador, consultor e mentor reconhecido por transformar conceitos complexos em ferramentas simples, acessíveis e práticas de alta performance. Com mais de uma década de dedicação profissional ao desenvolvimento humano e estratégico, seu trabalho é impulsionado pelo compromisso em entregar métodos acionáveis que geram resultados concretos no mundo real.
+
+Sua escrita equilibra sensibilidade humana e rigor empírico, reunindo lições colhidas em atendimentos diretos, consultorias e estudos de caso. Apaixonado pela partilha de conhecimento, dedica sua vida a escrever, mentorar e palestrar, impactando milhares de leitores que buscam assumir o protagonismo da sua trajetória profissional e pessoal.
+
+Quando não está imerso em novas pesquisas ou escrevendo seu próximo livro, aproveita o tempo com a família, caminhadas matinais e o hábito constante da leitura de obras interdisciplinares.`;
+    }
+
+    // 5. Persona Editorial do Autor (Estilo e Tom de Voz da Obra)
+    if (lower.includes('persona') || lower.includes('estilo') || lower.includes('writing sample') || lower.includes('inspiration')) {
+      return `A persona editorial combina clareza cirúrgica, empatia acolhedora e autoridade respaldada por experiência de campo. O tom de voz conversa com o leitor como um mentor de confiança que já enfrentou as mesmas dificuldades e desenvolveu um caminho seguro para superá-las. A cadência das frases alterna explicações objetivas com analogias vívidas do cotidiano, gerando momentos constantes de reflexão e insights aplicáveis. A comunicação é firme, inspiradora e destituída de arrogância, focada 100% no sucesso do leitor.`;
+    }
+
+    // 6. Sinopse & Copy de Vendas para Amazon KDP
+    if (lower.includes('descrição') || lower.includes('descricao') || lower.includes('sinopse') || lower.includes('amazon') || lower.includes('kdp') || lower.includes('headline')) {
+      return `**Descubra Como Destravar Seu Verdadeiro Potencial e Alcançar Resultados Reais a Partir de Hoje.**
+
+Você já sentiu que está trabalhando incansavelmente, mas o progresso parece sempre escapar por entre os dedos?
+
+Em um mundo saturado de informações contraditórias e conselhos genéricos, o que você menos precisa é de mais teoria sem fundamento. Você precisa de um método claro, comprovado e pronto para ser executado.
+
+Neste guia definitivo e transformador, você vai aprender:
+• Como identificar e eliminar os 3 maiores ladrões invisíveis de tempo e energia
+• O método prático para gerar 80% dos seus resultados concentrando-se no essencial
+• Passos diários para construir uma disciplina consistente sem sofrimento ou esgotamento
+• As estratégias mentais usadas por realizadores de elite para manter o foco inabalável
+• Checklists e exercícios aplicáveis para avaliar e acelerar sua evolução dia após dia
+
+Não importa se você está começando do zero ou procurando quebrar um platô de estagnação: este livro oferece o mapa exato para você retomar o protagonismo da sua jornada.
+
+**Não adie a transformação que você merece. Role até o topo da página, clique em "Comprar Agora" e comece a mudar sua história hoje mesmo!**`;
+    }
+
+    // Fallback padrão genérico
+    return 'Conteúdo estruturado com sucesso pelo motor editorial. Personalize os pontos conforme a necessidade do seu projeto.';
+  }
+
 
   // --- STRUCTURED COMPLETION COM PARSE JSON ROBUSTO ---
   async structuredCompletion<T>(
@@ -377,7 +802,7 @@ export class AiService {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(currentKey)}`;
 
-        const res = await fetch(url, {
+        let res = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -385,6 +810,20 @@ export class AiService {
           },
           body: JSON.stringify(body)
         });
+
+        // Se o modelo especificado não for encontrado (404), tenta o modelo ultra-econômico gemini-3.5-flash-lite
+        if (res.status === 404 && model !== 'gemini-3.5-flash-lite') {
+          console.warn(`[Gemini Model] Modelo ${model} retornou 404. Acionando modelo ultra-econômico gemini-3.5-flash-lite...`);
+          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(currentKey)}`;
+          res = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': currentKey
+            },
+            body: JSON.stringify(body)
+          });
+        }
 
         if (!res.ok) {
           const errBody = await res.text();

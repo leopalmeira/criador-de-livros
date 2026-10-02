@@ -38,3 +38,13 @@ scratch/
 .tempmediaStorage/
 .DS_Store
 Thumbs.db
+
+# Storage e Sessões do Backend
+covers/
+data/
+
+# Repositórios Locais de Referência
+antigravity-kit-2.0/
+show-me-the-story/
+__pycache__/
+*.pyc
