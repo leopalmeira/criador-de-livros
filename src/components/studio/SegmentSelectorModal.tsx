@@ -66,6 +66,16 @@ const SEGMENT_ICONS: Record<string, React.ReactNode> = {
   'journal': <Sparkles size={15} className="amazon-icon-journal" />,
   'activity-book': <Puzzle size={15} className="amazon-icon-activity" />,
   'non-fiction': <Compass size={15} className="amazon-icon-nonfiction" />,
+  'mystery': <Search size={15} className="amazon-icon-mystery" />,
+  'suspense': <ShieldAlert size={15} className="amazon-icon-suspense" />,
+  'fiction-novel': <BookOpen size={15} className="amazon-icon-fiction" />,
+  'illustrated-book': <Palette size={15} className="amazon-icon-illustrated" />,
+  'education': <Brain size={15} className="amazon-icon-education" />,
+  'light-novel': <Sparkles size={15} className="amazon-icon-lightnovel" />,
+  'short-ebook': <Layers size={15} className="amazon-icon-shortebook" />,
+  'puzzle-book': <Puzzle size={15} className="amazon-icon-puzzle" />,
+  'workbook': <CheckCircle2 size={15} className="amazon-icon-workbook" />,
+  'other': <Compass size={15} className="amazon-icon-other" />
 };
 
 const FILTER_OPTIONS: { id: SegmentFilterType; label: string }[] = [

@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "tsx src/server.ts",
     "dev": "vite",
     "build:main": "vite build",
     "build:content": "vite build --config vite.content.config.ts",
@@ -19,15 +20,20 @@
     "@types/jszip": "^3.4.0",
     "amazon-buddy": "^2.2.45",
     "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
     "lucide-react": "^1.48.0",
     "puppeteer-core": "^25.10.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.4",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

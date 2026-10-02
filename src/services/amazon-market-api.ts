@@ -538,6 +538,287 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     sampleBestSellers: [
       { title: 'The Daily Stoic', author: 'Ryan Holiday', bsr: 75, priceUsd: 11.99, royaltyPerBook: 5.10, asin: '0735211736', coverImage: 'https://m.media-amazon.com/images/I/71k4vQ+xT9L._AC_UY218_.jpg' }
     ]
+  },
+
+  // 15. MISTÉRIO, DETETIVES & ENIGMAS (#11)
+  {
+    id: 'mystery',
+    rankNumber: 11,
+    rankLabel: '#11 na Amazon Books',
+    name: 'Mistério, Detetives & Enigmas',
+    categoryGroup: 'ficcao',
+    categoryGroupLabel: 'Ficção & Mistério',
+    bsrRange: 'Top 110 - 3400 BSR',
+    dailySalesEstimate: 5600,
+    avgPriceUsd: 5.99,
+    unitRoyaltyUsdMin: 2.50,
+    unitRoyaltyUsdMax: 4.80,
+    unitRoyaltyFormatted: 'U$ 2.50 - U$ 4.80',
+    royaltyNote: 'Excelente público Kindle Unlimited',
+    opportunityScore: 91,
+    competitionLevel: 'Alta',
+    description: 'Investigações de detetives particulares, assassinatos em mansões isoladas e enigmas com pistas inteligentes.',
+    popularKeywords: ['Whodunit Clássico', 'Mistério de Mansão', 'Detetive Particular', 'Enigmas de Crime'],
+    substyles: [
+      { id: 'classic-whodunit', name: 'Whodunit Clássico (Quem Matou?)', searchKeyword: 'whodunit classic mystery books bestseller', targetAudience: 'Fãs de Agatha Christie e enigmas de dedução', kdpFormatTip: '5.5x8.5 pol • 280 págs', royaltyEstimate: 'U$ 2.50 - U$ 4.50' },
+      { id: 'private-investigator', name: 'Detetive Particular & Segredos Urbanos', searchKeyword: 'private investigator hardboiled detective novel', targetAudience: 'Leitores de investigações urbanas realistas', kdpFormatTip: '5.5x8.5 pol • 300 págs', royaltyEstimate: 'U$ 2.80 - U$ 4.80' },
+      { id: 'amateur-sleuth', name: 'Detetive Amador & Pequena Cidade', searchKeyword: 'amateur sleuth small town murder mystery', targetAudience: 'Leitores que gostam de protagonistas perspicazes do cotidiano', kdpFormatTip: '5x8 pol • 240 págs', royaltyEstimate: 'U$ 2.40 - U$ 3.90' }
+    ],
+    sampleBestSellers: [
+      { title: 'The Thursday Murder Club', author: 'Richard Osman', bsr: 40, priceUsd: 9.99, royaltyPerBook: 4.50, asin: '1984880985', coverImage: 'https://m.media-amazon.com/images/I/81x25E8w-nL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 16. SUSPENSE PSICOLÓGICO & TENSÃO (#12)
+  {
+    id: 'suspense',
+    rankNumber: 12,
+    rankLabel: '#12 na Amazon Books',
+    name: 'Suspense Psicológico & Tensão Extrema',
+    categoryGroup: 'ficcao',
+    categoryGroupLabel: 'Ficção & Suspense',
+    bsrRange: 'Top 120 - 3600 BSR',
+    dailySalesEstimate: 5400,
+    avgPriceUsd: 6.49,
+    unitRoyaltyUsdMin: 2.70,
+    unitRoyaltyUsdMax: 5.20,
+    unitRoyaltyFormatted: 'U$ 2.70 - U$ 5.20',
+    royaltyNote: 'Retenção Absoluta de Página a Página',
+    opportunityScore: 93,
+    competitionLevel: 'Alta',
+    description: 'Narradores não-confiáveis, segredos conjugais sombrios e perseguições psicológicas angustiantes.',
+    popularKeywords: ['Suspense Psicológico', 'Narrador Não Confiável', 'Segredos Obscuros', 'Tensão Asfixiante'],
+    substyles: [
+      { id: 'unreliable-mind', name: 'Mente Obscura & Narrador Não Confiável', searchKeyword: 'unreliable narrator psychological suspense bestseller', targetAudience: 'Leitores que adoram duvidar da sanidade dos personagens', kdpFormatTip: '5.5x8.5 pol • 290 págs', royaltyEstimate: 'U$ 2.80 - U$ 5.00' },
+      { id: 'domestic-secrets', name: 'Segredos Conjugais e Vizinhança Tóxica', searchKeyword: 'domestic psychological thriller dark secrets', targetAudience: 'Fãs de segredos de família e aparências enganosas', kdpFormatTip: '5.5x8.5 pol • 280 págs', royaltyEstimate: 'U$ 2.70 - U$ 4.80' }
+    ],
+    sampleBestSellers: [
+      { title: 'Gone Girl (Garota Exemplar)', author: 'Gillian Flynn', bsr: 55, priceUsd: 9.99, royaltyPerBook: 4.60, asin: '0307588378', coverImage: 'https://m.media-amazon.com/images/I/71QKQ9mwV7L._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 17. FICÇÃO GERAL & ROMANCE LITERÁRIO (#13)
+  {
+    id: 'fiction-novel',
+    rankNumber: 13,
+    rankLabel: '#13 na Amazon Books',
+    name: 'Ficção Geral & Literatura Contemporânea',
+    categoryGroup: 'ficcao',
+    categoryGroupLabel: 'Ficção Geral',
+    bsrRange: 'Top 130 - 3800 BSR',
+    dailySalesEstimate: 5200,
+    avgPriceUsd: 7.99,
+    unitRoyaltyUsdMin: 3.20,
+    unitRoyaltyUsdMax: 6.10,
+    unitRoyaltyFormatted: 'U$ 3.20 - U$ 6.10',
+    royaltyNote: 'Venda Perene e Alto Valor Artístico',
+    opportunityScore: 89,
+    competitionLevel: 'Média',
+    description: 'Dramas humanos comoventes, sagas familiares multigeracionais e romances de formação literária.',
+    popularKeywords: ['Ficção Contemporânea', 'Saga Familiar', 'Drama Humano', 'Romance Literário'],
+    substyles: [
+      { id: 'family-saga', name: 'Saga Familiar e Segredos de Gerações', searchKeyword: 'family saga novel literary fiction bestseller', targetAudience: 'Leitores de grandes dramas com raízes profundas', kdpFormatTip: '6x9 pol • 360 págs', royaltyEstimate: 'U$ 3.50 - U$ 6.10' },
+      { id: 'coming-of-age', name: 'Amadurecimento & Ritos de Passagem', searchKeyword: 'coming of age contemporary novel', targetAudience: 'Jovens adultos e adultos reflexivos', kdpFormatTip: '5.5x8.5 pol • 270 págs', royaltyEstimate: 'U$ 3.10 - U$ 5.20' }
+    ],
+    sampleBestSellers: [
+      { title: 'Where the Crawdads Sing', author: 'Delia Owens', bsr: 30, priceUsd: 11.99, royaltyPerBook: 5.50, asin: '0735219095', coverImage: 'https://m.media-amazon.com/images/I/81WWiiLgEyL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 18. LIVROS ILUSTRADOS & NARRATIVAS VISUAIS (#18)
+  {
+    id: 'illustrated-book',
+    rankNumber: 18,
+    rankLabel: '#18 na Amazon Books',
+    name: 'Livros Ilustrados & Narrativas Visuais',
+    categoryGroup: 'infantil',
+    categoryGroupLabel: 'Infantil & Ilustrado',
+    bsrRange: 'Top 200 - 4800 BSR',
+    dailySalesEstimate: 4500,
+    avgPriceUsd: 8.99,
+    unitRoyaltyUsdMin: 2.80,
+    unitRoyaltyUsdMax: 5.40,
+    unitRoyaltyFormatted: 'U$ 2.80 - U$ 5.40',
+    royaltyNote: 'Forte Apelo Visual em Formato Quadrado ou 8x10',
+    opportunityScore: 88,
+    competitionLevel: 'Média',
+    description: 'Histórias ricas em ilustrações conceituais, poesias ilustradas e livros para todas as idades.',
+    popularKeywords: ['História Ilustrada', 'Visual Book', 'Arte e Narrativa', 'Graphic Book'],
+    substyles: [
+      { id: 'visual-poetry', name: 'Poesia Visual e Crônicas Ilustradas', searchKeyword: 'illustrated poetry book artistic design', targetAudience: 'Apreciadores de arte, sensibilidade e presentes visuais', kdpFormatTip: '7x10 ou 8x10 pol • 110 págs', royaltyEstimate: 'U$ 3.00 - U$ 5.40' },
+      { id: 'illustrated-tales', name: 'Contos Fantásticos Ricamente Ilustrados', searchKeyword: 'illustrated short stories fairy tales modern', targetAudience: 'Famílias e leitores que amam arte imersiva', kdpFormatTip: '8x10 pol • 80 págs coloridas', royaltyEstimate: 'U$ 2.80 - U$ 4.90' }
+    ],
+    sampleBestSellers: [
+      { title: 'The Boy, the Mole, the Fox and the Horse', author: 'Charlie Mackesy', bsr: 16, priceUsd: 13.99, royaltyPerBook: 6.20, asin: '0062976583', coverImage: 'https://m.media-amazon.com/images/I/71aLultW5EL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 19. DIDÁTICOS, CONCURSOS & APRENDIZADO (#28)
+  {
+    id: 'education',
+    rankNumber: 28,
+    rankLabel: '#28 na Amazon Books',
+    name: 'Didáticos, Concursos, Idiomas & Aprendizado',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Não-Ficção & Educação',
+    bsrRange: 'Top 300 - 6200 BSR',
+    dailySalesEstimate: 3900,
+    avgPriceUsd: 9.99,
+    unitRoyaltyUsdMin: 4.10,
+    unitRoyaltyUsdMax: 7.90,
+    unitRoyaltyFormatted: 'U$ 4.10 - U$ 7.90',
+    royaltyNote: 'Altíssima Disposição de Pagamento pelo Estudante',
+    opportunityScore: 92,
+    competitionLevel: 'Média',
+    description: 'Guias de aprovação em concursos, métodos de memorização, aprendizado de inglês e resumos esquematizados.',
+    popularKeywords: ['Aprovação em Concurso', 'Inglês Rápido', 'Memorização Ativa', 'Mapas Mentais'],
+    substyles: [
+      { id: 'language-mastery', name: 'Inglês Funcional & Conversação Acelerada', searchKeyword: 'learn english fast practical vocabulary book', targetAudience: 'Adultos e estudantes focados em fluência rápida', kdpFormatTip: '6x9 pol • 220 págs', royaltyEstimate: 'U$ 4.20 - U$ 7.50' },
+      { id: 'exam-prep', name: 'Técnicas de Estudo & Aprovação em Concursos', searchKeyword: 'study techniques exam preparation study guide', targetAudience: 'Concurseiros e vestibulandos dedicados', kdpFormatTip: '6x9 pol • 240 págs', royaltyEstimate: 'U$ 4.50 - U$ 7.90' },
+      { id: 'memory-hacks', name: 'Memorização e Aprendizado Ultrarrápido', searchKeyword: 'super learner accelerated learning memory techniques', targetAudience: 'Profissionais em transição de carreira e estudantes', kdpFormatTip: '5.5x8.5 pol • 190 págs', royaltyEstimate: 'U$ 3.80 - U$ 6.40' }
+    ],
+    sampleBestSellers: [
+      { title: 'Limitless: Upgrade Your Brain', author: 'Jim Kwik', bsr: 95, priceUsd: 12.99, royaltyPerBook: 5.80, asin: '1401958230', coverImage: 'https://m.media-amazon.com/images/I/81W5dMvjEwL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 20. LIGHT NOVELS, ISEKAI & FANTASIA JOVEM (#34)
+  {
+    id: 'light-novel',
+    rankNumber: 34,
+    rankLabel: '#34 na Amazon Books',
+    name: 'Light Novels, Isekai & Fantasia Jovem',
+    categoryGroup: 'ficcao',
+    categoryGroupLabel: 'Ficção & Anime',
+    bsrRange: 'Top 380 - 7500 BSR',
+    dailySalesEstimate: 3600,
+    avgPriceUsd: 6.99,
+    unitRoyaltyUsdMin: 2.90,
+    unitRoyaltyUsdMax: 4.90,
+    unitRoyaltyFormatted: 'U$ 2.90 - U$ 4.90',
+    royaltyNote: 'Público que Consome Séries de 10+ Volumes',
+    opportunityScore: 90,
+    competitionLevel: 'Baixa',
+    description: 'Reencarnações em mundos paralelos (Isekai), sistemas de níveis e magia, ritmo ágil e diálogos marcantes.',
+    popularKeywords: ['Light Novel Isekai', 'Reencarnação RPG', 'Progression Fantasy', 'Anime Novel'],
+    substyles: [
+      { id: 'isekai-rebirth', name: 'Isekai & Reencarnação com Habilidades Únicas', searchKeyword: 'isekai light novel progression fantasy bestseller', targetAudience: 'Fãs de anime, mangás e webnovels', kdpFormatTip: '5x8 pol • 220 págs com ilustrações P&B', royaltyEstimate: 'U$ 2.90 - U$ 4.90' },
+      { id: 'academy-awakening', name: 'Academia de Magia e Despertar de Poderes', searchKeyword: 'magic academy light novel progression fantasy', targetAudience: 'Leitores que amam evolução gradual de poderes', kdpFormatTip: '5x8 pol • 240 págs', royaltyEstimate: 'U$ 3.00 - U$ 5.10' }
+    ],
+    sampleBestSellers: [
+      { title: 'Solo Leveling (Novel)', author: 'Chugong', bsr: 150, priceUsd: 8.99, royaltyPerBook: 4.10, asin: '1975319435', coverImage: 'https://m.media-amazon.com/images/I/81gQzYm1kHL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 21. SHORT E-BOOKS & LEITURAS RÁPIDAS (1 HORA) (#45)
+  {
+    id: 'short-ebook',
+    rankNumber: 45,
+    rankLabel: '#45 na Amazon Books',
+    name: 'Short E-books & Leituras Rápidas (1 Hora)',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Não-Ficção & E-books',
+    bsrRange: 'Top 450 - 9000 BSR',
+    dailySalesEstimate: 3100,
+    avgPriceUsd: 2.99,
+    unitRoyaltyUsdMin: 1.80,
+    unitRoyaltyUsdMax: 2.45,
+    unitRoyaltyFormatted: 'U$ 1.80 - U$ 2.45',
+    royaltyNote: 'Volume Alto de Downloads e Giro Instantâneo',
+    opportunityScore: 89,
+    competitionLevel: 'Média',
+    description: 'Manuais condensados de 40 a 80 páginas para solucionar um problema pontual em menos de 60 minutos.',
+    popularKeywords: ['Leitura em 1 Hora', 'Guia Rápido de Bolso', 'Condensado Prático', 'Solução Direta'],
+    substyles: [
+      { id: 'one-hour-solution', name: 'Solução Direta em 60 Minutos', searchKeyword: 'one hour guide quick read practical handbook', targetAudience: 'Pessoas sem tempo que precisam de ação imediata', kdpFormatTip: '5x8 pol • 60 págs (Kindle Short Reads)', royaltyEstimate: 'U$ 1.80 - U$ 2.45' },
+      { id: 'pocket-framework', name: 'Framework de Bolso para Líderes', searchKeyword: 'pocket framework executive concise handbook', targetAudience: 'Empreendedores e profissionais dinâmicos', kdpFormatTip: '5x8 pol • 75 págs', royaltyEstimate: 'U$ 1.90 - U$ 2.45' }
+    ],
+    sampleBestSellers: [
+      { title: 'The 1-Page Marketing Plan (Short)', author: 'Allan Dib', bsr: 210, priceUsd: 4.99, royaltyPerBook: 2.80, asin: '1989025013', coverImage: 'https://m.media-amazon.com/images/I/71sB36-n5fL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 22. QUEBRA-CABEÇAS, CRIPTOGRAMAS & LÓGICA (#132)
+  {
+    id: 'puzzle-book',
+    rankNumber: 132,
+    rankLabel: '#132 na Amazon Books',
+    name: 'Quebra-Cabeças, Criptogramas & Lógica Avançada',
+    categoryGroup: 'baixo-conteudo',
+    categoryGroupLabel: 'Baixo Conteúdo / KDP',
+    bsrRange: 'Top 1300 - 18000 BSR',
+    dailySalesEstimate: 1350,
+    avgPriceUsd: 7.49,
+    unitRoyaltyUsdMin: 1.70,
+    unitRoyaltyUsdMax: 3.10,
+    unitRoyaltyFormatted: 'U$ 1.70 - U$ 3.10',
+    royaltyNote: 'Público que Compra Coleções Inteiras',
+    opportunityScore: 87,
+    competitionLevel: 'Baixa',
+    description: 'Criptogramas com frases inspiradoras, desafios de dedução de crimes e enigmas lógicos desafiadores.',
+    popularKeywords: ['Criptogramas Inspiradores', 'Enigmas Lógicos', 'Desafios de Detetive', 'Logic Puzzles'],
+    substyles: [
+      { id: 'cryptograms-quotes', name: 'Criptogramas de Citações Históricas', searchKeyword: 'cryptograms puzzle book large print quotes', targetAudience: 'Amantes de decifrar códigos e frases célebres', kdpFormatTip: '8.5x11 pol • 130 págs com gabarito', royaltyEstimate: 'U$ 1.80 - U$ 3.10' },
+      { id: 'crime-deduction-puzzles', name: 'Enigmas de Dedução e Casos de Mistério', searchKeyword: 'murdle logic puzzles detective deduction book', targetAudience: 'Fãs da febre Murdle e quebra-cabeças dedutivos', kdpFormatTip: '6x9 ou 8.5x11 pol • 140 págs', royaltyEstimate: 'U$ 2.10 - U$ 3.40' }
+    ],
+    sampleBestSellers: [
+      { title: 'Murdle: Volume 1', author: 'G. T. Karber', bsr: 65, priceUsd: 9.99, royaltyPerBook: 3.80, asin: '1250892309', coverImage: 'https://m.media-amazon.com/images/I/81xU-Uv-5jL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 23. WORKBOOKS PRÁTICOS & CADERNOS DE EXERCÍCIOS (#138)
+  {
+    id: 'workbook',
+    rankNumber: 138,
+    rankLabel: '#138 na Amazon Books',
+    name: 'Workbooks Práticos & Cadernos de Exercícios',
+    categoryGroup: 'baixo-conteudo',
+    categoryGroupLabel: 'Baixo Conteúdo / KDP',
+    bsrRange: 'Top 1400 - 19500 BSR',
+    dailySalesEstimate: 1250,
+    avgPriceUsd: 9.99,
+    unitRoyaltyUsdMin: 2.50,
+    unitRoyaltyUsdMax: 4.50,
+    unitRoyaltyFormatted: 'U$ 2.50 - U$ 4.50',
+    royaltyNote: 'Alto Valor Percebido e Compra Complementar',
+    opportunityScore: 89,
+    competitionLevel: 'Baixa',
+    description: 'Cadernos de exercícios guiados de TCC, planos de ação para terapeutas e ferramentas de coaching pessoal.',
+    popularKeywords: ['Workbook Prático', 'Caderno de Exercícios TCC', 'Plano de Ação Guiado', 'Exercícios Diários'],
+    substyles: [
+      { id: 'cbt-mind-workbook', name: 'Workbook de TCC e Reestruturação Cognitiva', searchKeyword: 'cbt workbook practical exercises mental health', targetAudience: 'Pessoas e terapeutas trabalhando reestruturação mental', kdpFormatTip: '8.5x11 pol • 150 págs com formulários', royaltyEstimate: 'U$ 2.80 - U$ 4.50' },
+      { id: 'coaching-action-plan', name: 'Plano de Ação de Metas & Coaching Pessoal', searchKeyword: 'goal setting workbook action plan guide', targetAudience: 'Pessoas focadas em planejamento prático de vida', kdpFormatTip: '8.5x11 pol • 130 págs', royaltyEstimate: 'U$ 2.60 - U$ 4.20' }
+    ],
+    sampleBestSellers: [
+      { title: 'The Anxiety and Phobia Workbook', author: 'Edmund Bourne', bsr: 310, priceUsd: 14.99, royaltyPerBook: 5.20, asin: '1684034833', coverImage: 'https://m.media-amazon.com/images/I/71Y8wO21mRL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 24. OUTROS GÊNEROS LIVRES & CUSTOMIZADOS (#150)
+  {
+    id: 'other',
+    rankNumber: 150,
+    rankLabel: '#150 na Amazon Books',
+    name: 'Outros Gêneros & Projetos Sob Medida',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Customizado / Outros',
+    bsrRange: 'Top 1500 - 25000 BSR',
+    dailySalesEstimate: 1100,
+    avgPriceUsd: 7.99,
+    unitRoyaltyUsdMin: 2.50,
+    unitRoyaltyUsdMax: 5.50,
+    unitRoyaltyFormatted: 'U$ 2.50 - U$ 5.50',
+    royaltyNote: 'Liberdade Editorial Completa',
+    opportunityScore: 82,
+    competitionLevel: 'Baixa',
+    description: 'Obras híbridas, antologias, ensaios autorais e publicações personalizadas sem barreiras de gênero.',
+    popularKeywords: ['Projeto Autoral', 'Ensaio Livre', 'Obra Híbrida', 'Publicação Customizada'],
+    substyles: [
+      { id: 'custom-author-vision', name: 'Projeto Autoral Livre com IA', searchKeyword: 'creative writing custom book publishing', targetAudience: 'Autores com temas específicos e formatos originais', kdpFormatTip: '6x9 pol • 200 págs flexíveis', royaltyEstimate: 'U$ 2.50 - U$ 5.50' }
+    ],
+    sampleBestSellers: [
+      { title: 'Big Magic: Creative Living Beyond Fear', author: 'Elizabeth Gilbert', bsr: 240, priceUsd: 10.99, royaltyPerBook: 4.80, asin: '1594634726', coverImage: 'https://m.media-amazon.com/images/I/81F90H7hnML._AC_UY218_.jpg' }
+    ]
   }
 ];
 
