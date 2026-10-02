@@ -146,13 +146,6 @@ export const BookIntelDashboard: React.FC<Props> = ({
                   <button className="btn-hero-cta" onClick={onCreateNewProject}>
                     <Plus size={18} /> Criar Novo Projeto
                   </button>
-                  <button
-                    className="btn-hero-cta secondary"
-                    onClick={() => setShowCategoryIntel(prev => !prev)}
-                    style={{ background: '#0f172a', border: '1px solid #334155', color: '#60a5fa' }}
-                  >
-                    <BarChart3 size={18} /> {showCategoryIntel ? 'Ocultar Inteligência de Gênero' : 'Inteligência Comercial por Gênero'}
-                  </button>
                 </div>
               </div>
 

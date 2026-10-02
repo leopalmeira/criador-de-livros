@@ -37,10 +37,24 @@ export const DescriptionStage: React.FC<Props> = ({ project, onUpdateProject, ai
   const generateDescription = async () => {
     setIsGenerating(true);
     try {
+      // Tenta usar a API Gemini se o provider for gemini
+      if (aiService.getProvider() === 'gemini') {
+        const { GeminiBookGeneratorService } = await import('../../../services/gemini-book-generator');
+        const generator = new GeminiBookGeneratorService(aiService);
+        const result = await generator.generateDescription(project);
+        if (result.success && result.data) {
+          updateData(result.data);
+          return;
+        }
+      }
+      // Fallback local
       const next = BoxSuggestionService.getNextSuggestion('description.blurb', project);
       updateData({ fullDescription: next });
     } catch (err) {
       console.error('Erro ao gerar descrição:', err);
+      // Fallback local em caso de erro
+      const next = BoxSuggestionService.getNextSuggestion('description.blurb', project);
+      updateData({ fullDescription: next });
     } finally {
       setIsGenerating(false);
     }

@@ -37,6 +37,18 @@ export const AuthorPersonaStage: React.FC<Props> = ({ project, onUpdateProject, 
   const generatePersona = async () => {
     setIsGenerating(true);
     try {
+      // Tenta usar Gemini se disponível
+      if (aiService.getProvider() === 'gemini') {
+        const { GeminiBookGeneratorService } = await import('../../../services/gemini-book-generator');
+        const generator = new GeminiBookGeneratorService(aiService);
+        const result = await generator.generateAuthorPersona(project);
+        if (result.success && result.data) {
+          updateData(result.data);
+          return;
+        }
+      }
+
+      // Fallback: prompt direto
       const prompt = `Crie uma persona de escrita autoral profunda e coesa para um livro.
 Autores de inspiração: ${data.inspirationAuthors || 'James Clear, Malcolm Gladwell, Dale Carnegie'}
 Descrição do autor: ${data.authorDescription || 'Especialista prático e empático focado em transformação real'}

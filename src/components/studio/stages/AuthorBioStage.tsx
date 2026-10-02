@@ -63,6 +63,18 @@ export const AuthorBioStage: React.FC<Props> = ({ project, onUpdateProject, aiSe
   const generateBio = async () => {
     setIsGenerating(true);
     try {
+      // Tenta usar Gemini se disponível
+      if (aiService.getProvider() === 'gemini') {
+        const { GeminiBookGeneratorService } = await import('../../../services/gemini-book-generator');
+        const generator = new GeminiBookGeneratorService(aiService);
+        const result = await generator.generateAuthorBio(project);
+        if (result.success && result.data) {
+          updateData(result.data);
+          return;
+        }
+      }
+
+      // Fallback: prompt direto
       const currentAuthor = authorName.trim() || project.author || 'Autor da Obra';
       const prompt = `Escreva uma biografia editorial de autor oficial para a página de Autor Central da Amazon KDP e para a orelha/contracapa do livro:
 Nome do Autor: ${currentAuthor}

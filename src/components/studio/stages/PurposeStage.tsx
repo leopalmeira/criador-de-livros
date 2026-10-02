@@ -57,6 +57,18 @@ export const PurposeStage: React.FC<Props> = ({ project, onUpdateProject, aiServ
   const generateProposal = async () => {
     setIsGenerating(true);
     try {
+      // Tenta usar Gemini se disponível
+      if (aiService.getProvider() === 'gemini') {
+        const { GeminiBookGeneratorService } = await import('../../../services/gemini-book-generator');
+        const generator = new GeminiBookGeneratorService(aiService);
+        const result = await generator.generatePurpose(project);
+        if (result.success && result.data) {
+          updateData(result.data);
+          return;
+        }
+      }
+
+      // Fallback: prompt direto
       const research = project.stageData?.research;
       const analytics = project.stageData?.analytics;
       const selectedTags = [...data.focusTags, ...data.customTags];
@@ -68,7 +80,7 @@ Gênero: ${research?.genre || project.kdpBookType || ''}
 Posicionamento do Autor: "${research?.stance || ''}"
 Diferenciais: "${research?.standout || ''}"
 Áreas de foco / Pilares: ${selectedTags.join(', ')}
-Referências de mercado: ${analytics?.marketReferences?.map(r => r.title).join(', ') || 'Best-sellers da categoria'}
+Referências de mercado: ${analytics?.marketReferences?.map((r: any) => r.title).join(', ') || 'Best-sellers da categoria'}
 
 Estruture a proposta com clareza nos seguintes blocos:
 1. Proposta Única de Valor (USP - Unique Selling Point) - Por que este livro precisa existir agora.

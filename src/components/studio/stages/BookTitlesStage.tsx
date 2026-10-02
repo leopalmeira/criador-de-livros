@@ -34,6 +34,18 @@ export const BookTitlesStage: React.FC<Props> = ({ project, onUpdateProject, aiS
   const generateTitles = async () => {
     setIsGenerating(true);
     try {
+      // Tenta usar Gemini se disponível
+      if (aiService.getProvider() === 'gemini') {
+        const { GeminiBookGeneratorService } = await import('../../../services/gemini-book-generator');
+        const generator = new GeminiBookGeneratorService(aiService);
+        const result = await generator.generateTitles(project);
+        if (result.success && result.data) {
+          updateData(result.data);
+          return;
+        }
+      }
+
+      // Fallback: prompt direto via aiService
       const research = project.stageData?.research;
       const topic = research?.topic || project.topic || 'Negócios e Alta Performance';
       const genre = research?.genre || project.kdpBookType || 'não-ficção';

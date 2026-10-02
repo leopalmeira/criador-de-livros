@@ -43,6 +43,7 @@ import { BoxSuggestionService } from '../../services/box-suggestion-service';
 import '../../styles/book-intel-dashboard.css';
 import { AlertTriangle } from 'lucide-react';
 import { PublishSuccessModal } from './PublishSuccessModal';
+import { AssistedGenerationPanel } from './AssistedGenerationPanel';
 
 // Ícones por estágio
 const STAGE_ICONS: Record<StageId, React.ReactNode> = {
@@ -816,6 +817,18 @@ export const BookStudioApp: React.FC = () => {
         {/* Conteúdo da Etapa */}
         <main className="editor-content">
           {renderStageContent()}
+
+          {/* PAINEL DE GERAÇÃO ASSISTIDA POR IA GEMINI */}
+          {activeProject && (
+            <AssistedGenerationPanel
+              project={activeProject}
+              onUpdateProject={handleUpdateProject}
+              aiService={aiService}
+              currentStage={currentStage}
+              onNavigateToStage={(stage) => setCurrentStage(stage)}
+              onOpenSettings={() => setMode('settings')}
+            />
+          )}
         </main>
       </div>
 
