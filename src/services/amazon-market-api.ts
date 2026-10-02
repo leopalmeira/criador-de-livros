@@ -281,7 +281,92 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     ]
   },
 
-  // 8. LIVROS DE BAIXO CONTEÚDO: COLORIR (#102)
+  // 8. SAÚDE, LONGEVIDADE & BEM-ESTAR (#8)
+  {
+    id: 'health-wellness',
+    rankNumber: 8,
+    rankLabel: '#8 na Amazon Books',
+    name: 'Saúde Integrativa, Longevidade & Biohacking',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Não-Ficção',
+    bsrRange: 'Top 80 - 2400 BSR',
+    dailySalesEstimate: 6800,
+    avgPriceUsd: 9.99,
+    unitRoyaltyUsdMin: 4.10,
+    unitRoyaltyUsdMax: 7.50,
+    unitRoyaltyFormatted: 'U$ 4.10 - U$ 7.50',
+    royaltyNote: 'Excelente Venda em Capa Dura e E-book',
+    opportunityScore: 91,
+    competitionLevel: 'Média',
+    description: 'Ciência da longevidade, sono profundo, alimentação funcional, controle glicêmico e rotinas de saúde preventiva.',
+    popularKeywords: ['Longevidade Ativa', 'Biohacking Prático', 'Sono Reparador', 'Saúde Metabólica'],
+    substyles: [
+      { id: 'longevity', name: 'Ciência da Longevidade e Rejuvenescimento Celular', searchKeyword: 'longevity outlive science health book bestseller', targetAudience: 'Adultos de 30 a 65 anos focados em vitalidade', kdpFormatTip: '6x9 pol • 340 págs', royaltyEstimate: 'U$ 4.80 - U$ 8.20' },
+      { id: 'gut-health', name: 'Saúde Intestinal e Imunidade Funcional', searchKeyword: 'gut health microbiome immunity practical book', targetAudience: 'Pessoas buscando energia e bem-estar digestivo', kdpFormatTip: '5.5x8.5 pol • 220 págs', royaltyEstimate: 'U$ 3.80 - U$ 6.50' },
+      { id: 'sleep-optimization', name: 'Otimização do Sono e Recuperação Energética', searchKeyword: 'sleep optimization energy recovery book', targetAudience: 'Trabalhadores e atletas com insônia ou cansaço', kdpFormatTip: '5.5x8.5 pol • 200 págs', royaltyEstimate: 'U$ 3.50 - U$ 5.90' }
+    ],
+    sampleBestSellers: [
+      { title: 'Outlive: The Science and Art of Longevity', author: 'Peter Attia', bsr: 5, priceUsd: 16.99, royaltyPerBook: 8.50, asin: '0593236599', coverImage: 'https://m.media-amazon.com/images/I/71XbgOtX66L._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 9. GUIAS PRÁTICOS & PRODUTIVIDADE (#9)
+  {
+    id: 'practical-guide',
+    rankNumber: 9,
+    rankLabel: '#9 na Amazon Books',
+    name: 'Guias Práticos, Produtividade & Métodos Ágeis',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Não-Ficção',
+    bsrRange: 'Top 90 - 2800 BSR',
+    dailySalesEstimate: 6200,
+    avgPriceUsd: 8.99,
+    unitRoyaltyUsdMin: 3.90,
+    unitRoyaltyUsdMax: 6.80,
+    unitRoyaltyFormatted: 'U$ 3.90 - U$ 6.80',
+    royaltyNote: 'Formatos Diretos e Alta Satisfação do Leitor',
+    opportunityScore: 89,
+    competitionLevel: 'Média',
+    description: 'Manuais passo a passo para dominar novas habilidades, otimizar processos de trabalho e gerenciar tempo.',
+    popularKeywords: ['Produtividade Ágil', 'Time Blocking', 'Gestão de Foco', 'Passo a Passo'],
+    substyles: [
+      { id: 'agile-productivity', name: 'Métodos Ágeis para a Vida Pessoal', searchKeyword: 'agile productivity time management book', targetAudience: 'Profissionais modernos e gestores', kdpFormatTip: '5.5x8.5 pol • 210 págs', royaltyEstimate: 'U$ 3.80 - U$ 6.20' },
+      { id: 'digital-minimalism', name: 'Minimalismo Digital e Foco Sem Distrações', searchKeyword: 'digital minimalism focus productivity book', targetAudience: 'Pessoas saturadas de redes sociais e notificações', kdpFormatTip: '5x8 pol • 190 págs', royaltyEstimate: 'U$ 3.50 - U$ 5.80' }
+    ],
+    sampleBestSellers: [
+      { title: 'Make Time: How to Focus on What Matters', author: 'Jake Knapp', bsr: 110, priceUsd: 11.99, royaltyPerBook: 5.20, asin: '0525572422', coverImage: 'https://m.media-amazon.com/images/I/71rpaZ1p05L._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 10. BIOGRAFIAS, MEMÓRIAS & TRUE CRIME (#10)
+  {
+    id: 'biography',
+    rankNumber: 10,
+    rankLabel: '#10 na Amazon Books',
+    name: 'Biografias, Memórias & True Crime',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Não-Ficção',
+    bsrRange: 'Top 100 - 3200 BSR',
+    dailySalesEstimate: 5900,
+    avgPriceUsd: 11.99,
+    unitRoyaltyUsdMin: 4.80,
+    unitRoyaltyUsdMax: 8.50,
+    unitRoyaltyFormatted: 'U$ 4.80 - U$ 8.50',
+    royaltyNote: 'Alto Ticket de Venda e Interesse do Público Geral',
+    opportunityScore: 88,
+    competitionLevel: 'Média',
+    description: 'Narrativas reais de superação, casos policiais chocantes de True Crime e trajetórias de personalidades históricas.',
+    popularKeywords: ['True Crime Real', 'Histórias de Superação', 'Memórias de Vida', 'Investigação Criminal'],
+    substyles: [
+      { id: 'true-crime', name: 'True Crime & Investigações de Casos Reais', searchKeyword: 'true crime books bestseller serial killer cases', targetAudience: 'Entusiastas de documentários policiais e mistérios reais', kdpFormatTip: '6x9 pol • 320 págs', royaltyEstimate: 'U$ 4.50 - U$ 7.90' },
+      { id: 'inspiring-memoir', name: 'Memórias de Superação e Resiliência', searchKeyword: 'inspirational memoir overcoming adversity bestseller', targetAudience: 'Público que busca motivação através de fatos reais', kdpFormatTip: '5.5x8.5 pol • 260 págs', royaltyEstimate: 'U$ 4.20 - U$ 7.20' }
+    ],
+    sampleBestSellers: [
+      { title: 'Educated', author: 'Tara Westover', bsr: 60, priceUsd: 13.99, royaltyPerBook: 6.50, asin: '0399590501', coverImage: 'https://m.media-amazon.com/images/I/81NwZZUjV-L._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 11. LIVROS DE BAIXO CONTEÚDO: COLORIR (#102)
   {
     id: 'coloring-book',
     rankNumber: 102,
@@ -399,35 +484,7 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     ]
   },
 
-  // 12. BIOGRAFIAS, MEMÓRIAS & TRUE CRIME (#18)
-  {
-    id: 'biography',
-    rankNumber: 18,
-    rankLabel: '#18 na Amazon Books',
-    name: 'Biografias, Memórias & True Crime',
-    categoryGroup: 'nao-ficcao',
-    categoryGroupLabel: 'Não-Ficção',
-    bsrRange: 'Top 180 - 4500 BSR',
-    dailySalesEstimate: 4900,
-    avgPriceUsd: 11.99,
-    unitRoyaltyUsdMin: 4.80,
-    unitRoyaltyUsdMax: 8.50,
-    unitRoyaltyFormatted: 'U$ 4.80 - U$ 8.50',
-    royaltyNote: 'Alto Ticket de Venda e Interesse do Público Geral',
-    opportunityScore: 86,
-    competitionLevel: 'Média',
-    description: 'Narrativas reais de superação, casos policiais chocantes de True Crime e trajetórias de personalidades históricas.',
-    popularKeywords: ['True Crime Real', 'Histórias de Superação', 'Memórias de Vida', 'Investigação Criminal'],
-    substyles: [
-      { id: 'true-crime', name: 'True Crime & Investigações de Casos Reais', searchKeyword: 'true crime books bestseller serial killer cases', targetAudience: 'Entusiastas de documentários policiais e mistérios reais', kdpFormatTip: '6x9 pol • 320 págs', royaltyEstimate: 'U$ 4.50 - U$ 7.90' },
-      { id: 'inspiring-memoir', name: 'Memórias de Superação e Resiliência', searchKeyword: 'inspirational memoir overcoming adversity bestseller', targetAudience: 'Público que busca motivação através de fatos reais', kdpFormatTip: '5.5x8.5 pol • 260 págs', royaltyEstimate: 'U$ 4.20 - U$ 7.20' }
-    ],
-    sampleBestSellers: [
-      { title: 'Educated', author: 'Tara Westover', bsr: 60, priceUsd: 13.99, royaltyPerBook: 6.50, asin: '0399590501', coverImage: 'https://m.media-amazon.com/images/I/81NwZZUjV-L._AC_UY218_.jpg' }
-    ]
-  },
-
-  // 13. CULINÁRIA, DIETAS & RECEITAS (#22)
+  // 12. CULINÁRIA, DIETAS & RECEITAS (#22)
   {
     id: 'technical-manual',
     rankNumber: 22,
