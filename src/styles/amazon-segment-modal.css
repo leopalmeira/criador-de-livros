@@ -544,6 +544,197 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
+/* SUBESTILOS & VARIAÇÕES DA CATEGORIA */
+.amazon-substyles-section {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.amazon-substyles-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.amazon-substyles-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.amazon-substyles-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.amazon-substyle-chip {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.amazon-substyle-chip:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.amazon-substyle-chip.active {
+  background: #1e293b;
+  border-color: #1e293b;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* CARDS DE LIVROS REAIS DA AMAZON COM CAPA */
+.amazon-live-books-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.amazon-live-book-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.amazon-live-book-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
+}
+
+.amazon-live-book-card.selected {
+  border-color: #2563eb;
+  background: #f8faff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.amazon-book-cover-thumb {
+  width: 42px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.amazon-book-info-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.amazon-book-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.amazon-book-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.amazon-book-author {
+  font-size: 11px;
+  color: #64748b;
+  margin: 1px 0 3px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.amazon-book-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.amazon-book-price-tag {
+  font-weight: 700;
+  color: #059669;
+}
+
+.amazon-book-royalty-tag {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.amazon-book-asin-tag {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-family: monospace;
+}
+
+.amazon-book-ext-link {
+  color: #94a3b8;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+}
+
+.amazon-book-ext-link:hover {
+  color: #ea580c;
+  background: #fff7ed;
+}
+
+.amazon-live-loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  justify-content: center;
+  font-size: 12px;
+  color: #2563eb;
+  background: #eff6ff;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
 /* FOOTER DE AÇÕES */
 .amazon-footer-actions {
   display: flex;

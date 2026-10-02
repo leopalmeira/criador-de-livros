@@ -1,14 +1,36 @@
 // ============================================================
-// SERVIÇO DE INTELIGÊNCIA DE MERCADO AMAZON KDP (GITHUB API PATTERN)
-// Dados consolidados de rankings BSR da Amazon, volume de vendas
-// e estimativas de royalties líquidos em U$ por livro vendido.
+// SERVIÇO DE INTELIGÊNCIA DE MERCADO AMAZON KDP (LIVE & HISTORICAL)
+// Dados consolidados e integração em tempo real com Amazon Books.
+// Extrai ASINs, imagens reais, reviews reais, preços em U$ e variações.
 // ============================================================
 
 import { BookType } from '../types/book-project';
 
+export interface AmazonLiveBook {
+  asin: string;
+  title: string;
+  author: string;
+  priceUsd: number;
+  royaltyEstUsd: number;
+  rating: number;
+  reviewsCount: number;
+  coverImage: string;
+  amazonUrl: string;
+  badge?: string;
+}
+
+export interface AmazonSubstyleVariation {
+  id: string;
+  name: string;
+  searchKeyword: string;
+  targetAudience: string;
+  kdpFormatTip: string;
+  royaltyEstimate: string;
+}
+
 export interface AmazonRankedSegment {
   id: BookType;
-  rankNumber: number; // ex: 3 para #Suspense, 102 para #Colorir
+  rankNumber: number; // ex: 1, 2, 3... 102...
   rankLabel: string; // ex: "#3 na Amazon Books"
   name: string;
   categoryGroup: 'ficcao' | 'nao-ficcao' | 'baixo-conteudo' | 'infantil';
@@ -24,12 +46,15 @@ export interface AmazonRankedSegment {
   competitionLevel: 'Baixa' | 'Média' | 'Alta' | 'Explosiva';
   description: string;
   popularKeywords: string[];
+  substyles: AmazonSubstyleVariation[];
   sampleBestSellers: {
     title: string;
     author: string;
     bsr: number;
     priceUsd: number;
     royaltyPerBook: number;
+    asin?: string;
+    coverImage?: string;
   }[];
 }
 
@@ -42,6 +67,7 @@ export type SegmentFilterType =
   | 'non_fiction';
 
 export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
+  // 1. ROMANCE & NEW ADULT (#1)
   {
     id: 'romance',
     rankNumber: 1,
@@ -60,11 +86,21 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     competitionLevel: 'Explosiva',
     description: 'Nicho líder absoluto em volume na Amazon. Leitoras vorazes de Enemies to Lovers, bilionários e romances intensos.',
     popularKeywords: ['Enemies to Lovers', 'Dark Romance', 'Fake Dating', 'Bilionário'],
+    substyles: [
+      { id: 'enemies-lovers', name: 'Enemies to Lovers', searchKeyword: 'enemies to lovers romance bestseller', targetAudience: 'Leitoras New Adult (18-35)', kdpFormatTip: '5.5x8.5 pol • 320 págs', royaltyEstimate: 'U$ 2.80 - U$ 3.49' },
+      { id: 'dark-romance', name: 'Dark Romance & Máfia', searchKeyword: 'dark romance mafia bestseller book', targetAudience: 'Fãs de romances intensos e anti-heróis', kdpFormatTip: '5.5x8.5 pol • 350 págs', royaltyEstimate: 'U$ 3.10 - U$ 4.20' },
+      { id: 'billionaire', name: 'Bilionário & Romance de Escritório', searchKeyword: 'billionaire romance novel bestseller', targetAudience: 'Romance corporativo e drama', kdpFormatTip: '5.5x8.5 pol • 280 págs', royaltyEstimate: 'U$ 2.80 - U$ 3.49' },
+      { id: 'romcom', name: 'Comédia Romântica Leve (Rom-Com)', searchKeyword: 'romantic comedy book bestseller', targetAudience: 'Público amplo em busca de finais felizes', kdpFormatTip: '5x8 pol • 260 págs', royaltyEstimate: 'U$ 2.50 - U$ 3.20' },
+      { id: 'romantasy', name: 'Romantasy (Fantasia Romântica)', searchKeyword: 'romantasy fantasy romance bestseller', targetAudience: 'Leitores de mundos mágicos e casais fated mates', kdpFormatTip: '6x9 pol • 420 págs', royaltyEstimate: 'U$ 4.20 - U$ 6.50' },
+      { id: 'sports-romance', name: 'Sports Romance (Atletas e Hóquei)', searchKeyword: 'sports romance hockey novel', targetAudience: 'Público jovem fã de rivalidades esportivas', kdpFormatTip: '5.5x8.5 pol • 300 págs', royaltyEstimate: 'U$ 2.80 - U$ 3.50' }
+    ],
     sampleBestSellers: [
-      { title: 'It Ends with Us', author: 'Colleen Hoover', bsr: 12, priceUsd: 10.99, royaltyPerBook: 4.20 },
-      { title: 'Fourth Wing', author: 'Rebecca Yarros', bsr: 8, priceUsd: 14.99, royaltyPerBook: 5.80 }
+      { title: 'It Ends with Us', author: 'Colleen Hoover', bsr: 12, priceUsd: 10.99, royaltyPerBook: 4.20, asin: '1501110365', coverImage: 'https://m.media-amazon.com/images/I/71E8VNJ-8NL._AC_UY218_.jpg' },
+      { title: 'Fourth Wing', author: 'Rebecca Yarros', bsr: 8, priceUsd: 14.99, royaltyPerBook: 5.80, asin: '1649374046', coverImage: 'https://m.media-amazon.com/images/I/91n7p-j5aqL._AC_UY218_.jpg' }
     ]
   },
+
+  // 2. DESENVOLVIMENTO PESSOAL & HÁBITOS (#2)
   {
     id: 'self-help',
     rankNumber: 2,
@@ -83,11 +119,19 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     competitionLevel: 'Alta',
     description: 'Hábitos atômicos, disciplina e reprogramação mental. Alta busca orgânica constante ao longo de todo o ano.',
     popularKeywords: ['Micro-Hábitos', 'Foco Inabalável', 'Disciplina Diária', 'Inteligência Emocional'],
+    substyles: [
+      { id: 'habits', name: 'Micro-Hábitos e Rotinas de Alta Performance', searchKeyword: 'atomic habits self help discipline book', targetAudience: 'Profissionais e adultos focados em disciplina', kdpFormatTip: '5.5x8.5 pol • 220 págs', royaltyEstimate: 'U$ 3.50 - U$ 5.60' },
+      { id: 'mindfulness', name: 'Mindfulness e Gestão da Ansiedade', searchKeyword: 'mindfulness anxiety relief practical book', targetAudience: 'Pessoas com rotinas estressantes', kdpFormatTip: '5x8 pol • 180 págs', royaltyEstimate: 'U$ 3.20 - U$ 4.80' },
+      { id: 'stoic', name: 'Estoicismo e Sabedoria Prática', searchKeyword: 'stoicism practical daily guide book', targetAudience: 'Leitores de filosofia e autocontrole', kdpFormatTip: '5.5x8.5 pol • 240 págs', royaltyEstimate: 'U$ 3.80 - U$ 5.90' },
+      { id: 'focus', name: 'Foco Profundo e Eliminação de Distrações', searchKeyword: 'deep work focus productivity book', targetAudience: 'Trabalhadores do conhecimento e estudantes', kdpFormatTip: '5.5x8.5 pol • 200 págs', royaltyEstimate: 'U$ 3.50 - U$ 5.20' }
+    ],
     sampleBestSellers: [
-      { title: 'Atomic Habits', author: 'James Clear', bsr: 2, priceUsd: 11.99, royaltyPerBook: 5.20 },
-      { title: 'The Mountain Is You', author: 'Brianna Wiest', bsr: 25, priceUsd: 9.99, royaltyPerBook: 4.50 }
+      { title: 'Atomic Habits', author: 'James Clear', bsr: 2, priceUsd: 11.99, royaltyPerBook: 5.20, asin: '0735211299', coverImage: 'https://m.media-amazon.com/images/I/81F90H7hnML._AC_UY218_.jpg' },
+      { title: 'The Mountain Is You', author: 'Brianna Wiest', bsr: 25, priceUsd: 9.99, royaltyPerBook: 4.50, asin: '1949759229', coverImage: 'https://m.media-amazon.com/images/I/71wLpWjY1qL._AC_UY218_.jpg' }
     ]
   },
+
+  // 3. SUSPENSE, MISTÉRIO & THRILLER (#3)
   {
     id: 'thriller',
     rankNumber: 3,
@@ -101,16 +145,25 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     unitRoyaltyUsdMin: 2.45,
     unitRoyaltyUsdMax: 4.80,
     unitRoyaltyFormatted: 'U$ 2.45 - U$ 4.80',
-    royaltyNote: '70% KDP + Alta retenção de páginas no KU',
+    royaltyNote: 'Altíssima retenção Kindle Unlimited',
     opportunityScore: 94,
     competitionLevel: 'Alta',
     description: 'Enredos instigantes com plot twists inesperados e investigações policiais que prendem o leitor até a última página.',
-    popularKeywords: ['Suspense Psicológico', 'Plot Twist', 'Detetive Particular', 'Conspiração'],
+    popularKeywords: ['Thriller Psicológico', 'Plot Twist', 'Investigação Policial', 'Suspense Doméstico'],
+    substyles: [
+      { id: 'psychological-thriller', name: 'Thriller Psicológico & Suspense Doméstico', searchKeyword: 'psychological thriller book bestseller', targetAudience: 'Leitores vorazes de Freida McFadden e Gillian Flynn', kdpFormatTip: '5.5x8.5 pol • 280 págs', royaltyEstimate: 'U$ 2.45 - U$ 4.80' },
+      { id: 'police-detective', name: 'Investigação Policial & Detetive', searchKeyword: 'detective mystery crime novel bestseller', targetAudience: 'Fãs de caçadas a criminosos e quebra-cabeças forenses', kdpFormatTip: '5.5x8.5 pol • 320 págs', royaltyEstimate: 'U$ 2.80 - U$ 4.50' },
+      { id: 'cozy-mystery', name: 'Cozy Mystery (Mistério Leve & Charmoso)', searchKeyword: 'cozy mystery culinary pet detective book', targetAudience: 'Leitoras de mistérios aconchegantes sem violência gráfica', kdpFormatTip: '5x8 pol • 220 págs', royaltyEstimate: 'U$ 2.20 - U$ 3.49' },
+      { id: 'legal-thriller', name: 'Thriller Jurídico & Tribunal', searchKeyword: 'legal courtroom thriller novel', targetAudience: 'Fãs de reviravoltas no júri e advogados astutos', kdpFormatTip: '6x9 pol • 340 págs', royaltyEstimate: 'U$ 3.10 - U$ 4.90' },
+      { id: 'noir-crime', name: 'Crime Noir & Conspirações de Espionagem', searchKeyword: 'spy espionage noir thriller book', targetAudience: 'Amantes de histórias de agentes secretos e conspirações', kdpFormatTip: '5.5x8.5 pol • 310 págs', royaltyEstimate: 'U$ 2.90 - U$ 4.60' }
+    ],
     sampleBestSellers: [
-      { title: 'The Housemaid', author: 'Freida McFadden', bsr: 5, priceUsd: 6.99, royaltyPerBook: 3.80 },
-      { title: 'The Silent Patient', author: 'Alex Michaelides', bsr: 22, priceUsd: 8.99, royaltyPerBook: 4.10 }
+      { title: 'The Housemaid (A Empregada)', author: 'Freida McFadden', bsr: 4, priceUsd: 5.99, royaltyPerBook: 4.19, asin: '1538742578', coverImage: 'https://m.media-amazon.com/images/I/81AHTyq2wVL._AC_UY218_.jpg' },
+      { title: 'The Silent Patient', author: 'Alex Michaelides', bsr: 18, priceUsd: 8.99, royaltyPerBook: 3.90, asin: '1250301696', coverImage: 'https://m.media-amazon.com/images/I/81JJPDNlxSL._AC_UY218_.jpg' }
     ]
   },
+
+  // 4. NEGÓCIOS, GESTÃO & LIDERANÇA (#4)
   {
     id: 'business',
     rankNumber: 4,
@@ -118,245 +171,177 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     name: 'Negócios, Gestão & Liderança',
     categoryGroup: 'nao-ficcao',
     categoryGroupLabel: 'Não-Ficção',
-    bsrRange: 'Top 30 - 700 BSR',
+    bsrRange: 'Top 50 - 1200 BSR',
     dailySalesEstimate: 9600,
-    avgPriceUsd: 12.99,
+    avgPriceUsd: 9.99,
     unitRoyaltyUsdMin: 4.80,
-    unitRoyaltyUsdMax: 9.09,
+    unitRoyaltyUsdMax: 9.10,
     unitRoyaltyFormatted: 'U$ 4.80 - U$ 9.10',
-    royaltyNote: 'Ticket Médio Alto • Alto Valor Percebido',
-    opportunityScore: 89,
-    competitionLevel: 'Média',
-    description: 'Estratégias de escala corporativa, gestão de times e vendas B2B. Leitores compram em formatos físicos e digitais.',
-    popularKeywords: ['Gestão de Equipes', 'Empreendedorismo', 'Vendas B2B', 'Cultura de Alta Performance'],
-    sampleBestSellers: [
-      { title: 'Good to Great', author: 'Jim Collins', bsr: 65, priceUsd: 13.99, royaltyPerBook: 6.50 },
-      { title: 'Zero to One', author: 'Peter Thiel', bsr: 82, priceUsd: 12.99, royaltyPerBook: 5.90 }
-    ]
-  },
-  {
-    id: 'finance',
-    rankNumber: 5,
-    rankLabel: '#5 na Amazon Books',
-    name: 'Finanças Pessoais & Renda Passiva',
-    categoryGroup: 'nao-ficcao',
-    categoryGroupLabel: 'Não-Ficção',
-    bsrRange: 'Top 40 - 800 BSR',
-    dailySalesEstimate: 8900,
-    avgPriceUsd: 11.99,
-    unitRoyaltyUsdMin: 4.50,
-    unitRoyaltyUsdMax: 8.39,
-    unitRoyaltyFormatted: 'U$ 4.50 - U$ 8.40',
-    royaltyNote: 'Maior Ticket Médio por Livro Vendido',
+    royaltyNote: 'Maior Ticket Médio de Venda e Royalties',
     opportunityScore: 91,
     competitionLevel: 'Média',
-    description: 'Liberdade financeira, fluxo de caixa, investimentos e estratégias para criar patrimônio duradouro.',
-    popularKeywords: ['Renda Passiva', 'Dividendos', 'Independência Financeira', 'Mentalidade Próspera'],
+    description: 'Estratégias de escala corporativa, gestão de times e vendas B2B. Leitores compram no preço cheio sem hesitar.',
+    popularKeywords: ['Liderança Executiva', 'Vendas Consultivas', 'Cultura Empresarial', 'Gestão Ágil'],
+    substyles: [
+      { id: 'leadership', name: 'Liderança Consciente e Gestão de Equipes', searchKeyword: 'executive leadership management book bestseller', targetAudience: 'Gestores, diretores e coordenadores', kdpFormatTip: '6x9 pol • 240 págs', royaltyEstimate: 'U$ 4.80 - U$ 8.50' },
+      { id: 'sales-b2b', name: 'Vendas Complexas e Negociação Estratégica', searchKeyword: 'b2b sales negotiation tactics book', targetAudience: 'Executivos de vendas e empreendedores', kdpFormatTip: '6x9 pol • 220 págs', royaltyEstimate: 'U$ 5.20 - U$ 9.10' },
+      { id: 'startup', name: 'Startups, Escala e Inovação Ágil', searchKeyword: 'lean startup scaling business book', targetAudience: 'Founders e profissionais de tecnologia', kdpFormatTip: '6x9 pol • 260 págs', royaltyEstimate: 'U$ 4.90 - U$ 8.20' }
+    ],
     sampleBestSellers: [
-      { title: 'The Psychology of Money', author: 'Morgan Housel', bsr: 15, priceUsd: 11.99, royaltyPerBook: 5.40 },
-      { title: 'Rich Dad Poor Dad', author: 'Robert Kiyosaki', bsr: 35, priceUsd: 9.99, royaltyPerBook: 4.60 }
+      { title: 'Good to Great', author: 'Jim Collins', bsr: 45, priceUsd: 14.99, royaltyPerBook: 7.20, asin: '0066620996', coverImage: 'https://m.media-amazon.com/images/I/71j1wPqSURL._AC_UY218_.jpg' },
+      { title: 'Never Split the Difference', author: 'Chris Voss', bsr: 32, priceUsd: 12.99, royaltyPerBook: 6.10, asin: '0062407805', coverImage: 'https://m.media-amazon.com/images/I/81xU-Uv-5jL._AC_UY218_.jpg' }
     ]
   },
-  {
-    id: 'health-wellness',
-    rankNumber: 6,
-    rankLabel: '#6 na Amazon Books',
-    name: 'Saúde, Sono & Longevidade',
-    categoryGroup: 'nao-ficcao',
-    categoryGroupLabel: 'Não-Ficção',
-    bsrRange: 'Top 50 - 950 BSR',
-    dailySalesEstimate: 7400,
-    avgPriceUsd: 8.99,
-    unitRoyaltyUsdMin: 3.20,
-    unitRoyaltyUsdMax: 6.29,
-    unitRoyaltyFormatted: 'U$ 3.20 - U$ 6.30',
-    royaltyNote: 'Demanda Contínua • Forte em Paperback',
-    opportunityScore: 88,
-    competitionLevel: 'Média',
-    description: 'Protocolos de sono restaurador, redução de estresse e biohacking para viver mais e com energia abundante.',
-    popularKeywords: ['Sono Reparador', 'Desinflamação', 'Biohacking', 'Rotina Saudável'],
-    sampleBestSellers: [
-      { title: 'Why We Sleep', author: 'Matthew Walker', bsr: 45, priceUsd: 10.99, royaltyPerBook: 4.80 },
-      { title: 'Outlive', author: 'Peter Attia', bsr: 18, priceUsd: 16.99, royaltyPerBook: 7.20 }
-    ]
-  },
+
+  // 5. FANTASIA ÉPICA & MITOLOGIA (#5)
   {
     id: 'fantasy',
-    rankNumber: 7,
-    rankLabel: '#7 na Amazon Books',
-    name: 'Fantasia Épica & Romance Fantasia',
+    rankNumber: 5,
+    rankLabel: '#5 na Amazon Books',
+    name: 'Fantasia Épica, Magia & Mitologia',
     categoryGroup: 'ficcao',
-    categoryGroupLabel: 'Ficção & Magia',
-    bsrRange: 'Top 60 - 1100 BSR',
-    dailySalesEstimate: 6900,
-    avgPriceUsd: 5.99,
-    unitRoyaltyUsdMin: 2.90,
-    unitRoyaltyUsdMax: 4.80,
-    unitRoyaltyFormatted: 'U$ 2.90 - U$ 4.80',
-    royaltyNote: 'Fidelidade Máxima de Séries Literárias',
-    opportunityScore: 87,
-    competitionLevel: 'Alta',
-    description: 'Reinos ancestrais, sistemas de magia e sagas de múltiplos volumes que geram leitores fiéis de série.',
-    popularKeywords: ['Fae Royals', 'Magic Academy', 'Sword & Sorcery', 'Dark Fantasy'],
-    sampleBestSellers: [
-      { title: 'A Court of Thorns and Roses', author: 'Sarah J. Maas', bsr: 9, priceUsd: 9.99, royaltyPerBook: 4.50 }
-    ]
-  },
-  {
-    id: 'sci-fi',
-    rankNumber: 8,
-    rankLabel: '#8 na Amazon Books',
-    name: 'Ficção Científica & Distopias',
-    categoryGroup: 'ficcao',
-    categoryGroupLabel: 'Ficção Científica',
-    bsrRange: 'Top 80 - 1400 BSR',
-    dailySalesEstimate: 5800,
-    avgPriceUsd: 5.99,
-    unitRoyaltyUsdMin: 3.00,
-    unitRoyaltyUsdMax: 4.90,
-    unitRoyaltyFormatted: 'U$ 3.00 - U$ 4.90',
-    royaltyNote: 'Forte em E-book & Kindle Unlimited',
-    opportunityScore: 85,
-    competitionLevel: 'Média',
-    description: 'Futuros distópicos, inteligência artificial senciente, viagens espaciais e tecnologia de fronteira.',
-    popularKeywords: ['Cyberpunk', 'Space Opera', 'Distopia', 'Inteligência Artificial'],
-    sampleBestSellers: [
-      { title: 'Project Hail Mary', author: 'Andy Weir', bsr: 28, priceUsd: 11.99, royaltyPerBook: 5.10 }
-    ]
-  },
-  {
-    id: 'children-picture-book',
-    rankNumber: 9,
-    rankLabel: '#9 na Amazon Books',
-    name: 'Livros Infantis & Fábulas Ilustradas',
-    categoryGroup: 'infantil',
-    categoryGroupLabel: 'Infantil & Ilustrado',
-    bsrRange: 'Top 100 - 1800 BSR',
-    dailySalesEstimate: 5100,
-    avgPriceUsd: 6.99,
-    unitRoyaltyUsdMin: 2.50,
-    unitRoyaltyUsdMax: 4.20,
-    unitRoyaltyFormatted: 'U$ 2.50 - U$ 4.20',
-    royaltyNote: 'Vendas Diárias para Pais e Educadores',
-    opportunityScore: 90,
-    competitionLevel: 'Média',
-    description: 'Histórias ilustradas para dormir, ensinamentos de amizade e valores humanos para os primeiros anos de vida.',
-    popularKeywords: ['Histórias de Ninar', 'Valores & Emoções', 'Animais da Floresta', 'Autoconfiança Infantil'],
-    sampleBestSellers: [
-      { title: 'The Wonderful Things You Will Be', author: 'Emily Winfield Martin', bsr: 30, priceUsd: 8.99, royaltyPerBook: 3.80 }
-    ]
-  },
-  {
-    id: 'practical-guide',
-    rankNumber: 10,
-    rankLabel: '#10 na Amazon Books',
-    name: 'Tecnologia, IA & Produtividade',
-    categoryGroup: 'nao-ficcao',
-    categoryGroupLabel: 'Não-Ficção Prática',
-    bsrRange: 'Top 120 - 2200 BSR',
-    dailySalesEstimate: 4600,
-    avgPriceUsd: 9.99,
-    unitRoyaltyUsdMin: 4.20,
-    unitRoyaltyUsdMax: 7.90,
-    unitRoyaltyFormatted: 'U$ 4.20 - U$ 7.90',
-    royaltyNote: 'Alto Ticket • Crescimento Exponencial',
-    opportunityScore: 93,
-    competitionLevel: 'Baixa',
-    description: 'Automações no trabalho, prompts para IA e novas ferramentas de tecnologia sem jargão inacessível.',
-    popularKeywords: ['Inteligência Artificial Prática', 'Prompt Engineering', 'Automação no Trabalho'],
-    sampleBestSellers: [
-      { title: 'The AI Revolution Handbook', author: 'Tech Leaders', bsr: 110, priceUsd: 12.99, royaltyPerBook: 6.10 }
-    ]
-  },
-  {
-    id: 'biography',
-    rankNumber: 14,
-    rankLabel: '#14 na Amazon Books',
-    name: 'Biografias & Histórias de Vida',
-    categoryGroup: 'nao-ficcao',
-    categoryGroupLabel: 'Não-Ficção',
-    bsrRange: 'Top 150 - 2800 BSR',
-    dailySalesEstimate: 3800,
-    avgPriceUsd: 11.99,
-    unitRoyaltyUsdMin: 4.80,
-    unitRoyaltyUsdMax: 8.90,
-    unitRoyaltyFormatted: 'U$ 4.80 - U$ 8.90',
-    royaltyNote: 'Prestígio & Alto Preço de Capa',
-    opportunityScore: 82,
-    competitionLevel: 'Média',
-    description: 'Trajetórias inspiradoras, superação de crises históricas e lições de vida de grandes mentes.',
-    popularKeywords: ['Resiliência Real', 'Líderes Históricos', 'Memórias Inspiradoras'],
-    sampleBestSellers: [
-      { title: 'Steve Jobs', author: 'Walter Isaacson', bsr: 95, priceUsd: 14.99, royaltyPerBook: 6.80 }
-    ]
-  },
-  {
-    id: 'technical-manual',
-    rankNumber: 22,
-    rankLabel: '#22 na Amazon Books',
-    name: 'Culinária, Dietas & Receitas Fáceis',
-    categoryGroup: 'nao-ficcao',
-    categoryGroupLabel: 'Guias Práticos',
-    bsrRange: 'Top 250 - 4500 BSR',
-    dailySalesEstimate: 3100,
+    categoryGroupLabel: 'Ficção & Fantasia',
+    bsrRange: 'Top 40 - 1500 BSR',
+    dailySalesEstimate: 8900,
     avgPriceUsd: 6.99,
     unitRoyaltyUsdMin: 3.20,
     unitRoyaltyUsdMax: 5.80,
     unitRoyaltyFormatted: 'U$ 3.20 - U$ 5.80',
-    royaltyNote: 'Alta Conversão e Presente Ideal',
-    opportunityScore: 84,
-    competitionLevel: 'Média',
-    description: 'Receitas rápidas na Air Fryer, marmitas saudáveis, cetogênica e confeitaria lucrativa.',
-    popularKeywords: ['Air Fryer em 15 Min', 'Low Carb Fácil', 'Marmitas Saudáveis'],
+    royaltyNote: 'Comunidade Fiel e Leitores de Séries',
+    opportunityScore: 89,
+    competitionLevel: 'Alta',
+    description: 'Mundos mágicos imersivos, sagas dinásticas, mitologias ricas e batalhas de feitiçaria em múltiplos volumes.',
+    popularKeywords: ['Alta Fantasia', 'Magia Ancestral', 'Worldbuilding', 'Dragões e Reinos'],
+    substyles: [
+      { id: 'epic-fantasy', name: 'Alta Fantasia & Guerras Dinásticas', searchKeyword: 'epic fantasy novel worldbuilding bestseller', targetAudience: 'Fãs de Brandon Sanderson e George R. R. Martin', kdpFormatTip: '6x9 pol • 450 págs', royaltyEstimate: 'U$ 3.80 - U$ 6.20' },
+      { id: 'urban-fantasy', name: 'Fantasia Urbana & Caçadores Sobrenaturais', searchKeyword: 'urban fantasy detective magic book', targetAudience: 'Leitores de magia moderna e cidades ocultas', kdpFormatTip: '5.5x8.5 pol • 320 págs', royaltyEstimate: 'U$ 2.90 - U$ 4.50' },
+      { id: 'mythology', name: 'Mitologia Revisitada (Grega, Nórdica e Céltica)', searchKeyword: 'mythology retelling fantasy novel', targetAudience: 'Fãs de releituras de mitos antigos', kdpFormatTip: '5.5x8.5 pol • 300 págs', royaltyEstimate: 'U$ 3.10 - U$ 5.00' }
+    ],
     sampleBestSellers: [
-      { title: 'The Easy Air Fryer Cookbook', author: 'Linda Larsen', bsr: 140, priceUsd: 9.99, royaltyPerBook: 4.10 }
+      { title: 'The Way of Kings', author: 'Brandon Sanderson', bsr: 80, priceUsd: 12.99, royaltyPerBook: 5.50, asin: '0765365278', coverImage: 'https://m.media-amazon.com/images/I/91tK3dE-GXL._AC_UY218_.jpg' }
     ]
   },
+
+  // 6. FINANÇAS PESSOAIS & CRIPTO (#6)
+  {
+    id: 'finance',
+    rankNumber: 6,
+    rankLabel: '#6 na Amazon Books',
+    name: 'Finanças Pessoais & Renda Passiva',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Não-Ficção',
+    bsrRange: 'Top 60 - 1800 BSR',
+    dailySalesEstimate: 8200,
+    avgPriceUsd: 8.99,
+    unitRoyaltyUsdMin: 4.20,
+    unitRoyaltyUsdMax: 7.80,
+    unitRoyaltyFormatted: 'U$ 4.20 - U$ 7.80',
+    royaltyNote: 'Excelente Venda de Cópias Físicas e E-books',
+    opportunityScore: 93,
+    competitionLevel: 'Média',
+    description: 'Investimentos, liberdade financeira, fundos imobiliários, renda passiva e inteligência orçamentária.',
+    popularKeywords: ['Renda Passiva', 'Independência Financeira', 'Ações e Dividendos', 'Orçamento Inteligente'],
+    substyles: [
+      { id: 'fire', name: 'Movimento FIRE e Independência Financeira', searchKeyword: 'financial independence retire early fire book', targetAudience: 'Jovens adultos e investidores focados em liberdade', kdpFormatTip: '5.5x8.5 pol • 240 págs', royaltyEstimate: 'U$ 4.20 - U$ 6.80' },
+      { id: 'passive-income', name: 'Renda Passiva, Dividendos e Imóveis', searchKeyword: 'passive income real estate dividend investing book', targetAudience: 'Pessoas querendo criar fontes secundárias de renda', kdpFormatTip: '6x9 pol • 220 págs', royaltyEstimate: 'U$ 4.50 - U$ 7.80' },
+      { id: 'crypto-tech', name: 'Criptomoedas, Bitcoin e Web3 na Prática', searchKeyword: 'bitcoin crypto investing beginner guide book', targetAudience: 'Iniciantes em ativos digitais', kdpFormatTip: '6x9 pol • 200 págs', royaltyEstimate: 'U$ 4.90 - U$ 8.00' }
+    ],
+    sampleBestSellers: [
+      { title: 'The Psychology of Money', author: 'Morgan Housel', bsr: 9, priceUsd: 12.99, royaltyPerBook: 5.90, asin: '0857197681', coverImage: 'https://m.media-amazon.com/images/I/71TRUbzcvaL._AC_UY218_.jpg' },
+      { title: 'Rich Dad Poor Dad', author: 'Robert Kiyosaki', bsr: 15, priceUsd: 8.99, royaltyPerBook: 4.10, asin: '1612680194', coverImage: 'https://m.media-amazon.com/images/I/81bsw6fnUiL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 7. FICÇÃO CIENTÍFICA & CYBERPUNK (#7)
+  {
+    id: 'sci-fi',
+    rankNumber: 7,
+    rankLabel: '#7 na Amazon Books',
+    name: 'Ficção Científica & Distopias',
+    categoryGroup: 'ficcao',
+    categoryGroupLabel: 'Ficção & Sci-Fi',
+    bsrRange: 'Top 70 - 2200 BSR',
+    dailySalesEstimate: 7400,
+    avgPriceUsd: 5.99,
+    unitRoyaltyUsdMin: 2.80,
+    unitRoyaltyUsdMax: 4.90,
+    unitRoyaltyFormatted: 'U$ 2.80 - U$ 4.90',
+    royaltyNote: 'Público Ávido por Trilogias e Séries',
+    opportunityScore: 87,
+    competitionLevel: 'Média',
+    description: 'Futuros distópicos, inteligência artificial senciente, viagens espaciais e dilemas éticos da tecnologia.',
+    popularKeywords: ['Cyberpunk', 'Space Opera', 'Distopia', 'Inteligência Artificial'],
+    substyles: [
+      { id: 'space-opera', name: 'Space Opera & Frotas Espaciais', searchKeyword: 'space opera military science fiction bestseller', targetAudience: 'Leitores de exploração interestelar e naves de combate', kdpFormatTip: '6x9 pol • 380 págs', royaltyEstimate: 'U$ 3.20 - U$ 5.10' },
+      { id: 'cyberpunk', name: 'Cyberpunk & Megacorporações Futuristas', searchKeyword: 'cyberpunk sci fi novel hacker dystopia', targetAudience: 'Fãs de Blade Runner e distopias tecnológicas', kdpFormatTip: '5.5x8.5 pol • 300 págs', royaltyEstimate: 'U$ 2.80 - U$ 4.60' },
+      { id: 'time-travel', name: 'Viagem no Tempo e Paradoxo Quântico', searchKeyword: 'time travel paradox sci fi book', targetAudience: 'Leitores que amam quebra-cabeças temporais', kdpFormatTip: '5.5x8.5 pol • 290 págs', royaltyEstimate: 'U$ 2.90 - U$ 4.80' }
+    ],
+    sampleBestSellers: [
+      { title: 'Project Hail Mary', author: 'Andy Weir', bsr: 22, priceUsd: 13.99, royaltyPerBook: 6.20, asin: '0593135202', coverImage: 'https://m.media-amazon.com/images/I/81z4k2B9RmL._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 8. LIVROS DE BAIXO CONTEÚDO: COLORIR (#102)
   {
     id: 'coloring-book',
     rankNumber: 102,
     rankLabel: '#102 na Amazon Books',
-    name: 'Colorir & Arte Terapêutica (Anti-Estresse)',
+    name: 'Livros de Colorir (KDP Low Content)',
     categoryGroup: 'baixo-conteudo',
     categoryGroupLabel: 'Baixo Conteúdo / KDP',
-    bsrRange: 'Top 500 - 8500 BSR',
-    dailySalesEstimate: 2200,
-    avgPriceUsd: 6.99,
-    unitRoyaltyUsdMin: 1.90,
-    unitRoyaltyUsdMax: 3.20,
-    unitRoyaltyFormatted: 'U$ 1.90 - U$ 3.20',
-    royaltyNote: 'Royalty Líquido por Impressão Paperback',
+    bsrRange: 'Top 500 - 8000 BSR',
+    dailySalesEstimate: 3200,
+    avgPriceUsd: 7.99,
+    unitRoyaltyUsdMin: 1.95,
+    unitRoyaltyUsdMax: 3.60,
+    unitRoyaltyFormatted: 'U$ 1.95 - U$ 3.60',
+    royaltyNote: '100% Cópia Impressa (Paperback KDP)',
     opportunityScore: 95,
-    competitionLevel: 'Baixa',
-    description: 'Ilustrações para alívio do estresse, mandalas e arte terapêutica. Criação ágil com altíssima escala no KDP.',
-    popularKeywords: ['Mandalas Relaxantes', 'Padrões Antiestresse', 'Colorir para Adultos'],
+    competitionLevel: 'Média',
+    description: 'Mandalas anti-stress para adultos, animais fofos para crianças e ilustrações relaxantes em preto e branco.',
+    popularKeywords: ['Livro de Colorir Adulto', 'Coloring Book Mandala', 'Animais Fofos', 'Relaxante Anti-Stress'],
+    substyles: [
+      { id: 'adult-mandala', name: 'Mandalas & Padrões Geométricos Anti-Stress', searchKeyword: 'adult coloring book mandalas stress relief bestseller', targetAudience: 'Adultos buscando alívio de ansiedade e mindfulness', kdpFormatTip: '8.5x11 pol • 100 págs (costas em branco)', royaltyEstimate: 'U$ 2.20 - U$ 3.60' },
+      { id: 'kids-animals', name: 'Animais Fofos e Aventuras Infantis', searchKeyword: 'kids coloring book cute animals toddlers', targetAudience: 'Crianças de 3 a 8 anos e pais compradores', kdpFormatTip: '8.5x11 pol • 80 págs', royaltyEstimate: 'U$ 1.95 - U$ 2.90' },
+      { id: 'spooky-cozy', name: 'Cozy & Spooky (Tendência Viral TikTok)', searchKeyword: 'spooky cute cozy coloring book bold easy', targetAudience: 'Jovens e público do BookTok e ColoringTok', kdpFormatTip: '8.5x8.5 pol ou 8.5x11 pol • 90 págs', royaltyEstimate: 'U$ 2.40 - U$ 3.80' },
+      { id: 'botanical-flowers', name: 'Jardins Secretos e Botânica Floral', searchKeyword: 'flower botanical coloring book adult stress relief', targetAudience: 'Entusiastas de arte e natureza', kdpFormatTip: '8.5x11 pol • 110 págs', royaltyEstimate: 'U$ 2.10 - U$ 3.50' }
+    ],
     sampleBestSellers: [
-      { title: 'Secret Garden: An Inky Treasure Hunt', author: 'Johanna Basford', bsr: 210, priceUsd: 9.99, royaltyPerBook: 3.10 },
-      { title: 'Adult Coloring Book: Stress Relieving Patterns', author: 'Blue Star Press', bsr: 350, priceUsd: 7.99, royaltyPerBook: 2.40 }
+      { title: 'Bobbie Goods Cozy Days', author: 'Bobbie Goods', bsr: 35, priceUsd: 9.99, royaltyPerBook: 3.10, asin: 'B0C7J8XYZ', coverImage: 'https://m.media-amazon.com/images/I/71u9gX4tWkL._AC_UY218_.jpg' },
+      { title: '100 Animals for Toddlers', author: 'Wonder Colors', bsr: 120, priceUsd: 6.99, royaltyPerBook: 2.10, asin: '1953177002', coverImage: 'https://m.media-amazon.com/images/I/81O5y3b4hUL._AC_UY218_.jpg' }
     ]
   },
+
+  // 9. DIÁRIOS, PLANNERS & GRATIDÃO (#115)
   {
     id: 'journal',
     rankNumber: 115,
     rankLabel: '#115 na Amazon Books',
-    name: 'Planners & Diários Guiados',
+    name: 'Diários Guiados, Planners & Gratidão',
     categoryGroup: 'baixo-conteudo',
     categoryGroupLabel: 'Baixo Conteúdo / KDP',
     bsrRange: 'Top 800 - 12000 BSR',
-    dailySalesEstimate: 1850,
-    avgPriceUsd: 7.99,
+    dailySalesEstimate: 2100,
+    avgPriceUsd: 8.99,
     unitRoyaltyUsdMin: 1.80,
     unitRoyaltyUsdMax: 3.10,
     unitRoyaltyFormatted: 'U$ 1.80 - U$ 3.10',
     royaltyNote: 'Paperback KDP • Alta Margem',
     opportunityScore: 88,
     competitionLevel: 'Baixa',
-    description: 'Diários de 5 minutos, planners de gratidão, metas financeiras e rastreadores de hábitos.',
-    popularKeywords: ['Diário de Gratidão', 'Planner Anual', 'Rastreador de Hábitos'],
+    description: 'Diários de 5 minutos, planners de gratidão, metas financeiras e rastreadores de hábitos diários.',
+    popularKeywords: ['Diário de Gratidão', 'Planner Anual', 'Rastreador de Hábitos', 'Prompt Journal'],
+    substyles: [
+      { id: 'gratitude-5min', name: 'Diário de Gratidão de 5 Minutos', searchKeyword: '5 minute gratitude journal morning routine', targetAudience: 'Pessoas focadas em bem-estar matinal', kdpFormatTip: '6x9 pol • 120 págs com prompts', royaltyEstimate: 'U$ 1.90 - U$ 3.10' },
+      { id: 'habit-tracker', name: 'Rastreador de Hábitos e Metas Mensais', searchKeyword: 'habit tracker planner journal minimalist', targetAudience: 'Amantes de produtividade e organização', kdpFormatTip: '6x9 pol • 140 págs', royaltyEstimate: 'U$ 2.10 - U$ 3.30' },
+      { id: 'shadow-work', name: 'Diário de Shadow Work & Autoconhecimento', searchKeyword: 'shadow work journal prompts self reflection', targetAudience: 'Pessoas em processo de autodescoberta', kdpFormatTip: '6x9 pol • 160 págs guiadas', royaltyEstimate: 'U$ 2.40 - U$ 3.80' }
+    ],
     sampleBestSellers: [
-      { title: 'The 5-Minute Journal', author: 'Intelligent Change', bsr: 280, priceUsd: 8.99, royaltyPerBook: 2.80 }
+      { title: 'The 5-Minute Journal', author: 'Intelligent Change', bsr: 280, priceUsd: 8.99, royaltyPerBook: 2.80, asin: '0991846206', coverImage: 'https://m.media-amazon.com/images/I/71Y8wO21mRL._AC_UY218_.jpg' }
     ]
   },
+
+  // 10. PASSATEMPOS, SUDOKU & CAÇA-PALAVRAS (#128)
   {
     id: 'activity-book',
     rankNumber: 128,
@@ -374,11 +359,103 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     opportunityScore: 86,
     competitionLevel: 'Baixa',
     description: 'Caça-palavras com letra grande para idosos, desafios lógicos e quebra-cabeças cognitivos.',
-    popularKeywords: ['Caça-Palavras Letra Grande', 'Sudoku Gradual', 'Jogos Mentais'],
+    popularKeywords: ['Caça-Palavras Letra Grande', 'Sudoku Gradual', 'Jogos Mentais', 'Word Search'],
+    substyles: [
+      { id: 'large-print-words', name: 'Caça-Palavras com Letra Grande (Sênior)', searchKeyword: 'large print word search for seniors bestseller', targetAudience: 'Idosos e adultos que apreciam leitura confortável', kdpFormatTip: '8.5x11 pol • 120 págs', royaltyEstimate: 'U$ 1.80 - U$ 2.90' },
+      { id: 'sudoku-progressive', name: 'Sudoku Gradual (Fácil ao Diabólico)', searchKeyword: 'sudoku puzzle book easy to hard with solutions', targetAudience: 'Aficionados por desafios de lógica matemática', kdpFormatTip: '6x9 ou 8.5x11 pol • 150 págs', royaltyEstimate: 'U$ 1.60 - U$ 2.60' },
+      { id: 'mazes-brain', name: 'Labirintos e Enigmas Cognitivos', searchKeyword: 'logic puzzles brain games book', targetAudience: 'Estudantes e adultos estimulando o cérebro', kdpFormatTip: '8.5x11 pol • 100 págs', royaltyEstimate: 'U$ 1.70 - U$ 2.80' }
+    ],
     sampleBestSellers: [
-      { title: 'The Ultimate Large Print Word Search', author: 'Puzzle King', bsr: 420, priceUsd: 6.99, royaltyPerBook: 2.10 }
+      { title: 'The Ultimate Large Print Word Search', author: 'Puzzle King', bsr: 420, priceUsd: 6.99, royaltyPerBook: 2.10, asin: '1953177118', coverImage: 'https://m.media-amazon.com/images/I/81b2H6W0X1L._AC_UY218_.jpg' }
     ]
   },
+
+  // 11. INFANTIL & PRIMEIRAS LEITURAS (#14)
+  {
+    id: 'children-picture-book',
+    rankNumber: 14,
+    rankLabel: '#14 na Amazon Books',
+    name: 'Infantil, Primeiras Leituras & Fábulas',
+    categoryGroup: 'infantil',
+    categoryGroupLabel: 'Infantil & Fábulas',
+    bsrRange: 'Top 150 - 3500 BSR',
+    dailySalesEstimate: 5800,
+    avgPriceUsd: 7.99,
+    unitRoyaltyUsdMin: 2.20,
+    unitRoyaltyUsdMax: 3.90,
+    unitRoyaltyFormatted: 'U$ 2.20 - U$ 3.90',
+    royaltyNote: 'Excelente Venda para Presentes e Escolas',
+    opportunityScore: 90,
+    competitionLevel: 'Alta',
+    description: 'Histórias ilustradas para ninar, desenvolvimento de empatia, rimas infantis e fábulas sobre valores humanos.',
+    popularKeywords: ['Livro Infantil Ilustrado', 'Histórias para Dormir', 'Fábulas de Empatia', 'Primeiras Leituras'],
+    substyles: [
+      { id: 'bedtime-stories', name: 'Histórias Aconchegantes para Dormir (3 a 6 anos)', searchKeyword: 'bedtime stories children picture book bestseller', targetAudience: 'Pais e crianças na rotina do sono', kdpFormatTip: '8.5x8.5 pol • 32 págs ilustradas a cores', royaltyEstimate: 'U$ 2.20 - U$ 3.80' },
+      { id: 'emotional-learning', name: 'Gestão de Emoções e Empatia para Crianças', searchKeyword: 'kids emotional regulation picture book feelings', targetAudience: 'Famílias e educadores da primeira infância', kdpFormatTip: '8.5x8.5 pol • 36 págs', royaltyEstimate: 'U$ 2.50 - U$ 4.10' },
+      { id: 'rhyme-adventure', name: 'Rimas Educativas e Aventuras da Floresta', searchKeyword: 'rhyming children picture book animals nature', targetAudience: 'Crianças em fase de alfabetização', kdpFormatTip: '8.5x11 pol • 32 págs', royaltyEstimate: 'U$ 2.10 - U$ 3.60' }
+    ],
+    sampleBestSellers: [
+      { title: 'The Wonderful Things You Will Be', author: 'Emily Winfield Martin', bsr: 50, priceUsd: 9.99, royaltyPerBook: 3.80, asin: '0385376715', coverImage: 'https://m.media-amazon.com/images/I/81xUe5-mH8L._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 12. BIOGRAFIAS, MEMÓRIAS & TRUE CRIME (#18)
+  {
+    id: 'biography',
+    rankNumber: 18,
+    rankLabel: '#18 na Amazon Books',
+    name: 'Biografias, Memórias & True Crime',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Não-Ficção',
+    bsrRange: 'Top 180 - 4500 BSR',
+    dailySalesEstimate: 4900,
+    avgPriceUsd: 11.99,
+    unitRoyaltyUsdMin: 4.80,
+    unitRoyaltyUsdMax: 8.50,
+    unitRoyaltyFormatted: 'U$ 4.80 - U$ 8.50',
+    royaltyNote: 'Alto Ticket de Venda e Interesse do Público Geral',
+    opportunityScore: 86,
+    competitionLevel: 'Média',
+    description: 'Narrativas reais de superação, casos policiais chocantes de True Crime e trajetórias de personalidades históricas.',
+    popularKeywords: ['True Crime Real', 'Histórias de Superação', 'Memórias de Vida', 'Investigação Criminal'],
+    substyles: [
+      { id: 'true-crime', name: 'True Crime & Investigações de Casos Reais', searchKeyword: 'true crime books bestseller serial killer cases', targetAudience: 'Entusiastas de documentários policiais e mistérios reais', kdpFormatTip: '6x9 pol • 320 págs', royaltyEstimate: 'U$ 4.50 - U$ 7.90' },
+      { id: 'inspiring-memoir', name: 'Memórias de Superação e Resiliência', searchKeyword: 'inspirational memoir overcoming adversity bestseller', targetAudience: 'Público que busca motivação através de fatos reais', kdpFormatTip: '5.5x8.5 pol • 260 págs', royaltyEstimate: 'U$ 4.20 - U$ 7.20' }
+    ],
+    sampleBestSellers: [
+      { title: 'Educated', author: 'Tara Westover', bsr: 60, priceUsd: 13.99, royaltyPerBook: 6.50, asin: '0399590501', coverImage: 'https://m.media-amazon.com/images/I/81NwZZUjV-L._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 13. CULINÁRIA, DIETAS & RECEITAS (#22)
+  {
+    id: 'technical-manual',
+    rankNumber: 22,
+    rankLabel: '#22 na Amazon Books',
+    name: 'Culinária Prática, Airfryer & Dietas',
+    categoryGroup: 'nao-ficcao',
+    categoryGroupLabel: 'Não-Ficção',
+    bsrRange: 'Top 250 - 5500 BSR',
+    dailySalesEstimate: 4200,
+    avgPriceUsd: 8.99,
+    unitRoyaltyUsdMin: 3.20,
+    unitRoyaltyUsdMax: 6.20,
+    unitRoyaltyFormatted: 'U$ 3.20 - U$ 6.20',
+    royaltyNote: 'Venda Forte em Capa Dura e Impresso',
+    opportunityScore: 85,
+    competitionLevel: 'Média',
+    description: 'Receitas rápidas de 30 minutos, guias de airfryer para solteiros, alimentação anti-inflamatória e marmitas da semana.',
+    popularKeywords: ['Airfryer Receitas', 'Marmitas Semanais', 'Dieta Prática', 'Cozinha em 30 Minutos'],
+    substyles: [
+      { id: 'airfryer-quick', name: 'Airfryer Prática: Refeições em 20 Minutos', searchKeyword: 'air fryer cookbook easy healthy recipes bestseller', targetAudience: 'Pessoas com pouco tempo para cozinhar', kdpFormatTip: '8x10 pol • 140 págs', royaltyEstimate: 'U$ 3.50 - U$ 6.20' },
+      { id: 'meal-prep', name: 'Meal Prep & Marmitas Congeladas Saudáveis', searchKeyword: 'meal prep cookbook weekly planner recipes', targetAudience: 'Trabalhadores e atletas organizando a dieta', kdpFormatTip: '8x10 pol • 160 págs', royaltyEstimate: 'U$ 3.80 - U$ 6.80' }
+    ],
+    sampleBestSellers: [
+      { title: 'The Complete Air Fryer Cookbook', author: 'Linda Larsen', bsr: 90, priceUsd: 10.99, royaltyPerBook: 4.80, asin: '1623157448', coverImage: 'https://m.media-amazon.com/images/I/81T1gY1uF4L._AC_UY218_.jpg' }
+    ]
+  },
+
+  // 14. FILOSOFIA PRÁTICA & SERENIDADE (#142)
   {
     id: 'non-fiction',
     rankNumber: 142,
@@ -396,9 +473,13 @@ export const AMAZON_RANKED_SEGMENTS: AmazonRankedSegment[] = [
     opportunityScore: 81,
     competitionLevel: 'Baixa',
     description: 'Estoicismo para o dia a dia, ensaios sobre a clareza e reflexões éticas sem pedantismo acadêmico.',
-    popularKeywords: ['Estoicismo Aplicado', 'Diário Estoico', 'Clareza de Pensamento'],
+    popularKeywords: ['Estoicismo Aplicado', 'Diário Estoico', 'Clareza de Pensamento', 'Serenidade Interior'],
+    substyles: [
+      { id: 'daily-stoic', name: 'Meditações Diárias de Sabedoria e Calma', searchKeyword: 'daily stoic meditation ancient philosophy book', targetAudience: 'Leitores que buscam clareza mental matinal', kdpFormatTip: '5.5x8.5 pol • 250 págs', royaltyEstimate: 'U$ 3.40 - U$ 5.90' },
+      { id: 'peace-mind', name: 'Minimalismo Mental e Serenidade', searchKeyword: 'inner peace simplicity practical philosophy', targetAudience: 'Pessoas desintoxicando da sobrecarga de informação', kdpFormatTip: '5x8 pol • 190 págs', royaltyEstimate: 'U$ 3.20 - U$ 5.10' }
+    ],
     sampleBestSellers: [
-      { title: 'The Daily Stoic', author: 'Ryan Holiday', bsr: 75, priceUsd: 11.99, royaltyPerBook: 5.10 }
+      { title: 'The Daily Stoic', author: 'Ryan Holiday', bsr: 75, priceUsd: 11.99, royaltyPerBook: 5.10, asin: '0735211736', coverImage: 'https://m.media-amazon.com/images/I/71k4vQ+xT9L._AC_UY218_.jpg' }
     ]
   }
 ];
@@ -433,7 +514,8 @@ export class AmazonMarketIntelligenceService {
         s.name.toLowerCase().includes(q) ||
         s.rankLabel.toLowerCase().includes(q) ||
         s.popularKeywords.some(k => k.toLowerCase().includes(q)) ||
-        s.description.toLowerCase().includes(q)
+        s.description.toLowerCase().includes(q) ||
+        s.substyles.some(sub => sub.name.toLowerCase().includes(q) || sub.searchKeyword.toLowerCase().includes(q))
       );
     }
 
@@ -445,5 +527,39 @@ export class AmazonMarketIntelligenceService {
    */
   public static getSegmentById(id: BookType): AmazonRankedSegment | undefined {
     return AMAZON_RANKED_SEGMENTS.find(s => s.id === id);
+  }
+
+  /**
+   * CONSULTA AO VIVO DA AMAZON: Busca livros reais da Amazon Books em tempo real
+   * através do backend Node local (/api/amazon/search), retornando ASINs, capas reais,
+   * avaliações e preços atualizados.
+   */
+  public static async fetchLiveAmazonBooks(keyword: string, limit: number = 8): Promise<AmazonLiveBook[]> {
+    try {
+      const res = await fetch(`/api/amazon/search?query=${encodeURIComponent(keyword)}&limit=${limit}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.books) && json.books.length > 0) {
+        return json.books;
+      }
+    } catch (e: any) {
+      console.warn('[AmazonMarketIntelligence] Falha ao consultar endpoint ao vivo:', e.message);
+    }
+    return [];
+  }
+
+  /**
+   * CONSULTA DE SUGESTÕES AO VIVO DA AMAZON:
+   * Sugestões oficiais em tempo real da Amazon Books via /api/amazon/suggestions.
+   */
+  public static async fetchLiveAmazonSuggestions(prefix: string): Promise<string[]> {
+    try {
+      const res = await fetch(`/api/amazon/suggestions?prefix=${encodeURIComponent(prefix)}`);
+      if (!res.ok) return [];
+      const json = await res.json();
+      return json.suggestions || [];
+    } catch {
+      return [];
+    }
   }
 }

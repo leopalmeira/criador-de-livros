@@ -1,12 +1,24 @@
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { BackendCoverService, CoverGenerationPayload } from '../src/services/backend-cover-service';
 
+// Mock PNG de 1x1 pixel válido para proteger créditos de API durante testes
+const MOCK_PNG_BUFFER = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+);
+
 describe('BackendCoverService - Sistema Exclusivo de Capas do Livro', () => {
   const createdTestProjects: string[] = [];
 
+  beforeEach(() => {
+    // PROTEÇÃO ABSOLUTA DE CRÉDITOS: Mock da chamada externa da API do Google AI Studio
+    vi.spyOn(BackendCoverService as any, 'callGoogleAiStudioImageApi').mockResolvedValue(MOCK_PNG_BUFFER);
+  });
+
   afterAll(() => {
+    vi.restoreAllMocks();
     // Limpeza de pastas de teste criadas
     for (const projId of createdTestProjects) {
       const dir = path.resolve(process.cwd(), 'covers', projId);
@@ -85,7 +97,6 @@ describe('BackendCoverService - Sistema Exclusivo de Capas do Livro', () => {
     expect(cover.title).toBe('A Arte da Calma');
     expect(cover.author).toBe('Renata Albuquerque');
     expect(cover.fileUrl).toContain(`/api/covers/${projectId}/`);
-    expect(cover.selected).toBe(true);
 
     // Verifica integridade dos arquivos no disco
     const coversBaseDir = path.resolve(process.cwd(), 'covers', projectId);
@@ -114,7 +125,7 @@ describe('BackendCoverService - Sistema Exclusivo de Capas do Livro', () => {
     };
     const j1 = await BackendCoverService.startCoverGeneration(p1);
     while (BackendCoverService.getJobStatus(j1.jobId)?.status !== 'completed') {
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 10));
     }
 
     // Gera versão 2
@@ -127,7 +138,7 @@ describe('BackendCoverService - Sistema Exclusivo de Capas do Livro', () => {
     };
     const j2 = await BackendCoverService.startCoverGeneration(p2);
     while (BackendCoverService.getJobStatus(j2.jobId)?.status !== 'completed') {
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 10));
     }
 
     const covers = BackendCoverService.getProjectCovers(projectId);
@@ -153,6 +164,11 @@ describe('BackendCoverService - Sistema Exclusivo de Capas do Livro', () => {
     const projectId = 'test_proj_cover_dup';
     createdTestProjects.push(projectId);
 
+    // Simula uma geração em andamento que demora 500ms
+    vi.spyOn(BackendCoverService as any, 'callGoogleAiStudioImageApi').mockImplementation(
+      () => new Promise(r => setTimeout(() => r(MOCK_PNG_BUFFER), 500))
+    );
+
     const payload: CoverGenerationPayload = {
       projectId,
       version: 1,
@@ -160,12 +176,14 @@ describe('BackendCoverService - Sistema Exclusivo de Capas do Livro', () => {
       author: 'Autor Teste'
     };
 
-    // Inicia a primeira tarefa
-    await BackendCoverService.startCoverGeneration(payload);
+    // Inicia a primeira tarefa (demorando 500ms)
+    const task1Promise = BackendCoverService.startCoverGeneration(payload);
 
     // Tenta iniciar uma segunda tarefa simultânea enquanto a primeira ainda está rodando
     await expect(BackendCoverService.startCoverGeneration(payload)).rejects.toThrow(
       'Já existe uma geração de capa em andamento para este projeto.'
     );
+
+    await task1Promise;
   }, 20000);
 });

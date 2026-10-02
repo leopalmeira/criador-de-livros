@@ -240,6 +240,50 @@ function kdpAiBackendPlugin() {
           res.end(JSON.stringify({ success: false, error: err.message }));
         }
       });
+
+      // Middleware de Inteligência de Mercado ao Vivo da Amazon Books
+      server.middlewares.use('/api/amazon', async (req: any, res: any, next: any) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        try {
+          const { AmazonLiveService } = await import('./src/services/amazon-live-service');
+          const reqUrl = new URL(req.url, 'http://localhost');
+          const pathname = reqUrl.pathname;
+
+          if (pathname === '/search' || pathname === '/search/') {
+            const query = reqUrl.searchParams.get('query') || 'bestseller books';
+            const limit = parseInt(reqUrl.searchParams.get('limit') || '8', 10);
+            const books = await AmazonLiveService.searchAmazonBooks(query, limit);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, count: books.length, books }));
+            return;
+          }
+
+          if (pathname === '/suggestions' || pathname === '/suggestions/') {
+            const prefix = reqUrl.searchParams.get('prefix') || '';
+            const suggestions = await AmazonLiveService.getLiveSuggestions(prefix);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, suggestions }));
+            return;
+          }
+
+          next();
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
     }
   };
 }

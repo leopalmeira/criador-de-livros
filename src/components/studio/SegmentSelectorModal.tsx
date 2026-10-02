@@ -1,12 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   X,
   Search,
-  TrendingUp,
   DollarSign,
   Trophy,
   Star,
-  CheckCircle2,
   Sparkles,
   ArrowRight,
   RefreshCw,
@@ -23,16 +21,20 @@ import {
   Cpu,
   Feather,
   Utensils,
-  Puzzle
+  Puzzle,
+  ExternalLink,
+  Layers,
+  Check
 } from 'lucide-react';
 import { BookType } from '../../types/book-project';
 import { 
   AmazonMarketIntelligenceService, 
   AmazonRankedSegment, 
+  AmazonSubstyleVariation,
+  AmazonLiveBook,
   SegmentFilterType 
 } from '../../services/amazon-market-api';
 import { 
-  getAmazonBestSellersForSegment, 
   AmazonBestSellerReference,
   getRandomAmazonSuggestionForSegment 
 } from '../../services/amazon-bestsellers-catalog';
@@ -65,11 +67,17 @@ const SEGMENT_ICONS: Record<string, React.ReactNode> = {
 
 export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfirm }) => {
   const [selectedSegmentId, setSelectedSegmentId] = useState<BookType>('thriller'); // Padrão: Suspense Rank #3
+  const [selectedSubstyleId, setSelectedSubstyleId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<SegmentFilterType>('all');
   const [topicInput, setTopicInput] = useState('');
   const [selectedAmazonRef, setSelectedAmazonRef] = useState<AmazonBestSellerReference | null>(null);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  // Estado dos livros reais consultados ao vivo na Amazon
+  const [liveBooks, setLiveBooks] = useState<AmazonLiveBook[]>([]);
+  const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
+  const [selectedLiveAsin, setSelectedLiveAsin] = useState<string>('');
 
   // Lista ranqueada em escala da Amazon
   const rankedSegments = useMemo(() => {
@@ -81,41 +89,111 @@ export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfi
     return AmazonMarketIntelligenceService.getSegmentById(selectedSegmentId) || rankedSegments[0];
   }, [selectedSegmentId, rankedSegments]);
 
-  // Best sellers de referência do nicho
-  const bestSellers = useMemo(() => {
-    return getAmazonBestSellersForSegment(selectedSegmentId);
-  }, [selectedSegmentId]);
+  // Subestilos do segmento atual
+  const substyles = useMemo(() => {
+    return currentSegment?.substyles || [];
+  }, [currentSegment]);
+
+  // Subestilo ativo
+  const currentSubstyle = useMemo(() => {
+    if (!substyles.length) return null;
+    return substyles.find(s => s.id === selectedSubstyleId) || substyles[0];
+  }, [substyles, selectedSubstyleId]);
+
+  // Consulta ao vivo na Amazon quando o segmento ou subestilo muda
+  useEffect(() => {
+    if (!isOpen || !currentSegment) return;
+
+    let isMounted = true;
+    const searchTarget = currentSubstyle?.searchKeyword || `${currentSegment.name} bestseller books`;
+
+    setIsLiveLoading(true);
+    AmazonMarketIntelligenceService.fetchLiveAmazonBooks(searchTarget, 5)
+      .then((books) => {
+        if (!isMounted) return;
+        if (books && books.length > 0) {
+          setLiveBooks(books);
+          // Se nenhum ASIN selecionado ainda, foca no top 1
+          if (!selectedLiveAsin || !books.some(b => b.asin === selectedLiveAsin)) {
+            const topBook = books[0];
+            setSelectedLiveAsin(topBook.asin);
+            if (!topicInput || topicInput.startsWith('Livro de')) {
+              setTopicInput(`${topBook.title} — Projeto inspirado nas melhores práticas de ${currentSegment.name}`);
+            }
+          }
+        } else {
+          // Fallback para os best-sellers de referência catalogados
+          setLiveBooks([]);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLiveLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, currentSegment?.id, currentSubstyle?.id]);
 
   // Selecionar segmento
   const handleSelectSegment = useCallback((seg: AmazonRankedSegment) => {
     setSelectedSegmentId(seg.id);
-    const refs = getAmazonBestSellersForSegment(seg.id);
-    const topRef = refs[0] || null;
-    setSelectedAmazonRef(topRef);
-    setTopicInput(topRef ? topRef.suggestedProjectHook : `Livro profissional de ${seg.name}`);
+    const firstSub = seg.substyles[0];
+    if (firstSub) {
+      setSelectedSubstyleId(firstSub.id);
+      setTopicInput(`Projeto focado em ${firstSub.name} (${seg.name})`);
+    } else {
+      setSelectedSubstyleId('');
+      setTopicInput(`Livro de alto padrão em ${seg.name}`);
+    }
   }, []);
 
-  // Selecionar um Best Seller específico
-  const handleSelectBookRef = (book: AmazonBestSellerReference) => {
-    setSelectedAmazonRef(book);
-    setTopicInput(book.suggestedProjectHook);
+  // Selecionar variação / subestilo
+  const handleSelectSubstyle = (sub: AmazonSubstyleVariation) => {
+    setSelectedSubstyleId(sub.id);
+    setTopicInput(`Livro de ${sub.name}: ${sub.targetAudience}`);
   };
 
-  // Sugestão de IA ancorada na Amazon
+  // Selecionar um livro real da Amazon
+  const handleSelectLiveBook = (book: AmazonLiveBook) => {
+    setSelectedLiveAsin(book.asin);
+    setTopicInput(`${book.title} (Referência ASIN ${book.asin})`);
+    
+    // Mapeia para referência editorial
+    setSelectedAmazonRef({
+      id: book.asin,
+      asin: book.asin,
+      title: book.title,
+      author: book.author,
+      rankBadge: `#1 em ${currentSegment?.name || 'Amazon'}`,
+      categoryTag: currentSegment?.name || 'KDP Bestseller',
+      rating: book.rating,
+      reviewCount: book.reviewsCount,
+      price: book.priceUsd,
+      format: 'Kindle',
+      successFormula: `Livro best-seller na Amazon com alta demanda e ${book.reviewsCount.toLocaleString()} avaliações.`,
+      suggestedProjectHook: `Livro estruturado no padrão comercial de ${book.title}`,
+      suggestedTitle: book.title,
+      suggestedSubtitle: `Inspirado no sucesso editorial da Amazon KDP`,
+      targetAudience: currentSubstyle?.targetAudience || 'Público leitor de Best Sellers da Amazon',
+      narrativeStructure: 'Estrutura comercial moderna com capítulos objetivos e alta retenção.',
+      competitiveEdge: `Diferencial competitivo com foco em resolver dores reais e superar concorrentes no BSR.`
+    });
+  };
+
+  // Sugestão com IA ancorada no nicho
   const handleSuggestAiTopic = () => {
     setIsGeneratingAi(true);
     setTimeout(() => {
-      const { topic, reference } = getRandomAmazonSuggestionForSegment(selectedSegmentId, new Set());
+      const { topic } = getRandomAmazonSuggestionForSegment(selectedSegmentId, new Set());
       setTopicInput(topic);
-      if (reference) setSelectedAmazonRef(reference);
       setIsGeneratingAi(false);
-    }, 250);
+    }, 200);
   };
 
   const handleContinue = () => {
-    const fallback = selectedAmazonRef?.suggestedProjectHook || currentSegment?.name || 'Novo Projeto';
-    const finalTopic = topicInput.trim() || fallback;
-    onConfirm(selectedSegmentId, finalTopic, selectedAmazonRef || undefined);
+    const fallback = topicInput.trim() || `Livro Profissional de ${currentSegment?.name}`;
+    onConfirm(selectedSegmentId, fallback, selectedAmazonRef || undefined);
   };
 
   if (!isOpen) return null;
@@ -127,10 +205,10 @@ export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfi
         {/* CABEÇALHO DO MODAL */}
         <div className="amazon-modal-header">
           <div>
-            <span className="amazon-badge-kdp">● AMAZON BOOKS MARKETPLACE</span>
+            <span className="amazon-badge-kdp">● AMAZON BOOKS MARKETPLACE • DADOS EM TEMPO REAL</span>
             <h2 className="amazon-modal-title">Escolha o Seguimento do seu Livro</h2>
             <p className="amazon-modal-subtitle">
-              Selecione o nicho com base na escala de rankings reais da Amazon e estimativa de royalty em U$ por exemplar vendido.
+              Selecione o nicho com base nos rankings reais da Amazon, explore todas as variações de estilos e analise os Best Sellers em tempo real.
             </p>
           </div>
           <button className="btn-amazon-close" onClick={onClose} title="Fechar modal">
@@ -138,13 +216,13 @@ export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfi
           </button>
         </div>
 
-        {/* BARRA DE BUSCA E FILTROS RÁPIDOS */}
-        <div className="amazon-search-filter-bar">
+        {/* BARRA DE FILTROS E BUSCA */}
+        <div className="amazon-modal-toolbar">
           <div className="amazon-search-box">
             <Search size={15} className="amazon-search-icon" />
             <input
               type="text"
-              placeholder="Buscar segmento (ex: Suspense, Colorir, Negócios, Romance...)"
+              placeholder="Buscar categoria ou estilo (ex: Suspense, Colorir, Negócios, Enemies to Lovers...)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="amazon-search-input"
@@ -156,7 +234,7 @@ export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfi
               { id: 'all', label: 'Todos os Nichos' },
               { id: 'top10', label: '🔥 Top 10 Mais Vendidos' },
               { id: 'high_royalty', label: '💰 Maior Royalty (U$)' },
-              { id: 'low_content', label: '🚀 Baixo Conteúdo / KDP' },
+              { id: 'low_content', label: '🎨 Baixo Conteúdo / KDP' },
               { id: 'fiction', label: '📖 Ficção' },
               { id: 'non_fiction', label: '🧠 Não-Ficção' },
             ].map(f => (
@@ -265,43 +343,142 @@ export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfi
                 </div>
               </div>
 
-              {/* BEST SELLERS DE REFERÊNCIA (COMPACTOS) */}
-              <div className="amazon-refs-container">
-                <div className="amazon-refs-title">
-                  <Trophy size={13} color="#b45309" />
-                  Best Sellers de Referência (Amazon Books)
+              {/* SEÇÃO DE VARIAÇÕES / SUBESTILOS DO NICHO */}
+              {substyles.length > 0 && (
+                <div className="amazon-substyles-section">
+                  <div className="amazon-substyles-header">
+                    <span className="amazon-substyles-title">
+                      <Layers size={13} color="#2563eb" />
+                      Variações & Subnichos da Amazon ({substyles.length})
+                    </span>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>
+                      Clique para ver livros ao vivo
+                    </span>
+                  </div>
+
+                  <div className="amazon-substyles-chips">
+                    {substyles.map((sub) => {
+                      const isActive = (currentSubstyle?.id === sub.id);
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => handleSelectSubstyle(sub)}
+                          className={`amazon-substyle-chip ${isActive ? 'active' : ''}`}
+                        >
+                          {isActive && <Check size={11} />}
+                          <span>{sub.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* LIVROS REAIS AO VIVO DA AMAZON COM FOTOS E PREÇOS */}
+              <div className="amazon-refs-container" style={{ marginTop: 14 }}>
+                <div className="amazon-refs-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Trophy size={13} color="#b45309" />
+                    Best Sellers em Tempo Real na Amazon Books
+                  </span>
+                  {isLiveLoading && (
+                    <span style={{ fontSize: 11, color: '#2563eb', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <RefreshCw size={11} className="spin-anim" /> Consultando Amazon...
+                    </span>
+                  )}
                 </div>
 
-                {bestSellers.slice(0, 2).map((book) => {
-                  const isSelected = selectedAmazonRef?.id === book.id;
-                  return (
-                    <div
-                      key={book.id}
-                      onClick={() => handleSelectBookRef(book)}
-                      className={`amazon-ref-item-card ${isSelected ? 'selected' : ''}`}
-                    >
-                      <div className="amazon-ref-title-line">
-                        <span className="amazon-ref-book-name">{book.title}</span>
-                        <span className="amazon-badge-kdp" style={{ fontSize: 9.5, padding: '2px 5px' }}>
-                          {book.rankBadge}
-                        </span>
+                {isLiveLoading && liveBooks.length === 0 && (
+                  <div className="amazon-live-loading-indicator">
+                    <RefreshCw size={13} className="spin-anim" />
+                    <span>Conectando com a Amazon Books para carregar Best Sellers reais...</span>
+                  </div>
+                )}
+
+                {/* LISTAGEM DE LIVROS REAIS */}
+                <div className="amazon-live-books-list">
+                  {liveBooks.map((book) => {
+                    const isSelected = selectedLiveAsin === book.asin;
+                    return (
+                      <div
+                        key={book.asin}
+                        onClick={() => handleSelectLiveBook(book)}
+                        className={`amazon-live-book-card ${isSelected ? 'selected' : ''}`}
+                      >
+                        {/* CAPA REAL DO SERVIDOR AMAZON */}
+                        {book.coverImage ? (
+                          <img
+                            src={book.coverImage}
+                            alt={book.title}
+                            className="amazon-book-cover-thumb"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="amazon-book-cover-thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <BookOpen size={16} color="#94a3b8" />
+                          </div>
+                        )}
+
+                        <div className="amazon-book-info-col">
+                          <div className="amazon-book-title-row">
+                            <h5 className="amazon-book-title" title={book.title}>
+                              {book.title}
+                            </h5>
+                            <a
+                              href={book.amazonUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="amazon-book-ext-link"
+                              title="Ver produto na Amazon.com"
+                            >
+                              <ExternalLink size={12} />
+                            </a>
+                          </div>
+
+                          <p className="amazon-book-author">por {book.author}</p>
+
+                          <div className="amazon-book-stats-row">
+                            <span className="amazon-book-asin-tag">ASIN: {book.asin}</span>
+                            <span className="amazon-book-price-tag">U$ {book.priceUsd.toFixed(2)}</span>
+                            <span className="amazon-book-royalty-tag">Royalty: U$ {book.royaltyEstUsd.toFixed(2)}</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#b45309', fontWeight: 600 }}>
+                              <Star size={10} fill="#f59e0b" color="#f59e0b" /> {book.rating.toFixed(1)}
+                            </span>
+                            <span style={{ color: '#94a3b8' }}>({book.reviewsCount.toLocaleString()} reviews)</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="amazon-ref-author-line">
-                        <span>por {book.author}</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#b45309', fontWeight: 600 }}>
-                          <Star size={10} fill="#f59e0b" color="#f59e0b" /> {book.rating}
-                        </span>
+                    );
+                  })}
+
+                  {!isLiveLoading && liveBooks.length === 0 && currentSegment?.sampleBestSellers && (
+                    currentSegment.sampleBestSellers.map((sample, idx) => (
+                      <div key={idx} className="amazon-live-book-card selected">
+                        <div className="amazon-book-cover-thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <BookOpen size={16} color="#94a3b8" />
+                        </div>
+                        <div className="amazon-book-info-col">
+                          <h5 className="amazon-book-title">{sample.title}</h5>
+                          <p className="amazon-book-author">por {sample.author}</p>
+                          <div className="amazon-book-stats-row">
+                            <span className="amazon-book-asin-tag">BSR #{sample.bsr}</span>
+                            <span className="amazon-book-price-tag">U$ {sample.priceUsd.toFixed(2)}</span>
+                            <span className="amazon-book-royalty-tag">Royalty: U$ {sample.royaltyPerBook.toFixed(2)}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    ))
+                  )}
+                </div>
               </div>
 
               {/* TEMA DO LIVRO COM SUGESTÃO IA */}
-              <div className="amazon-topic-block">
+              <div className="amazon-topic-block" style={{ marginTop: 14 }}>
                 <div className="amazon-topic-label-row">
                   <label className="amazon-topic-label">
-                    Tema ou Título do Projeto
+                    Tema ou Título do Projeto Selecionado
                   </label>
                   <button
                     type="button"
@@ -317,7 +494,7 @@ export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfi
                   rows={2}
                   value={topicInput}
                   onChange={(e) => setTopicInput(e.target.value)}
-                  placeholder={`Ex: Proposta editorial para ${currentSegment?.name}...`}
+                  placeholder={`Ex: Proposta editorial para ${currentSubstyle?.name || currentSegment?.name}...`}
                   className="amazon-topic-textarea"
                 />
               </div>
