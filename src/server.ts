@@ -6,9 +6,7 @@ import { fileURLToPath } from 'url';
 import { BackendCoverService } from './services/backend-cover-service';
 import { AmazonLiveService } from './services/amazon-live-service';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, '..');
+const projectRoot = process.cwd();
 
 const app = express();
 const PORT = process.env.PORT || 10000;

@@ -4,11 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "tsx src/server.ts",
+    "start": "node index.js",
     "dev": "vite",
     "build:main": "vite build",
     "build:content": "vite build --config vite.content.config.ts",
-    "build": "npm run build:main && npm run build:content",
+    "build:server": "esbuild src/server.ts --bundle --platform=node --format=esm --packages=external --outfile=index.js",
+    "build": "npm run build:main && npm run build:content && npm run build:server",
     "test": "vitest run"
   },
   "keywords": [],
@@ -21,6 +22,7 @@
     "amazon-buddy": "^2.2.45",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
+    "esbuild": "^0.28.2",
     "express": "^5.2.1",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
