@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  BookOpen, Plus, Search, BarChart3, TrendingUp, FileText,
-  Lightbulb, Bell, HelpCircle, ChevronDown, ArrowRight,
-  Clock, Copy, Trash2, Sparkles, CheckCircle2, Filter
+  BookOpen, Plus, Bell, HelpCircle, ChevronDown, ArrowRight,
+  Clock, Copy, Trash2, BarChart3
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { CategoryIntelligencePanel } from './category-intel/CategoryIntelligencePanel';
@@ -31,14 +30,11 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onDuplicateProject,
   onDeleteProject,
   onOpenSettings,
-  onQuickAction,
   onSelectOpportunity
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
   const [showCategoryIntel, setShowCategoryIntel] = useState(false);
 
-  // Formatação de data em português: "Hoje, 28 de set. de 2025"
+  // Formatação de data em português: "Hoje, 28 de set. de 2026"
   const formattedToday = (() => {
     const now = new Date();
     const day = now.getDate();
@@ -48,33 +44,9 @@ export const BookIntelDashboard: React.FC<Props> = ({
     return `Hoje, ${day} de ${month}. de ${year}`;
   })();
 
-  // Dicas do dia rotativas sobre KDP
-  const tips = [
-    "Nichos com baixa concorrência e alto volume de busca costumam ter maior potencial de lucro na Amazon.",
-    "Títulos com promessas claras de transformação vendem até 3.4x mais na categoria de Não-Ficção.",
-    "Utilize as 7 caixas de palavras-chave da Amazon com termos de cauda longa para dominar as buscas orgânicas.",
-    "Capas com tipografia serifada de alto contraste aumentam o CTR (taxa de cliques) em mais de 40%."
-  ];
-  const [tipIndex, setTipIndex] = useState(0);
-
-  const rotateTip = () => {
-    setTipIndex((prev) => (prev + 1) % tips.length);
-  };
-
-  const filteredProjects = projects.filter(p => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      (p.title && p.title.toLowerCase().includes(q)) ||
-      (p.subtitle && p.subtitle.toLowerCase().includes(q)) ||
-      (p.author && p.author.toLowerCase().includes(q)) ||
-      (p.topic && p.topic.toLowerCase().includes(q))
-    );
-  });
-
   return (
     <div className="book-intel-container">
-      {/* 1. TOP NAVBAR EXATAMENTE COMO NA FOTO */}
+      {/* 1. TOP NAVBAR LIMPA (SEM BARRA DE PESQUISA) */}
       <header className="book-intel-header">
         <div className="book-intel-header-inner">
           {/* Logo & Marca */}
@@ -88,19 +60,6 @@ export const BookIntelDashboard: React.FC<Props> = ({
               <span className="intel-brand-divider">|</span>
               <span className="intel-brand-slogan">Inteligência para o seu sucesso na Amazon</span>
             </div>
-          </div>
-
-          {/* Barra de Pesquisa Central com Atalho Ctrl + K */}
-          <div className="header-search-wrapper">
-            <Search size={16} className="search-icon-muted" />
-            <input
-              type="text"
-              className="header-search-input"
-              placeholder="Pesquisar livros, nichos, palavras-chave..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <span className="search-badge-kbd">Ctrl + K</span>
           </div>
 
           {/* Ações da Direita: Notificação, Ajuda, Perfil */}
@@ -140,7 +99,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <span className="hero-greeting">Olá, Leandro</span>
                 <h1 className="hero-main-title">Bem-vindo ao Book Intel KDP</h1>
                 <p className="hero-description">
-                  Encontre nichos lucrativos, analise a concorrência e crie livros com alto potencial de venda na Amazon.
+                  Crie e publique livros profissionais para a Amazon KDP com apoio de inteligência artificial de ponta a ponta.
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button className="btn-hero-cta" onClick={onCreateNewProject}>
@@ -203,115 +162,49 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
             )}
 
-            {/* SEÇÃO PRINCIPAIS FUNCIONALIDADES (4 CARDS) */}
-            <div className="intel-features-section">
-              <div className="features-section-header">
-                <h2 className="features-title">Principais Funcionalidades</h2>
-                <span className="features-subtitle">
-                  Acesse rapidamente as ferramentas que vão impulsionar seus resultados.
-                </span>
+            {/* SEÇÃO PRINCIPAL DE LIVROS EM PROJETO */}
+            <div className="existing-projects-sublist" style={{ marginTop: 0 }}>
+              <div className="existing-projects-header">
+                <h3>Meus Livros & Projetos ({projects.length})</h3>
+                <button className="btn-create-sub" onClick={onCreateNewProject}>
+                  <Plus size={14} /> Novo Livro
+                </button>
               </div>
 
-              <div className="features-cards-grid">
-                {/* 1. Pesquisa de Nichos */}
-                <div
-                  className="feature-action-card"
-                  onClick={() => {
-                    setShowCategoryIntel(true);
-                    if (onQuickAction) onQuickAction('niche');
-                  }}
-                >
-                  <div className="feature-icon-circle blue-circle">
-                    <Search size={20} color="#2563eb" />
+              {projects.length === 0 ? (
+                <div style={{
+                  padding: '40px 24px',
+                  textAlign: 'center',
+                  background: '#ffffff',
+                  borderRadius: 14,
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                }}>
+                  <div style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    background: '#eff6ff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px auto'
+                  }}>
+                    <BookOpen size={28} color="#2563eb" />
                   </div>
-                  <h3 className="feature-card-title">Pesquisa de Nichos</h3>
-                  <p className="feature-card-desc">
-                    Encontre nichos lucrativos com base em dados reais da Amazon.
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: 16, color: '#0f172a', fontWeight: 700 }}>
+                    Nenhum livro criado ainda
+                  </h4>
+                  <p style={{ margin: '0 auto 20px auto', fontSize: 13, color: '#64748b', maxWidth: 420 }}>
+                    Clique no botão abaixo para escolher o gênero e gerar seu primeiro livro com inteligência editorial e dados da Amazon KDP.
                   </p>
-                  <div className="feature-arrow-btn">
-                    <ArrowRight size={16} color="#2563eb" />
-                  </div>
-                </div>
-
-                {/* 2. Palavras-chave */}
-                <div
-                  className="feature-action-card"
-                  onClick={() => onQuickAction ? onQuickAction('keywords') : setActiveModalAction('keywords')}
-                >
-                  <div className="feature-icon-circle purple-circle">
-                    <BarChart3 size={20} color="#7c3aed" />
-                  </div>
-                  <h3 className="feature-card-title">Palavras-chave</h3>
-                  <p className="feature-card-desc">
-                    Descubra palavras-chave de alto volume e baixa concorrência.
-                  </p>
-                  <div className="feature-arrow-btn">
-                    <ArrowRight size={16} color="#7c3aed" />
-                  </div>
-                </div>
-
-                {/* 3. Análise de Concorrência */}
-                <div
-                  className="feature-action-card"
-                  onClick={() => onQuickAction ? onQuickAction('competition') : setActiveModalAction('competition')}
-                >
-                  <div className="feature-icon-circle green-circle">
-                    <TrendingUp size={20} color="#059669" />
-                  </div>
-                  <h3 className="feature-card-title">Análise de Concorrência</h3>
-                  <p className="feature-card-desc">
-                    Veja o que seus concorrentes estão fazendo e encontre sua vantagem.
-                  </p>
-                  <div className="feature-arrow-btn">
-                    <ArrowRight size={16} color="#059669" />
-                  </div>
-                </div>
-
-                {/* 4. Relatórios */}
-                <div
-                  className="feature-action-card"
-                  onClick={() => onQuickAction ? onQuickAction('reports') : setActiveModalAction('reports')}
-                >
-                  <div className="feature-icon-circle orange-circle">
-                    <FileText size={20} color="#d97706" />
-                  </div>
-                  <h3 className="feature-card-title">Relatórios</h3>
-                  <p className="feature-card-desc">
-                    Receba relatórios detalhados para tomar decisões com segurança.
-                  </p>
-                  <div className="feature-arrow-btn">
-                    <ArrowRight size={16} color="#d97706" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* DICA DO DIA (RODAPÉ DA COLUNA ESQUERDA) */}
-            <div className="intel-tip-card">
-              <div className="tip-bulb-icon">
-                <Lightbulb size={20} color="#2563eb" />
-              </div>
-              <div className="tip-body">
-                <span className="tip-title">Dica do dia</span>
-                <span className="tip-text">{tips[tipIndex]}</span>
-              </div>
-              <button className="tip-link-btn" onClick={rotateTip}>
-                Próxima dica <ArrowRight size={14} />
-              </button>
-            </div>
-
-            {/* SE HOUVER LIVROS JÁ CRIADOS, EXIBE EM LISTA ORGANIZADA ABAIXO */}
-            {projects.length > 0 && (
-              <div className="existing-projects-sublist">
-                <div className="existing-projects-header">
-                  <h3>Meus Livros & Projetos em Andamento ({filteredProjects.length})</h3>
-                  <button className="btn-create-sub" onClick={onCreateNewProject}>
-                    <Plus size={14} /> Novo Livro
+                  <button className="btn-hero-cta" onClick={onCreateNewProject} style={{ margin: '0 auto' }}>
+                    <Plus size={16} /> Começar Novo Livro
                   </button>
                 </div>
-
+              ) : (
                 <div className="existing-projects-grid">
-                  {filteredProjects.map(p => {
+                  {projects.map(p => {
                     const chapters = p.kdpChapters?.length || 0;
                     const words = p.kdpChapters?.reduce((s, c) => s + (c.wordCount || 0), 0) || 0;
                     return (
@@ -359,75 +252,33 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     );
                   })}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
           </div>
 
           {/* COLUNA DIREITA (32% de largura) */}
           <div className="intel-right-column">
             
-            {/* CARD 1: VISÃO GERAL COM MÉTRICAS */}
+            {/* CARD 1: VISÃO GERAL COM APENAS LIVROS NO PROJETO */}
             <div className="intel-overview-card">
               <div className="overview-header">
                 <h3 className="overview-title">Visão Geral</h3>
                 <span className="overview-date">{formattedToday}</span>
               </div>
 
-              <div className="overview-stats-grid">
-                {/* Métrica 1: Livros no projeto */}
-                <div className="stat-tile" onClick={onCreateNewProject}>
+              <div className="overview-stats-grid" style={{ gridTemplateColumns: '1fr' }}>
+                {/* Métrica Única: Livros no projeto */}
+                <div className="stat-tile" onClick={onCreateNewProject} style={{ cursor: 'pointer' }}>
                   <div className="stat-tile-top">
                     <div className="stat-icon-box blue-bg">
-                      <BookOpen size={16} color="#2563eb" />
+                      <BookOpen size={20} color="#2563eb" />
                     </div>
                   </div>
                   <span className="stat-label">Livros no projeto</span>
                   <div className="stat-num-row">
-                    <span className="stat-number">{projects.length}</span>
-                    <ArrowRight size={14} className="stat-arrow" />
-                  </div>
-                </div>
-
-                {/* Métrica 2: Pesquisas realizadas */}
-                <div className="stat-tile" onClick={() => onQuickAction ? onQuickAction('niche') : setActiveModalAction('niche')}>
-                  <div className="stat-tile-top">
-                    <div className="stat-icon-box green-bg">
-                      <Search size={16} color="#059669" />
-                    </div>
-                  </div>
-                  <span className="stat-label">Pesquisas realizadas</span>
-                  <div className="stat-num-row">
-                    <span className="stat-number">{projects.length > 0 ? projects.length * 3 : 0}</span>
-                    <ArrowRight size={14} className="stat-arrow" />
-                  </div>
-                </div>
-
-                {/* Métrica 3: Nichos analisados */}
-                <div className="stat-tile" onClick={() => onQuickAction ? onQuickAction('competition') : setActiveModalAction('competition')}>
-                  <div className="stat-tile-top">
-                    <div className="stat-icon-box cyan-bg">
-                      <TrendingUp size={16} color="#0284c7" />
-                    </div>
-                  </div>
-                  <span className="stat-label">Nichos analisados</span>
-                  <div className="stat-num-row">
-                    <span className="stat-number">{projects.length > 0 ? projects.length * 2 : 0}</span>
-                    <ArrowRight size={14} className="stat-arrow" />
-                  </div>
-                </div>
-
-                {/* Métrica 4: Relatórios gerados */}
-                <div className="stat-tile" onClick={() => onQuickAction ? onQuickAction('reports') : setActiveModalAction('reports')}>
-                  <div className="stat-tile-top">
-                    <div className="stat-icon-box orange-bg">
-                      <FileText size={16} color="#d97706" />
-                    </div>
-                  </div>
-                  <span className="stat-label">Relatórios gerados</span>
-                  <div className="stat-num-row">
-                    <span className="stat-number">{projects.length > 0 ? projects.length : 0}</span>
-                    <ArrowRight size={14} className="stat-arrow" />
+                    <span className="stat-number" style={{ fontSize: '28px', fontWeight: 800 }}>{projects.length}</span>
+                    <ArrowRight size={16} className="stat-arrow" />
                   </div>
                 </div>
               </div>
@@ -446,20 +297,20 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
 
               {projects.length === 0 ? (
-                /* Estado Vazio com Relógio (Exato como na Foto) */
+                /* Estado Vazio com Relógio */
                 <div className="activity-empty-state">
                   <div className="clock-icon-circle">
                     <Clock size={28} color="#94a3b8" />
                   </div>
                   <h4 className="activity-empty-title">Nenhuma atividade recente</h4>
                   <p className="activity-empty-desc">
-                    Suas ações e relatórios aparecerão aqui assim que você começar a usar o sistema.
+                    Seus livros em andamento e atualizações aparecerão aqui.
                   </p>
                 </div>
               ) : (
                 /* Lista de Atividades Reais dos Projetos */
                 <div className="activity-items-list">
-                  {projects.slice(0, 4).map((p, idx) => (
+                  {projects.slice(0, 4).map((p) => (
                     <div
                       key={p.id}
                       className="activity-item-row"
@@ -497,40 +348,6 @@ export const BookIntelDashboard: React.FC<Props> = ({
           </div>
         </div>
       </footer>
-
-      {/* MODAL RÁPIDO PARA AS 4 FUNCIONALIDADES QUANDO CLICADAS */}
-      {activeModalAction && (
-        <div className="modal-backdrop-overlay" onClick={() => setActiveModalAction(null)}>
-          <div className="intel-quick-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="quick-modal-header">
-              <h3>
-                {activeModalAction === 'niche' && '🔍 Pesquisa de Nichos Lucrativos KDP'}
-                {activeModalAction === 'keywords' && '📊 Descoberta de Palavras-Chave de Alto Volume'}
-                {activeModalAction === 'competition' && '📈 Análise de Concorrência Amazon'}
-                {activeModalAction === 'reports' && '📑 Relatório de Mercado & Lucratividade'}
-              </h3>
-              <button className="btn-close-modal" onClick={() => setActiveModalAction(null)}>×</button>
-            </div>
-            <div className="quick-modal-content">
-              <p>
-                Esta ferramenta analisa dados em tempo real da Amazon para orientar sua produção editorial.
-                Deseja criar um novo livro com inteligência aplicada ou aplicar a um projeto existente?
-              </p>
-              <div className="quick-modal-actions">
-                <button
-                  className="btn-create-book"
-                  onClick={() => {
-                    setActiveModalAction(null);
-                    onCreateNewProject();
-                  }}
-                >
-                  <Plus size={16} /> Criar Livro com este Módulo
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
