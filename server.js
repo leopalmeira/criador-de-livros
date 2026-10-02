@@ -2,6 +2,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 import * as cheerio from 'cheerio';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +17,21 @@ const COVERS_DIR = path.join(__dirname, 'covers');
 if (!fs.existsSync(COVERS_DIR)) {
   try { fs.mkdirSync(COVERS_DIR, { recursive: true }); } catch {}
 }
+
+// Garante que a pasta dist/ e os arquivos de produção existam
+function ensureDistExists() {
+  const dashFile = path.join(DIST_DIR, 'dashboard.html');
+  if (!fs.existsSync(dashFile)) {
+    console.log('[Book Intel KDP] dist/dashboard.html não encontrado. Executando build de produção...');
+    try {
+      execSync('npm run build', { stdio: 'inherit', cwd: __dirname });
+      console.log('[Book Intel KDP] Build de produção concluído com sucesso!');
+    } catch (err) {
+      console.error('[Book Intel KDP] Erro ao executar build automático:', err.message);
+    }
+  }
+}
+ensureDistExists();
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -421,6 +437,19 @@ const server = http.createServer(async (req, res) => {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.statusCode = 200;
       return fs.createReadStream(fallbackFile).pipe(res);
+    }
+
+    // Se dashboard.html não existe, tenta compilar na hora
+    try {
+      console.log('[Book Intel KDP] dist/dashboard.html ausente na rota SPA. Tentando compilar...');
+      execSync('npm run build', { stdio: 'inherit', cwd: __dirname });
+      if (fs.existsSync(fallbackFile)) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.statusCode = 200;
+        return fs.createReadStream(fallbackFile).pipe(res);
+      }
+    } catch (err) {
+      console.error('[Book Intel KDP] Erro na compilação SPA:', err.message);
     }
   }
 
