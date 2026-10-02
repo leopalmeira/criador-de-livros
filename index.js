@@ -843,27 +843,36 @@ Neste cap\xEDtulo, voc\xEA descobrir\xE1 como estruturar sua mente, organizar su
   }
 });
 var distPath = path2.join(projectRoot, "dist");
-if (fs2.existsSync(distPath)) {
-  console.log(`[Backend Server] Servindo arquivos do frontend a partir de: ${distPath}`);
-  app.use(express.static(distPath));
-  app.use((req, res, next) => {
-    if (req.path.startsWith("/api")) {
-      return next();
-    }
-    const indexPath = path2.join(distPath, "index.html");
-    if (fs2.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).send("Build frontend em andamento...");
-    }
-  });
-} else {
-  console.warn(`[Backend Server] Pasta "dist" ainda n\xE3o encontrada. Execute "npm run build".`);
-  app.use((req, res, next) => {
-    if (req.path.startsWith("/api")) return next();
-    res.send(`<h1>Servidor Criador de Livros KDP Online</h1><p>Aguardando conclus\xE3o do build frontend (dist)...</p>`);
-  });
+var indexPath = path2.join(distPath, "index.html");
+if (!fs2.existsSync(indexPath)) {
+  console.log('[Backend Server] Pasta "dist" n\xE3o encontrada na inicializa\xE7\xE3o. Executando build autom\xE1tico...');
+  try {
+    const { execSync } = await import("child_process");
+    execSync("npm run build:main && npm run build:content", { stdio: "inherit" });
+    console.log("[Backend Server] Build autom\xE1tico do frontend conclu\xEDdo!");
+  } catch (err) {
+    console.error("[Backend Server] Aviso no auto-build:", err.message);
+  }
 }
+app.use(express.static(distPath));
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api")) {
+    return next();
+  }
+  if (fs2.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  res.status(200).send(`<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Criador de Livros KDP</title></head>
+<body style="font-family:sans-serif;background:#0d1117;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;padding:24px;border:1px solid #30363d;border-radius:12px;background:#161b22;max-width:480px;">
+    <h2>\u23F3 Carregando Criador de Livros KDP...</h2>
+    <p style="color:#8b949e;">O build do sistema est\xE1 sendo finalizado. Atualize a p\xE1gina em alguns instantes.</p>
+  </div>
+</body>
+</html>`);
+});
 app.listen(Number(PORT), "0.0.0.0", () => {
   console.log(`====================================================`);
   console.log(`\u{1F680} CRIADOR DE LIVROS KDP \u2014 SERVIDOR FULLSTACK ONLINE`);

@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "postinstall": "npm run build",
     "dev": "vite",
     "build:main": "vite build",
     "build:content": "vite build --config vite.content.config.ts",
