@@ -284,6 +284,117 @@ function kdpAiBackendPlugin() {
           res.end(JSON.stringify({ success: false, error: err.message }));
         }
       });
+
+      // Middleware do Gerador de Livros para Colorir KDP
+      server.middlewares.use('/api/coloring-book', async (req: any, res: any, next: any) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        try {
+          const { COLORING_THEMES } = await import('./src/services/coloring-themes-catalog');
+          const { ColoringBookService } = await import('./src/services/coloring-book-service');
+          const reqUrl = new URL(req.url, 'http://localhost');
+          const pathname = reqUrl.pathname;
+
+          if (req.method === 'GET' && (pathname === '/themes' || pathname === '/themes/')) {
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, count: COLORING_THEMES.length, themes: COLORING_THEMES }));
+            return;
+          }
+
+          if (req.method === 'POST' && (pathname === '/build-prompt' || pathname === '/build-prompt/')) {
+            let body = '';
+            req.on('data', (chunk: any) => { body += chunk; });
+            req.on('end', () => {
+              try {
+                const { config, pageIndex } = JSON.parse(body || '{}');
+                const pagePrompt = ColoringBookService.buildPagePrompt(config, pageIndex || 0);
+                const coverPrompt = ColoringBookService.buildCoverPrompt(config);
+                res.setHeader('Content-Type', 'application/json');
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, pagePrompt, coverPrompt }));
+              } catch (e: any) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: e.message }));
+              }
+            });
+            return;
+          }
+
+          next();
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
+
+      // Middleware do Gerador de Sudoku Investigativo KDP
+      server.middlewares.use('/api/sudoku-investigativo', async (req: any, res: any, next: any) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        try {
+          const { InvestigativeValidator } = await import('./src/services/investigative-validator');
+          const reqUrl = new URL(req.url, 'http://localhost');
+          const pathname = reqUrl.pathname;
+
+          if (req.method === 'GET' && (pathname === '/themes' || pathname === '/themes/')) {
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              success: true,
+              themes: [
+                { id: 'assassinato', label: 'Assassinato Clássico (Mansão / Herança)' },
+                { id: 'roubo', label: 'Roubo de Obra de Arte / Joia Rara' },
+                { id: 'desaparecimento', label: 'Desaparecimento Misterioso' },
+                { id: 'espionagem', label: 'Espionagem & Traição Internacional' },
+                { id: 'conspiracao', label: 'Conspiração Política / Alta Sociedade' }
+              ]
+            }));
+            return;
+          }
+
+          if (req.method === 'POST' && (pathname === '/validate' || pathname === '/validate/')) {
+            let body = '';
+            req.on('data', (chunk: any) => { body += chunk; });
+            req.on('end', () => {
+              try {
+                const { cases } = JSON.parse(body || '{}');
+                const report = InvestigativeValidator.validateBookConsistency(cases || []);
+                res.setHeader('Content-Type', 'application/json');
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, report }));
+              } catch (e: any) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: e.message }));
+              }
+            });
+            return;
+          }
+
+          next();
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
     }
   };
 }

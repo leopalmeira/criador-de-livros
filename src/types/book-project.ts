@@ -32,6 +32,7 @@ export type BookType =
   | 'workbook'
   | 'activity-book'
   | 'coloring-book'
+  | 'sudoku-investigativo'
   | 'journal'
   | 'puzzle-book'
   | 'other';
@@ -532,6 +533,27 @@ export const BOOK_TYPE_CONFIGS: Record<BookType, IBookTypeConfig> = {
     hasFactCheck: false,
     description: 'Ilustrações em lineart para colorir, impressão em um lado só, temas variados.',
     editorialRules: ['Lineart limpo e detalhado', 'Impressão unilateral', 'Tema consistente']
+  },
+  'sudoku-investigativo': {
+    id: 'sudoku-investigativo',
+    label: 'Sudoku Investigativo (Murder Mystery)',
+    category: 'Técnico & Guias',
+    trimSize: '8.5x11',
+    paperType: 'bw-white',
+    targetPages: 120,
+    chapterCount: [5, 12],
+    wordsPerChapter: [400, 1000],
+    scenesPerChapter: [1, 2],
+    illustrationsPerChapter: 0,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: true,
+    hasWorldbuilding: true,
+    hasArtBible: false,
+    hasFactCheck: true,
+    description: 'Livros de Sudoku temáticos no estilo Murder Mystery, onde as pistas revelam suspeitos, locais e armas para solucionar o crime.',
+    editorialRules: ['Sudokus 100% com solução única', 'Consistência estrita de pistas e álibis', 'Gabarito e resolução final completa']
   },
   'journal': {
     id: 'journal',

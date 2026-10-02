@@ -47,6 +47,8 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (segment: BookType, topic: string, amazonRef?: AmazonBestSellerReference) => void;
+  onOpenColoringBook?: () => void;
+  onOpenSudokuInvestigative?: () => void;
 }
 
 const SEGMENT_ICONS: Record<string, React.ReactNode> = {
@@ -63,6 +65,7 @@ const SEGMENT_ICONS: Record<string, React.ReactNode> = {
   'biography': <Feather size={15} className="amazon-icon-bio" />,
   'technical-manual': <Utensils size={15} className="amazon-icon-tech" />,
   'coloring-book': <Palette size={15} className="amazon-icon-coloring" />,
+  'sudoku-investigativo': <Puzzle size={15} className="amazon-icon-puzzle" />,
   'journal': <Sparkles size={15} className="amazon-icon-journal" />,
   'activity-book': <Puzzle size={15} className="amazon-icon-activity" />,
   'non-fiction': <Compass size={15} className="amazon-icon-nonfiction" />,
@@ -87,7 +90,13 @@ const FILTER_OPTIONS: { id: SegmentFilterType; label: string }[] = [
   { id: 'non_fiction', label: 'Não-Ficção' },
 ];
 
-export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfirm }) => {
+export const SegmentSelectorModal: React.FC<Props> = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm,
+  onOpenColoringBook,
+  onOpenSudokuInvestigative
+}) => {
   const [selectedSegmentId, setSelectedSegmentId] = useState<BookType>('thriller');
   const [selectedSubstyleId, setSelectedSubstyleId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -270,6 +279,91 @@ export const SegmentSelectorModal: React.FC<Props> = ({ isOpen, onClose, onConfi
             <X size={18} />
           </button>
         </header>
+
+        {/* ================= SEÇÃO DESTAQUE: AUTOMAÇÃO ESPECIALIZADA KDP ================= */}
+        <div style={{ padding: '0 24px', marginTop: '14px' }}>
+          <div className="modal-specialized-banner">
+            <div className="modal-specialized-title">
+              <Sparkles size={14} color="#38bdf8" />
+              Módulos de Criação Especializada com IA (Amazon KDP)
+            </div>
+            <div className="modal-specialized-cards-grid">
+              {/* CARD 1: GERADOR DE LIVRO DE COLORIR */}
+              <div 
+                className="intel-coloring-card" 
+                onClick={onOpenColoringBook}
+                style={{ padding: '16px', borderRadius: '12px' }}
+              >
+                <div className="intel-coloring-badge-row">
+                  <span className="intel-coloring-badge">Novo</span>
+                  <span className="intel-coloring-kdp-tag">
+                    <Sparkles size={11} /> Automação KDP
+                  </span>
+                </div>
+                <h4 className="intel-coloring-title" style={{ fontSize: '15px' }}>
+                  <Palette size={16} color="#38bdf8" />
+                  Gerador de Livro de Colorir
+                </h4>
+                <p className="intel-coloring-desc" style={{ fontSize: '11px', marginBottom: '10px' }}>
+                  Crie e formate livros completos de colorir prontos para publicação na Amazon KDP com IA.
+                </p>
+                <div className="intel-coloring-pills" style={{ marginBottom: '12px' }}>
+                  <span className="intel-coloring-pill-item">300 DPI</span>
+                  <span className="intel-coloring-pill-item">P&B Puro</span>
+                  <span className="intel-coloring-pill-item">Anti-Sangramento</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-access-generator"
+                  style={{ padding: '8px 12px', fontSize: '12px' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenColoringBook) onOpenColoringBook();
+                  }}
+                >
+                  Acessar Gerador <ArrowRight size={13} />
+                </button>
+              </div>
+
+              {/* CARD 2: SUDOKU INVESTIGATIVO */}
+              <div 
+                className="intel-sudoku-card" 
+                onClick={onOpenSudokuInvestigative}
+                style={{ padding: '16px', borderRadius: '12px' }}
+              >
+                <div className="intel-sudoku-badge-row">
+                  <span className="intel-sudoku-badge">Novo</span>
+                  <span className="intel-sudoku-kdp-tag">
+                    <ShieldAlert size={11} /> Mistério & Lógica
+                  </span>
+                </div>
+                <h4 className="intel-sudoku-title" style={{ fontSize: '15px' }}>
+                  <Puzzle size={16} color="#fbbf24" />
+                  Sudoku Investigativo
+                </h4>
+                <p className="intel-sudoku-desc" style={{ fontSize: '11px', marginBottom: '10px' }}>
+                  Gere livros de Sudoku temáticos no estilo Murder Mystery, onde as pistas revelam suspeitos, locais e armas para solucionar o crime.
+                </p>
+                <div className="intel-sudoku-pills" style={{ marginBottom: '12px' }}>
+                  <span className="intel-sudoku-pill-item">100% Solução Única</span>
+                  <span className="intel-sudoku-pill-item">Pistas & Álibis</span>
+                  <span className="intel-sudoku-pill-item">Interior + Gabarito</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-create-sudoku-project"
+                  style={{ padding: '8px 12px', fontSize: '12px' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenSudokuInvestigative) onOpenSudokuInvestigative();
+                  }}
+                >
+                  CRIAR PROJETO <ArrowRight size={13} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* ================= 2. BARRA DE FILTROS & BUSCA ================= */}
         <section className="amazon-modal-toolbar">

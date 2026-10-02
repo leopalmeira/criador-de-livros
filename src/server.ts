@@ -5,6 +5,9 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { BackendCoverService } from './services/backend-cover-service';
 import { AmazonLiveService } from './services/amazon-live-service';
+import { COLORING_THEMES } from './services/coloring-themes-catalog';
+import { ColoringBookService } from './services/coloring-book-service';
+import { InvestigativeValidator } from './services/investigative-validator';
 
 const projectRoot = process.cwd();
 
@@ -49,6 +52,53 @@ app.get('/api/amazon/suggestions', async (req, res) => {
   } catch (err: any) {
     console.error('[AmazonSuggestions Error]:', err.message);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================
+// ROTAS DO GERADOR DE LIVROS PARA COLORIR (ELLIOTTSAX KDP PORT)
+// ============================================================
+app.get('/api/coloring-book/themes', (_req, res) => {
+  res.status(200).json({ success: true, count: COLORING_THEMES.length, themes: COLORING_THEMES });
+});
+
+app.post('/api/coloring-book/build-prompt', (req, res) => {
+  try {
+    const { config, pageIndex } = req.body || {};
+    const pagePrompt = ColoringBookService.buildPagePrompt(config, pageIndex || 0);
+    const coverPrompt = ColoringBookService.buildCoverPrompt(config);
+    res.status(200).json({ success: true, pagePrompt, coverPrompt });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================
+// ROTAS DO GERADOR DE LIVROS DE SUDOKU INVESTIGATIVO (MURDER MYSTERY)
+// ============================================================
+app.get('/api/sudoku-investigativo/themes', (_req, res) => {
+  res.status(200).json({
+    success: true,
+    themes: [
+      { id: 'assassinato', label: 'Assassinato Clássico (Mansão / Herança)' },
+      { id: 'roubo', label: 'Roubo de Obra de Arte / Joia Rara' },
+      { id: 'desaparecimento', label: 'Desaparecimento Misterioso' },
+      { id: 'espionagem', label: 'Espionagem & Traição Internacional' },
+      { id: 'conspiracao', label: 'Conspiração Política / Alta Sociedade' }
+    ]
+  });
+});
+
+app.post('/api/sudoku-investigativo/validate', (req, res) => {
+  try {
+    const { cases } = req.body || {};
+    if (!Array.isArray(cases)) {
+      return res.status(400).json({ success: false, error: 'Lista de casos inválida.' });
+    }
+    const report = InvestigativeValidator.validateBookConsistency(cases);
+    res.status(200).json({ success: true, report });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   BookOpen, Plus, Bell, HelpCircle, ChevronDown, ArrowRight,
-  Clock, Copy, Trash2, BarChart3
+  Clock, Copy, Trash2, BarChart3, Palette, Sparkles, Puzzle, ShieldCheck
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { CategoryIntelligencePanel } from './category-intel/CategoryIntelligencePanel';
@@ -14,6 +14,8 @@ interface Props {
   onDuplicateProject: (id: string, e: React.MouseEvent) => void;
   onDeleteProject: (id: string, e: React.MouseEvent) => void;
   onOpenSettings: () => void;
+  onOpenColoringBook?: () => void;
+  onOpenSudokuInvestigative?: () => void;
   onQuickAction?: (action: 'niche' | 'keywords' | 'competition' | 'reports') => void;
   onSelectOpportunity?: (
     proposal: BookOpportunityProposal, 
@@ -30,9 +32,29 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onDuplicateProject,
   onDeleteProject,
   onOpenSettings,
+  onOpenColoringBook,
+  onOpenSudokuInvestigative,
   onSelectOpportunity
 }) => {
   const [showCategoryIntel, setShowCategoryIntel] = useState(false);
+
+  const handleGoToColoringBook = () => {
+    if (onOpenColoringBook) {
+      onOpenColoringBook();
+    } else {
+      window.history.pushState({}, '', '/coloring-book');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
+
+  const handleGoToSudokuInvestigative = () => {
+    if (onOpenSudokuInvestigative) {
+      onOpenSudokuInvestigative();
+    } else {
+      window.history.pushState({}, '', '/sudoku-investigativo');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
 
   // Formatação de data em português: "Hoje, 28 de set. de 2026"
   const formattedToday = (() => {
@@ -104,6 +126,29 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button className="btn-hero-cta" onClick={onCreateNewProject}>
                     <Plus size={18} /> Criar Novo Projeto
+                  </button>
+                  <button
+                    className="btn-hero-cta"
+                    onClick={handleGoToColoringBook}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.12)',
+                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                      boxShadow: 'none'
+                    }}
+                  >
+                    <Palette size={16} /> Livros para Colorir KDP
+                  </button>
+                  <button
+                    className="btn-hero-cta"
+                    onClick={handleGoToSudokuInvestigative}
+                    style={{
+                      background: 'rgba(245, 158, 11, 0.18)',
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      color: '#fef3c7',
+                      boxShadow: 'none'
+                    }}
+                  >
+                    <Puzzle size={16} color="#fbbf24" /> Sudoku Investigativo
                   </button>
                 </div>
               </div>
@@ -260,6 +305,71 @@ export const BookIntelDashboard: React.FC<Props> = ({
           {/* COLUNA DIREITA (32% de largura) */}
           <div className="intel-right-column">
             
+            {/* MÓDULOS DE AUTOMAÇÃO ESPECIALIZADA KDP */}
+            <div className="intel-specialized-grid">
+              {/* CARD 1: GERADOR DE LIVROS PARA COLORIR (KDP) */}
+              <div className="intel-coloring-card" onClick={handleGoToColoringBook}>
+                <div className="intel-coloring-badge-row">
+                  <span className="intel-coloring-badge">Novo</span>
+                  <span className="intel-coloring-kdp-tag">
+                    <Sparkles size={12} /> Automação KDP
+                  </span>
+                </div>
+                <h4 className="intel-coloring-title">
+                  <Palette size={18} color="#38bdf8" />
+                  Gerador de Livros para Colorir (KDP)
+                </h4>
+                <p className="intel-coloring-desc">
+                  Crie e formate livros completos de colorir prontos para publicação na Amazon KDP com IA.
+                </p>
+                <div className="intel-coloring-pills">
+                  <span className="intel-coloring-pill-item">300 DPI Print Ready</span>
+                  <span className="intel-coloring-pill-item">P&B Puro</span>
+                  <span className="intel-coloring-pill-item">Anti-Sangramento</span>
+                </div>
+                <button
+                  className="btn-access-generator"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleGoToColoringBook();
+                  }}
+                >
+                  Acessar Gerador <ArrowRight size={14} />
+                </button>
+              </div>
+
+              {/* CARD 2: SUDOKU INVESTIGATIVO (MURDER MYSTERY KDP) */}
+              <div className="intel-sudoku-card" onClick={handleGoToSudokuInvestigative}>
+                <div className="intel-sudoku-badge-row">
+                  <span className="intel-sudoku-badge">Novo</span>
+                  <span className="intel-sudoku-kdp-tag">
+                    <ShieldCheck size={12} /> Mistério & Lógica
+                  </span>
+                </div>
+                <h4 className="intel-sudoku-title">
+                  <Puzzle size={18} color="#fbbf24" />
+                  Sudoku Investigativo
+                </h4>
+                <p className="intel-sudoku-desc">
+                  Gere livros de Sudoku temáticos no estilo Murder Mystery, onde as pistas revelam suspeitos, locais e armas para solucionar o crime.
+                </p>
+                <div className="intel-sudoku-pills">
+                  <span className="intel-sudoku-pill-item">100% Solução Única</span>
+                  <span className="intel-sudoku-pill-item">Pistas & Álibis</span>
+                  <span className="intel-sudoku-pill-item">Interior + Gabarito</span>
+                </div>
+                <button
+                  className="btn-create-sudoku-project"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleGoToSudokuInvestigative();
+                  }}
+                >
+                  CRIAR PROJETO <ArrowRight size={14} />
+                </button>
+              </div>
+            </div>
+
             {/* CARD 1: VISÃO GERAL COM APENAS LIVROS NO PROJETO */}
             <div className="intel-overview-card">
               <div className="overview-header">

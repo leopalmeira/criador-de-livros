@@ -45,6 +45,8 @@ import { PublishSuccessModal } from './PublishSuccessModal';
 import { AssistedGenerationPanel } from './AssistedGenerationPanel';
 import { FullBookGeneratorModal } from './FullBookGeneratorModal';
 import { GeminiBookGeneratorService } from '../../services/gemini-book-generator';
+import { ColoringBookStudio } from './coloring-book/ColoringBookStudio';
+import { SudokuInvestigativeStudio } from './sudoku-investigative/SudokuInvestigativeStudio';
 
 // Ícones por estágio
 const STAGE_ICONS: Record<StageId, React.ReactNode> = {
@@ -63,13 +65,31 @@ const STAGE_ICONS: Record<StageId, React.ReactNode> = {
   'finish': <Download size={15} />,
 };
 
-type AppMode = 'project-list' | 'project-editor' | 'settings';
+type AppMode = 'project-list' | 'project-editor' | 'settings' | 'coloring-book' | 'sudoku-investigativo';
+
+const isColoringRoute = () => {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname === '/coloring-book' ||
+         window.location.pathname.startsWith('/coloring-book') ||
+         window.location.hash === '#/coloring-book';
+};
+
+const isSudokuRoute = () => {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname === '/sudoku-investigativo' ||
+         window.location.pathname.startsWith('/sudoku-investigativo') ||
+         window.location.hash === '#/sudoku-investigativo';
+};
 
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
   const [activeProject, setActiveProject] = useState<BookProject | null>(null);
   const [currentStage, setCurrentStage] = useState<StageId>('research');
-  const [mode, setMode] = useState<AppMode>('project-list');
+  const [mode, setMode] = useState<AppMode>(() => {
+    if (isColoringRoute()) return 'coloring-book';
+    if (isSudokuRoute()) return 'sudoku-investigativo';
+    return 'project-list';
+  });
   const [selectedEditorChapter, setSelectedEditorChapter] = useState<number | undefined>(undefined);
   const [aiService, setAiService] = useState<AiService>(() => new AiService({ provider: 'local-builtin' }));
 
@@ -112,6 +132,43 @@ export const BookStudioApp: React.FC = () => {
       if (st?.aiSettings) setAiService(new AiService(st.aiSettings));
     }).catch(() => {});
   }, [reloadProjects]);
+
+  // Sincronização de Rota com o Navegador (/coloring-book e /sudoku-investigativo)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isColoringRoute()) {
+        setMode('coloring-book');
+      } else if (isSudokuRoute()) {
+        setMode('sudoku-investigativo');
+      } else if (mode === 'coloring-book' || mode === 'sudoku-investigativo') {
+        setMode('project-list');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [mode]);
+
+  const navigateToColoringBook = () => {
+    if (window.location.pathname !== '/coloring-book') {
+      window.history.pushState({}, '', '/coloring-book');
+    }
+    setMode('coloring-book');
+  };
+
+  const navigateToSudokuInvestigative = () => {
+    if (window.location.pathname !== '/sudoku-investigativo') {
+      window.history.pushState({}, '', '/sudoku-investigativo');
+    }
+    setMode('sudoku-investigativo');
+  };
+
+  const navigateToProjectList = () => {
+    if (window.location.pathname === '/coloring-book' || window.location.pathname === '/sudoku-investigativo') {
+      window.history.pushState({}, '', '/');
+    }
+    setMode('project-list');
+    reloadProjects();
+  };
 
   // Atualizar projeto com salvamento automático
   const handleUpdateProject = async (updated: BookProject) => {
@@ -658,14 +715,56 @@ export const BookStudioApp: React.FC = () => {
           onDuplicateProject={duplicateProject}
           onDeleteProject={deleteProject}
           onOpenSettings={() => setMode('settings')}
+          onOpenColoringBook={navigateToColoringBook}
+          onOpenSudokuInvestigative={navigateToSudokuInvestigative}
           onSelectOpportunity={handleSelectOpportunity}
         />
         <SegmentSelectorModal
           isOpen={isSegmentModalOpen}
           onClose={() => setIsSegmentModalOpen(false)}
           onConfirm={handleConfirmNewSegmentProject}
+          onOpenColoringBook={() => {
+            setIsSegmentModalOpen(false);
+            navigateToColoringBook();
+          }}
+          onOpenSudokuInvestigative={() => {
+            setIsSegmentModalOpen(false);
+            navigateToSudokuInvestigative();
+          }}
         />
       </>
+    );
+  }
+
+  // ============================================================
+  // TELA: GERADOR DE LIVROS PARA COLORIR (/coloring-book)
+  // ============================================================
+  if (mode === 'coloring-book') {
+    return (
+      <ColoringBookStudio
+        onBackToDashboard={navigateToProjectList}
+        onOpenProject={async (projId) => {
+          await reloadProjects();
+          navigateToProjectList();
+          openProject(projId);
+        }}
+      />
+    );
+  }
+
+  // ============================================================
+  // TELA: GERADOR DE LIVRO DE SUDOKU INVESTIGATIVO (/sudoku-investigativo)
+  // ============================================================
+  if (mode === 'sudoku-investigativo') {
+    return (
+      <SudokuInvestigativeStudio
+        onBackToDashboard={navigateToProjectList}
+        onOpenProject={async (projId) => {
+          await reloadProjects();
+          navigateToProjectList();
+          openProject(projId);
+        }}
+      />
     );
   }
 
@@ -931,6 +1030,14 @@ export const BookStudioApp: React.FC = () => {
         isOpen={isSegmentModalOpen}
         onClose={() => setIsSegmentModalOpen(false)}
         onConfirm={handleConfirmNewSegmentProject}
+        onOpenColoringBook={() => {
+          setIsSegmentModalOpen(false);
+          navigateToColoringBook();
+        }}
+        onOpenSudokuInvestigative={() => {
+          setIsSegmentModalOpen(false);
+          navigateToSudokuInvestigative();
+        }}
       />
 
       {/* MODAL DE PUBLICAÇÃO BEM-SUCEDIDA */}
