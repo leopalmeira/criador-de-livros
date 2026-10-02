@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { BookProject } from '../../../types/book-project';
-import { BookDetailsData } from '../../../types/stages';
+import { BookDetailsData, getDefaultStageStatuses } from '../../../types/stages';
 import { ShowMeTheStoryEngine, StoryBudget } from '../../../services/show-me-the-story-engine';
 import { Sparkles, Sliders, BookOpen, Layers, Check } from 'lucide-react';
+import { EditorialControlBar } from '../EditorialControlBar';
 
 interface Props {
   project: BookProject;
   onUpdateProject: (p: BookProject) => void;
+  onContinue?: () => void;
+  onPrev?: () => void;
 }
 
 const WORD_COUNT_OPTIONS = [
@@ -25,7 +28,7 @@ const STRUCTURE_OPTIONS = [
   { value: 'compare-contrast', label: 'Comparação & Desmistificação', desc: 'Ideal para quebra de mitos, contrapontos e análises críticas de mercado.' },
 ];
 
-export const BookDetailsStage: React.FC<Props> = ({ project, onUpdateProject }) => {
+export const BookDetailsStage: React.FC<Props> = ({ project, onUpdateProject, onContinue, onPrev }) => {
   const [exactPages, setExactPages] = useState<number>(
     project.estimatedPages || project.actualPages || 150
   );
@@ -37,6 +40,30 @@ export const BookDetailsStage: React.FC<Props> = ({ project, onUpdateProject }) 
     chapterCount: budget.chapterCount,
     bookStructure: 'problem-solution',
     additionalNotes: ''
+  };
+
+  const isApproved = project.stageStatuses?.['book-details'] === 'APROVADO' ||
+                     project.editorialStageApprovals?.['book-details']?.status === 'APROVADO';
+
+  const handleApprove = () => {
+    const updated: BookProject = {
+      ...project,
+      stageStatuses: {
+        ...(project.stageStatuses || getDefaultStageStatuses()),
+        'book-details': 'COMPLETED'
+      },
+      editorialStageApprovals: {
+        ...(project.editorialStageApprovals || {}),
+        'book-details': {
+          stageId: 'book-details',
+          status: 'APROVADO',
+          approvedAt: Date.now(),
+          approvedBy: 'user',
+          notes: `Ficha editorial aprovada com meta de ${exactPages} páginas e estrutura ${data.bookStructure}.`
+        }
+      }
+    };
+    onUpdateProject(updated);
   };
 
   const updateData = (updates: Partial<BookDetailsData>, newPages?: number) => {
@@ -66,7 +93,20 @@ export const BookDetailsStage: React.FC<Props> = ({ project, onUpdateProject }) 
 
   return (
     <div className="stage-form-container">
-      <div className="stage-intro-block">
+      {/* BARRA DE CONTROLE EDITORIAL */}
+      <EditorialControlBar
+        stageId="book-details"
+        stageLabel="Ficha Editorial & Extensão da Obra"
+        status={isApproved ? 'APROVADO' : exactPages > 0 ? 'AGUARDANDO_APROVACAO' : 'PENDENTE'}
+        isApproved={isApproved}
+        canApprove={exactPages > 0 && data.chapterCount >= 3}
+        approveButtonText={isApproved ? '✓ FICHA EDITORIAL APROVADA' : 'APROVAR FICHA EDITORIAL'}
+        onPrev={onPrev}
+        onNext={isApproved ? onContinue : undefined}
+        onApprove={handleApprove}
+      />
+
+      <div className="stage-intro-block" style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h3>Ficha Técnica & Quantidade de Páginas da História</h3>

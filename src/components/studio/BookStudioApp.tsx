@@ -668,10 +668,35 @@ export const BookStudioApp: React.FC = () => {
             onUpdateProject={handleUpdateProject}
             aiService={aiService}
             onContinue={() => {
+              setCurrentStage('resources');
+              handleUpdateProject({ ...activeProject, currentStage: 'resources' });
+            }}
+            onPrev={() => setCurrentStage('research')}
+          />
+        );
+      case 'resources':
+        return (
+          <ResourcesStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            onContinue={() => {
+              setCurrentStage('author-persona');
+              handleUpdateProject({ ...activeProject, currentStage: 'author-persona' });
+            }}
+            onPrev={() => setCurrentStage('book-titles')}
+          />
+        );
+      case 'author-persona':
+        return (
+          <AuthorPersonaStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            aiService={aiService}
+            onContinue={() => {
               setCurrentStage('purpose');
               handleUpdateProject({ ...activeProject, currentStage: 'purpose' });
             }}
-            onPrev={() => setCurrentStage('research')}
+            onPrev={() => setCurrentStage('resources')}
           />
         );
       case 'purpose':
@@ -684,38 +709,34 @@ export const BookStudioApp: React.FC = () => {
               setCurrentStage('book-details');
               handleUpdateProject({ ...activeProject, currentStage: 'book-details' });
             }}
-            onPrev={() => setCurrentStage('book-titles')}
+            onPrev={() => setCurrentStage('author-persona')}
           />
         );
       case 'book-details':
-        return <BookDetailsStage project={activeProject} onUpdateProject={handleUpdateProject} />;
-      case 'author-persona':
         return (
-          <AuthorPersonaStage
+          <BookDetailsStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            onContinue={() => {
+              setCurrentStage('author-bio');
+              handleUpdateProject({ ...activeProject, currentStage: 'author-bio' });
+            }}
+            onPrev={() => setCurrentStage('purpose')}
+          />
+        );
+      case 'author-bio':
+        return (
+          <AuthorBioStage
             project={activeProject}
             onUpdateProject={handleUpdateProject}
             aiService={aiService}
             onContinue={() => {
-              setCurrentStage('resources');
-              handleUpdateProject({ ...activeProject, currentStage: 'resources' });
+              setCurrentStage('outline');
+              handleUpdateProject({ ...activeProject, currentStage: 'outline' });
             }}
             onPrev={() => setCurrentStage('book-details')}
           />
         );
-      case 'resources':
-        return (
-          <ResourcesStage
-            project={activeProject}
-            onUpdateProject={handleUpdateProject}
-            onContinue={() => {
-              setCurrentStage('outline');
-              handleUpdateProject({ ...activeProject, currentStage: 'outline' });
-            }}
-            onPrev={() => setCurrentStage('author-persona')}
-          />
-        );
-      case 'author-bio':
-        return <AuthorBioStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
       case 'outline':
         return (
           <OutlineStage
@@ -744,7 +765,18 @@ export const BookStudioApp: React.FC = () => {
           />
         );
       case 'description':
-        return <DescriptionStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
+        return (
+          <DescriptionStage
+            project={activeProject}
+            onUpdateProject={handleUpdateProject}
+            aiService={aiService}
+            onContinue={() => {
+              setCurrentStage('book-cover');
+              handleUpdateProject({ ...activeProject, currentStage: 'book-cover' });
+            }}
+            onPrev={() => setCurrentStage('write')}
+          />
+        );
       case 'book-cover':
         return (
           <BookCoverStage

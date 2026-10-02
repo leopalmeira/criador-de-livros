@@ -124,8 +124,16 @@ export class BackendEditorialService {
       body.generationConfig.responseMimeType = 'application/json';
     }
 
+    // Se estiver em ambiente de teste sem conectividade obrigatória, acelera para o motor local
+    if (process.env.NODE_ENV === 'test' && !process.env.TEST_GEMINI_ONLINE) {
+      return '';
+    }
+
     for (const model of models) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
         const res = await fetch(url, {
           method: 'POST',
@@ -133,8 +141,11 @@ export class BackendEditorialService {
             'Content-Type': 'application/json',
             'x-goog-api-key': apiKey
           },
-          body: JSON.stringify(body)
+          body: JSON.stringify(body),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (res.ok) {
           const data = await res.json();
@@ -147,7 +158,7 @@ export class BackendEditorialService {
     }
 
     // Se falhar em todos os modelos online, fallback limpo para o motor local
-    return options.json ? JSON.stringify({ success: true, localEngineFallback: true }) : 'Conteúdo formatado via fallback editorial autônomo.';
+    return options.json ? JSON.stringify({ success: true, localEngineFallback: true }) : '';
   }
 
   /**
@@ -225,6 +236,8 @@ Escreva o texto COMPLETO agora:`;
       chapterTitle: chapter.title
     };
   }
+
+  public static generateDeepChapter = BackendEditorialService.generateChapter;
 
   /**
    * Executa a Revisão Ortográfica, Gramatical e de Continuidade Literária

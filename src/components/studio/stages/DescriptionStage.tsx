@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { BookProject } from '../../../types/book-project';
-import { DescriptionData } from '../../../types/stages';
+import { DescriptionData, getDefaultStageStatuses } from '../../../types/stages';
 import { AiService } from '../../../services/ai-service';
 import { Sparkles, Copy, Check } from 'lucide-react';
-
 import { BoxSuggestionService } from '../../../services/box-suggestion-service';
+import { EditorialControlBar } from '../EditorialControlBar';
 
 interface Props {
   project: BookProject;
   onUpdateProject: (p: BookProject) => void;
   aiService: AiService;
+  onContinue?: () => void;
+  onPrev?: () => void;
 }
 
-export const DescriptionStage: React.FC<Props> = ({ project, onUpdateProject, aiService }) => {
+export const DescriptionStage: React.FC<Props> = ({ project, onUpdateProject, aiService, onContinue, onPrev }) => {
   const data: DescriptionData = project.stageData?.description || {
     headline: '',
     relateSection: '',
@@ -23,6 +25,31 @@ export const DescriptionStage: React.FC<Props> = ({ project, onUpdateProject, ai
   };
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const isApproved = project.stageStatuses?.description === 'APROVADO' ||
+                     project.editorialStageApprovals?.description?.status === 'APROVADO';
+
+  const handleApprove = () => {
+    const updated: BookProject = {
+      ...project,
+      description: data.fullDescription || project.description,
+      stageStatuses: {
+        ...(project.stageStatuses || getDefaultStageStatuses()),
+        description: 'COMPLETED'
+      },
+      editorialStageApprovals: {
+        ...(project.editorialStageApprovals || {}),
+        description: {
+          stageId: 'description',
+          status: 'APROVADO',
+          approvedAt: Date.now(),
+          approvedBy: 'user',
+          notes: 'Sinopse comercial e copy KDP aprovadas.'
+        }
+      }
+    };
+    onUpdateProject(updated);
+  };
 
   const updateData = (updates: Partial<DescriptionData>) => {
     const updated = { ...data, ...updates };
@@ -69,7 +96,21 @@ export const DescriptionStage: React.FC<Props> = ({ project, onUpdateProject, ai
 
   return (
     <div className="stage-form-container">
-      <div className="stage-intro-block">
+      {/* BARRA DE CONTROLE EDITORIAL */}
+      <EditorialControlBar
+        stageId="description"
+        stageLabel="Sinopse Comercial Amazon KDP"
+        status={isApproved ? 'APROVADO' : data.fullDescription?.trim().length > 30 ? 'AGUARDANDO_APROVACAO' : 'PENDENTE'}
+        isApproved={isApproved}
+        canApprove={Boolean(data.fullDescription && data.fullDescription.trim().length > 30)}
+        approveButtonText={isApproved ? '✓ SINOPSE APROVADA' : 'APROVAR SINOPSE & COPY KDP'}
+        onPrev={onPrev}
+        onNext={isApproved ? onContinue : undefined}
+        onRegenerate={generateDescription}
+        onApprove={handleApprove}
+      />
+
+      <div className="stage-intro-block" style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h3>Sinopse & Copy de Vendas para Amazon KDP</h3>

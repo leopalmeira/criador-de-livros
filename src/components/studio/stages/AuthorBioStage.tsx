@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { BookProject } from '../../../types/book-project';
-import { AuthorBioData } from '../../../types/stages';
+import { AuthorBioData, getDefaultStageStatuses } from '../../../types/stages';
 import { AiService } from '../../../services/ai-service';
 import { Sparkles, RefreshCw, UserCheck, Copy, Check } from 'lucide-react';
 import { BoxSuggestionService } from '../../../services/box-suggestion-service';
+import { EditorialControlBar } from '../EditorialControlBar';
 
 interface Props {
   project: BookProject;
   onUpdateProject: (p: BookProject) => void;
   aiService: AiService;
+  onContinue?: () => void;
+  onPrev?: () => void;
 }
 
-export const AuthorBioStage: React.FC<Props> = ({ project, onUpdateProject, aiService }) => {
+export const AuthorBioStage: React.FC<Props> = ({ project, onUpdateProject, aiService, onContinue, onPrev }) => {
   const data: AuthorBioData = project.stageData?.['author-bio'] || {
     personalDetails: '',
     nameType: 'pen-name',
@@ -22,6 +25,31 @@ export const AuthorBioStage: React.FC<Props> = ({ project, onUpdateProject, aiSe
   const [authorName, setAuthorName] = useState<string>(project.author || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedBio, setCopiedBio] = useState(false);
+
+  const isApproved = project.stageStatuses?.['author-bio'] === 'APROVADO' ||
+                     project.editorialStageApprovals?.['author-bio']?.status === 'APROVADO';
+
+  const handleApprove = () => {
+    const updated: BookProject = {
+      ...project,
+      author: authorName.trim() || project.author,
+      stageStatuses: {
+        ...(project.stageStatuses || getDefaultStageStatuses()),
+        'author-bio': 'COMPLETED'
+      },
+      editorialStageApprovals: {
+        ...(project.editorialStageApprovals || {}),
+        'author-bio': {
+          stageId: 'author-bio',
+          status: 'APROVADO',
+          approvedAt: Date.now(),
+          approvedBy: 'user',
+          notes: `Biografia do autor aprovada para ${authorName.trim() || project.author}.`
+        }
+      }
+    };
+    onUpdateProject(updated);
+  };
 
   const updateData = (updates: Partial<AuthorBioData>) => {
     const updated = { ...data, ...updates };
@@ -108,7 +136,21 @@ Diretrizes:
 
   return (
     <div className="stage-form-container">
-      <div className="stage-intro-block">
+      {/* BARRA DE CONTROLE EDITORIAL */}
+      <EditorialControlBar
+        stageId="author-bio"
+        stageLabel="Biografia & Persona do Autor KDP"
+        status={isApproved ? 'APROVADO' : (data.generatedBio || data.background) ? 'AGUARDANDO_APROVACAO' : 'PENDENTE'}
+        isApproved={isApproved}
+        canApprove={Boolean(authorName.trim() && (data.generatedBio || data.background))}
+        approveButtonText={isApproved ? '✓ BIOGRAFIA APROVADA' : 'APROVAR BIOGRAFIA DO AUTOR'}
+        onPrev={onPrev}
+        onNext={isApproved ? onContinue : undefined}
+        onRegenerate={generateBio}
+        onApprove={handleApprove}
+      />
+
+      <div className="stage-intro-block" style={{ marginTop: 16 }}>
         <h3>Biografia do Autor & Credenciais</h3>
         <p>Crie a biografia que constará na orelha do livro, contracapa e no perfil oficial do autor na Amazon KDP.</p>
       </div>

@@ -3254,7 +3254,7 @@ var BOOK_TYPE_CONFIGS = {
 };
 
 // src/services/backend-editorial-service.ts
-var BackendEditorialService = class {
+var BackendEditorialService = class _BackendEditorialService {
   /**
    * Constrói o contexto editorial denso e obrigatório incluindo a Bíblia do Livro
    */
@@ -3355,8 +3355,13 @@ ${prompt}` }]
     if (options.json) {
       body.generationConfig.responseMimeType = "application/json";
     }
+    if (process.env.NODE_ENV === "test" && !process.env.TEST_GEMINI_ONLINE) {
+      return "";
+    }
     for (const model of models) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3e3);
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
         const res = await fetch(url, {
           method: "POST",
@@ -3364,8 +3369,10 @@ ${prompt}` }]
             "Content-Type": "application/json",
             "x-goog-api-key": apiKey
           },
-          body: JSON.stringify(body)
+          body: JSON.stringify(body),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -3375,7 +3382,7 @@ ${prompt}` }]
         console.warn(`[BackendEditorial] Falha no modelo ${model}:`, err.message);
       }
     }
-    return options.json ? JSON.stringify({ success: true, localEngineFallback: true }) : "Conte\xFAdo formatado via fallback editorial aut\xF4nomo.";
+    return options.json ? JSON.stringify({ success: true, localEngineFallback: true }) : "";
   }
   /**
    * Geração do texto integral de um capítulo sob controle de contexto estrito
@@ -3444,6 +3451,7 @@ Ao aplicar os princ\xEDpios discutidos, voc\xEA perceber\xE1 que a clareza e a d
       chapterTitle: chapter.title
     };
   }
+  static generateDeepChapter = _BackendEditorialService.generateChapter;
   /**
    * Executa a Revisão Ortográfica, Gramatical e de Continuidade Literária
    */
