@@ -32,18 +32,17 @@ export interface StageDefinition {
 
 export const STAGES: StageDefinition[] = [
   { id: 'research',       number: 1,  label: 'Pesquisa & Tópico' },
-  { id: 'analytics',      number: 2,  label: 'Análise de Mercado' },
-  { id: 'book-titles',    number: 3,  label: 'Títulos & Subtítulos' },
-  { id: 'resources',      number: 4,  label: 'Fontes & Materiais' },
-  { id: 'author-persona', number: 5,  label: 'Voz & Persona' },
-  { id: 'purpose',        number: 6,  label: 'Proposta Editorial' },
-  { id: 'book-details',   number: 7,  label: 'Ficha Editorial' },
-  { id: 'author-bio',     number: 8,  label: 'Biografia do Autor' },
-  { id: 'outline',        number: 9,  label: 'Sumário & Estrutura' },
-  { id: 'write',          number: 10, label: 'Escrever & Diagramar' },
-  { id: 'description',    number: 11, label: 'Sinopse Amazon KDP' },
-  { id: 'book-cover',     number: 12, label: 'Capa do Livro' },
-  { id: 'finish',         number: 13, label: 'Finalizar & Publicar' },
+  { id: 'book-titles',    number: 2,  label: 'Títulos & Subtítulos' },
+  { id: 'resources',      number: 3,  label: 'Fontes & Materiais' },
+  { id: 'author-persona', number: 4,  label: 'Voz & Persona' },
+  { id: 'purpose',        number: 5,  label: 'Proposta Editorial' },
+  { id: 'book-details',   number: 6,  label: 'Ficha Editorial' },
+  { id: 'author-bio',     number: 7,  label: 'Biografia do Autor' },
+  { id: 'outline',        number: 8,  label: 'Sumário & Estrutura' },
+  { id: 'write',          number: 9,  label: 'Escrever & Diagramar' },
+  { id: 'description',    number: 10, label: 'Sinopse Amazon KDP' },
+  { id: 'book-cover',     number: 11, label: 'Capa do Livro' },
+  { id: 'finish',         number: 12, label: 'Finalizar & Publicar' },
 ];
 
 // ============================================================

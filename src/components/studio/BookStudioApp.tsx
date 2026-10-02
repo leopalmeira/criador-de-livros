@@ -3,7 +3,7 @@ import {
   BookOpen, Plus, Settings as SettingsIcon, ChevronLeft, ChevronRight,
   Wand2, History, Eye, RefreshCw, Check, LogOut, Search, BarChart3,
   Type, FolderOpen, User, Target, FileText, PenTool, AlignLeft,
-  Image as ImageIcon, BookMarked, Download, Trash2, Copy, Sparkles, Trophy
+  Image as ImageIcon, BookMarked, Download, Trash2, Copy, Sparkles, Trophy, Zap
 } from 'lucide-react';
 import { db } from '../../database/local-database';
 import { BookProject, BookVersionItem, BookMemory, IBookChapter } from '../../types/book-project';
@@ -19,7 +19,6 @@ import {
 
 // Componentes das Etapas
 import { ResearchStage } from './stages/ResearchStage';
-import { AnalyticsStage } from './stages/AnalyticsStage';
 import { BookTitlesStage } from './stages/BookTitlesStage';
 import { ResourcesStage } from './stages/ResourcesStage';
 import { AuthorPersonaStage } from './stages/AuthorPersonaStage';
@@ -44,6 +43,8 @@ import '../../styles/book-intel-dashboard.css';
 import { AlertTriangle } from 'lucide-react';
 import { PublishSuccessModal } from './PublishSuccessModal';
 import { AssistedGenerationPanel } from './AssistedGenerationPanel';
+import { FullBookGeneratorModal } from './FullBookGeneratorModal';
+import { GeminiBookGeneratorService } from '../../services/gemini-book-generator';
 
 // Ícones por estágio
 const STAGE_ICONS: Record<StageId, React.ReactNode> = {
@@ -80,10 +81,20 @@ export const BookStudioApp: React.FC = () => {
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
   const [validationWarningReason, setValidationWarningReason] = useState('');
   const [isPublishSuccessModalOpen, setIsPublishSuccessModalOpen] = useState(false);
+  const [isFullBookModalOpen, setIsFullBookModalOpen] = useState(false);
+  const [isAutoGeneratingStage, setIsAutoGeneratingStage] = useState(false);
 
   // Status de salvamento automático
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState('');
+
+  // Redireciona caso o projeto antigo ou estado esteja em 'analytics'
+  useEffect(() => {
+    if (activeProject && (activeProject.currentStage === 'analytics' || currentStage === 'analytics')) {
+      setCurrentStage('book-titles');
+      handleUpdateProject({ ...activeProject, currentStage: 'book-titles' });
+    }
+  }, [activeProject?.id, activeProject?.currentStage, currentStage]);
 
   // Carregar projetos do IndexedDB
   const reloadProjects = useCallback(async () => {
@@ -112,6 +123,37 @@ export const BookStudioApp: React.FC = () => {
       setLastSavedTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
     } finally {
       setTimeout(() => setIsAutosaving(false), 250);
+    }
+  };
+
+  // Gerar conteúdo automático para a etapa ativa com IA Gemini (com fallback local robusto)
+  const handleAutoGenerateCurrentStage = async () => {
+    if (!activeProject) return;
+    setIsAutoGeneratingStage(true);
+    try {
+      const generator = new GeminiBookGeneratorService(aiService);
+      let res: any;
+
+      if (currentStage === 'write') {
+        const targetChapter = selectedEditorChapter ?? 0;
+        res = await generator.generateChapterContent(activeProject, targetChapter);
+      } else {
+        res = await generator.generateForStage(activeProject, currentStage);
+      }
+
+      if (res && res.success && res.data) {
+        const updated = generator.applyResultToProject(activeProject, res);
+        await handleUpdateProject(updated);
+      } else {
+        const filled = BoxSuggestionService.fillEntireStage(currentStage, activeProject);
+        await handleUpdateProject(filled);
+      }
+    } catch (err) {
+      console.warn('[AutoGenerate] Erro, aplicando fallback local:', err);
+      const filled = BoxSuggestionService.fillEntireStage(currentStage, activeProject);
+      await handleUpdateProject(filled);
+    } finally {
+      setIsAutoGeneratingStage(false);
     }
   };
 
@@ -411,15 +453,6 @@ export const BookStudioApp: React.FC = () => {
         if (!topic) return { isValid: false, reason: 'O tópico ou tema central do livro é obrigatório na Etapa 1.' };
         return { isValid: true };
       }
-      case 'analytics': {
-        const hasData = Boolean(
-          data.analytics?.aiAnalysisSummary?.trim() ||
-          (data.analytics?.marketReferences && data.analytics.marketReferences.length > 0) ||
-          data.analytics?.searchKeywords?.trim()
-        );
-        if (!hasData) return { isValid: false, reason: 'Gere ou preencha a análise de mercado antes de avançar.' };
-        return { isValid: true };
-      }
       case 'book-titles': {
         const t = data['book-titles']?.customTitle?.trim() || data['book-titles']?.selectedTitleId || activeProject.title?.trim();
         if (!t) return { isValid: false, reason: 'Selecione ou digite um título definitivo para a obra.' };
@@ -561,8 +594,6 @@ export const BookStudioApp: React.FC = () => {
     switch (currentStage) {
       case 'research':
         return <ResearchStage project={activeProject} onUpdateProject={handleUpdateProject} />;
-      case 'analytics':
-        return <AnalyticsStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
       case 'book-titles':
         return <BookTitlesStage project={activeProject} onUpdateProject={handleUpdateProject} aiService={aiService} />;
       case 'resources':
@@ -667,12 +698,12 @@ export const BookStudioApp: React.FC = () => {
 
   return (
     <div className="app-layout editor-layout">
-      {/* ===== SIDEBAR ESQUERDA (13 ETAPAS COAUTHOR) ===== */}
+      {/* ===== SIDEBAR ESQUERDA (ETAPAS COAUTHOR) ===== */}
       <aside className="editor-sidebar">
         <div className="sidebar-top">
-          <div className="sidebar-step-badge">Etapa {stageNum} de 13</div>
+          <div className="sidebar-step-badge">Etapa {stageNum} de {STAGES.length}</div>
           <span className="sidebar-stage-name">{stageLabel}</span>
-          <div className="sidebar-progress-track" title={`${completedCount} de 13 etapas concluídas`}>
+          <div className="sidebar-progress-track" title={`${completedCount} de ${STAGES.length} etapas concluídas`}>
             <div className="sidebar-progress-bar" style={{ width: `${Math.max(6, progressPercent)}%` }} />
           </div>
           <span className="sidebar-progress-text">{progressPercent}% concluído</span>
@@ -731,7 +762,7 @@ export const BookStudioApp: React.FC = () => {
           </div>
 
           <div className="header-stage-info">
-            <span className="header-stage-badge">Etapa {stageNum} de 13</span>
+            <span className="header-stage-badge">Etapa {stageNum} de {STAGES.length}</span>
             <h2 className="header-stage-title">{stageLabel}</h2>
           </div>
 
@@ -772,7 +803,41 @@ export const BookStudioApp: React.FC = () => {
               </div>
             )}
 
-            {stageNum === 13 ? (
+            {/* BOTÃO GERAR ETAPA COM IA (GEMINI OU FALLBACK INTELIGENTE) */}
+            {activeProject && currentStage !== 'finish' && (
+              <button
+                className="btn-header-ai-generate"
+                onClick={handleAutoGenerateCurrentStage}
+                disabled={isAutoGeneratingStage}
+                title="Preencher ou gerar dados desta etapa automaticamente com IA"
+              >
+                {isAutoGeneratingStage ? (
+                  <>
+                    <RefreshCw size={13} className="spin" />
+                    <span>Gerando Etapa...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={13} />
+                    <span>Gerar com IA</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* BOTÃO GERAR TODO O LIVRO AUTOMATICAMENTE */}
+            {activeProject && (
+              <button
+                className="btn-header-full-auto"
+                onClick={() => setIsFullBookModalOpen(true)}
+                title="Gerador Editorial Automático: criar todo o livro com IA"
+              >
+                <Zap size={13} />
+                <span>Gerar Todo o Livro</span>
+              </button>
+            )}
+
+            {stageNum === STAGES.length ? (
               <button
                 className="btn-nav-publish"
                 onClick={handlePublishBook}
@@ -808,7 +873,7 @@ export const BookStudioApp: React.FC = () => {
             </div>
             <div className="guided-flow-right">
               <span className="guided-flow-status">
-                <Check size={12} /> Linha de Raciocínio Conectada (13 Etapas)
+                <Check size={12} /> Linha de Raciocínio Conectada ({STAGES.length} Etapas)
               </span>
             </div>
           </div>
@@ -875,6 +940,18 @@ export const BookStudioApp: React.FC = () => {
           onClose={() => setIsPublishSuccessModalOpen(false)}
           project={activeProject}
           onReturnToDashboard={exitProject}
+        />
+      )}
+
+      {/* MODAL DE GERAÇÃO AUTOMÁTICA DO LIVRO COMPLETO (GEMINI AI) */}
+      {activeProject && (
+        <FullBookGeneratorModal
+          isOpen={isFullBookModalOpen}
+          onClose={() => setIsFullBookModalOpen(false)}
+          project={activeProject}
+          onUpdateProject={handleUpdateProject}
+          aiService={aiService}
+          onNavigateToStage={(stage) => setCurrentStage(stage)}
         />
       )}
 

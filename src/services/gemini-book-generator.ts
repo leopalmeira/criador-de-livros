@@ -682,7 +682,6 @@ Retorne EXCLUSIVAMENTE um JSON válido:
   getAssistedFlowStages(): StageId[] {
     return [
       'research',
-      'analytics',
       'book-titles',
       'author-persona',
       'purpose',

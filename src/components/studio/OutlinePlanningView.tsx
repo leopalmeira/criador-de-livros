@@ -24,6 +24,8 @@ import { AiService } from '../../services/ai-service';
 import { AiAssistantService } from '../../services/ai-assistant-service';
 import { PageEngine } from '../../services/page-engine';
 import { LocalAiEngine } from '../../services/local-ai-engine';
+import { GeminiBookGeneratorService } from '../../services/gemini-book-generator';
+import { BoxSuggestionService } from '../../services/box-suggestion-service';
 import '../../styles/outline-planning.css';
 
 interface OutlinePlanningViewProps {
@@ -182,23 +184,58 @@ export const OutlinePlanningView: React.FC<OutlinePlanningViewProps> = ({
   };
 
   const handleRegenerateOutline = async () => {
-    if (!project.kdpConcept) return;
     setIsGenerating(true);
     try {
-      const pipeline = new KdpBookPipeline(aiService);
-      const res = await pipeline.generateOutline(
-        project.kdpConcept,
-        project.kdpBookType,
-        project.language
-      );
-      if (res && Array.isArray(res) && res.length > 0) {
-        setChapters(res);
+      // 1. Tenta gerar via GeminiBookGeneratorService (IA Gemini com regras anti-plágio)
+      const generator = new GeminiBookGeneratorService(aiService);
+      const geminiRes = await generator.generateOutline(project);
+
+      if (geminiRes && geminiRes.success && geminiRes.data?.kdpChapters?.length > 0) {
+        const newChapters = geminiRes.data.kdpChapters;
+        setChapters(newChapters);
         const updated = {
           ...project,
-          kdpChapters: res
+          kdpChapters: newChapters
         };
         updated.visualPages = PageEngine.generateVisualPagesFromManuscript(updated);
         onUpdateProject(updated);
+        return;
+      }
+
+      // 2. Se project.kdpConcept existir, tenta via pipeline KDP
+      if (project.kdpConcept) {
+        const pipeline = new KdpBookPipeline(aiService);
+        const res = await pipeline.generateOutline(
+          project.kdpConcept,
+          project.kdpBookType,
+          project.language
+        );
+        if (res && Array.isArray(res) && res.length > 0) {
+          setChapters(res);
+          const updated = {
+            ...project,
+            kdpChapters: res
+          };
+          updated.visualPages = PageEngine.generateVisualPagesFromManuscript(updated);
+          onUpdateProject(updated);
+          return;
+        }
+      }
+
+      // 3. Fallback inteligente imediato e garantido
+      const filled = BoxSuggestionService.fillEntireStage('outline', project);
+      if (filled.kdpChapters && filled.kdpChapters.length > 0) {
+        setChapters(filled.kdpChapters);
+        filled.visualPages = PageEngine.generateVisualPagesFromManuscript(filled);
+        onUpdateProject(filled);
+      }
+    } catch (err) {
+      console.warn('[Outline] Fallback na geração de sumário:', err);
+      const filled = BoxSuggestionService.fillEntireStage('outline', project);
+      if (filled.kdpChapters && filled.kdpChapters.length > 0) {
+        setChapters(filled.kdpChapters);
+        filled.visualPages = PageEngine.generateVisualPagesFromManuscript(filled);
+        onUpdateProject(filled);
       }
     } finally {
       setIsGenerating(false);

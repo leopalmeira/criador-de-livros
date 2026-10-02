@@ -51,7 +51,7 @@ export const AssistedGenerationPanel: React.FC<Props> = ({
 
   // Stages que suportam geração IA
   const AI_GENERATABLE_STAGES: StageId[] = [
-    'research', 'analytics', 'book-titles',
+    'research', 'book-titles',
     'author-persona', 'purpose', 'author-bio',
     'outline', 'write', 'description'
   ];
