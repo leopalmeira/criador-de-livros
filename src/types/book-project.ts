@@ -1180,6 +1180,8 @@ export interface BookProject {
   versions?: BookVersionItem[];
   coverImageUrl?: string;
   cover_id?: string;
+  promotionalPage?: any;
+  promotionalImageUrl?: string;
   
   // 13-Stage Editorial Pipeline Tracking
   stageStatuses?: Record<StageId, StageStatus>;

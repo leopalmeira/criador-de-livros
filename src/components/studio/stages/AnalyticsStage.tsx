@@ -175,7 +175,7 @@ Retorne como um JSON array com esses campos exatos. Retorne exclusivamente o arr
       },
       stageStatuses: {
         ...baseStatuses,
-        analytics: 'COMPLETED'
+        research: 'COMPLETED'
       }
     });
   };

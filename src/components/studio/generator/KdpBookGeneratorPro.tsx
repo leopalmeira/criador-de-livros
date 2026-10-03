@@ -71,6 +71,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   // Status e controle do pipeline
   const [gerando, setGerando] = useState(false);
   const [pararFlag, setPararFlag] = useState(false);
+  const pararFlagRef = useRef(false);
   const [capAtual, setCapAtual] = useState(0);
   const [totalCaps, setTotalCaps] = useState(0);
   const [statusMsg, setStatusMsg] = useState('Pronto para iniciar');
@@ -78,6 +79,18 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [progressPercent, setProgressPercent] = useState(0);
   const [diagnostico, setDiagnostico] = useState('Sistema pronto.');
   const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo'>('preview');
+
+  // Sistema de Log Estruturado de Erros e Auto-Recuperação
+  interface ErrorLogItem {
+    id: string;
+    timestamp: string;
+    capitulo: number;
+    erro: string;
+    acao: string;
+    resolvido: boolean;
+  }
+  const [errorLogs, setErrorLogs] = useState<ErrorLogItem[]>([]);
+  const [showErrorLogs, setShowErrorLogs] = useState(false);
 
   // Sugestões de IA por campo
   const [loadingSugestao, setLoadingSugestao] = useState<string | null>(null);
@@ -88,6 +101,13 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const logDiag = (msg: string) => {
     const timestamp = new Date().toLocaleTimeString('pt-BR');
     setDiagnostico(`[${timestamp}] ${msg}`);
+  };
+
+  const pararGeracao = () => {
+    pararFlagRef.current = true;
+    setPararFlag(true);
+    setStatusMsg('⏹ Interrupção solicitada pelo usuário...');
+    logDiag('Interrupção solicitada pelo usuário');
   };
 
   // Carregar progresso salvo localmente
@@ -224,18 +244,22 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     setPromoData(null);
     salvarProgressoLocal(novoLivro, '', '', undefined);
 
+    pararFlagRef.current = false;
+    setPararFlag(false);
     await executarLoopGeracao(novoLivro, 0, capsCalc, palavrasPorCap);
   };
 
   // CONTINUAR GERAÇÃO INTERROMPIDA
   const continuarGeracao = async () => {
     if (!livro) return;
+    pararFlagRef.current = false;
+    setPararFlag(false);
     const palavrasPorCap = livro.meta?.palavrasPorCap || 900;
     const startFrom = livro.capitulos.length;
     await executarLoopGeracao(livro, startFrom, totalCaps, palavrasPorCap);
   };
 
-  // LOOP DE GERAÇÃO CAPÍTULO A CAPÍTULO
+  // LOOP DE GERAÇÃO CAPÍTULO A CAPÍTULO COM AUTO-RECUPERAÇÃO CONTÍNUA (SELF-HEALING)
   const executarLoopGeracao = async (
     livroBase: LivroGerado,
     inicio: number,
@@ -244,11 +268,11 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   ) => {
     if (gerando) return;
     setGerando(true);
+    pararFlagRef.current = false;
     setPararFlag(false);
 
-    let contexto = livroBase.capitulos.length > 0
-      ? `Último trecho do capítulo anterior: "${livroBase.capitulos[livroBase.capitulos.length - 1].texto.slice(-350)}"`
-      : 'Início da narrativa.';
+    const frasesUsadas = new Set<string>();
+    let tentativasConsecutivasCapitulo = 0;
 
     // Função auxiliar para criar resumo compacto de continuidade de cada capítulo
     const extrairResumoContinuo = (texto: string): string => {
@@ -260,9 +284,10 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     };
 
     for (let i = inicio; i < total; i++) {
-      if (pararFlag) {
+      if (pararFlagRef.current) {
         setStatusMsg(`⏹ Interrompido no capítulo ${i + 1}. Progresso salvo.`);
-        setStatusType('error');
+        setStatusType('normal');
+        logDiag(`Geração interrompida pelo usuário no capítulo ${i + 1}`);
         break;
       }
 
@@ -273,7 +298,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       logDiag(`Iniciando capítulo ${num}/${total}`);
 
       // Breve pausa preventiva de 1.2s para evitar limites de taxa (QPS)
-      if (i > inicio) {
+      if (i > inicio && tentativasConsecutivasCapitulo === 0) {
         await new Promise(r => setTimeout(r, 1200));
       }
 
@@ -366,6 +391,14 @@ TEXTO:
         setCapAtual(livroBase.capitulos.length);
         salvarProgressoLocal(livroBase);
 
+        // Se houve incidentes anteriores neste capítulo, atualizar no log como resolvido
+        if (tentativasConsecutivasCapitulo > 0) {
+          setErrorLogs(prev => prev.map(log => 
+            log.capitulo === num ? { ...log, resolvido: true, acao: `✓ Auto-recuperado com sucesso via ${res.modelo}` } : log
+          ));
+        }
+        tentativasConsecutivasCapitulo = 0;
+
         logDiag(`✓ Capítulo ${num} concluído com sucesso via ${res.modelo} (${cap.texto.split(/\s+/).length} palavras)`);
         setStatusMsg(`✓ Capítulo ${num}/${total} concluído com sucesso via ${res.modelo}!`);
 
@@ -375,15 +408,82 @@ TEXTO:
         }
       } catch (err: any) {
         console.error(err);
-        setStatusMsg(`Erro no capítulo ${num}: ${err.message}. Clique em "Continuar Geração" para retomar sem perda.`);
-        setStatusType('error');
-        logDiag(`Erro no capítulo ${num}: ${err.message}`);
-        setGerando(false);
-        return;
+        const erroMsg = err.message || 'Erro inesperado na chamada do modelo';
+        const logId = `err_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const timestamp = new Date().toLocaleTimeString('pt-BR');
+
+        logDiag(`⚠️ Erro capturado no capítulo ${num}: ${erroMsg}`);
+
+        // Se o usuário solicitou parada manual, honrar imediatamente
+        if (pararFlagRef.current) {
+          setErrorLogs(prev => [{
+            id: logId,
+            timestamp,
+            capitulo: num,
+            erro: erroMsg,
+            acao: 'Interrupção manual solicitada pelo usuário',
+            resolvido: false
+          }, ...prev]);
+          setStatusMsg(`⏹ Interrompido no capítulo ${num}. Progresso salvo.`);
+          setStatusType('normal');
+          setGerando(false);
+          return;
+        }
+
+        // SISTEMA DE AUTO-RECUPERAÇÃO CONTÍNUA (SELF-HEALING AUTO-RESUME)
+        tentativasConsecutivasCapitulo++;
+        const MAX_AUTO_RETRIES = 8;
+
+        if (tentativasConsecutivasCapitulo <= MAX_AUTO_RETRIES) {
+          const acaoTexto = `Auto-retomada em andamento (${tentativasConsecutivasCapitulo}/${MAX_AUTO_RETRIES})`;
+          setErrorLogs(prev => [{
+            id: logId,
+            timestamp,
+            capitulo: num,
+            erro: erroMsg,
+            acao: acaoTexto,
+            resolvido: false
+          }, ...prev]);
+
+          // Contagem regressiva visual de segurança de 3 segundos
+          // O usuário vê a auto-recuperação operando sem precisar clicar no botão manualmente
+          for (let s = 3; s > 0; s--) {
+            if (pararFlagRef.current) break;
+            setStatusMsg(`🔄 Auto-recuperando Capítulo ${num} em ${s}s (Tentativa ${tentativasConsecutivasCapitulo}/${MAX_AUTO_RETRIES}). Preservando contexto...`);
+            setStatusType('normal');
+            await new Promise(r => setTimeout(r, 1000));
+          }
+
+          if (pararFlagRef.current) {
+            setStatusMsg(`⏹ Interrompido no capítulo ${num}. Progresso salvo.`);
+            setStatusType('normal');
+            setGerando(false);
+            return;
+          }
+
+          // Decrementa o índice para repetir a geração do mesmo capítulo mantendo toda a memória
+          i--;
+          logDiag(`Auto-retomando capítulo ${num} automaticamente sem perda de contexto...`);
+          continue; // RETOMA AUTOMATICAMENTE
+        } else {
+          // Se exceder limite de retries automáticas
+          setErrorLogs(prev => [{
+            id: logId,
+            timestamp,
+            capitulo: num,
+            erro: erroMsg,
+            acao: 'Limite de auto-recuperações atingido. Aguardando intervenção manual.',
+            resolvido: false
+          }, ...prev]);
+          setStatusMsg(`⚠️ Erro persistente no capítulo ${num}: ${erroMsg}. Clique em "Continuar Geração" quando desejar.`);
+          setStatusType('error');
+          setGerando(false);
+          return;
+        }
       }
     }
 
-    if (!pararFlag) {
+    if (!pararFlagRef.current) {
       setProgressPercent(100);
       setStatusMsg('✓ Livro completo com sucesso! Agora você pode gerar a capa e a página promocional.');
       setStatusType('ok');
@@ -416,6 +516,7 @@ TEXTO:
     const obraTitulo = livro ? livro.titulo : titulo.trim();
     const obraSubtitulo = livro ? livro.subtitulo : subtitulo.trim();
     const obraAutor = livro ? livro.autor : autor.trim();
+    const obraGenero = livro ? livro.genero : genero;
     const obraPremissa = topico.trim();
     const trechoAmostra = livro?.capitulos?.slice(0, 3).map(c => c.texto).join(' ').slice(0, 1000) || obraPremissa;
 
@@ -426,7 +527,7 @@ TEXTO:
     try {
       // 1. ILUSTRAÇÃO DA CAPA (IMAGEN 3)
       const promptCapa = `Book cover background illustration, NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY.
-Genre: ${genero}
+Genre: ${obraGenero}
 Atmosphere: ${obraPremissa}
 Key Scene Hints: ${trechoAmostra}
 Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog, mysterious, bestseller cover art, vertical 2:3 composition.`;
@@ -506,7 +607,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
 
         const promoImg = await gerarImagemPromocionalNarrativa({
           title: obraTitulo,
-          genre,
+          genre: obraGenero,
           topic: obraPremissa,
           chaptersSample: trechoAmostra
         });
@@ -516,7 +617,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
             title: obraTitulo,
             subtitle: obraSubtitulo,
             author: obraAutor,
-            genre,
+            genre: obraGenero,
             topic: obraPremissa,
             chaptersSample: trechoAmostra
           },
@@ -668,7 +769,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
 
       paragrafos.forEach(p => {
         const linhas = doc.splitTextToSize(p, larg);
-        linhas.forEach((linha, idx) => {
+        linhas.forEach((linha: string, idx: number) => {
           if (y > LH - mB - 0.15) {
             aplicarNumPagina();
             novaPag();
@@ -721,13 +822,16 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
       topic: topico,
       kdpBookType: 'fiction-novel',
       coverImageUrl: capaFinal || undefined,
+      promotionalPage: promoData || undefined,
+      promotionalImageUrl: promoData?.promotionalImageUrl || undefined,
       kdpChapters: livro.capitulos.map((c, i) => ({
-        id: `cap_${i + 1}`,
-        order: i + 1,
+        index: i + 1,
         title: c.titulo,
-        content: c.texto,
+        summary: c.texto.slice(0, 200),
+        targetWordCount: livro.meta?.palavrasPorCap || 900,
+        prose: c.texto,
         wordCount: c.texto.split(/\s+/).length,
-        status: 'completed',
+        status: 'APROVADO' as const,
         scenes: []
       })),
       tasks: [],
@@ -1354,7 +1458,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
               <button
                 type="button"
-                onClick={() => setPararFlag(true)}
+                onClick={pararGeracao}
                 disabled={!gerando}
                 style={{
                   display: 'flex',
@@ -1494,6 +1598,124 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               }}
             >
               {diagnostico}
+            </div>
+
+            {/* PAINEL DE AUDITORIA & AUTO-RECUPERAÇÃO AUTOMÁTICA */}
+            <div style={{ marginTop: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: '#10b981',
+                      boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)'
+                    }}
+                  />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>
+                    Auto-Recuperação (Self-Healing)
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      background: '#eff6ff',
+                      color: '#2563eb',
+                      padding: '1px 6px',
+                      borderRadius: 4
+                    }}
+                  >
+                    Ativo
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowErrorLogs(prev => !prev)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: errorLogs.length > 0 ? '#ea580c' : '#64748b',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  📋 Log de Auditoria {errorLogs.length > 0 && `(${errorLogs.length})`}
+                  <span style={{ fontSize: 9 }}>{showErrorLogs ? '▲' : '▼'}</span>
+                </button>
+              </div>
+
+              {showErrorLogs && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 6,
+                    padding: '10px',
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    fontSize: 11
+                  }}
+                >
+                  {errorLogs.length === 0 ? (
+                    <div style={{ color: '#94a3b8', textAlign: 'center', padding: '12px 0' }}>
+                      ✓ Nenhum erro registrado. O fluxo de geração está operando com 100% de estabilidade.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {errorLogs.map(item => (
+                        <div
+                          key={item.id}
+                          style={{
+                            padding: '6px 8px',
+                            borderRadius: 4,
+                            background: item.resolvido ? '#f0fdf4' : '#fff7ed',
+                            borderLeft: `3px solid ${item.resolvido ? '#22c55e' : '#f97316'}`
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                            <span style={{ fontWeight: 700, color: '#1e293b' }}>
+                              Capítulo {item.capitulo} · {item.timestamp}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: item.resolvido ? '#15803d' : '#c2410c'
+                              }}
+                            >
+                              {item.resolvido ? '✓ Auto-Recuperado' : '⏳ Em Processamento'}
+                            </span>
+                          </div>
+                          <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>
+                            <strong>Motivo:</strong> {item.erro}
+                          </div>
+                          <div style={{ color: '#0369a1', fontSize: 10, fontWeight: 600 }}>
+                            <strong>Ação:</strong> {item.acao}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
