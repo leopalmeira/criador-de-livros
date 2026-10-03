@@ -250,7 +250,14 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       ? `Último trecho do capítulo anterior: "${livroBase.capitulos[livroBase.capitulos.length - 1].texto.slice(-350)}"`
       : 'Início da narrativa.';
 
-    const frasesUsadas = new Set<string>();
+    // Função auxiliar para criar resumo compacto de continuidade de cada capítulo
+    const extrairResumoContinuo = (texto: string): string => {
+      const paras = texto.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+      if (paras.length === 0) return '';
+      const primeiro = paras[0].slice(0, 150);
+      const ultimo = paras[paras.length - 1].slice(0, 180);
+      return `${primeiro}... Conclusão: ${ultimo}`;
+    };
 
     for (let i = inicio; i < total; i++) {
       if (pararFlag) {
@@ -260,35 +267,73 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       }
 
       const num = i + 1;
-      setStatusMsg(`⏳ Escrevendo Capítulo ${num} de ${total} com Gemini...`);
+      setStatusMsg(`⏳ Escrevendo Capítulo ${num} de ${total} com Gemini 3.8/3.7...`);
       setStatusType('normal');
       setProgressPercent(Math.round((i / total) * 100));
       logDiag(`Iniciando capítulo ${num}/${total}`);
 
+      // Breve pausa preventiva de 1.2s para evitar limites de taxa (QPS)
+      if (i > inicio) {
+        await new Promise(r => setTimeout(r, 1200));
+      }
+
       try {
         const frasesArray = Array.from(frasesUsadas).slice(-25);
-        let prompt = `Você é um autor best-seller renomado escrevendo para Amazon KDP.
-Escreva o CAPÍTULO ${num} de um livro do gênero "${livroBase.genero}" no idioma "${livroBase.idioma}".
 
-DADOS DA OBRA:
+        // BÍBLIA NARRATIVA PROGRESSIVA (Story Progression Engine)
+        let historicoEnredo = 'Início da narrativa.';
+        if (livroBase.capitulos.length > 0) {
+          historicoEnredo = livroBase.capitulos.map((c, idx) => {
+            return `• Capítulo ${idx + 1} ("${c.titulo}"): ${extrairResumoContinuo(c.texto)}`;
+          }).join('\n');
+        }
+
+        const ultimoCapitulo = livroBase.capitulos.length > 0
+          ? livroBase.capitulos[livroBase.capitulos.length - 1]
+          : null;
+
+        const ganchoImediato = ultimoCapitulo
+          ? `O Capítulo anterior ("${ultimoCapitulo.titulo}") terminou com este trecho:\n"${ultimoCapitulo.texto.slice(-450)}"`
+          : 'Primeira cena da obra.';
+
+        let diretrizEstrutural = '';
+        if (num === 1) {
+          diretrizEstrutural = 'ESTE É O PRIMEIRO CAPÍTULO: Apresente o protagonista, estabeleça o cenário, o tom e o incidente incitante.';
+        } else if (num === total) {
+          diretrizEstrutural = 'ESTE É O CAPÍTULO FINAL (CLÍMAX & DESFECHO): Confronte o conflito principal, resolva os mistérios pendentes e entregue uma conclusão completa e inesquecível.';
+        } else {
+          diretrizEstrutural = `ESTE É O CAPÍTULO ${num} DE ${total} (PROGRESSÃO & TENSÃO): Conecte diretamente com o final do capítulo anterior, mantenha os mesmos personagens, aprofunde o conflito e aumente a tensão.`;
+        }
+
+        let prompt = `Você é um escritor best-seller profissional de literatura na Amazon KDP.
+Escreva o CAPÍTULO ${num} de um livro de ${livroBase.genero} em ${livroBase.idioma}.
+
+━━━ DADOS FUNDAMENTAIS DA OBRA (NUNCA DESVIE DISTO) ━━━
 Título: ${livroBase.titulo}
 Subtítulo: ${livroBase.subtitulo}
 Autor: ${livroBase.autor}
-Premissa: ${topico}
+Premissa Central (Eixo Inegociável): ${topico}
+Gênero Literário: ${livroBase.genero}
 
-CONTEXTO ATUAL:
-${contexto}
+━━━ MEMÓRIA DA HISTÓRIA ATÉ AGORA (BÍBLIA DE ENREDO) ━━━
+${historicoEnredo}
 
-DIRETRIZES TÉCNICAS:
-1. Escreva aproximadamente ${palavrasPorCap} palavras (mínimo ${Math.round(palavrasPorCap * 0.85)}).
-2. ORIGINALIDADE TOTAL. Proibido clichês repetitivos ou plágio.
-3. Não repita frases dos capítulos anteriores.
-4. Use diálogos vivos, descrições sensoriais e ritmo condizente com o gênero.
-5. Inicie com cena concreta e termine com um gancho instigante para o próximo capítulo.
-6. Retorne texto limpo, sem marcações markdown de asteriscos excessivos ou hashtags.
+━━━ GANCHO DE TRANSIÇÃO DIRETA ━━━
+${ganchoImediato}
 
-FORMATO OBRIGATÓRIO:
-TITULO: Título Criativo do Capítulo ${num}
+━━━ DIRETRIZ NARRATIVA DO CAPÍTULO ${num} ━━━
+${diretrizEstrutural}
+
+━━━ REGRAS TÉCNICAS OBRIGATÓRIAS ━━━
+1. Escreva em torno de ${palavrasPorCap} palavras (mínimo ${Math.round(palavrasPorCap * 0.85)} palavras ricas em detalhes).
+2. COERÊNCIA TOTAL: Mantenha rigorosamente os mesmos personagens, cenários e tom. Não invente premissas contraditórias.
+3. Não repita expressões ou diálogos clichês dos capítulos anteriores.
+4. Use diálogos dinâmicos, descrições sensoriais e conflito ativo.
+5. Termine com um gancho forte (cliffhanger) conectando para o próximo capítulo (a menos que seja o capítulo final).
+6. Texto puro pronto para publicação. Não use asteriscos, markdown, nem notas explicativas de rodapé.
+
+FORMATO ESTRITO:
+TITULO: Título Criativo e Impactante do Capítulo ${num}
 TEXTO:
 (Parágrafos da história separados por linha em branco)`;
 
@@ -296,10 +341,22 @@ TEXTO:
           prompt += `\n\nEVITE REPETIR AS SEGUINTES FRASES:\n${frasesArray.map(f => `- ${f}`).join('\n')}`;
         }
 
-        const res = await chamarGeminiTexto(prompt, { temperature: 0.9, maxTokens: 8192 });
+        const res = await chamarGeminiTexto(prompt, {
+          temperature: 0.88,
+          maxTokens: 8192,
+          maxRetries: 3,
+          onStatusUpdate: (msg) => {
+            setStatusMsg(msg);
+            logDiag(msg);
+          },
+          onAttemptModel: (mod) => {
+            logDiag(`Capítulo ${num}: processando com ${mod}`);
+          }
+        });
+
         const cap = parseCapitulo(res.texto, num);
 
-        // Extrair frases para evitar repetições
+        // Extrair frases para evitar repetições nos próximos capítulos
         cap.texto.split(/[.!?]\s+/).forEach(f => {
           if (f.trim().length > 40) frasesUsadas.add(f.trim().toLowerCase());
         });
@@ -309,8 +366,8 @@ TEXTO:
         setCapAtual(livroBase.capitulos.length);
         salvarProgressoLocal(livroBase);
 
-        contexto = `Capítulo ${num} encerrou com: "${cap.texto.slice(-350)}"`;
-        logDiag(`✓ Capítulo ${num} concluído com sucesso (${cap.texto.split(/\s+/).length} palavras)`);
+        logDiag(`✓ Capítulo ${num} concluído com sucesso via ${res.modelo} (${cap.texto.split(/\s+/).length} palavras)`);
+        setStatusMsg(`✓ Capítulo ${num}/${total} concluído com sucesso via ${res.modelo}!`);
 
         // Rolar preview para o final
         if (previewScrollRef.current) {
@@ -318,7 +375,7 @@ TEXTO:
         }
       } catch (err: any) {
         console.error(err);
-        setStatusMsg(`Erro no capítulo ${num}: ${err.message}. Progresso salvo.`);
+        setStatusMsg(`Erro no capítulo ${num}: ${err.message}. Clique em "Continuar Geração" para retomar sem perda.`);
         setStatusType('error');
         logDiag(`Erro no capítulo ${num}: ${err.message}`);
         setGerando(false);

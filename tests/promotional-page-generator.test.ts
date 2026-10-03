@@ -34,32 +34,40 @@ describe('BOOK INTEL KDP — Gerador de Página Promocional & KDP Pro Engine', (
   });
 
   it('3. Deve montar dados completos da página promocional respeitando as 7 seções obrigatórias', async () => {
-    // Mock determinístico da resposta da IA para proteger cotas e garantir velocidade
-    vi.spyOn(KdpAiEngine, 'chamarGeminiTexto').mockResolvedValue({
-      texto: JSON.stringify({
-        heroHook: 'O silêncio nunca é vazio quando os segredos têm voz própria.',
-        headline: 'Apresentando A Cabana: Um Hóspede Silencioso',
-        synopsis: 'Nas montanhas isoladas, um antigo refúgio guarda a chave para um desaparecimento que a polícia declarou insolúvel. Uma trama de tirar o fôlego escrita por Hector Alves.',
-        impactQuote: 'O silêncio nunca é vazio.',
-        features: [
-          { title: 'Atmosfera Claustrofóbica', subtitle: 'Isolamento', description: 'Cenário montanhoso gelado e hostil que amplifica cada passo suspeito.' },
-          { title: 'Mistério Investigativo', subtitle: 'Pistas Ocultas', description: 'Quebra-cabeças narrativo onde cada testemunha mente por um motivo diferente.' },
-          { title: 'Tensão Psicológica', subtitle: 'Reviravoltas', description: 'Construção psicológica primorosa que redefine a confiança entre os personagens.' }
-        ],
-        experienceTitle: 'O Universo de A Cabana',
-        experienceDescription: 'Uma imersão literária que desafia seus instintos de dedução.',
-        experienceItems: [
-          'Suspense crescente a cada capítulo',
-          'Ambiente isolado nas montanhas',
-          'Segredos de família perturbadores',
-          'Atmosfera cinematográfica'
-        ],
-        closingQuestion: 'Você entraria na cabana?',
-        closingCtaText: 'Adquira na Amazon KDP',
-        closingBadges: 'eBook Kindle · Capa Comum · Kindle Unlimited'
-      }),
-      modelo: 'gemini-3.8-flash'
-    });
+    // Mock determinístico do fetch para proteger cotas e garantir velocidade sem timeout
+    const mockJsonResp = {
+      heroHook: 'O silêncio nunca é vazio quando os segredos têm voz própria.',
+      headline: 'Apresentando A Cabana: Um Hóspede Silencioso',
+      synopsis: 'Nas montanhas isoladas, um antigo refúgio guarda a chave para um desaparecimento que a polícia declarou insolúvel. Uma trama de tirar o fôlego escrita por Hector Alves.',
+      impactQuote: 'O silêncio nunca é vazio.',
+      features: [
+        { title: 'Atmosfera Claustrofóbica', subtitle: 'Isolamento', description: 'Cenário montanhoso gelado e hostil que amplifica cada passo suspeito.' },
+        { title: 'Mistério Investigativo', subtitle: 'Pistas Ocultas', description: 'Quebra-cabeças narrativo onde cada testemunha mente por um motivo diferente.' },
+        { title: 'Tensão Psicológica', subtitle: 'Reviravoltas', description: 'Construção psicológica primorosa que redefine a confiança entre os personagens.' }
+      ],
+      experienceTitle: 'O Universo de A Cabana',
+      experienceDescription: 'Uma imersão literária que desafia seus instintos de dedução.',
+      experienceItems: [
+        'Suspense crescente a cada capítulo',
+        'Ambiente isolado nas montanhas',
+        'Segredos de família perturbadores',
+        'Atmosfera cinematográfica'
+      ],
+      closingQuestion: 'Você entraria na cabana?',
+      closingCtaText: 'Adquira na Amazon KDP',
+      closingBadges: 'eBook Kindle · Capa Comum · Kindle Unlimited'
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [{
+          content: { parts: [{ text: JSON.stringify(mockJsonResp) }] },
+          finishReason: 'STOP'
+        }]
+      })
+    } as any);
 
     const livroAmostra = {
       title: 'A Cabana',

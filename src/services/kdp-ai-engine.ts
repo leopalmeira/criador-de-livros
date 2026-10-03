@@ -7,16 +7,11 @@ import { BookPromotionalPageData, GenreVisualTheme } from '../types/promotional-
 
 export const MODELOS_GEMINI = [
   "gemini-3.8-flash",
+  "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-pro",
-  "gemini-flash-latest",
-  "gemini-pro-latest",
-  "gemini-3.7-flash"
+  "gemini-3.1-flash-lite"
 ];
 
 export const MODELOS_IMAGEM_GEMINI = [
@@ -79,18 +74,21 @@ export function getAvailableApiKeys(): string[] {
   return Array.from(new Set(keys.filter(k => Boolean(k && k.trim()))));
 }
 
-// Chamada genérica de texto aos modelos Gemini com cascata de resiliência
+// Chamada genérica de texto aos modelos Gemini com cascata de resiliência e retry inteligente
 export async function chamarGeminiTexto(
   prompt: string,
   options: {
     temperature?: number;
     maxTokens?: number;
+    maxRetries?: number;
     systemInstruction?: string;
     onAttemptModel?: (model: string) => void;
+    onStatusUpdate?: (status: string) => void;
   } = {}
 ): Promise<{ texto: string; modelo: string }> {
   const temperature = options.temperature ?? 0.85;
   const maxTokens = options.maxTokens ?? 8192;
+  const maxRetries = options.maxRetries ?? 3;
   const keys = getAvailableApiKeys();
 
   if (keys.length === 0) {
@@ -100,66 +98,85 @@ export async function chamarGeminiTexto(
   let lastError = '';
 
   for (const modelo of MODELOS_GEMINI) {
-    if (options.onAttemptModel) {
-      options.onAttemptModel(modelo);
-    }
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (options.onAttemptModel) {
+        options.onAttemptModel(attempt > 1 ? `${modelo} (Tentativa ${attempt}/${maxRetries})` : modelo);
+      }
 
-    for (const key of keys) {
-      try {
-        const body: Record<string, any> = {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature,
-            topP: 0.95,
-            maxOutputTokens: maxTokens
-          },
-          safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
-          ]
-        };
-
-        if (options.systemInstruction) {
-          body.systemInstruction = {
-            parts: [{ text: options.systemInstruction }]
+      for (const key of keys) {
+        try {
+          const body: Record<string, any> = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature,
+              topP: 0.95,
+              maxOutputTokens: maxTokens
+            },
+            safetySettings: [
+              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
+              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
+            ]
           };
-        }
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(key)}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(18000)
-        });
+          if (options.systemInstruction) {
+            body.systemInstruction = {
+              parts: [{ text: options.systemInstruction }]
+            };
+          }
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          lastError = errData?.error?.message || `HTTP ${response.status} (${response.statusText})`;
-          // Se for 404 (modelo não existe nesta versão da API), pula para o próximo modelo
-          if (response.status === 404) break;
-          // Se for 503 (serviço indisponível temporariamente), tenta o próximo modelo
-          if (response.status === 503 || response.status === 429) break;
-          continue;
-        }
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(key)}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(22000)
+          });
 
-        const data = await response.json();
-        const cand = data?.candidates?.[0];
-        if (cand?.finishReason === 'SAFETY') {
-          lastError = 'Bloqueado por filtro de segurança';
-          continue;
-        }
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            lastError = errData?.error?.message || `HTTP ${response.status} (${response.statusText})`;
+            
+            // 404: modelo não existe nesta conta/versão, pula direto para o próximo modelo
+            if (response.status === 404) break;
 
-        const texto = cand?.content?.parts?.map((p: any) => p.text || '').join('') || '';
-        if (texto.trim()) {
-          return { texto: texto.trim(), modelo };
+            // 503 ou 429: alta demanda ou limite de taxa temporário da Google.
+            // Executa backoff exponencial de espera e tenta novamente
+            if (response.status === 503 || response.status === 429) {
+              if (attempt < maxRetries) {
+                const waitMs = 1600 * attempt;
+                if (options.onStatusUpdate) {
+                  options.onStatusUpdate(`⏳ Google em alta demanda (${modelo}). Aguardando ${(waitMs / 1000).toFixed(1)}s para retentativa...`);
+                }
+                await new Promise(r => setTimeout(r, waitMs));
+                continue;
+              }
+              // Esgotou retries do modelo atual, passa para o próximo modelo da lista
+              break;
+            }
+            continue;
+          }
+
+          const data = await response.json();
+          const cand = data?.candidates?.[0];
+          if (cand?.finishReason === 'SAFETY') {
+            lastError = 'Bloqueado por filtro de segurança';
+            continue;
+          }
+
+          const texto = cand?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+          if (texto.trim()) {
+            return { texto: texto.trim(), modelo };
+          }
+        } catch (err: any) {
+          lastError = err.message || 'Falha de rede ao conectar com o modelo Gemini';
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 1200));
+          }
         }
-      } catch (err: any) {
-        lastError = err.message || 'Falha de rede ao conectar com o modelo Gemini';
       }
     }
   }
