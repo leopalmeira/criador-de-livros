@@ -7,6 +7,7 @@ import {
 import { BookProject } from '../../types/book-project';
 import { CategoryIntelligencePanel } from './category-intel/CategoryIntelligencePanel';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
+import { FinalBooksShelf } from './FinalBooksShelf';
 
 interface Props {
   projects: BookProject[];
@@ -187,6 +188,9 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 Próxima dica <ArrowRight size={14} />
               </button>
             </div>
+
+            {/* ESTANTE DE LIVROS FINALIZADOS & VALIDADOS KDP */}
+            <FinalBooksShelf />
 
             {/* SE HOUVER LIVROS JÁ CRIADOS, EXIBE EM LISTA ORGANIZADA ABAIXO */}
             {projects.length > 0 && (

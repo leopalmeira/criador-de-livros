@@ -14,10 +14,11 @@ import {
   ProjectSummary 
 } from '../types/book-project';
 import { CategoryMarketMetrics } from '../types/category-intelligence';
+import type { EditorialJob, FinalBookRecord } from '../types/editorial-correction';
 import { DEFAULT_SETTINGS, DEFAULT_SALES_MODELS } from './defaults';
 
 const DB_NAME = 'BookIntelDB';
-const DB_VERSION = 3; // Incrementado para suportar categoryMarketMetrics
+const DB_VERSION = 4; // v4: editorialJobs + finalBooks (correção editorial e PDFs finais)
 
 class LocalDatabase {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -102,6 +103,19 @@ class LocalDatabase {
           metricsStore.createIndex('category', 'category', { unique: false });
           metricsStore.createIndex('subcategory', 'subcategory', { unique: false });
           metricsStore.createIndex('collected_at', 'collected_at', { unique: false });
+        }
+
+        // Jobs de correção editorial capítulo a capítulo (retomáveis)
+        if (!db.objectStoreNames.contains('editorialJobs')) {
+          const jobStore = db.createObjectStore('editorialJobs', { keyPath: 'bookId' });
+          jobStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+        }
+
+        // Livros finalizados e validados (PDF persistido como ArrayBuffer)
+        if (!db.objectStoreNames.contains('finalBooks')) {
+          const finalStore = db.createObjectStore('finalBooks', { keyPath: 'id' });
+          finalStore.createIndex('bookId', 'bookId', { unique: false });
+          finalStore.createIndex('finalizedAt', 'finalizedAt', { unique: false });
         }
       };
 
@@ -436,6 +450,81 @@ class LocalDatabase {
       const req = store.delete(id);
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
+    });
+  }
+
+  // --- CORREÇÃO EDITORIAL: JOBS ---
+  async saveEditorialJob(job: EditorialJob): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('editorialJobs', 'readwrite');
+      tx.objectStore('editorialJobs').put(job);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  async getEditorialJob(bookId: string): Promise<EditorialJob | null> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const req = db.transaction('editorialJobs', 'readonly').objectStore('editorialJobs').get(bookId);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async deleteEditorialJob(bookId: string): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('editorialJobs', 'readwrite');
+      tx.objectStore('editorialJobs').delete(bookId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // --- LIVROS FINAIS (PDF VALIDADO) ---
+  async saveFinalBook(rec: FinalBookRecord): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('finalBooks', 'readwrite');
+      tx.objectStore('finalBooks').put(rec);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  async getFinalBook(id: string): Promise<FinalBookRecord | null> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const req = db.transaction('finalBooks', 'readonly').objectStore('finalBooks').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getAllFinalBooks(): Promise<FinalBookRecord[]> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const req = db.transaction('finalBooks', 'readonly').objectStore('finalBooks').getAll();
+      req.onsuccess = () => {
+        const list: FinalBookRecord[] = req.result || [];
+        list.sort((a, b) => b.finalizedAt - a.finalizedAt);
+        resolve(list);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async deleteFinalBook(id: string): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('finalBooks', 'readwrite');
+      tx.objectStore('finalBooks').delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   }
 

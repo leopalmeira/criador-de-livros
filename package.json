@@ -29,6 +29,7 @@
     "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
     "lucide-react": "^1.48.0",
+    "pdfjs-dist": "^6.3.289",
     "puppeteer-core": "^25.10.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.3.4",
+    "fake-indexeddb": "^6.2.5",
     "vitest": "^5.0.2"
   }
 }

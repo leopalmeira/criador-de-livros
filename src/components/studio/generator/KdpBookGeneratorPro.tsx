@@ -24,6 +24,8 @@ import {
   FullBookVerificationReport,
   VerifierIssue
 } from '../../../services/kdp-book-verifier';
+import { EditorialCorrectionSection } from './EditorialCorrectionSection';
+import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
 
 interface Capitulo {
   titulo: string;
@@ -705,130 +707,53 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
     return linhas;
   };
 
-  // BAIXAR PDF KDP DIAGRAMADO (SEM PÁGINAS EM BRANCO)
-  const baixarPDF = () => {
+  // BAIXAR PDF KDP DIAGRAMADO (MULTI-PASSE COM CAPA E SUMÁRIO DE PÁGINAS REAIS)
+  const baixarPDF = async () => {
     if (!livro || livro.capitulos.length === 0) {
       setStatusMsg('Gere o livro primeiro para exportar o PDF.');
       setStatusType('error');
       return;
     }
 
-    setStatusMsg('📄 Diagramando PDF para Amazon KDP...');
-    const dimensoes: Record<string, [number, number]> = {
-      '6x9': [6, 9],
-      '5x8': [5, 8],
-      '5.5x8.5': [5.5, 8.5],
-      '8.5x11': [8.5, 11]
-    };
-    const [LW, LH] = dimensoes[formato] || [6, 9];
+    setStatusMsg('📄 Diagramando PDF oficial para Amazon KDP...');
+    setStatusType('normal');
+    logDiag('Iniciando construção de PDF com margens espelhadas KDP e sumário multi-passe...');
 
-    const doc = new jsPDF({ unit: 'in', format: [LW, LH], orientation: 'portrait' });
-    const mL = 0.85, mR = 0.75, mT = 0.85, mB = 0.85;
-    const larg = LW - mL - mR;
-    let y = mT;
-    let numPag = 1;
-    let isPrimeiraPagina = true;
+    try {
+      const validTrimSizes = ['6x9', '5x8', '5.5x8.5', '8.5x11'] as const;
+      const trimSize = validTrimSizes.includes(formato as any) ? (formato as any) : '6x9';
 
-    const novaPag = () => {
-      if (isPrimeiraPagina) {
-        isPrimeiraPagina = false;
-        y = mT;
-      } else {
-        doc.addPage();
-        numPag++;
-        y = mT;
-      }
-    };
-
-    const aplicarNumPagina = () => {
-      doc.setFont('times', 'normal').setFontSize(10).setTextColor(120);
-      doc.text(String(numPag), LW / 2, LH - 0.45, { align: 'center' });
-      doc.setTextColor(0);
-    };
-
-    // 1. Capa frontal diagramada se existir
-    if (capaFinal) {
-      doc.addImage(capaFinal, 'PNG', 0, 0, LW, LH);
-      isPrimeiraPagina = false;
-    }
-
-    // 2. Página de Rosto (Título, Subtítulo e Autor)
-    novaPag();
-    doc.setFont('times', 'bold').setFontSize(24);
-    const tL = doc.splitTextToSize(livro.titulo, larg);
-    doc.text(tL, LW / 2, LH / 3, { align: 'center' });
-
-    if (livro.subtitulo) {
-      doc.setFont('times', 'italic').setFontSize(12);
-      const sL = doc.splitTextToSize(livro.subtitulo, larg);
-      doc.text(sL, LW / 2, LH / 3 + 0.55 + tL.length * 0.35, { align: 'center' });
-    }
-
-    doc.setFont('times', 'normal').setFontSize(12);
-    doc.text(`por ${livro.autor}`, LW / 2, LH - 1.4, { align: 'center' });
-
-    // 3. Sumário com numeração KDP
-    if (optSumario) {
-      novaPag();
-      doc.setFont('times', 'bold').setFontSize(18);
-      doc.text('Sumário', LW / 2, y, { align: 'center' });
-      y += 0.6;
-      doc.setFont('times', 'normal').setFontSize(11);
-
-      let pagEst = numPag + 1;
-      livro.capitulos.forEach((c, i) => {
-        const tit = `${i + 1}. ${c.titulo}`;
-        const linhas = doc.splitTextToSize(tit, larg - 0.6);
-        doc.text(linhas, mL, y);
-        const pontXI = mL + doc.getTextWidth(linhas[linhas.length - 1]) + 0.1;
-        const pontXF = LW - mR - 0.35;
-        if (pontXF > pontXI) {
-          doc.setLineDashPattern([0.02, 0.04], 0);
-          doc.setDrawColor(180);
-          doc.line(pontXI, y - 0.02, pontXF, y - 0.02);
-          doc.setLineDashPattern([], 0);
-        }
-        doc.text(String(pagEst), LW - mR, y, { align: 'right' });
-        const pal = c.texto.split(/\s+/).length;
-        pagEst += Math.max(1, Math.ceil(pal / 350));
-        y += 0.24 + (linhas.length - 1) * 0.24;
-        if (y > LH - mB - 0.2) novaPag();
+      const result = await buildKdpPdf({
+        livro: {
+          titulo: livro.titulo,
+          subtitulo: livro.subtitulo,
+          autor: livro.autor,
+          capitulos: livro.capitulos
+        },
+        capaDataUrl: capaFinal,
+        formato,
+        optSumario,
+        tamCapitulo,
+        corCapitulo
       });
-      aplicarNumPagina();
+
+      const blob = new Blob([result.bytes as any], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${livro.titulo.replace(/\s+/g, '_')}_KDP.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setStatusMsg(`✓ PDF KDP gerado com sucesso: ${result.pageCount} páginas no formato ${formato} (sem páginas em branco).`);
+      setStatusType('ok');
+      logDiag(`PDF exportado com sucesso: ${result.pageCount} páginas.`);
+    } catch (err: any) {
+      console.error('Erro ao gerar PDF KDP:', err);
+      setStatusMsg(`Erro ao gerar PDF: ${err.message || err}`);
+      setStatusType('error');
+      logDiag(`Falha ao exportar PDF: ${err.message || err}`);
     }
-
-    // 4. Capítulos (Prevenção total de páginas em branco indesejadas)
-    livro.capitulos.forEach(cap => {
-      novaPag();
-      y = mT + 0.2;
-      doc.setFont('times', 'bold').setFontSize(tamCapitulo);
-      doc.setTextColor(40);
-      doc.text(cap.titulo, mL, y);
-      doc.setTextColor(0);
-      y += 0.4;
-
-      doc.setFont('times', 'normal').setFontSize(11);
-      const paragrafos = cap.texto.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-
-      paragrafos.forEach(p => {
-        const linhas = doc.splitTextToSize(p, larg);
-        linhas.forEach((linha: string, idx: number) => {
-          if (y > LH - mB - 0.2) {
-            aplicarNumPagina();
-            novaPag();
-          }
-          const x = idx === 0 ? mL + 0.28 : mL;
-          doc.text(linha, x, y);
-          y += 0.21;
-        });
-        y += 0.1;
-      });
-      aplicarNumPagina();
-    });
-
-    doc.save(`${livro.titulo.replace(/\s+/g, '_')}_KDP.pdf`);
-    setStatusMsg(`✓ PDF KDP gerado: ${numPag} páginas no formato ${formato} (sem páginas em branco).`);
-    setStatusType('ok');
   };
 
   // AUDITORIA & VERIFICAÇÃO COMPLETA EM 1 CLIQUE
@@ -2193,30 +2118,74 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
 
-              {/* ABA 4: AUDITORIA & VERIFICADORES KDP EM 1 CLIQUE */}
+              {/* ABA 4: AUDITORIA & CORREÇÃO EDITORIAL KDP DEFINITIVA */}
               {activeTab === 'auditoria' && (
                 <div
                   style={{
-                    height: 540,
+                    maxHeight: 720,
                     overflowY: 'auto',
                     background: '#f8fafc',
                     borderRadius: 8,
                     border: '1px solid #e2e8f0',
-                    padding: 20,
+                    padding: 16,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 16
                   }}
                 >
-                  {/* HERO BANNER DA AUDITORIA */}
-                  <div
+                  {/* SISTEMA DEFINITIVO DE CORREÇÃO EDITORIAL CAPÍTULO A CAPÍTULO */}
+                  <EditorialCorrectionSection
+                    livro={livro}
+                    capaFinal={capaFinal}
+                    formato={formato}
+                    optSumario={optSumario}
+                    tamCapitulo={tamCapitulo}
+                    corCapitulo={corCapitulo}
+                    topico={topico}
+                    onBookUpdated={(novoLivro) => {
+                      setLivro(prev => {
+                        if (!prev) return null;
+                        const atualizado: LivroGerado = {
+                          ...prev,
+                          titulo: novoLivro.titulo,
+                          subtitulo: novoLivro.subtitulo,
+                          autor: novoLivro.autor,
+                          genero: novoLivro.genero,
+                          idioma: novoLivro.idioma,
+                          capitulos: novoLivro.capitulos
+                        };
+                        salvarProgressoLocal(atualizado, capaFinal || undefined, fundoImg || undefined, promoData || undefined);
+                        return atualizado;
+                      });
+                    }}
+                    onStatusMessage={(msg, t) => {
+                      setStatusMsg(msg);
+                      setStatusType(t);
+                    }}
+                  />
+
+                  {/* SUÍTE COMPLEMENTAR DE ANÁLISE RÁPIDA (DIAGNÓSTICO) */}
+                  <details
                     style={{
-                      background: 'linear-gradient(135deg, #064e3b, #047857)',
-                      borderRadius: 10,
-                      padding: '20px 24px',
-                      color: '#ffffff',
-                      display: 'flex',
-                      justifyContent: 'space-between',
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 8,
+                      padding: '12px 16px'
+                    }}
+                  >
+                    <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: 13, color: '#334155' }}>
+                      ⚙️ Diagnóstico Rápido de Plágio & Gramática (Verificação Complementar)
+                    </summary>
+                    <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {/* HERO BANNER DA AUDITORIA */}
+                      <div
+                        style={{
+                          background: 'linear-gradient(135deg, #064e3b, #047857)',
+                          borderRadius: 10,
+                          padding: '20px 24px',
+                          color: '#ffffff',
+                          display: 'flex',
+                          justifyContent: 'space-between',
                       alignItems: 'center',
                       flexWrap: 'wrap',
                       gap: 16
@@ -2500,6 +2469,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       )}
                     </div>
                   )}
+                    </div>
+                  </details>
                 </div>
               )}
             </div>

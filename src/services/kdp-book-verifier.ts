@@ -23,6 +23,8 @@ export interface VerifierIssue {
   applied: boolean;
 }
 
+import { applyDeterministicFixes } from './editorial-rules';
+
 export interface VerificationModuleStatus {
   id: VerifierCategory;
   name: string;
@@ -380,21 +382,12 @@ export class KdpBookVerifier {
     const cap = novoLivro.capitulos[issue.chapterIndex];
     if (!cap) return livro;
 
+    const antes = cap.texto;
+
     if (issue.type === 'gramatica') {
-      // Correções pontuais de texto
-      if (issue.id.includes('gram-punct')) {
-        cap.texto = cap.texto.replace(/([,;.]){2,}/g, '$1');
-      } else if (issue.id.includes('gram-dup-word')) {
-        cap.texto = cap.texto.replace(/\b(o|a|os|as|de|da|do|das|dos|que|se|em|um|uma)\s+\1\b/gi, '$1');
-      } else if (issue.id.includes('gram-travessao')) {
-        cap.texto = cap.texto.split('\n').map(l => {
-          const lTrim = l.trim();
-          if (lTrim.startsWith('- ') || lTrim.startsWith('-- ')) {
-            return '— ' + lTrim.replace(/^--?\s*/, '');
-          }
-          return l;
-        }).join('\n');
-      }
+      // Usa as regras determinísticas completas de pontuação, diálogo, duplicatas e ortografia
+      const r = applyDeterministicFixes(cap.texto, issue.chapterIndex, { dialogueHyphen: true, portuguese: true });
+      cap.texto = r.text;
     } else if (issue.type === 'diagramacao') {
       if (issue.id.includes('diag-no-breaks')) {
         // Quebrar em parágrafos a cada 3 sentenças
@@ -422,7 +415,10 @@ export class KdpBookVerifier {
       cap.texto = ajustados.join('\n\n');
     }
 
-    issue.applied = true;
+    // Marca como aplicado SOMENTE se o texto foi de fato alterado
+    if (cap.texto !== antes) {
+      issue.applied = true;
+    }
     return novoLivro;
   }
 
@@ -433,9 +429,13 @@ export class KdpBookVerifier {
 
     issues.forEach(issue => {
       if (!issue.applied) {
+        const antes = JSON.stringify(livroAtualizado.capitulos[issue.chapterIndex]?.texto);
         livroAtualizado = this.applyFix(livroAtualizado, issue);
-        issue.applied = true;
-        fixedCount++;
+        const depois = JSON.stringify(livroAtualizado.capitulos[issue.chapterIndex]?.texto);
+        if (antes !== depois) {
+          issue.applied = true;
+          fixedCount++;
+        }
       }
     });
 
