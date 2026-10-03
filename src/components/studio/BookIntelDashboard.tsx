@@ -146,13 +146,6 @@ export const BookIntelDashboard: React.FC<Props> = ({
                   <button className="btn-hero-cta" onClick={onCreateNewProject}>
                     <Plus size={18} /> Criar Novo Projeto
                   </button>
-                  <button
-                    className="btn-hero-cta secondary"
-                    onClick={() => setShowCategoryIntel(prev => !prev)}
-                    style={{ background: '#0f172a', border: '1px solid #334155', color: '#60a5fa' }}
-                  >
-                    <BarChart3 size={18} /> {showCategoryIntel ? 'Ocultar Inteligência de Gênero' : 'Inteligência Comercial por Gênero'}
-                  </button>
                 </div>
               </div>
 
@@ -176,118 +169,6 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     <div className="mockup-book book-top" />
                     <div className="mockup-book book-mid" />
                     <div className="mockup-book book-bot" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* PAINEL EXPANSÍVEL: BOOK INTEL KDP - INTELIGÊNCIA COMERCIAL POR GÊNERO */}
-            {showCategoryIntel && (
-              <div style={{ marginBottom: 28, animation: 'fadeIn 0.3s ease-out' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h3 style={{ margin: 0, fontSize: 16, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <BarChart3 size={18} color="#3b82f6" />
-                    Camada de Inteligência Comercial (Amazon KDP)
-                  </h3>
-                  <button
-                    onClick={() => setShowCategoryIntel(false)}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid #334155',
-                      color: '#94a3b8',
-                      borderRadius: 6,
-                      padding: '4px 10px',
-                      fontSize: 12,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    ✕ Fechar Painel
-                  </button>
-                </div>
-                <CategoryIntelligencePanel
-                  onSelectOpportunity={onSelectOpportunity}
-                />
-              </div>
-            )}
-
-            {/* SEÇÃO PRINCIPAIS FUNCIONALIDADES (4 CARDS) */}
-            <div className="intel-features-section">
-              <div className="features-section-header">
-                <h2 className="features-title">Principais Funcionalidades</h2>
-                <span className="features-subtitle">
-                  Acesse rapidamente as ferramentas que vão impulsionar seus resultados.
-                </span>
-              </div>
-
-              <div className="features-cards-grid">
-                {/* 1. Pesquisa de Nichos */}
-                <div
-                  className="feature-action-card"
-                  onClick={() => {
-                    setShowCategoryIntel(true);
-                    if (onQuickAction) onQuickAction('niche');
-                  }}
-                >
-                  <div className="feature-icon-circle blue-circle">
-                    <Search size={20} color="#2563eb" />
-                  </div>
-                  <h3 className="feature-card-title">Pesquisa de Nichos</h3>
-                  <p className="feature-card-desc">
-                    Encontre nichos lucrativos com base em dados reais da Amazon.
-                  </p>
-                  <div className="feature-arrow-btn">
-                    <ArrowRight size={16} color="#2563eb" />
-                  </div>
-                </div>
-
-                {/* 2. Palavras-chave */}
-                <div
-                  className="feature-action-card"
-                  onClick={() => onQuickAction ? onQuickAction('keywords') : setActiveModalAction('keywords')}
-                >
-                  <div className="feature-icon-circle purple-circle">
-                    <BarChart3 size={20} color="#7c3aed" />
-                  </div>
-                  <h3 className="feature-card-title">Palavras-chave</h3>
-                  <p className="feature-card-desc">
-                    Descubra palavras-chave de alto volume e baixa concorrência.
-                  </p>
-                  <div className="feature-arrow-btn">
-                    <ArrowRight size={16} color="#7c3aed" />
-                  </div>
-                </div>
-
-                {/* 3. Análise de Concorrência */}
-                <div
-                  className="feature-action-card"
-                  onClick={() => onQuickAction ? onQuickAction('competition') : setActiveModalAction('competition')}
-                >
-                  <div className="feature-icon-circle green-circle">
-                    <TrendingUp size={20} color="#059669" />
-                  </div>
-                  <h3 className="feature-card-title">Análise de Concorrência</h3>
-                  <p className="feature-card-desc">
-                    Veja o que seus concorrentes estão fazendo e encontre sua vantagem.
-                  </p>
-                  <div className="feature-arrow-btn">
-                    <ArrowRight size={16} color="#059669" />
-                  </div>
-                </div>
-
-                {/* 4. Relatórios */}
-                <div
-                  className="feature-action-card"
-                  onClick={() => onQuickAction ? onQuickAction('reports') : setActiveModalAction('reports')}
-                >
-                  <div className="feature-icon-circle orange-circle">
-                    <FileText size={20} color="#d97706" />
-                  </div>
-                  <h3 className="feature-card-title">Relatórios</h3>
-                  <p className="feature-card-desc">
-                    Receba relatórios detalhados para tomar decisões com segurança.
-                  </p>
-                  <div className="feature-arrow-btn">
-                    <ArrowRight size={16} color="#d97706" />
                   </div>
                 </div>
               </div>

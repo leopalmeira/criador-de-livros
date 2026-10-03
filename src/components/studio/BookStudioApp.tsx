@@ -42,6 +42,10 @@ import { BoxSuggestionService } from '../../services/box-suggestion-service';
 import '../../styles/book-intel-dashboard.css';
 import { AlertTriangle } from 'lucide-react';
 import { PublishSuccessModal } from './PublishSuccessModal';
+import { KdpBookGeneratorPro } from './generator/KdpBookGeneratorPro';
+import { BookPromotionalPageModal } from './promotional/BookPromotionalPageModal';
+import { BookPromotionalPageData } from '../../types/promotional-page';
+import { gerarConteudoPaginaPromocional, obterTemaPorGenero } from '../../services/kdp-ai-engine';
 
 // Ícones por estágio
 const STAGE_ICONS: Record<StageId, React.ReactNode> = {
@@ -59,7 +63,7 @@ const STAGE_ICONS: Record<StageId, React.ReactNode> = {
   'finish': <Download size={15} />,
 };
 
-type AppMode = 'project-list' | 'project-editor' | 'settings';
+type AppMode = 'project-list' | 'project-editor' | 'settings' | 'kdp-generator';
 
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
@@ -77,10 +81,77 @@ export const BookStudioApp: React.FC = () => {
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
   const [validationWarningReason, setValidationWarningReason] = useState('');
   const [isPublishSuccessModalOpen, setIsPublishSuccessModalOpen] = useState(false);
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+  const [activePromoData, setActivePromoData] = useState<BookPromotionalPageData | null>(null);
 
   // Status de salvamento automático
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState('');
+
+  // Abrir ou gerar Página Promocional para o projeto ativo
+  const handleOpenPromotionalPageForActiveProject = async () => {
+    if (!activeProject) return;
+
+    if (activeProject.promotionalPage) {
+      setActivePromoData(activeProject.promotionalPage);
+      setIsPromoModalOpen(true);
+      return;
+    }
+
+    const coverUrl = activeProject.coverImageUrl ||
+      (activeProject as any).kdpCoverDesign?.frontImageUrl ||
+      '';
+
+    const promoImg = activeProject.promotionalImageUrl || '';
+    const theme = obterTemaPorGenero(activeProject.genre || activeProject.kdpBookType || 'Não-Ficção');
+
+    const initialData: BookPromotionalPageData = {
+      title: activeProject.title || 'Livro Sem Título',
+      subtitle: activeProject.subtitle || '',
+      author: activeProject.author || 'Leandro Palmeira',
+      genre: activeProject.genre || activeProject.kdpBookType || 'Não-Ficção',
+      coverImageUrl: coverUrl,
+      promotionalImageUrl: promoImg,
+      heroHook: `Uma história arrebatadora e inesquecível pelo autor ${activeProject.author || 'Leandro Palmeira'}.`,
+      headline: `Apresentando ${activeProject.title}`,
+      synopsis: activeProject.description || activeProject.topic || 'Uma obra imperdível no catálogo Amazon KDP.',
+      impactQuote: 'O conhecimento transforma realidades e revela novos caminhos.',
+      features: [
+        {
+          title: 'Narrativa Envolvente',
+          subtitle: 'Imersão Total',
+          description: 'Desenvolvimento estruturado para prender a atenção do leitor do início ao fim.'
+        },
+        {
+          title: 'Profundidade Temática',
+          subtitle: 'Conceito Central',
+          description: 'Abordagem autêntica e conectada às preferências do público leitor.'
+        },
+        {
+          title: 'Impacto & Relevância',
+          subtitle: 'Valor Duradouro',
+          description: 'Uma leitura marcante desenhada para gerar impacto e recomendações.'
+        }
+      ],
+      experienceTitle: 'A Experiência de Leitura',
+      experienceDescription: 'Prepare-se para se conectar a uma narrativa projetada nos mais altos padrões do KDP.',
+      experienceItems: [
+        'Ritmo dinâmico e cativante',
+        'Cenários e atmosfera imersiva',
+        'Personagens e ideias de alta retenção',
+        'Desfecho marcante e conclusivo'
+      ],
+      closingQuestion: 'Você está pronto para começar esta jornada?',
+      closingCtaText: '📚 Adquirir na Amazon KDP',
+      closingBadges: 'eBook Kindle · Edição Capa Comum · Kindle Unlimited',
+      genreTheme: theme,
+      generatedAt: Date.now(),
+      lastUpdatedAt: Date.now()
+    };
+
+    setActivePromoData(initialData);
+    setIsPromoModalOpen(true);
+  };
 
   // Carregar projetos do IndexedDB
   const reloadProjects = useCallback(async () => {
@@ -620,7 +691,7 @@ export const BookStudioApp: React.FC = () => {
       <>
         <BookIntelDashboard
           projects={projects}
-          onCreateNewProject={() => setIsSegmentModalOpen(true)}
+          onCreateNewProject={() => setMode('kdp-generator')}
           onOpenProject={openProject}
           onDuplicateProject={duplicateProject}
           onDeleteProject={deleteProject}
@@ -633,6 +704,21 @@ export const BookStudioApp: React.FC = () => {
           onConfirm={handleConfirmNewSegmentProject}
         />
       </>
+    );
+  }
+
+  // ============================================================
+  // TELA NOVO PROJETO: GERADOR DE LIVROS KDP PRO (GEMINI 3.8 / IMAGEN 3)
+  // ============================================================
+  if (mode === 'kdp-generator') {
+    return (
+      <KdpBookGeneratorPro
+        onBackToDashboard={() => setMode('project-list')}
+        onProjectSaved={(newProject) => {
+          setProjects(prev => [newProject, ...prev]);
+          reloadProjects();
+        }}
+      />
     );
   }
 
@@ -743,7 +829,7 @@ export const BookStudioApp: React.FC = () => {
               ) : null}
             </span>
 
-            {/* As 3 Ferramentas Rápidas do Topo */}
+            {/* As Ferramentas Rápidas do Topo */}
             {activeProject && (
               <div className="header-quick-tools">
                 <button
@@ -766,6 +852,14 @@ export const BookStudioApp: React.FC = () => {
                   title="Pré-visualização do Livro Diagramado"
                 >
                   <Eye size={16} />
+                </button>
+                <button
+                  className="btn-icon-header"
+                  onClick={handleOpenPromotionalPageForActiveProject}
+                  title="✨ Página Promocional Digital Oficial (Editorial & Marketing)"
+                  style={{ color: '#7c3aed' }}
+                >
+                  <Sparkles size={16} />
                 </button>
               </div>
             )}
@@ -898,6 +992,25 @@ export const BookStudioApp: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL GLOBAL DA PÁGINA PROMOCIONAL DO LIVRO ATIVO */}
+      {isPromoModalOpen && activePromoData && (
+        <BookPromotionalPageModal
+          isOpen={isPromoModalOpen}
+          onClose={() => setIsPromoModalOpen(false)}
+          initialData={activePromoData}
+          onSave={(updated) => {
+            setActivePromoData(updated);
+            if (activeProject) {
+              handleUpdateProject({
+                ...activeProject,
+                promotionalPage: updated,
+                promotionalImageUrl: updated.promotionalImageUrl
+              });
+            }
+          }}
+        />
       )}
     </div>
   );

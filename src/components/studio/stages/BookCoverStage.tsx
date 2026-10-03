@@ -8,6 +8,9 @@ import { BookProject } from '../../../types/book-project';
 import { getDefaultStageStatuses } from '../../../types/stages';
 import { EditorialContextService } from '../../../services/editorial-context-service';
 import './../cover/cover-ai-studio.css';
+import { BookPromotionalPageModal } from '../promotional/BookPromotionalPageModal';
+import { BookPromotionalPageData } from '../../../types/promotional-page';
+import { obterTemaPorGenero } from '../../../services/kdp-ai-engine';
 
 export interface CoverItemMetadata {
   id: string;
@@ -62,6 +65,63 @@ export const BookCoverStage: React.FC<Props> = ({ project, onUpdateProject, onCo
   const [showApiKeyPanel, setShowApiKeyPanel] = useState<boolean>(false);
   const [inputApiKey, setInputApiKey] = useState<string>('');
   const [isSavingKey, setIsSavingKey] = useState<boolean>(false);
+
+  // Estado da Página Promocional Digital
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+  const [promoData, setPromoData] = useState<BookPromotionalPageData | null>(null);
+
+  const handleOpenPromoModal = () => {
+    const sel = covers.find(c => c.id === selectedCoverId) || covers[0];
+    const coverUrl = sel?.fileUrl || project.coverImageUrl || '';
+
+    const theme = obterTemaPorGenero(genre);
+    const initialData: BookPromotionalPageData = {
+      title,
+      subtitle,
+      author,
+      genre,
+      coverImageUrl: coverUrl,
+      promotionalImageUrl: project.promotionalImageUrl || '',
+      heroHook: `Uma história arrebatadora e inesquecível pelo autor ${author}.`,
+      headline: `Apresentando ${title}`,
+      synopsis: project.description || topic || 'Uma obra imperdível no catálogo Amazon KDP.',
+      impactQuote: 'O conhecimento transforma realidades e revela novos caminhos.',
+      features: [
+        {
+          title: 'Narrativa Envolvente',
+          subtitle: 'Imersão Total',
+          description: 'Desenvolvimento estruturado para prender a atenção do leitor do início ao fim.'
+        },
+        {
+          title: 'Profundidade Temática',
+          subtitle: 'Conceito Central',
+          description: 'Abordagem autêntica e conectada às preferências do público leitor.'
+        },
+        {
+          title: 'Impacto & Relevância',
+          subtitle: 'Valor Duradouro',
+          description: 'Uma leitura marcante desenhada para gerar impacto e recomendações.'
+        }
+      ],
+      experienceTitle: 'A Experiência de Leitura',
+      experienceDescription: 'Prepare-se para se conectar a uma narrativa projetada nos mais altos padrões do KDP.',
+      experienceItems: [
+        'Ritmo dinâmico e cativante',
+        'Cenários e atmosfera imersiva',
+        'Personagens e ideias de alta retenção',
+        'Desfecho marcante e conclusivo'
+      ],
+      closingQuestion: 'Você está pronto para começar esta jornada?',
+      closingCtaText: '📚 Adquirir na Amazon KDP',
+      closingBadges: 'eBook Kindle · Edição Capa Comum · Kindle Unlimited',
+      genreTheme: theme,
+      generatedAt: Date.now(),
+      lastUpdatedAt: Date.now()
+    };
+
+    setPromoData(initialData);
+    setIsPromoModalOpen(true);
+  };
 
   const pollIntervalRef = useRef<any>(null);
 
@@ -994,30 +1054,73 @@ export const BookCoverStage: React.FC<Props> = ({ project, onUpdateProject, onCo
               )}
             </div>
 
-            {/* BOTÃO CONTINUAR (Regra 18: avança para a próxima etapa sem perder a capa) */}
-            <button
-              onClick={handleContinue}
-              disabled={covers.length === 0}
-              style={{
-                background: selectedCoverId ? '#16a34a' : '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 10,
-                padding: '12px 28px',
-                fontSize: 14,
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                cursor: 'pointer',
-                boxShadow: selectedCoverId ? '0 8px 18px rgba(22, 163, 74, 0.28)' : '0 8px 18px rgba(37, 99, 235, 0.28)',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              CONTINUAR <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              {/* BOTÃO DA PÁGINA PROMOCIONAL AUTOMÁTICA */}
+              <button
+                type="button"
+                onClick={handleOpenPromoModal}
+                disabled={covers.length === 0}
+                style={{
+                  background: 'linear-gradient(135deg, #7c3aed, #9333ea)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '12px 20px',
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: covers.length === 0 ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 14px rgba(124, 58, 237, 0.25)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Sparkles size={16} /> ✨ PÁGINA PROMOCIONAL DIGITAL
+              </button>
+
+              {/* BOTÃO CONTINUAR (Regra 18: avança para a próxima etapa sem perder a capa) */}
+              <button
+                onClick={handleContinue}
+                disabled={covers.length === 0}
+                style={{
+                  background: selectedCoverId ? '#16a34a' : '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '12px 28px',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  boxShadow: selectedCoverId ? '0 8px 18px rgba(22, 163, 74, 0.28)' : '0 8px 18px rgba(37, 99, 235, 0.28)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                CONTINUAR <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL EDITORIAL DA PÁGINA PROMOCIONAL */}
+      {isPromoModalOpen && promoData && (
+        <BookPromotionalPageModal
+          isOpen={isPromoModalOpen}
+          onClose={() => setIsPromoModalOpen(false)}
+          initialData={promoData}
+          onSave={(updated) => {
+            setPromoData(updated);
+            onUpdateProject({
+              ...project,
+              promotionalPage: updated,
+              promotionalImageUrl: updated.promotionalImageUrl
+            });
+          }}
+        />
       )}
     </div>
   );
