@@ -13,6 +13,7 @@ import { SettingsTab } from '../../dashboard/components/SettingsTab';
 import { BookIntelDashboard } from './BookIntelDashboard';
 import { SegmentSelectorModal } from './SegmentSelectorModal';
 import { KdpBookGeneratorPro } from './generator/KdpBookGeneratorPro';
+import { MultiplatformPublishingModal } from './publishing/MultiplatformPublishingModal';
 import '../../styles/book-intel-dashboard.css';
 
 type AppMode = 'project-list' | 'settings' | 'kdp-generator';
@@ -22,6 +23,8 @@ export const BookStudioApp: React.FC = () => {
   const [activeProject, setActiveProject] = useState<BookProject | null>(null);
   const [mode, setMode] = useState<AppMode>('project-list');
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
+  const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
+  const [publishingProject, setPublishingProject] = useState<BookProject | null>(null);
 
   // Carregar projetos do IndexedDB
   const reloadProjects = useCallback(async () => {
@@ -199,10 +202,31 @@ export const BookStudioApp: React.FC = () => {
     setProjects(prev => [copy, ...prev]);
   };
 
+  // Abrir Publicação Multiplataforma a partir da Dashboard
+  const handleOpenPublishing = (projectId?: string) => {
+    if (projectId) {
+      const p = projects.find(item => item.id === projectId);
+      setPublishingProject(p || null);
+    } else {
+      const defaultProj = projects.find(p => p.status === 'FINALIZADO') || projects[0] || null;
+      setPublishingProject(defaultProj);
+    }
+    setIsPublishingModalOpen(true);
+  };
+
   // ============================================================
   // TELA 1: DASHBOARD BOOK INTEL KDP (DESIGN PROFISSIONAL)
   // ============================================================
   if (mode === 'project-list') {
+    const targetProjectForPublishing = publishingProject || projects[0] || {
+      id: 'demo_studio',
+      title: 'Meu Livro KDP',
+      subtitle: 'Guia Editorial & Estratégia Comercial',
+      author: 'Leandro Palmeira',
+      capitulos: [],
+      coverUrl: null
+    };
+
     return (
       <>
         <BookIntelDashboard
@@ -213,11 +237,27 @@ export const BookStudioApp: React.FC = () => {
           onDeleteProject={deleteProject}
           onOpenSettings={() => setMode('settings')}
           onSelectOpportunity={handleSelectOpportunity}
+          onOpenPublishing={handleOpenPublishing}
         />
         <SegmentSelectorModal
           isOpen={isSegmentModalOpen}
           onClose={() => setIsSegmentModalOpen(false)}
           onConfirm={handleConfirmNewSegmentProject}
+        />
+        <MultiplatformPublishingModal
+          isOpen={isPublishingModalOpen}
+          onClose={() => setIsPublishingModalOpen(false)}
+          project={{
+            id: targetProjectForPublishing.id,
+            title: targetProjectForPublishing.title || 'Livro Sem Título',
+            subtitle: targetProjectForPublishing.subtitle,
+            author: targetProjectForPublishing.author || 'Leandro Palmeira',
+            capitulos: (targetProjectForPublishing as any).kdpChapters?.map((c: any) => ({
+              titulo: c.title || c.titulo || 'Capítulo',
+              texto: c.content || c.conteudo || ''
+            })) || (targetProjectForPublishing as any).capitulos || [],
+            coverUrl: (targetProjectForPublishing as any).coverUrl || (targetProjectForPublishing as any).capaFinal || null
+          }}
         />
       </>
     );

@@ -3,7 +3,7 @@ import {
   BookOpen, Sparkles, Plus, Download, Copy, Save, Eye,
   Play, Square, RefreshCw, Trash2, ArrowLeft, Check, Layers,
   Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight,
-  ShieldCheck, CheckCircle2, AlertTriangle, Wand2
+  ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -34,6 +34,8 @@ import { researchMarket, pickReferences, describeRank, displayField, DATA_UNAVAI
 import { filterOriginalCandidates, checkTitleSimilarity } from '../../../services/similarity-engine';
 import { preflightPdf } from '../../../services/pdf-preflight';
 import { ColoringBookStudio } from '../coloring/ColoringBookStudio';
+import { AudiobookStudio } from '../audiobook/AudiobookStudio';
+import { MultiplatformPublishingModal } from '../publishing/MultiplatformPublishingModal';
 
 const newProjectId = () => newId('prj_');
 
@@ -117,7 +119,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [statusType, setStatusType] = useState<'normal' | 'ok' | 'error'>('normal');
   const [progressPercent, setProgressPercent] = useState(0);
   const [diagnostico, setDiagnostico] = useState('Sistema pronto.');
-  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'colorir'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'colorir' | 'audiobook'>('preview');
+  const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
 
   // Sistema de Auto-Clique Automático do Botão de Continuar Geração
   const [autoClickCountdown, setAutoClickCountdown] = useState<number | null>(null);
@@ -1957,7 +1960,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
               <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={subtitulo}
                   onChange={(e) => setSubtitulo(e.target.value)}
                   placeholder="Ex: O que está oculto nas sombras da mente humana e os segredos que ninguém ousa revelar"
@@ -1967,11 +1970,11 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     borderRadius: 6,
                     border: '1px solid #cbd5e1',
                     fontSize: 13,
-                    lineHeight: 1.4,
+                    lineHeight: 1.5,
                     background: '#ffffff',
                     color: '#0f172a',
                     resize: 'vertical',
-                    minHeight: 52,
+                    minHeight: 68,
                     wordBreak: 'break-word',
                     whiteSpace: 'pre-wrap'
                   }}
@@ -1992,7 +1995,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    minHeight: 52
+                    minHeight: 68
                   }}
                 >
                   <Sparkles size={13} /> IA
@@ -2848,6 +2851,48 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 >
                   <span>🎨</span> Livro de Colorir KDP
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('audiobook')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    borderColor: activeTab === 'audiobook' ? '#8b5cf6' : '#e2e8f0',
+                    background: activeTab === 'audiobook' ? '#f5f3ff' : '#ffffff',
+                    color: activeTab === 'audiobook' ? '#7c3aed' : '#64748b',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Headphones size={15} /> 🎧 Audiobook Studio
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPublishingModalOpen(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: '1px solid #10b981',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                  }}
+                >
+                  <Globe size={15} /> 🚀 Publicação Multiplataforma
+                </button>
               </div>
 
               {/* Botão para abrir o editor/visualizador completo da página promocional */}
@@ -3458,6 +3503,20 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   />
                 </div>
               )}
+
+              {/* ABA 6: AUDIOBOOK STUDIO (LIVRO -> AUDIOBOOK) */}
+              {activeTab === 'audiobook' && (
+                <div style={{ maxHeight: 780, overflowY: 'auto' }}>
+                  <AudiobookStudio
+                    initialTitle={titulo}
+                    initialSubtitle={subtitulo}
+                    initialAuthor={autor}
+                    initialChapters={livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || []}
+                    capaUrl={capaFinal}
+                    onBack={() => setActiveTab('preview')}
+                  />
+                </div>
+              )}
             </div>
 
             {/* BARRA DE FERRAMENTAS DO RODAPÉ (AÇÕES DO PROJETO) */}
@@ -3471,6 +3530,26 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 flexWrap: 'wrap'
               }}
             >
+              <button
+                type="button"
+                onClick={() => setIsPublishingModalOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 16px',
+                  borderRadius: 6,
+                  background: 'linear-gradient(135deg, #10b981, #047857)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 5px rgba(16, 185, 129, 0.25)'
+                }}
+              >
+                <Globe size={15} /> 🚀 Publicação Multiplataforma
+              </button>
               <button
                 type="button"
                 onClick={executarVerificacaoCompleta}
@@ -3685,6 +3764,20 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           }}
         />
       )}
+
+      {/* MODAL FULL DE PUBLICAÇÃO MULTIPLATAFORMA (KINDLE, SPOTIFY, AUDIBLE, ETC.) */}
+      <MultiplatformPublishingModal
+        isOpen={isPublishingModalOpen}
+        onClose={() => setIsPublishingModalOpen(false)}
+        project={{
+          id: projectIdRef.current || initialProject?.id || 'prj_studio',
+          title: titulo || 'Projeto Book Intel',
+          subtitle: subtitulo,
+          author: autor,
+          capitulos: livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || [],
+          coverUrl: capaFinal
+        }}
+      />
     </div>
   );
 };

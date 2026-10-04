@@ -294,8 +294,8 @@ Retorne APENAS o título, sem aspas, sem numeração e sem introdução.`,
 Título: "${titulo}"
 Gênero: ${genero}
 Idioma: ${idioma}
-Sugira 1 SUBTÍTULO comercial com 6 a 14 palavras, com forte gancho emocional e promessa clara ao leitor.
-REGRA CRÍTICA: Crie uma FRASE 100% COMPLETA e bem pontuada. NUNCA corte palavras pela metade e NUNCA deixe a frase truncada ou interrompida no meio.
+Sugira 1 SUBTÍTULO comercial de alta conversão com 7 a 16 palavras, com forte gancho emocional e promessa clara ao leitor.
+REGRA CRÍTICA: Crie uma FRASE 100% COMPLETA e gramaticalmente finalizada com ponto final. Retorne em UMA ÚNICA LINHA, sem quebras de linha. NUNCA corte palavras pela metade e NUNCA deixe a frase truncada ou interrompida no meio.
 Retorne APENAS o subtítulo, sem aspas e sem explicações.`,
 
     premissa: `Você é editor profissional de ficção e não-ficção para Amazon KDP.
@@ -311,14 +311,14 @@ Idioma: ${idioma}
 Retorne APENAS o nome, sem aspas e sem explicações.`
   };
 
-  const res = await chamarGeminiTexto(prompts[tipo], { temperature: 0.9, maxTokens: 300 });
+  const res = await chamarGeminiTexto(prompts[tipo], { temperature: 0.9, maxTokens: 400 });
   let raw = res.texto.trim();
   let limpo = raw;
 
-  if (tipo !== 'premissa') {
-    limpo = raw.split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
-  } else {
+  if (tipo === 'premissa' || tipo === 'subtitulo') {
     limpo = raw.split('\n').map(l => l.trim()).filter(Boolean).join(' ');
+  } else {
+    limpo = raw.split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
   }
 
   limpo = limpo.replace(/^(título|titulo|title|subtítulo|subtitulo|subtitle|premissa|premise|autor|author)\s*[:\-]\s*/i, '');

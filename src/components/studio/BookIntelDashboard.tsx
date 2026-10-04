@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   BookOpen, Plus, TrendingUp, FileText,
   HelpCircle, ChevronDown, ArrowRight,
-  Clock, Copy, Trash2, Sparkles, CheckCircle2, Search
+  Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -23,6 +23,7 @@ interface Props {
     category: string, 
     subcategory: string
   ) => void;
+  onOpenPublishing?: (projectId?: string) => void;
 }
 
 export const BookIntelDashboard: React.FC<Props> = ({
@@ -32,7 +33,8 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onDuplicateProject,
   onDeleteProject,
   onOpenSettings,
-  onQuickAction
+  onQuickAction,
+  onOpenPublishing
 }) => {
   const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
   const [finalizingProjectId, setFinalizingProjectId] = useState<string | null>(null);
@@ -124,6 +126,17 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button className="btn-hero-cta" onClick={onCreateNewProject}>
                     <Plus size={18} /> Criar Novo Projeto
+                  </button>
+                  <button
+                    className="btn-hero-cta"
+                    onClick={() => onOpenPublishing && onOpenPublishing()}
+                    style={{
+                      background: 'linear-gradient(135deg, #059669, #047857)',
+                      boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)'
+                    }}
+                    title="Central de Publicação Multiplataforma (Kindle, Paperback, Hardcover, Spotify e Audiobook Studio)"
+                  >
+                    <Globe size={18} /> Publicação Multiplataforma
                   </button>
                 </div>
               </div>
@@ -219,6 +232,17 @@ export const BookIntelDashboard: React.FC<Props> = ({
                               <CheckCircle2 size={14} />
                             </button>
                           )}
+                          <button
+                            className="btn-icon-soft"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenPublishing && onOpenPublishing(p.id);
+                            }}
+                            title="Publicação Multiplataforma & Audiobook Studio deste livro"
+                            style={{ color: '#059669', borderColor: '#a7f3d0', background: '#ecfdf5' }}
+                          >
+                            <Globe size={14} />
+                          </button>
                           <button
                             className="btn-icon-soft"
                             onClick={(e) => onDuplicateProject(p.id, e)}
