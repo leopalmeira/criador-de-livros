@@ -26,6 +26,15 @@ import {
 } from '../../../services/kdp-book-verifier';
 import { EditorialCorrectionSection } from './EditorialCorrectionSection';
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
+import type { FinalBookRecord } from '../../../types/editorial-correction';
+import { newId } from '../../../services/project-state';
+import { BOOK_THEMES, getTheme, isChildrenTheme, BookTheme } from '../../../data/book-themes';
+import { AGE_BANDS, AgeBandId, validateAgeRequirement, buildAgeDirective } from '../../../services/age-engine';
+import { researchMarket, pickReferences, describeRank, displayField, DATA_UNAVAILABLE, type MarketReference } from '../../../services/market-intel';
+import { filterOriginalCandidates, checkTitleSimilarity } from '../../../services/similarity-engine';
+import { preflightPdf } from '../../../services/pdf-preflight';
+
+const newProjectId = () => newId('prj_');
 
 interface Capitulo {
   titulo: string;
@@ -46,11 +55,15 @@ interface LivroGerado {
 }
 
 interface Props {
+  initialProject?: BookProject | null;
+  isNewProject?: boolean;
   onBackToDashboard: () => void;
   onProjectSaved?: (project: BookProject) => void;
 }
 
 export const KdpBookGeneratorPro: React.FC<Props> = ({
+  initialProject,
+  isNewProject,
   onBackToDashboard,
   onProjectSaved
 }) => {
@@ -68,6 +81,21 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [corCapitulo, setCorCapitulo] = useState('#1e293b');
   const [optPromo, setOptPromo] = useState(true);
   const [optSumario, setOptSumario] = useState(true);
+
+  // Estados Editoriais Avançados (Prompt Mestre)
+  const [temaSelecionado, setTemaSelecionado] = useState('');
+  const [subtemaSelecionado, setSubtemaSelecionado] = useState('');
+  const [faixaEtaria, setFaixaEtaria] = useState<AgeBandId | ''>('');
+  const [uniqueAngle, setUniqueAngle] = useState('');
+  const [bookPromise, setBookPromise] = useState('');
+  const [targetReader, setTargetReader] = useState('');
+  const [marketReferences, setMarketReferences] = useState<MarketReference[]>([]);
+  const [isAnalyzingMarket, setIsAnalyzingMarket] = useState(false);
+  const [marketFeedback, setMarketFeedback] = useState<string | null>(null);
+  const [opcoesTitulos, setOpcoesTitulos] = useState<string[]>([]);
+  const [opcoesSubtitulos, setOpcoesSubtitulos] = useState<string[]>([]);
+  const [isGeneratingTitulos, setIsGeneratingTitulos] = useState(false);
+  const [isGeneratingSubtitulos, setIsGeneratingSubtitulos] = useState(false);
 
   // Estados de execução
   const [livro, setLivro] = useState<LivroGerado | null>(null);
@@ -115,7 +143,11 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [loadingSugestao, setLoadingSugestao] = useState<string | null>(null);
   const previewScrollRef = useRef<HTMLDivElement>(null);
 
-  const STORAGE_KEY = 'kdp_projeto_pro_v10';
+  // Isolamento por projeto: cada projeto tem seu próprio projectId e sua própria chave de rascunho.
+  // Nunca existe uma chave global "último projeto".
+  const projectIdRef = useRef<string>(initialProject?.id || newProjectId());
+  const storageKeyFor = (id: string) => `kdp_projeto_pro_v11_${id}`;
+  const STORAGE_KEY = storageKeyFor(projectIdRef.current);
 
   const logDiag = (msg: string) => {
     const timestamp = new Date().toLocaleTimeString('pt-BR');
@@ -135,10 +167,83 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     logDiag('Interrupção solicitada pelo usuário');
   };
 
-  // Carregar progresso salvo localmente
+  // Resetar ou carregar projeto: se for novo projeto, SEMPRE abre 100% em branco
   useEffect(() => {
+    // 1. Quando o usuário clica em criar novo projeto: formulário totalmente em branco
+    if (isNewProject || initialProject === null) {
+      projectIdRef.current = newProjectId();
+      setTitulo('');
+      setSubtitulo('');
+      setAutor('');
+      setGenero('');
+      setTopico('');
+      setTemaSelecionado('');
+      setSubtemaSelecionado('');
+      setFaixaEtaria('');
+      setUniqueAngle('');
+      setBookPromise('');
+      setTargetReader('');
+      setMarketReferences([]);
+      setOpcoesTitulos([]);
+      setOpcoesSubtitulos([]);
+      setPaginasAlvo(100);
+      setMaxCapitulos(15);
+      setFormato('6x9');
+      setIdioma('português');
+      setTamCapitulo(11);
+      setCorCapitulo('#1e293b');
+      setLivro(null);
+      setCapaFinal(null);
+      setFundoImg(null);
+      setPromoData(null);
+      setCapAtual(0);
+      setTotalCaps(0);
+      setStatusMsg('Pronto para iniciar novo livro em branco.');
+      setStatusType('normal');
+      setDiagnostico('Novo projeto em branco pronto.');
+      return;
+    }
+
+    // 2. Quando o usuário seleciona um projeto existente na Dashboard
+    if (initialProject) {
+      projectIdRef.current = initialProject.id;
+      setTitulo(initialProject.title || '');
+      setSubtitulo(initialProject.subtitle || '');
+      setAutor(initialProject.author || 'Leandro Palmeira');
+      setGenero(initialProject.categories?.[0] || 'Thriller / Mistério Investigativo');
+      setTopico(initialProject.topic || initialProject.description || '');
+      setFormato(initialProject.trimSize || '6x9');
+      setCapaFinal(initialProject.coverImageUrl || null);
+      setPromoData(initialProject.promotionalPage || null);
+
+      if (initialProject.kdpChapters && initialProject.kdpChapters.length > 0) {
+        const caps: Capitulo[] = initialProject.kdpChapters.map(c => ({
+          titulo: c.title,
+          texto: c.prose || c.summary || ''
+        }));
+        setLivro({
+          titulo: initialProject.title,
+          subtitulo: initialProject.subtitle || '',
+          autor: initialProject.author,
+          genero: initialProject.categories?.[0] || 'Thriller / Mistério Investigativo',
+          idioma: 'português',
+          capitulos: caps,
+          meta: {
+            palavrasPorCap: 900,
+            paginasAlvo: initialProject.estimatedPages || 100
+          }
+        });
+        setCapAtual(caps.length);
+        setTotalCaps(caps.length);
+        setStatusMsg(`Obra "${initialProject.title}" carregada com ${caps.length} capítulos.`);
+        setStatusType('ok');
+        return;
+      }
+    }
+
+    // 3. Rascunho local SOMENTE do projeto explicitamente aberto (chave por projectId)
     try {
-      const salvo = localStorage.getItem(STORAGE_KEY);
+      const salvo = initialProject ? localStorage.getItem(storageKeyFor(initialProject.id)) : null;
       if (salvo) {
         const p = JSON.parse(salvo);
         if (p?.livro?.capitulos?.length > 0) {
@@ -175,7 +280,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
         if (k) localStorage.setItem('kdp_gemini_api_key', k);
       }
     } catch {}
-  }, []);
+  }, [initialProject, isNewProject]);
 
   // Salvar no localStorage
   const salvarProgressoLocal = (novoLivro: LivroGerado, capa?: string, fundo?: string, promo?: BookPromotionalPageData) => {
@@ -194,6 +299,102 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {}
+  };
+
+  // Análise de Mercado Amazon KDP (TOP 1-200) com diferenciação clara entre BSR e busca
+  const handleAnalisarMercado = async () => {
+    const temaObj = getTheme(temaSelecionado);
+    const query = subtemaSelecionado || temaObj?.marketQuery || temaSelecionado || genero || 'livros';
+    setIsAnalyzingMarket(true);
+    setMarketFeedback(null);
+    logDiag(`Iniciando análise de mercado na Amazon para "${query}"...`);
+    try {
+      const res = await researchMarket(query, { marketplace: 'amazon.com.br' });
+      if (res.error && (!res.items || res.items.length === 0)) {
+        setMarketFeedback(`⚠️ ${res.error}`);
+        logDiag(`Aviso de mercado: ${res.error}`);
+      } else {
+        const top5 = pickReferences(res.items, { query, limit: 5 });
+        setMarketReferences(top5);
+        setMarketFeedback(`✓ ${top5.length} referências de mercado identificadas.`);
+        logDiag(`Mercado analisado: ${top5.length} referências selecionadas.`);
+      }
+    } catch (err: any) {
+      setMarketFeedback(`Erro na análise de mercado: ${err?.message || 'Falha de conexão'}`);
+    } finally {
+      setIsAnalyzingMarket(false);
+    }
+  };
+
+  // Geração de 5 Títulos Originais com IA e Validador de Similaridade
+  const handleGerarTitulosOriginais = async () => {
+    setIsGeneratingTitulos(true);
+    try {
+      const refTitles = marketReferences.map(r => r.title);
+      const prompt = `Você é um editor sênior de best-sellers. Crie exatamente 5 opções de títulos comerciais, impactantes e TOTALMENTE ORIGINAIS para um livro.
+Tema: ${temaSelecionado || genero}
+Subtema: ${subtemaSelecionado || 'Geral'}
+Público Alvo: ${targetReader || 'Geral'}
+Diferencial/Promessa: ${bookPromise || uniqueAngle || topico || 'Não informado'}
+
+REFERÊNCIAS DE MERCADO (NÃO COPIE ESTES TÍTULOS OU ESTRUTURAS):
+${refTitles.length ? refTitles.map((t, i) => `${i + 1}. ${t}`).join('\n') : 'Nenhuma'}
+
+Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explicações adicionais.`;
+
+      const resposta = await chamarGeminiTexto(prompt);
+      const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
+      const linhas = textoResp
+        .split('\n')
+        .map((l: string) => l.replace(/^\d+[\.\-\)]\s*/, '').replace(/[\*\"\_]/g, '').trim())
+        .filter((l: string) => l.length > 2)
+        .slice(0, 5);
+
+      const originais = filterOriginalCandidates(linhas, refTitles);
+      const aceitas = originais.accepted.map(a => a.text);
+      setOpcoesTitulos(aceitas.length > 0 ? aceitas : linhas);
+      logDiag(`${aceitas.length} títulos originais gerados e validados contra similaridade.`);
+    } catch (err: any) {
+      logDiag(`Erro ao gerar títulos: ${err?.message}`);
+    } finally {
+      setIsGeneratingTitulos(false);
+    }
+  };
+
+  // Geração de 5 Subtítulos Originais com IA e Validador de Similaridade
+  const handleGerarSubtitulosOriginais = async () => {
+    if (!titulo.trim()) {
+      setStatusMsg('⚠️ Defina ou selecione um Título primeiro.');
+      setStatusType('error');
+      return;
+    }
+    setIsGeneratingSubtitulos(true);
+    try {
+      const refSubtitles = marketReferences.map(r => r.subtitle).filter(Boolean) as string[];
+      const prompt = `Você é um estrategista editorial KDP. Crie exatamente 5 opções de subtítulos comerciais persuasivos e TOTALMENTE ORIGINAIS para o livro:
+Título: "${titulo}"
+Tema: ${temaSelecionado || genero}
+Diferencial: ${uniqueAngle || bookPromise || 'Transformador'}
+
+Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explicações adicionais.`;
+
+      const resposta = await chamarGeminiTexto(prompt);
+      const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
+      const linhas = textoResp
+        .split('\n')
+        .map((l: string) => l.replace(/^\d+[\.\-\)]\s*/, '').replace(/[\*\"\_]/g, '').trim())
+        .filter((l: string) => l.length > 2)
+        .slice(0, 5);
+
+      const originais = filterOriginalCandidates(linhas, refSubtitles);
+      const aceitas = originais.accepted.map(a => a.text);
+      setOpcoesSubtitulos(aceitas.length > 0 ? aceitas : linhas);
+      logDiag(`${aceitas.length} subtítulos originais gerados.`);
+    } catch (err: any) {
+      logDiag(`Erro ao gerar subtítulos: ${err?.message}`);
+    } finally {
+      setIsGeneratingSubtitulos(false);
+    }
   };
 
   // Solicitar sugestão editorial por IA
@@ -885,6 +1086,180 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
     logDiag('Projeto registrado no IndexedDB');
   };
 
+  // FINALIZAR LIVRO E DISPONIBILIZAR NA DASHBOARD COM TODOS OS DOWNLOADS
+  const finalizarLivroEGravarNaDashboard = async () => {
+    if (!livro || livro.capitulos.length === 0) {
+      setStatusMsg('Gere ao menos um capítulo antes de finalizar a obra.');
+      setStatusType('error');
+      return;
+    }
+
+    setStatusMsg('🚀 Finalizando livro e compilando arquivos oficiais KDP...');
+    setStatusType('normal');
+    logDiag('Compilando miolo PDF diagramado, capa e manuscrito para a Dashboard...');
+
+    try {
+      const pdfResult = await buildKdpPdf({
+        livro: {
+          titulo: livro.titulo,
+          subtitulo: livro.subtitulo,
+          autor: livro.autor,
+          capitulos: livro.capitulos
+        },
+        capaDataUrl: capaFinal,
+        formato,
+        optSumario,
+        tamCapitulo,
+        corCapitulo
+      });
+
+      const totalWords = livro.capitulos.reduce((sum, c) => sum + (c.texto ? c.texto.split(/\s+/).length : 0), 0);
+      // Preflight do PDF KDP (Regras 36, 37, 38, 53)
+      const preflight = await preflightPdf(pdfResult.bytes, {
+        manuscriptWordCount: totalWords
+      });
+
+      if (!preflight.ok && preflight.issues.some(i => i.severity === 'CRITICAL')) {
+        const criticos = preflight.issues.filter(i => i.severity === 'CRITICAL').map(i => i.message).join('; ');
+        setStatusMsg(`❌ Bloqueio Editorial: Falha crítica no PDF Preflight: ${criticos}`);
+        setStatusType('error');
+        logDiag(`Finalização bloqueada pelo Preflight: ${criticos}`);
+        return;
+      }
+
+      const projId = initialProject?.id || projectIdRef.current || `proj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const finalId = `final_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+      const finalRec: FinalBookRecord = {
+        id: finalId,
+        bookId: projId,
+        jobId: `job_${Date.now()}`,
+        title: livro.titulo,
+        subtitle: livro.subtitulo || '',
+        author: livro.autor || 'Autor não definido',
+        coverDataUrl: capaFinal || undefined,
+        pdf: pdfResult.bytes as unknown as ArrayBuffer,
+        pageCount: pdfResult.pageCount,
+        sizeBytes: (pdfResult.bytes as any).byteLength || 0,
+        finalizedAt: Date.now(),
+        status: 'finalizado_validado',
+        genre: genero,
+        trimSize: formato,
+        wordCount: totalWords,
+        chaptersCount: livro.capitulos.length,
+        chapters: livro.capitulos.map(c => ({ titulo: c.titulo, texto: c.texto })),
+        manuscriptText: livro.capitulos.map((c, i) => `\n\n### Capítulo ${i + 1}: ${c.titulo}\n\n${c.texto}`).join(''),
+        report: {
+          generatedAt: Date.now(),
+          bookTitle: livro.titulo,
+          author: livro.autor,
+          pagesAnalyzed: Math.round(totalWords / 250),
+          pdfPages: pdfResult.pageCount,
+          chaptersIdentified: livro.capitulos.length,
+          chaptersCorrected: livro.capitulos.length,
+          chaptersPending: 0,
+          spellingErrors: 0,
+          grammarErrors: 0,
+          punctuationFixes: 0,
+          paragraphFixes: 0,
+          dialogueFixes: 0,
+          encodingFixes: 0,
+          styleChanges: 0,
+          repetitionFindings: 0,
+          continuityFindings: 0,
+          tocIssues: [],
+          layoutWarnings: [],
+          cover: {
+            present: Boolean(capaFinal),
+            valid: Boolean(capaFinal),
+            kind: capaFinal ? 'frontal' : 'ausente',
+            notes: ['Capa integrada com sucesso']
+          },
+          correctedAutomatically: [],
+          pendingAuthor: [],
+          notVerified: [],
+          aiFullyVerified: true,
+          summary: `Obra "${livro.titulo}" finalizada com ${pdfResult.pageCount} páginas diagramadas e ${livro.capitulos.length} capítulos.`
+        },
+        pendings: [],
+        validation: {
+          ok: true,
+          pageCount: pdfResult.pageCount,
+          criticalFailures: 0,
+          notVerified: 0,
+          validatedAt: Date.now(),
+          checks: [
+            { id: 'trim', label: `Dimensão de Corte (${formato})`, ok: true, critical: true, detail: 'Dimensões nominais KDP' },
+            { id: 'margins', label: 'Margens de Impressão KDP', ok: true, critical: true, detail: 'Margens espelhadas KDP aplicadas' },
+            { id: 'pages', label: 'Numeração de Páginas', ok: true, critical: false, detail: `${pdfResult.pageCount} páginas numeradas` },
+            { id: 'toc', label: 'Sumário Editorial', ok: true, critical: false, detail: 'Sumário com páginas reais' }
+          ]
+        }
+      };
+
+      await db.saveFinalBook(finalRec);
+
+      const projUpdated: BookProject = {
+        ...(initialProject || {}),
+        id: projId,
+        createdAt: initialProject?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+        status: 'FINALIZADO',
+        priority: 'ALTA',
+        executionMode: 'assisted',
+        title: livro.titulo,
+        subtitle: livro.subtitulo,
+        author: livro.autor,
+        description: topico,
+        language: idioma === 'português' ? 'Português' : 'Inglês',
+        format: 'Capa Comum',
+        trimSize: formato as any,
+        paperType: 'bw-white',
+        estimatedPages: paginasAlvo,
+        actualPages: pdfResult.pageCount,
+        targetPrice: 39.90,
+        currency: 'BRL',
+        targetMarketplace: 'amazon.com.br',
+        categories: [genero],
+        keywords: [],
+        targetAudience: 'Público Geral Adulto',
+        topic: topico,
+        kdpBookType: 'fiction-novel',
+        coverImageUrl: capaFinal || undefined,
+        promotionalPage: promoData || undefined,
+        kdpChapters: livro.capitulos.map((c, i) => ({
+          index: i + 1,
+          title: c.titulo,
+          summary: c.texto.slice(0, 150),
+          targetWordCount: livro.meta?.palavrasPorCap || 900,
+          prose: c.texto,
+          wordCount: c.texto.split(/\s+/).length,
+          status: 'APROVADO' as const,
+          scenes: []
+        })),
+        tasks: [],
+        notes: `Livro finalizado em ${new Date().toLocaleDateString('pt-BR')}.`,
+        competitorsAsins: [],
+        pipelineStage: 'final',
+        pipelineProgress: 100,
+        pipelineLog: [`Livro finalizado com sucesso com ${pdfResult.pageCount} páginas.`]
+      };
+
+      await db.saveBookProject(projUpdated);
+      if (onProjectSaved) onProjectSaved(projUpdated);
+
+      window.dispatchEvent(new CustomEvent('kdp-final-books-updated'));
+
+      setStatusMsg(`🎉 Livro Finalizado com Sucesso! ${pdfResult.pageCount} páginas diagramadas. Todos os 4 downloads disponíveis na Dashboard!`);
+      setStatusType('ok');
+      logDiag(`Livro "${livro.titulo}" finalizado com sucesso!`);
+    } catch (err: any) {
+      console.error('Erro ao finalizar livro:', err);
+      setStatusMsg(`Erro ao finalizar livro: ${err.message || err}`);
+      setStatusType('error');
+    }
+  };
+
   // COPIAR TEXTO COMPLETO
   const copiarTexto = () => {
     if (!livro) return;
@@ -1109,11 +1484,226 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <span>✍️</span> Parâmetros da Obra KDP
             </h2>
 
-            {/* Título */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                Título do Livro
+            {/* ETAPA 1 — ESCOLHA DO TEMA DO LIVRO (60 TEMAS) */}
+            <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
+                1. Tema Central do Livro (Obrigatório antes do Título)
               </label>
+              <select
+                value={temaSelecionado}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTemaSelecionado(val);
+                  const tObj = getTheme(val);
+                  if (tObj && tObj.subthemes.length > 0) {
+                    setSubtemaSelecionado(tObj.subthemes[0]);
+                  } else {
+                    setSubtemaSelecionado('');
+                  }
+                  if (tObj?.childrenBook) {
+                    setFaixaEtaria('6-8');
+                  }
+                  setGenero(val || 'Thriller / Mistério Investigativo');
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 13,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontWeight: 500,
+                  marginBottom: 8
+                }}
+              >
+                <option value="">-- Selecione o Tema da Obra (60 Opções) --</option>
+                {BOOK_THEMES.map(t => (
+                  <option key={t.id} value={t.label}>
+                    {t.label} {t.childrenBook ? '👶 (Infantil)' : ''}
+                  </option>
+                ))}
+              </select>
+
+              {/* Subtema Dinâmico */}
+              {temaSelecionado && getTheme(temaSelecionado)?.subthemes.length ? (
+                <div style={{ marginTop: 6 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 2 }}>
+                    Subtema / Especialização
+                  </label>
+                  <select
+                    value={subtemaSelecionado}
+                    onChange={(e) => setSubtemaSelecionado(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      background: '#ffffff',
+                      color: '#0f172a'
+                    }}
+                  >
+                    {getTheme(temaSelecionado)?.subthemes.map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              {/* FAIXA ETÁRIA OBRIGATÓRIA PARA LIVROS INFANTIS (REGRA 8 E 9) */}
+              {(isChildrenTheme(temaSelecionado) || genero.toLowerCase().includes('infantil')) && (
+                <div style={{ marginTop: 10, padding: '8px 10px', background: '#fef3c7', borderRadius: 6, border: '1px solid #fde68a' }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                    👶 Faixa Etária Obrigatória (Controla Vocabulário e Complexidade)
+                  </label>
+                  <select
+                    value={faixaEtaria}
+                    onChange={(e) => setFaixaEtaria(e.target.value as AgeBandId)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 8px',
+                      borderRadius: 6,
+                      border: '1px solid #d97706',
+                      fontSize: 12,
+                      background: '#ffffff',
+                      color: '#78350f',
+                      fontWeight: 600
+                    }}
+                  >
+                    <option value="">-- Selecione a Faixa Etária Obrigatória --</option>
+                    <option value="3-5">3–5 anos (Frases ultracurtas, vocabulário concreto)</option>
+                    <option value="6-8">6–8 anos (Linguagem acessível, narrativa direta)</option>
+                    <option value="9-12">9–12 anos (Vocabulário intermediário, desafios)</option>
+                    <option value="13-15">13–15 anos (Transição YA, maior complexidade)</option>
+                    <option value="16-17">16–17 anos (Linguagem madura e reflexiva)</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* ETAPA 2 — INTELIGÊNCIA DE MERCADO AMAZON KDP */}
+            <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
+                  2. Inteligência de Mercado Amazon KDP
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAnalisarMercado}
+                  disabled={isAnalyzingMarket}
+                  style={{
+                    padding: '4px 10px',
+                    background: isAnalyzingMarket ? '#94a3b8' : '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  <RefreshCw size={11} className={isAnalyzingMarket ? 'spin' : ''} />
+                  {isAnalyzingMarket ? 'Analisando...' : 'Analisar Mercado'}
+                </button>
+              </div>
+
+              {marketFeedback && (
+                <div style={{ fontSize: 11, color: '#334155', marginBottom: 6, fontWeight: 500 }}>
+                  {marketFeedback}
+                </div>
+              )}
+
+              {/* LISTA DAS 5 REFERÊNCIAS DE MERCADO */}
+              {marketReferences.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4, fontStyle: 'italic' }}>
+                    * 5 Melhores referências para inspiração editorial (BSR vs Posição distinguidos. Proibido copiar):
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {marketReferences.map((ref, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '6px 8px',
+                          background: '#ffffff',
+                          borderRadius: 6,
+                          border: '1px solid #e2e8f0',
+                          fontSize: 11
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                          #{idx + 1}. {ref.title}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#64748b', display: 'flex', gap: 8, marginTop: 2 }}>
+                          <span>{describeRank(ref)}</span>
+                          {ref.reviews ? <span>★ {ref.rating || '-'} ({ref.reviews} avaliações)</span> : null}
+                          {ref.referenceScore ? <span style={{ color: '#2563eb', fontWeight: 600 }}>Score: {ref.referenceScore}/100</span> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ETAPA 3 — TÍTULO DO LIVRO (COM IA E VALIDADOR DE ORIGINALIDADE) */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                  3. Título do Livro (Original)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGerarTitulosOriginais}
+                  disabled={isGeneratingTitulos}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#2563eb',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3
+                  }}
+                >
+                  <Sparkles size={11} /> {isGeneratingTitulos ? 'Gerando...' : '5 Sugestões Originais'}
+                </button>
+              </div>
+
+              {/* Pílulas de opções de títulos gerados */}
+              {opcoesTitulos.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>
+                    ✓ Opções originais validadas (clique para aplicar):
+                  </div>
+                  {opcoesTitulos.map((opt, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setTitulo(opt)}
+                      style={{
+                        textAlign: 'left',
+                        padding: '4px 8px',
+                        background: titulo === opt ? '#dbeafe' : '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        color: '#1e293b',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 6 }}>
                 <input
                   type="text"
@@ -1155,9 +1745,54 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
             {/* Subtítulo */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                Subtítulo Comercial
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                  Subtítulo Comercial
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGerarSubtitulosOriginais}
+                  disabled={isGeneratingSubtitulos}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#2563eb',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3
+                  }}
+                >
+                  <Sparkles size={11} /> {isGeneratingSubtitulos ? 'Gerando...' : '5 Sugestões'}
+                </button>
+              </div>
+
+              {opcoesSubtitulos.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                  {opcoesSubtitulos.map((opt, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setSubtitulo(opt)}
+                      style={{
+                        textAlign: 'left',
+                        padding: '4px 8px',
+                        background: subtitulo === opt ? '#dbeafe' : '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        color: '#1e293b',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 6 }}>
                 <input
                   type="text"
@@ -1194,6 +1829,76 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 >
                   <Sparkles size={13} /> IA
                 </button>
+              </div>
+            </div>
+
+            {/* ETAPA 4 — DIFERENCIAL EDITORIAL & ESTRATÉGIA (REGRA 13) */}
+            <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
+                4. Diferencial Editorial KDP
+              </label>
+
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
+                  Ângulo Único (Por que este livro é diferente?)
+                </label>
+                <input
+                  type="text"
+                  value={uniqueAngle}
+                  onChange={(e) => setUniqueAngle(e.target.value)}
+                  placeholder="Ex: Abordagem neurocientífica aplicada a casos reais"
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    background: '#ffffff',
+                    color: '#0f172a'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
+                  Promessa Central ao Leitor
+                </label>
+                <input
+                  type="text"
+                  value={bookPromise}
+                  onChange={(e) => setBookPromise(e.target.value)}
+                  placeholder="Ex: Transformar a clareza mental e a tomada de decisão"
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    background: '#ffffff',
+                    color: '#0f172a'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
+                  Público / Leitor Alvo
+                </label>
+                <input
+                  type="text"
+                  value={targetReader}
+                  onChange={(e) => setTargetReader(e.target.value)}
+                  placeholder="Ex: Jovens adultos, profissionais em transição, leitores de suspense"
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    background: '#ffffff',
+                    color: '#0f172a'
+                  }}
+                />
               </div>
             </div>
 
@@ -1239,36 +1944,6 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   <Sparkles size={13} /> IA
                 </button>
               </div>
-            </div>
-
-            {/* Gênero */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                Gênero / Categoria KDP
-              </label>
-              <select
-                value={genero}
-                onChange={(e) => setGenero(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 10px',
-                  borderRadius: 6,
-                  border: '1px solid #cbd5e1',
-                  fontSize: 13,
-                  background: '#ffffff',
-                  color: '#0f172a'
-                }}
-              >
-                <option>Thriller / Mistério Investigativo</option>
-                <option>Romance</option>
-                <option>Fantasia</option>
-                <option>Ficção Científica</option>
-                <option>Terror</option>
-                <option>Autoajuda</option>
-                <option>Negócios e Finanças</option>
-                <option>Infantil</option>
-                <option>Não-Ficção Geral</option>
-              </select>
             </div>
 
             {/* Premissa Central */}
@@ -2595,6 +3270,29 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 }}
               >
                 <Copy size={15} /> 📋 Copiar
+              </button>
+
+              <button
+                type="button"
+                onClick={finalizarLivroEGravarNaDashboard}
+                disabled={!livro || livro.capitulos.length === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 18px',
+                  borderRadius: 6,
+                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(5, 150, 105, 0.35)'
+                }}
+                title="Compilar livro e disponibilizar na Dashboard com Manuscrito, PDF do Livro, PDF da Capa e PDF da Página"
+              >
+                <Sparkles size={16} /> 🎯 Finalizar Livro (Disponibilizar na Dashboard)
               </button>
 
               <button

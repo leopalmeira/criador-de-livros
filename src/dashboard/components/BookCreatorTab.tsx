@@ -43,7 +43,9 @@ const STATUS_COLORS: Record<ProjectStatus, string> = {
   'DIAGRAMAÇÃO': '#14b8a6',
   'VALIDAÇÃO': '#06b6d4',
   'PUBLICADO': '#10b981',
-  'ARQUIVADO': '#64748b'
+  'ARQUIVADO': '#64748b',
+  'RASCUNHO': '#94a3b8',
+  'FINALIZADO': '#10b981'
 };
 
 function generateId(): string {

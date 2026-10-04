@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  BookOpen, Plus, Search, BarChart3, TrendingUp, FileText,
-  Lightbulb, Bell, HelpCircle, ChevronDown, ArrowRight,
-  Clock, Copy, Trash2, Sparkles, CheckCircle2, Filter
+  BookOpen, Plus, TrendingUp, FileText,
+  HelpCircle, ChevronDown, ArrowRight,
+  Clock, Copy, Trash2, Sparkles, CheckCircle2, Search
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
-import { CategoryIntelligencePanel } from './category-intel/CategoryIntelligencePanel';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
 import { FinalBooksShelf } from './FinalBooksShelf';
+import { db } from '../../database/local-database';
 
 interface Props {
   projects: BookProject[];
@@ -32,14 +32,12 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onDuplicateProject,
   onDeleteProject,
   onOpenSettings,
-  onQuickAction,
-  onSelectOpportunity
+  onQuickAction
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
   const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
-  const [showCategoryIntel, setShowCategoryIntel] = useState(false);
+  const [finalizingProjectId, setFinalizingProjectId] = useState<string | null>(null);
 
-  // Formatação de data em português: "Hoje, 28 de set. de 2025"
+  // Formatação de data em português: "Hoje, 4 de out. de 2026"
   const formattedToday = (() => {
     const now = new Date();
     const day = now.getDate();
@@ -49,33 +47,30 @@ export const BookIntelDashboard: React.FC<Props> = ({
     return `Hoje, ${day} de ${month}. de ${year}`;
   })();
 
-  // Dicas do dia rotativas sobre KDP
-  const tips = [
-    "Nichos com baixa concorrência e alto volume de busca costumam ter maior potencial de lucro na Amazon.",
-    "Títulos com promessas claras de transformação vendem até 3.4x mais na categoria de Não-Ficção.",
-    "Utilize as 7 caixas de palavras-chave da Amazon com termos de cauda longa para dominar as buscas orgânicas.",
-    "Capas com tipografia serifada de alto contraste aumentam o CTR (taxa de cliques) em mais de 40%."
-  ];
-  const [tipIndex, setTipIndex] = useState(0);
-
-  const rotateTip = () => {
-    setTipIndex((prev) => (prev + 1) % tips.length);
+  // Finalizar projeto rápido diretamente pela Dashboard
+  const handleQuickFinalize = async (p: BookProject, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFinalizingProjectId(p.id);
+    try {
+      const updatedProj: BookProject = {
+        ...p,
+        status: 'FINALIZADO',
+        pipelineStage: 'final',
+        pipelineProgress: 100,
+        updatedAt: Date.now()
+      };
+      await db.saveBookProject(updatedProj);
+      window.dispatchEvent(new CustomEvent('kdp-final-books-updated'));
+    } catch (err) {
+      console.error('Erro ao finalizar projeto rápido:', err);
+    } finally {
+      setFinalizingProjectId(null);
+    }
   };
-
-  const filteredProjects = projects.filter(p => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      (p.title && p.title.toLowerCase().includes(q)) ||
-      (p.subtitle && p.subtitle.toLowerCase().includes(q)) ||
-      (p.author && p.author.toLowerCase().includes(q)) ||
-      (p.topic && p.topic.toLowerCase().includes(q))
-    );
-  });
 
   return (
     <div className="book-intel-container">
-      {/* 1. TOP NAVBAR EXATAMENTE COMO NA FOTO */}
+      {/* 1. TOP NAVBAR ELEGANTE (SEM BARRA DE PESQUISA E SEM SINO DE NOTIFICAÇÃO) */}
       <header className="book-intel-header">
         <div className="book-intel-header-inner">
           {/* Logo & Marca */}
@@ -91,25 +86,8 @@ export const BookIntelDashboard: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Barra de Pesquisa Central com Atalho Ctrl + K */}
-          <div className="header-search-wrapper">
-            <Search size={16} className="search-icon-muted" />
-            <input
-              type="text"
-              className="header-search-input"
-              placeholder="Pesquisar livros, nichos, palavras-chave..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <span className="search-badge-kbd">Ctrl + K</span>
-          </div>
-
-          {/* Ações da Direita: Notificação, Ajuda, Perfil */}
+          {/* Ações da Direita: Ajuda e Perfil (Sino e Barra de Busca Removidos) */}
           <div className="header-right-tools">
-            <button className="tool-round-btn" title="Notificações">
-              <Bell size={18} />
-              <span className="notification-dot" />
-            </button>
             <button className="tool-round-btn" onClick={onOpenSettings} title="Configurações e Ajuda">
               <HelpCircle size={18} />
             </button>
@@ -132,7 +110,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
       <main className="book-intel-body">
         <div className="book-intel-grid">
           
-          {/* COLUNA ESQUERDA (68% de largura) */}
+          {/* COLUNA ESQUERDA */}
           <div className="intel-left-column">
             
             {/* HERO BANNER DE BOAS-VINDAS */}
@@ -175,37 +153,25 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* DICA DO DIA (RODAPÉ DA COLUNA ESQUERDA) */}
-            <div className="intel-tip-card">
-              <div className="tip-bulb-icon">
-                <Lightbulb size={20} color="#2563eb" />
-              </div>
-              <div className="tip-body">
-                <span className="tip-title">Dica do dia</span>
-                <span className="tip-text">{tips[tipIndex]}</span>
-              </div>
-              <button className="tip-link-btn" onClick={rotateTip}>
-                Próxima dica <ArrowRight size={14} />
-              </button>
-            </div>
-
-            {/* ESTANTE DE LIVROS FINALIZADOS & VALIDADOS KDP */}
+            {/* ESTANTE DE LIVROS FINALIZADOS DISPONÍVEIS PARA BAIXAR */}
             <FinalBooksShelf />
 
             {/* SE HOUVER LIVROS JÁ CRIADOS, EXIBE EM LISTA ORGANIZADA ABAIXO */}
             {projects.length > 0 && (
               <div className="existing-projects-sublist">
                 <div className="existing-projects-header">
-                  <h3>Meus Livros & Projetos em Andamento ({filteredProjects.length})</h3>
+                  <h3>Meus Livros & Projetos em Andamento ({projects.length})</h3>
                   <button className="btn-create-sub" onClick={onCreateNewProject}>
                     <Plus size={14} /> Novo Livro
                   </button>
                 </div>
 
                 <div className="existing-projects-grid">
-                  {filteredProjects.map(p => {
+                  {projects.map(p => {
                     const chapters = p.kdpChapters?.length || 0;
                     const words = p.kdpChapters?.reduce((s, c) => s + (c.wordCount || 0), 0) || 0;
+                    const isFinalizado = p.status === 'FINALIZADO' || p.pipelineStage === 'final';
+
                     return (
                       <div
                         key={p.id}
@@ -217,14 +183,42 @@ export const BookIntelDashboard: React.FC<Props> = ({
                             <BookOpen size={18} color="#2563eb" />
                           </div>
                           <div>
-                            <h4 className="project-row-title">{p.title || 'Livro Sem Título'}</h4>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                              <h4 className="project-row-title" style={{ margin: 0 }}>
+                                {p.title || 'Livro Sem Título'}
+                              </h4>
+                              {isFinalizado && (
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  background: '#ecfdf5',
+                                  color: '#059669',
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  border: '1px solid #a7f3d0'
+                                }}>
+                                  ✓ Finalizado
+                                </span>
+                              )}
+                            </div>
                             <span className="project-row-meta">
-                              {p.author || 'Autor não definido'} • {p.kdpBookType || 'Não-Ficção'} • {chapters} capítulos • {words.toLocaleString('pt-BR')} palavras
+                              {p.author || 'Autor não definido'} • {p.categories?.[0] || p.kdpBookType || 'Não-Ficção'} • {chapters} capítulos • {words.toLocaleString('pt-BR')} palavras
                             </span>
                           </div>
                         </div>
 
                         <div className="project-row-actions" onClick={(e) => e.stopPropagation()}>
+                          {!isFinalizado && chapters > 0 && (
+                            <button
+                              className="btn-icon-soft"
+                              onClick={(e) => handleQuickFinalize(p, e)}
+                              disabled={finalizingProjectId === p.id}
+                              title="Finalizar Obra & Disponibilizar na Estante de Downloads"
+                              style={{ color: '#059669', borderColor: '#a7f3d0', background: '#ecfdf5' }}
+                            >
+                              <CheckCircle2 size={14} />
+                            </button>
+                          )}
                           <button
                             className="btn-icon-soft"
                             onClick={(e) => onDuplicateProject(p.id, e)}
@@ -242,7 +236,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                           <button
                             className="btn-open-proj-arrow"
                             onClick={() => onOpenProject(p.id)}
-                            title="Continuar Edição"
+                            title="Continuar Edição no Gerador KDP Pro"
                           >
                             Editar <ArrowRight size={14} />
                           </button>
@@ -256,7 +250,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
 
           </div>
 
-          {/* COLUNA DIREITA (32% de largura) */}
+          {/* COLUNA DIREITA */}
           <div className="intel-right-column">
             
             {/* CARD 1: VISÃO GERAL COM MÉTRICAS */}
@@ -338,7 +332,6 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
 
               {projects.length === 0 ? (
-                /* Estado Vazio com Relógio (Exato como na Foto) */
                 <div className="activity-empty-state">
                   <div className="clock-icon-circle">
                     <Clock size={28} color="#94a3b8" />
@@ -349,9 +342,8 @@ export const BookIntelDashboard: React.FC<Props> = ({
                   </p>
                 </div>
               ) : (
-                /* Lista de Atividades Reais dos Projetos */
                 <div className="activity-items-list">
-                  {projects.slice(0, 4).map((p, idx) => (
+                  {projects.slice(0, 4).map((p) => (
                     <div
                       key={p.id}
                       className="activity-item-row"
@@ -363,7 +355,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                           {p.title ? `Editou "${p.title}"` : 'Iniciou novo projeto'}
                         </span>
                         <span className="activity-item-time">
-                          {new Date(p.updatedAt).toLocaleDateString('pt-BR')} • Etapa {p.currentStage || 'research'}
+                          {new Date(p.updatedAt).toLocaleDateString('pt-BR')} • {p.categories?.[0] || 'KDP'}
                         </span>
                       </div>
                       <ArrowRight size={13} color="#94a3b8" />
@@ -377,20 +369,19 @@ export const BookIntelDashboard: React.FC<Props> = ({
         </div>
       </main>
 
-      {/* 3. FOOTER EXATO */}
+      {/* 3. FOOTER CENTRALIZADO E VALORIZADO (SEM TOTVS E SEM KDP VERIFIED) */}
       <footer className="book-intel-footer">
-        <div className="footer-inner">
-          <span className="footer-copy">
-            Book Intel KDP v1.0 | Plataforma de Inteligência para Amazon KDP
-          </span>
-          <div className="footer-badges">
-            <span className="totvs-badge">TOTVS</span>
-            <span className="kdp-verified-badge">✓ KDP Verified</span>
+        <div className="footer-inner-centered">
+          <div className="footer-brand-pill">
+            <BookOpen size={16} className="footer-brand-icon" />
+            <span className="footer-copy-bold">Book Intel KDP v1.0</span>
+            <span className="footer-divider-dot">•</span>
+            <span className="footer-copy-sub">Plataforma de Inteligência para Amazon KDP</span>
           </div>
         </div>
       </footer>
 
-      {/* MODAL RÁPIDO PARA AS 4 FUNCIONALIDADES QUANDO CLICADAS */}
+      {/* MODAL RÁPIDO PARA AS FUNCIONALIDADES */}
       {activeModalAction && (
         <div className="modal-backdrop-overlay" onClick={() => setActiveModalAction(null)}>
           <div className="intel-quick-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -406,7 +397,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
             <div className="quick-modal-content">
               <p>
                 Esta ferramenta analisa dados em tempo real da Amazon para orientar sua produção editorial.
-                Deseja criar um novo livro com inteligência aplicada ou aplicar a um projeto existente?
+                Deseja criar um novo livro com inteligência aplicada?
               </p>
               <div className="quick-modal-actions">
                 <button

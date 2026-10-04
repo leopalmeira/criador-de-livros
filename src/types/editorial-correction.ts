@@ -241,4 +241,10 @@ export interface FinalBookRecord {
   report: EditorialReport;
   pendings: PendingItem[];
   validation: PdfValidationResult;
+  manuscriptText?: string;
+  genre?: string;
+  trimSize?: string;
+  wordCount?: number;
+  chaptersCount?: number;
+  chapters?: Array<{ titulo: string; texto: string }>;
 }

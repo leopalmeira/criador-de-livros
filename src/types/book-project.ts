@@ -3,7 +3,7 @@
 
 import type { StageId, StageStatus, StageDataMap } from './stages';
 
-export type ProjectStatus = 'IDEIA' | 'CONCEITO' | 'OUTLINE' | 'BIBLE' | 'ESCREVENDO' | 'REVISÃO' | 'DIAGRAMAÇÃO' | 'VALIDAÇÃO' | 'PUBLICADO' | 'ARQUIVADO';
+export type ProjectStatus = 'IDEIA' | 'CONCEITO' | 'OUTLINE' | 'BIBLE' | 'ESCREVENDO' | 'REVISÃO' | 'DIAGRAMAÇÃO' | 'VALIDAÇÃO' | 'PUBLICADO' | 'ARQUIVADO' | 'RASCUNHO' | 'FINALIZADO';
 export type ProjectPriority = 'ALTA' | 'MÉDIA' | 'BAIXA';
 export type ExecutionMode = 'automatic' | 'assisted';
 
@@ -950,6 +950,8 @@ export type PipelineStage =
   | 'quality_gate' 
   | 'packaging' 
   | 'completed' 
+  | 'final'
+  | 'research'
   | 'error';
 
 // --- CONFIGURAÇÃO DE DIAGRAMAÇÃO E PÁGINAS ---
