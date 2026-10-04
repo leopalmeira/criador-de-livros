@@ -25,23 +25,23 @@ describe('Audiobook Studio & Publicação Multiplataforma', () => {
   const dummyChapters: AudiobookChapterItem[] = [
     {
       id: 'cap_01',
+      chapterIndex: 0,
       title: '01 — As Primeiras Sombras',
       fullText: 'O vento uivava através das janelas quebradas do antigo galpão de madeira.',
       textSnippet: 'O vento uivava...',
       wordCount: 12,
-      audioBlob: new Blob(['fake audio content 1'], { type: 'audio/wav' }),
-      audioUrl: 'blob:fake-url-1',
+      audioBlobUrl: 'blob:fake-url-1',
       durationSeconds: 120,
       status: 'pronto'
     },
     {
       id: 'cap_02',
+      chapterIndex: 1,
       title: '02 — Pistas Ocultas',
       fullText: 'O detetive encontrou uma carta selada com lacre escarlate sobre a mesa empoeirada.',
       textSnippet: 'O detetive encontrou...',
       wordCount: 13,
-      audioBlob: new Blob(['fake audio content 2'], { type: 'audio/wav' }),
-      audioUrl: 'blob:fake-url-2',
+      audioBlobUrl: 'blob:fake-url-2',
       durationSeconds: 180,
       status: 'pronto'
     }
@@ -76,6 +76,7 @@ describe('Audiobook Studio & Publicação Multiplataforma', () => {
     const chaptersWithoutAudio: AudiobookChapterItem[] = [
       {
         id: 'cap_01',
+        chapterIndex: 0,
         title: '01 — Introdução',
         fullText: 'Texto de teste',
         textSnippet: 'Texto de teste',

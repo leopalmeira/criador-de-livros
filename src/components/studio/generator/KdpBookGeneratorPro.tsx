@@ -227,6 +227,12 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
           titulo: c.title,
           texto: c.prose || c.summary || ''
         }));
+        
+        const totalEstimado = initialProject.estimatedPages
+          ? Math.max(3, Math.min(maxCapitulos || 15, Math.round((initialProject.estimatedPages * 300) / 900)))
+          : (maxCapitulos || 15);
+        const totalCalculado = Math.max(caps.length, totalEstimado);
+
         setLivro({
           titulo: initialProject.title,
           subtitulo: initialProject.subtitle || '',
@@ -240,7 +246,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
           }
         });
         setCapAtual(caps.length);
-        setTotalCaps(caps.length);
+        setTotalCaps(totalCalculado);
         setStatusMsg(`Obra "${initialProject.title}" carregada com ${caps.length} capítulos.`);
         setStatusType('ok');
         return;
@@ -288,8 +294,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     } catch {}
   }, [initialProject, isNewProject]);
 
-  // Salvar no localStorage
-  const salvarProgressoLocal = (novoLivro: LivroGerado, capa?: string, fundo?: string, promo?: BookPromotionalPageData) => {
+  // Salvar no localStorage e sincronizar automaticamente no IndexedDB
+  const salvarProgressoLocal = async (novoLivro: LivroGerado, capa?: string, fundo?: string, promo?: BookPromotionalPageData) => {
     const payload = {
       livro: novoLivro,
       capaFinal: capa !== undefined ? capa : capaFinal,
@@ -305,6 +311,69 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {}
+
+    // Gravação contínua no IndexedDB: Garante que se o usuário der F5 ou a página recarregar,
+    // o livro gerado até então APARECE IMEDIATAMENTE NA DASHBOARD como Rascunho / Em Andamento!
+    try {
+      const projId = projectIdRef.current || `proj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      projectIdRef.current = projId;
+
+      const isConcluido = novoLivro.capitulos.length >= Math.max(1, totalCaps);
+      const projAutoSave: BookProject = {
+        id: projId,
+        createdAt: initialProject?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+        status: isConcluido ? 'FINALIZADO' : 'ESCREVENDO',
+        priority: 'ALTA',
+        executionMode: 'assisted',
+        title: novoLivro.titulo || titulo || 'Livro em Produção',
+        subtitle: novoLivro.subtitulo || subtitulo,
+        author: novoLivro.autor || autor || 'Leandro Palmeira',
+        description: topico,
+        language: idioma === 'português' ? 'Português' : idioma === 'inglês' ? 'Inglês' : 'Espanhol',
+        format: 'Capa Comum',
+        trimSize: formato as any,
+        paperType: 'bw-white',
+        estimatedPages: paginasAlvo,
+        actualPages: novoLivro.capitulos.length * 6,
+        targetPrice: 39.90,
+        currency: 'BRL',
+        targetMarketplace: 'amazon.com.br',
+        categories: [genero],
+        keywords: [],
+        targetAudience: targetReader || 'Público Geral',
+        topic: topico,
+        kdpBookType: 'fiction-novel',
+        coverImageUrl: capa !== undefined ? capa : (capaFinal || undefined),
+        promotionalPage: promo !== undefined ? promo : (promoData || undefined),
+        promotionalImageUrl: (promo !== undefined ? promo?.promotionalImageUrl : promoData?.promotionalImageUrl) || undefined,
+        kdpChapters: novoLivro.capitulos.map((c, i) => ({
+          index: i + 1,
+          title: c.titulo,
+          summary: c.texto.slice(0, 200),
+          targetWordCount: novoLivro.meta?.palavrasPorCap || 900,
+          prose: c.texto,
+          wordCount: c.texto.split(/\s+/).length,
+          status: 'APROVADO' as const,
+          scenes: []
+        })),
+        tasks: [],
+        notes: `Rascunho automático em andamento (${novoLivro.capitulos.length}/${totalCaps || maxCapitulos} capítulos gerados).`,
+        competitorsAsins: [],
+        pipelineStage: isConcluido ? 'final' : 'writing',
+        pipelineProgress: Math.min(100, Math.round((novoLivro.capitulos.length / Math.max(1, totalCaps)) * 100)),
+        pipelineLog: [`Capítulo ${novoLivro.capitulos.length} salvo automaticamente no banco local.`]
+      };
+
+      await db.saveBookProject(projAutoSave);
+      if (onProjectSaved) onProjectSaved(projAutoSave);
+
+      try {
+        localStorage.setItem('kdp_last_active_project_id', projId);
+      } catch {}
+    } catch (err) {
+      console.warn('Erro ao salvar no banco local:', err);
+    }
   };
 
   // Análise de Mercado Amazon KDP (TOP 1-200) com sorteio dinâmico e randômico
@@ -2494,7 +2563,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             </button>
 
             {/* CONTINUAR E DESCARTAR */}
-            {livro && livro.capitulos.length > 0 && livro.capitulos.length < totalCaps && (
+            {livro && livro.capitulos.length > 0 && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 <button
                   type="button"
@@ -2506,27 +2575,27 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 6,
-                    padding: autoClickCountdown !== null ? '10px 14px' : '8px',
+                    padding: autoClickCountdown !== null ? '10px 14px' : '10px',
                     background: autoClickCountdown !== null
                       ? 'linear-gradient(135deg, #059669, #10b981)'
-                      : '#10b981',
+                      : 'linear-gradient(135deg, #10b981, #059669)',
                     color: '#ffffff',
                     border: autoClickCountdown !== null ? '2px solid #34d399' : 'none',
                     borderRadius: 6,
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: 700,
                     cursor: 'pointer',
                     boxShadow: autoClickCountdown !== null
                       ? '0 0 16px rgba(16, 185, 129, 0.7)'
-                      : 'none',
+                      : '0 2px 6px rgba(16, 185, 129, 0.3)',
                     transform: isAutoClicking ? 'scale(0.95)' : autoClickCountdown !== null ? 'scale(1.02)' : 'scale(1)',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <Play size={13} />
+                  <Play size={14} />
                   {autoClickCountdown !== null
                     ? `⚡ Auto-clique em ${autoClickCountdown}s...`
-                    : '▶ Continuar Geração'}
+                    : `▶ Continuar Geração (Capítulo ${livro.capitulos.length + 1})`}
                 </button>
                 <button
                   type="button"

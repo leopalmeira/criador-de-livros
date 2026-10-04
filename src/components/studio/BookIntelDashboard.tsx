@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   BookOpen, Plus, TrendingUp, FileText,
   HelpCircle, ChevronDown, ArrowRight,
-  Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe
+  Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -38,6 +38,13 @@ export const BookIntelDashboard: React.FC<Props> = ({
 }) => {
   const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
   const [finalizingProjectId, setFinalizingProjectId] = useState<string | null>(null);
+
+  // Identifica projeto em andamento / rascunho recente que precisa de continuação
+  const projetoEmAndamento = projects.find(p => 
+    p.status === 'ESCREVENDO' || 
+    p.status === 'RASCUNHO' || 
+    (p.status !== 'FINALIZADO' && p.pipelineStage !== 'final' && (p.kdpChapters?.length || 0) > 0)
+  );
 
   // Formatação de data em português: "Hoje, 4 de out. de 2026"
   const formattedToday = (() => {
@@ -166,6 +173,82 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
             </div>
 
+            {/* CARD DE RETOMADA IMEDIATA DE LIVRO EM ANDAMENTO (PRESERVAÇÃO APÓS F5 / ATUALIZAÇÃO DA PÁGINA) */}
+            {projetoEmAndamento && (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #eff6ff, #f8fafc)',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  marginBottom: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)',
+                  gap: 16,
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 260 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
+                    }}
+                  >
+                    <BookOpen size={20} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, background: '#dbeafe', color: '#1d4ed8', padding: '1px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
+                        ⚡ PROJETO EM ANDAMENTO RECUPERADO
+                      </span>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>
+                        {projetoEmAndamento.kdpChapters?.length || 0} capítulos salvos no banco local
+                      </span>
+                    </div>
+                    <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                      {projetoEmAndamento.title || 'Livro Sem Título'}
+                    </h4>
+                    <span style={{ fontSize: 12, color: '#475569' }}>
+                      {projetoEmAndamento.author || 'Autor não definido'} • {projetoEmAndamento.categories?.[0] || 'Não-Ficção'} • Seus créditos e progresso foram preservados!
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => onOpenProject(projetoEmAndamento.id)}
+                    style={{
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '10px 18px',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                    }}
+                  >
+                    <Play size={14} /> Continuar Livro
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* ESTANTE DE LIVROS FINALIZADOS DISPONÍVEIS PARA BAIXAR */}
             <FinalBooksShelf />
 
@@ -200,7 +283,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                               <h4 className="project-row-title" style={{ margin: 0 }}>
                                 {p.title || 'Livro Sem Título'}
                               </h4>
-                              {isFinalizado && (
+                              {isFinalizado ? (
                                 <span style={{
                                   fontSize: 10,
                                   fontWeight: 700,
@@ -211,6 +294,18 @@ export const BookIntelDashboard: React.FC<Props> = ({
                                   border: '1px solid #a7f3d0'
                                 }}>
                                   ✓ Finalizado
+                                </span>
+                              ) : (
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  background: '#fffbeb',
+                                  color: '#b45309',
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  border: '1px solid #fde68a'
+                                }}>
+                                  ✏️ Rascunho / Em Andamento ({chapters} cap{chapters === 1 ? '' : 's'})
                                 </span>
                               )}
                             </div>
@@ -257,13 +352,29 @@ export const BookIntelDashboard: React.FC<Props> = ({
                           >
                             <Trash2 size={14} />
                           </button>
-                          <button
-                            className="btn-open-proj-arrow"
-                            onClick={() => onOpenProject(p.id)}
-                            title="Continuar Edição no Gerador KDP Pro"
-                          >
-                            Editar <ArrowRight size={14} />
-                          </button>
+                          {!isFinalizado ? (
+                            <button
+                              className="btn-open-proj-arrow"
+                              onClick={() => onOpenProject(p.id)}
+                              title="Continuar Geração do Livro de Onde Parou"
+                              style={{
+                                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 700
+                              }}
+                            >
+                              <Play size={13} /> Continuar Livro
+                            </button>
+                          ) : (
+                            <button
+                              className="btn-open-proj-arrow"
+                              onClick={() => onOpenProject(p.id)}
+                              title="Continuar Edição no Gerador KDP Pro"
+                            >
+                              Editar <ArrowRight size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
