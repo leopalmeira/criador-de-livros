@@ -41,6 +41,7 @@ Thumbs.db
 
 # Storage e Sessões do Backend
 /covers/
+/audiobooks/
 /data/
 !src/data/
 

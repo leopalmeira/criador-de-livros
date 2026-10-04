@@ -1,1563 +1,1181 @@
 // ================================================================
-// AUDIOBOOK STUDIO — ESTÚDIO PROFISSIONAL DE PRODUÇÃO DE AUDIOBOOKS
-// Book Intel KDP — Motor Kokoro TTS & Smart Sound Design Cinematográfico
+// AUDIOBOOK STUDIO — ESTÚDIO DE GERAÇÃO 100% AUTOMÁTICO
+// Book Intel KDP — O usuário escolhe apenas Idioma + Voz (Masc/Fem)
+// Todo o processamento técnico, particionamento e junção são automáticos.
 // ================================================================
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  Headphones, Sparkles, Play, Pause, CheckCircle2,
-  AlertTriangle, Download, RefreshCw, FileText, Settings,
-  ShieldCheck, Mic, ChevronRight, Eye, Edit3, X, Check,
-  Volume2, FastForward, RotateCcw, RotateCw, Wand2, Music,
-  Sliders, Layers, Radio, ExternalLink
+  Headphones,
+  Play,
+  Pause,
+  Download,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  BookOpen,
+  Volume2,
+  VolumeX,
+  ArrowLeft,
+  Sparkles,
+  Layers,
+  FileCheck
 } from 'lucide-react';
 import {
-  AudiobookChapterItem,
-  AudiobookConfig,
-  DistributionPlatformId,
-  AudiobookAuditReport
-} from '../../../types/publishing-audiobook';
-import {
-  NarrationSpeed,
-  NarrationStyleMode,
-  NarratorVoice,
-  SoundTimelineEvent
-} from '../../../types/audiobook-studio';
-import {
-  kokoroVoiceEngine,
-  KOKORO_NARRATOR_VOICES
-} from '../../../services/audiobook/voice-engine';
-import {
-  analyzeChapterSoundDesign,
-  SmartSoundDesignResult
-} from '../../../services/audiobook/smart-sound-design';
-import {
-  mixChapterAudio,
-  concatenateCompleteAudiobook
-} from '../../../services/audiobook/audio-mixer';
-import {
-  auditAudiobook,
-  buildPublicationPackageZip,
-  generateNotebookLmPackage
-} from '../../../services/audiobook-service';
-import { AudioTimeline } from './AudioTimeline';
+  AudiobookClient,
+  AudiobookLanguage,
+  AudiobookVoiceGender,
+  AudiobookStatusResponse,
+  mapBookLanguageToAudiobook
+} from '../../../services/audiobook/audiobook-client';
 
-interface AudiobookStudioProps {
+export interface AudiobookStudioProps {
+  projectId?: string;
   initialTitle?: string;
   initialSubtitle?: string;
   initialAuthor?: string;
-  initialChapters?: Array<{ titulo: string; texto: string }>;
+  initialChapters?: Array<{
+    titulo?: string;
+    title?: string;
+    texto?: string;
+    text?: string;
+  }>;
   capaUrl?: string | null;
+  bookLanguage?: string;
   onBack?: () => void;
-  onAudiobookReady?: (report: AudiobookAuditReport) => void;
+  onAudiobookReady?: (report?: any) => void;
+}
+
+const FALLBACK_LANGUAGES: AudiobookLanguage[] = [
+  { id: 'pt-BR', label: 'Português (Brasil)', flag: '🇧🇷' },
+  { id: 'en-US', label: 'Inglês', flag: '🇺🇸' },
+  { id: 'es-ES', label: 'Espanhol', flag: '🇪🇸' },
+  { id: 'fr-FR', label: 'Francês', flag: '🇫🇷' },
+  { id: 'de-DE', label: 'Alemão', flag: '🇩🇪' },
+  { id: 'it-IT', label: 'Italiano', flag: '🇮🇹' }
+];
+
+function formatTime(totalSeconds: number): string {
+  if (!totalSeconds || isNaN(totalSeconds) || totalSeconds <= 0) return '00:00';
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = Math.floor(totalSeconds % 60);
+  if (hrs > 0) {
+    return `${hrs}h ${mins.toString().padStart(2, '0')}min`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
+  projectId: propProjectId,
   initialTitle = '',
   initialSubtitle = '',
-  initialAuthor = 'Autor Book Intel',
+  initialAuthor = '',
   initialChapters = [],
   capaUrl = null,
+  bookLanguage = 'português',
   onBack,
   onAudiobookReady
 }) => {
-  // 1. CONFIGURAÇÕES DA OBRA & MOTOR DE VOZ KOKORO
-  const [selectedVoiceId, setSelectedVoiceId] = useState<string>(KOKORO_NARRATOR_VOICES[0].id);
-  const [speed, setSpeed] = useState<NarrationSpeed>(1.0);
-  const [styleMode, setStyleMode] = useState<NarrationStyleMode>('natural');
-  const [pauseMode, setPauseMode] = useState<'automaticas' | 'personalizadas'>('automaticas');
-  const [paragraphPauseMs, setParagraphPauseMs] = useState(650);
-  const [sentencePauseMs, setSentencePauseMs] = useState(350);
-
-  // Helper de inicialização síncrona dos capítulos da obra
-  const parseInitialChapters = (list?: Array<{ titulo: string; texto: string }>): AudiobookChapterItem[] => {
-    if (list && list.length > 0) {
-      return list.map((c, i) => {
-        const words = c.texto ? c.texto.trim().split(/\s+/).length : 0;
-        const durationSeconds = Math.max(30, Math.round(words / 2.25));
-        return {
-          id: `chap_audio_${i}_${Date.now()}`,
-          chapterIndex: i,
-          title: c.titulo || `Capítulo ${i + 1}`,
-          textSnippet: c.texto ? c.texto.slice(0, 160) + '...' : '',
-          fullText: c.texto || '',
-          status: 'pendente',
-          durationSeconds,
-          wordCount: words,
-          isStale: false,
-          timelineEvents: []
-        };
-      });
+  // 1. Identificar projeto de forma estável
+  const resolvedProjectId = useMemo(() => {
+    if (propProjectId && propProjectId.trim()) return propProjectId.trim();
+    if (typeof window !== 'undefined') {
+      const fromUrl = new URLSearchParams(window.location.search).get('projectId');
+      if (fromUrl) return fromUrl;
+      const fromHash = window.location.hash.match(/[?&]projectId=([^&]+)/)?.[1];
+      if (fromHash) return decodeURIComponent(fromHash);
+      const saved = sessionStorage.getItem('kdp_current_project_id');
+      if (saved) return saved;
     }
-    return [
-      {
-        id: 'chap_audio_0',
-        chapterIndex: 0,
-        title: '01 — Introdução & Abertura',
-        textSnippet: 'Pronto para narração de alta qualidade...',
-        fullText: 'Texto editorial pronto para conversão em áudio neural com efeitos sonoros imersivos.',
-        status: 'pendente',
-        durationSeconds: 45,
-        wordCount: 15,
-        isStale: false,
-        timelineEvents: []
-      }
-    ];
-  };
+    const cleanTitle = (initialTitle || 'obra').toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 30);
+    return `proj_${cleanTitle || 'audiobook'}`;
+  }, [propProjectId, initialTitle]);
 
-  // 2. CAPÍTULOS EXTRAÍDOS DO PROJETO ATUAL (INICIALIZAÇÃO SÍNCRONA GARANTIDA)
-  const [chapters, setChapters] = useState<AudiobookChapterItem[]>(() => parseInitialChapters(initialChapters));
-  const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
-
-  // 3. ESTADOS DE PROCESSAMENTO
-  const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
-  const [isAnalyzingSfx, setIsAnalyzingSfx] = useState(false);
-  const [isMixingAudio, setIsMixingAudio] = useState(false);
-  const [isGeneratingFullBook, setIsGeneratingFullBook] = useState(false);
-  const [fullBookUrl, setFullBookUrl] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [processingProgress, setProcessingProgress] = useState<number>(0);
-
-  // 4. PREVIEW DUAL-MODE (VOZ PURA vs CINEMATOGRÁFICO COM EFEITOS)
-  const [previewMode, setPreviewMode] = useState<'mixed' | 'voice-only'>('mixed');
-  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
-  const [playbackCurrentTime, setPlaybackCurrentTime] = useState(0);
-  const [samplePlayingVoiceId, setSamplePlayingVoiceId] = useState<string | null>(null);
-
-  // 5. EDIÇÃO DE TEXTO DO CAPÍTULO
-  const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
-
-  // 6. MODAL DO NOTEBOOKLM E EXPORTAÇÃO
-  const [isNotebookLmModalOpen, setIsNotebookLmModalOpen] = useState(false);
-  const [isExportingZip, setIsExportingZip] = useState(false);
-
-  // Elementos de áudio nativos
-  const playerAudioRef = useRef<HTMLAudioElement | null>(null);
-  const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Sincroniza capítulos quando as props mudarem
-  useEffect(() => {
-    if (initialChapters && initialChapters.length > 0) {
-      setChapters(parseInitialChapters(initialChapters));
-      setSelectedChapterIndex(0);
-    }
+  // 2. Normalizar capítulos para o formato do manuscrito
+  const normalizedChapters = useMemo(() => {
+    return (initialChapters || [])
+      .map((c) => ({
+        title: String(c.title || c.titulo || '').trim(),
+        text: String(c.text || c.texto || '').trim()
+      }))
+      .filter((c) => c.text.length > 0);
   }, [initialChapters]);
 
-  // Fallback seguro: garante que currentChapter NUNCA seja undefined mesmo antes do primeiro paint
-  const safeDefaultChapter: AudiobookChapterItem = {
-    id: 'chap_default_fallback',
-    chapterIndex: 0,
-    title: 'Capítulo 1',
-    textSnippet: '',
-    fullText: '',
-    status: 'pendente',
-    durationSeconds: 60,
-    wordCount: 0,
-    isStale: false,
-    timelineEvents: []
-  };
+  // 3. Escolhas do usuário (apenas Idioma e Gênero da Voz)
+  const [languages, setLanguages] = useState<AudiobookLanguage[]>(FALLBACK_LANGUAGES);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(() =>
+    mapBookLanguageToAudiobook(bookLanguage)
+  );
+  const [selectedVoice, setSelectedVoice] = useState<AudiobookVoiceGender>('male');
 
-  const currentChapter: AudiobookChapterItem = chapters[selectedChapterIndex] || chapters[0] || safeDefaultChapter;
-  const activeVoice: NarratorVoice = KOKORO_NARRATOR_VOICES.find(v => v.id === selectedVoiceId) || KOKORO_NARRATOR_VOICES[0];
+  // 4. Estado da geração e comunicação com backend
+  const [statusData, setStatusData] = useState<AudiobookStatusResponse | null>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState<boolean>(true);
+  const [isStarting, setIsStarting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const pollingTimerRef = useRef<any>(null);
 
-  // Cálculo dos totais da obra atual
-  const totalBookWords = chapters.reduce((acc, c) => acc + c.wordCount, 0);
-  const totalBookDurationSeconds = chapters.reduce((acc, c) => acc + (c.durationSeconds || 0), 0);
-  const completedChaptersCount = chapters.filter(c => c.status === 'pronto').length;
-  const overallProgressPercent = chapters.length > 0
-    ? Math.round((completedChaptersCount / chapters.length) * 100)
-    : 0;
+  // 5. Estado do Player Integrado
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [audioDuration, setAudioDuration] = useState<number>(0);
+  const [volume, setVolume] = useState<number>(1.0);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [activeChapterIndex, setActiveChapterIndex] = useState<number>(0);
 
-  // Auditoria do Audiobook
-  const audiobookConfig: AudiobookConfig = {
-    title: initialTitle || 'Livro Sem Título',
-    subtitle: initialSubtitle || '',
-    author: initialAuthor || 'Autor Book Intel',
-    narrator: activeVoice.name,
-    language: 'Português — Brasil',
-    type: 'ai-narrated',
-    method: 'ai-tts',
-    pitch: activeVoice.previewPitch || 1.0,
-    rate: speed,
-    volume: 1.0
-  };
-  const auditReport = auditAudiobook(audiobookConfig, chapters, capaUrl);
-
+  // Carregar idiomas disponíveis
   useEffect(() => {
-    if (onAudiobookReady) {
-      onAudiobookReady(auditReport);
-    }
-  }, [auditReport.isReady, completedChaptersCount]);
-
-  // Player de Áudio Principal (acompanha posição de reprodução)
-  useEffect(() => {
-    const audioEl = playerAudioRef.current;
-    if (!audioEl) return;
-
-    const handleTimeUpdate = () => {
-      setPlaybackCurrentTime(audioEl.currentTime);
-    };
-
-    const handleEnded = () => {
-      setIsPlayingPreview(false);
-      setPlaybackCurrentTime(0);
-    };
-
-    audioEl.addEventListener('timeupdate', handleTimeUpdate);
-    audioEl.addEventListener('ended', handleEnded);
-
+    let mounted = true;
+    AudiobookClient.fetchLanguages().then((langs) => {
+      if (mounted && langs.length > 0) setLanguages(langs);
+    });
     return () => {
-      audioEl.removeEventListener('timeupdate', handleTimeUpdate);
-      audioEl.removeEventListener('ended', handleEnded);
+      mounted = false;
     };
   }, []);
 
-  // Troca de fonte do player ao alternar entre "Voz pura" e "Mixagem com efeitos"
+  // Consultar status inicial do projeto
+  const checkStatus = useCallback(async () => {
+    if (!resolvedProjectId) return;
+    try {
+      const data = await AudiobookClient.getStatus(resolvedProjectId);
+      setStatusData(data);
+      if (data.language?.id) setSelectedLanguage(data.language.id);
+      if (data.voiceGender) setSelectedVoice(data.voiceGender);
+      return data;
+    } catch {
+      // Projeto ainda sem metadados (normal no primeiro acesso)
+      return null;
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  }, [resolvedProjectId]);
+
   useEffect(() => {
-    if (!currentChapter) return;
-    const targetUrl = previewMode === 'voice-only'
-      ? (currentChapter.voiceBlobUrl || currentChapter.audioBlobUrl)
-      : (currentChapter.mixedBlobUrl || currentChapter.voiceBlobUrl || currentChapter.audioBlobUrl);
+    checkStatus();
+  }, [checkStatus]);
 
-    if (playerAudioRef.current && targetUrl) {
-      const wasPlaying = isPlayingPreview;
-      playerAudioRef.current.src = targetUrl;
-      if (wasPlaying) {
-        playerAudioRef.current.play().catch(() => {});
-      }
-    }
-  }, [previewMode, currentChapter?.voiceBlobUrl, currentChapter?.mixedBlobUrl]);
-
-  // ================================================================
-  // AÇÕES DO MOTOR KOKORO TTS & FLUXO POR CAPÍTULO
-  // ================================================================
-
-  // 1. Tocar amostra de voz
-  const handlePlayVoiceSample = async (voice: NarratorVoice) => {
-    if (samplePlayingVoiceId === voice.id) {
-      if (sampleAudioRef.current) {
-        sampleAudioRef.current.pause();
-      }
-      setSamplePlayingVoiceId(null);
-      return;
-    }
-
-    try {
-      setSamplePlayingVoiceId(voice.id);
-      setStatusMessage(`🎙️ Carregando amostra de voz de ${voice.name}...`);
-      
-      const result = await kokoroVoiceEngine.generateVoice({
-        text: voice.sampleText,
-        voiceId: voice.id,
-        language: voice.language,
-        speed: 1.0,
-        styleMode: 'natural'
-      });
-
-      if (sampleAudioRef.current) {
-        sampleAudioRef.current.src = result.audioUrl;
-        sampleAudioRef.current.play();
-        sampleAudioRef.current.onended = () => {
-          setSamplePlayingVoiceId(null);
-        };
-      }
-      setStatusMessage(null);
-    } catch (err: any) {
-      setStatusMessage(`Erro ao reproduzir amostra: ${err.message}`);
-      setSamplePlayingVoiceId(null);
-    }
-  };
-
-  // 2. Gerar Áudio da Voz do Capítulo Individual (Kokoro TTS)
-  const handleGenerateChapterVoice = async (index: number) => {
-    const target = chapters[index];
-    if (!target) return;
-
-    setIsGeneratingVoice(true);
-    setProcessingProgress(15);
-    setStatusMessage(`🎙️ Kokoro TTS: Sintetizando voz do Capítulo ${index + 1}...`);
-
-    try {
-      const result = await kokoroVoiceEngine.generateVoice({
-        text: target.fullText || target.textSnippet || target.title,
-        voiceId: selectedVoiceId,
-        language: 'Português — Brasil',
-        speed,
-        styleMode,
-        onProgress: (pct) => setProcessingProgress(pct)
-      });
-
-      // Atualiza o capítulo com o áudio da voz gerado
-      setChapters(prev => {
-        const next = [...prev];
-        next[index] = {
-          ...next[index],
-          voiceBlob: result.audioBlob,
-          voiceBlobUrl: result.audioUrl,
-          audioBlobUrl: result.audioUrl, // Fallback retrocompatível
-          durationSeconds: result.durationSeconds,
-          status: 'pronto',
-          isStale: false,
-          lastGeneratedAt: Date.now()
-        };
-        return next;
-      });
-
-      setStatusMessage(`✓ Voz do Capítulo ${index + 1} gerada com sucesso via ${result.engineName}!`);
-    } catch (err: any) {
-      setStatusMessage(`Erro na síntese da voz: ${err.message}`);
-    } finally {
-      setIsGeneratingVoice(false);
-      setProcessingProgress(0);
-    }
-  };
-
-  // 3. Smart Sound Design: Análise Semântica de Cenas Literárias
-  const handleAnalyzeChapterSoundDesign = (index: number) => {
-    const target = chapters[index];
-    if (!target) return;
-
-    setIsAnalyzingSfx(true);
-    setStatusMessage(`🎬 Analisando texto do Capítulo ${index + 1} para identificar eventos sonoros contextuais...`);
-
-    setTimeout(() => {
-      try {
-        const analysis = analyzeChapterSoundDesign(target.fullText, speed);
-
-        setChapters(prev => {
-          const next = [...prev];
-          next[index] = {
-            ...next[index],
-            timelineEvents: analysis.detectedEvents,
-            soundDesignAnalyzed: true
-          };
-          return next;
-        });
-
-        setStatusMessage(
-          `✓ Smart Sound Design: ${analysis.summary.totalDetected} eventos detectados (${analysis.summary.essentialCount} essenciais, ${analysis.summary.recommendedCount} recomendados).`
-        );
-      } catch (err: any) {
-        setStatusMessage(`Erro na análise de som: ${err.message}`);
-      } finally {
-        setIsAnalyzingSfx(false);
-      }
-    }, 400);
-  };
-
-  // 4. Mixagem Automática com Auto-Ducking
-  const handleMixChapter = async (index: number) => {
-    const target = chapters[index];
-    if (!target) return;
-
-    if (!target.voiceBlob && !target.voiceBlobUrl && !target.audioBlobUrl) {
-      setStatusMessage('⚠️ Gere primeiro a narração da voz do capítulo antes de mixar.');
-      return;
-    }
-
-    setIsMixingAudio(true);
-    setStatusMessage(`⚡ Mixando multi-track do Capítulo ${index + 1} com auto-ducking e normalização...`);
-
-    try {
-      // Se não temos o blob em memória, buscamos da URL
-      let vBlob = target.voiceBlob;
-      if (!vBlob) {
-        const url = target.voiceBlobUrl || target.audioBlobUrl!;
-        const res = await fetch(url);
-        vBlob = await res.blob();
-      }
-
-      const events = target.timelineEvents || [];
-      const mixResult = await mixChapterAudio(vBlob, events, (pct, msg) => {
-        setProcessingProgress(pct);
-        setStatusMessage(msg);
-      });
-
-      setChapters(prev => {
-        const next = [...prev];
-        next[index] = {
-          ...next[index],
-          mixedBlob: mixResult.mixedBlob,
-          mixedBlobUrl: mixResult.mixedUrl,
-          audioBlobUrl: mixResult.mixedUrl, // URL principal de reprodução
-          durationSeconds: mixResult.durationSeconds,
-          status: 'pronto',
-          isStale: false
-        };
-        return next;
-      });
-
-      setPreviewMode('mixed');
-      setStatusMessage(`✓ Mixagem do Capítulo ${index + 1} concluída com sucesso!`);
-    } catch (err: any) {
-      setStatusMessage(`Erro na mixagem: ${err.message}`);
-    } finally {
-      setIsMixingAudio(false);
-      setProcessingProgress(0);
-    }
-  };
-
-  // 5. Gerar Audiobook Completo (Masterização & Concatenação)
-  const handleGenerateCompleteAudiobook = async () => {
-    const readyChapters = chapters.filter(c => Boolean(c.mixedBlob || c.voiceBlob || c.audioBlobUrl));
-    if (readyChapters.length === 0) {
-      setStatusMessage('⚠️ Nenhum capítulo possui áudio pronto para compilar o audiobook.');
-      return;
-    }
-
-    setIsGeneratingFullBook(true);
-    setStatusMessage('🎧 Masterizando compilação completa do audiobook...');
-
-    try {
-      const blobs: Blob[] = [];
-      for (const chap of readyChapters) {
-        if (chap.mixedBlob) {
-          blobs.push(chap.mixedBlob);
-        } else if (chap.voiceBlob) {
-          blobs.push(chap.voiceBlob);
-        } else {
-          const res = await fetch(chap.audioBlobUrl!);
-          blobs.push(await res.blob());
+  // Polling enquanto o status for 'generating'
+  useEffect(() => {
+    if (statusData?.status === 'generating') {
+      pollingTimerRef.current = setInterval(async () => {
+        const latest = await checkStatus();
+        if (latest && latest.status === 'completed' && onAudiobookReady) {
+          onAudiobookReady({
+            title: latest.title,
+            duration: latest.durationSeconds,
+            totalChapters: latest.bookChapters
+          });
         }
+      }, 1500);
+    } else {
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+        pollingTimerRef.current = null;
       }
-
-      const master = await concatenateCompleteAudiobook(blobs, (pct, msg) => {
-        setProcessingProgress(pct);
-        setStatusMessage(msg);
-      });
-
-      setFullBookUrl(master.mixedUrl);
-      setStatusMessage(`✓ Audiobook Completo gerado com sucesso! (${Math.round(master.durationSeconds / 60)} minutos de duração total)`);
-
-      // Dispara o download automático do Audiobook Completo
-      const a = document.createElement('a');
-      a.href = master.mixedUrl;
-      a.download = `Audiobook_Completo_${(initialTitle || 'livro').replace(/[^a-z0-9]/gi, '_')}.mp3`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (err: any) {
-      setStatusMessage(`Erro na masterização completa: ${err.message}`);
-    } finally {
-      setIsGeneratingFullBook(false);
-      setProcessingProgress(0);
     }
-  };
+    return () => {
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+        pollingTimerRef.current = null;
+      }
+    };
+  }, [statusData?.status, checkStatus, onAudiobookReady]);
 
-  // 6. Download individual de capítulo
-  const handleDownloadChapter = (index: number) => {
-    const chap = chapters[index];
-    const url = chap?.mixedBlobUrl || chap?.voiceBlobUrl || chap?.audioBlobUrl;
-    if (!url) {
-      setStatusMessage('⚠️ Este capítulo ainda não possui áudio gerado.');
+  // Sincronizar e Iniciar / Retomar a geração
+  const handleStartGeneration = async () => {
+    if (!resolvedProjectId) return;
+    if (normalizedChapters.length === 0) {
+      setErrorMessage('O livro precisa ter ao menos um capítulo escrito para gerar a narração.');
       return;
     }
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Capitulo_${String(index + 1).padStart(2, '0')}_${chap.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
 
-  // 7. Salvar edição de texto
-  const handleSaveChapterText = (index: number) => {
-    setChapters(prev => {
-      const next = [...prev];
-      const target = next[index];
-      if (target) {
-        const words = editingText.trim().split(/\s+/).length;
-        next[index] = {
-          ...target,
-          fullText: editingText,
-          textSnippet: editingText.slice(0, 160) + '...',
-          wordCount: words,
-          durationSeconds: Math.max(30, Math.round(words / (2.25 * speed))),
-          status: target.voiceBlobUrl ? 'alterado' : 'pendente',
-          isStale: Boolean(target.voiceBlobUrl)
-        };
-      }
-      return next;
-    });
+    setErrorMessage(null);
+    setIsStarting(true);
 
-    setEditingChapterId(null);
-    setStatusMessage(`⚠️ Texto do Capítulo ${index + 1} atualizado. Clique em "Gerar Áudio" para atualizar a narração.`);
-  };
-
-  // Exportação do Pacote Multiplataforma (.ZIP)
-  const handleExportPublicationPackage = async () => {
-    setIsExportingZip(true);
-    setStatusMessage('📦 Compilando pacote oficial de publicação...');
     try {
-      const zipBlob = await buildPublicationPackageZip(
-        audiobookConfig,
-        chapters,
-        ['spotify', 'audible', 'apple', 'google', 'kobo'],
-        capaUrl
-      );
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `AUDIOBOOK-${(initialTitle || 'livro').toLowerCase().replace(/[^a-z0-9]/g, '-')}-PACOTE.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setStatusMessage('✓ Pacote de distribuição baixado com sucesso!');
-    } catch (err: any) {
-      setStatusMessage(`Erro na exportação: ${err.message}`);
-    } finally {
-      setIsExportingZip(false);
-    }
-  };
-
-  // Atualização dos eventos da Timeline pelo editor
-  const handleUpdateTimelineEvent = (updated: SoundTimelineEvent) => {
-    setChapters(prev => {
-      const next = [...prev];
-      const current = next[selectedChapterIndex];
-      if (!current) return prev;
-      const updatedEvents = (current.timelineEvents || []).map(e => e.id === updated.id ? updated : e);
-      next[selectedChapterIndex] = {
-        ...current,
-        timelineEvents: updatedEvents,
-        isStale: Boolean(current.mixedBlobUrl) // Precisa remixar se alterou os efeitos
-      };
-      return next;
-    });
-  };
-
-  const handleDeleteTimelineEvent = (eventId: string) => {
-    setChapters(prev => {
-      const next = [...prev];
-      const current = next[selectedChapterIndex];
-      if (!current) return prev;
-      next[selectedChapterIndex] = {
-        ...current,
-        timelineEvents: (current.timelineEvents || []).filter(e => e.id !== eventId),
-        isStale: Boolean(current.mixedBlobUrl)
-      };
-      return next;
-    });
-  };
-
-  const handleDuplicateTimelineEvent = (event: SoundTimelineEvent) => {
-    const duplicated: SoundTimelineEvent = {
-      ...event,
-      id: `evt_dup_${Date.now()}`,
-      startTimeSeconds: Math.min(currentChapter.durationSeconds - 2, event.startTimeSeconds + 3)
-    };
-    handleAddTimelineEvent(duplicated);
-  };
-
-  const handleAddTimelineEvent = (newEvent: SoundTimelineEvent) => {
-    setChapters(prev => {
-      const next = [...prev];
-      const current = next[selectedChapterIndex];
-      if (!current) return prev;
-      next[selectedChapterIndex] = {
-        ...current,
-        timelineEvents: [...(current.timelineEvents || []), newEvent],
-        isStale: Boolean(current.mixedBlobUrl)
-      };
-      return next;
-    });
-  };
-
-  // Toggle do player preview
-  const handleTogglePlayPreview = () => {
-    const audioEl = playerAudioRef.current;
-    if (!audioEl) return;
-
-    if (isPlayingPreview) {
-      audioEl.pause();
-      setIsPlayingPreview(false);
-    } else {
-      audioEl.play().then(() => {
-        setIsPlayingPreview(true);
-      }).catch(err => {
-        setStatusMessage(`Falha ao tocar áudio: ${err.message}`);
+      // 1. Sincronizar manuscrito atual do livro com o estúdio
+      await AudiobookClient.syncManuscript(resolvedProjectId, {
+        title: initialTitle || 'Livro Sem Título',
+        subtitle: initialSubtitle || '',
+        author: initialAuthor || 'Autor',
+        preface: '',
+        chapters: normalizedChapters
       });
+
+      // 2. Disparar a geração no backend (somente projectId, language e voiceGender)
+      const res = await AudiobookClient.startGeneration(resolvedProjectId, selectedLanguage, selectedVoice);
+      setStatusData(res);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Não foi possível iniciar a gravação. Tente novamente.');
+    } finally {
+      setIsStarting(false);
     }
   };
+
+  // Reiniciar tudo (com confirmação)
+  const handleReset = async () => {
+    if (!window.confirm('Deseja realmente gerar um novo audiobook? Isso apagará os áudios atuais.')) {
+      return;
+    }
+    setErrorMessage(null);
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setIsPlaying(false);
+      const res = await AudiobookClient.resetAudiobook(resolvedProjectId);
+      setStatusData(res);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Erro ao reiniciar o estúdio.');
+    }
+  };
+
+  // Controles do Player de Áudio
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    setCurrentTime(time);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setVolume(val);
+    setIsMuted(val === 0);
+    if (audioRef.current) {
+      audioRef.current.volume = val;
+    }
+  };
+
+  const toggleMute = () => {
+    if (!audioRef.current) return;
+    if (isMuted) {
+      audioRef.current.volume = volume || 1;
+      setIsMuted(false);
+    } else {
+      audioRef.current.volume = 0;
+      setIsMuted(true);
+    }
+  };
+
+  // Pular para o capítulo específico dentro do audiobook
+  const jumpToChapter = (chapter: any) => {
+    if (!audioRef.current) return;
+    const start = chapter.startSeconds || 0;
+    audioRef.current.currentTime = start;
+    setCurrentTime(start);
+    setActiveChapterIndex(chapter.index);
+    if (!isPlaying) {
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  };
+
+  // Atualizar capítulo ativo com base no tempo atual
+  useEffect(() => {
+    if (!statusData?.chapters || statusData.chapters.length === 0) return;
+    const chs = statusData.chapters;
+    for (let i = chs.length - 1; i >= 0; i--) {
+      if (currentTime >= (chs[i].startSeconds || 0)) {
+        setActiveChapterIndex(chs[i].index);
+        break;
+      }
+    }
+  }, [currentTime, statusData?.chapters]);
+
+  // Alerta de idioma diferente do livro
+  const bookLangNorm = mapBookLanguageToAudiobook(bookLanguage);
+  const isLanguageDifferent = selectedLanguage !== bookLangNorm;
+
+  const currentStatus = statusData?.status || 'idle';
+  const isGenerating = currentStatus === 'generating' || isStarting;
+  const isCompleted = currentStatus === 'completed' && statusData?.finalReady;
+  const isPartial = currentStatus === 'partial' || currentStatus === 'interrupted';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Elemento de áudio invisível para amostras de vozes */}
-      <audio ref={sampleAudioRef} style={{ display: 'none' }} />
-      {/* Elemento de áudio invisível para reprodução principal */}
-      <audio ref={playerAudioRef} style={{ display: 'none' }} />
-
-      {/* ================================================================ */}
-      {/* 1. BANNER: PROJETO ATUAL (LIVRO PRODUZIDO) */}
-      {/* ================================================================ */}
-      <div style={{
-        background: '#ffffff',
-        borderRadius: 12,
+    <div
+      style={{
+        backgroundColor: '#f8fafc',
+        borderRadius: 16,
         border: '1px solid #e2e8f0',
-        padding: '20px 24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 46,
-              height: 46,
-              borderRadius: 10,
-              background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+        padding: 24,
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.04)',
+        fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+      }}
+    >
+      {/* CABEÇALHO LIMPO E INTUITIVO */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          borderBottom: '1px solid #e2e8f0',
+          paddingBottom: 20,
+          marginBottom: 24
+        }}
+      >
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 14,
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff'
-            }}>
-              <Headphones size={24} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  background: '#dbeafe',
-                  color: '#1e40af',
+              boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)'
+            }}
+          >
+            <Headphones size={28} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                🎧 AUDIOBOOKSTUDIO
+              </h2>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  backgroundColor: '#ecfdf5',
+                  color: '#059669',
                   padding: '2px 8px',
                   borderRadius: 12,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase'
-                }}>
-                  PROJETO ATUAL
-                </span>
-                <span style={{ fontSize: 11, color: '#64748b' }}>
-                  Motor: Kokoro TTS (Open Source Neural)
-                </span>
-              </div>
-              <h2 style={{ margin: '4px 0 2px', fontSize: 20, fontWeight: 700, color: '#0f172a' }}>
-                {initialTitle || 'Livro em Produção'}
-              </h2>
-              <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
-                Por <b>{initialAuthor || 'Autor Book Intel'}</b>
-                {initialSubtitle ? ` • ${initialSubtitle}` : ''}
-              </p>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                style={{
-                  background: '#f8fafc',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 6,
-                  padding: '8px 14px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#334155',
-                  cursor: 'pointer'
+                  border: '1px solid #a7f3d0'
                 }}
               >
-                Voltar à Edição
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleGenerateCompleteAudiobook}
-              disabled={isGeneratingFullBook}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 16px',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: isGeneratingFullBook ? 'wait' : 'pointer',
-                boxShadow: '0 2px 6px rgba(16,185,129,0.3)'
-              }}
-            >
-              <Headphones size={15} />
-              {isGeneratingFullBook ? 'Masterizando...' : '🎧 GERAR AUDIOBOOK COMPLETO'}
-            </button>
+                100% AUTOMÁTICO
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
+              Transforme seu livro em um audiobook completo automaticamente.
+            </p>
           </div>
         </div>
 
-        {/* METAS E ESTATÍSTICAS DA PRODUÇÃO */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-          gap: 12,
-          padding: 12,
-          background: '#f8fafc',
-          borderRadius: 8,
-          border: '1px solid #f1f5f9'
-        }}>
-          <div>
-            <span style={{ fontSize: 11, color: '#64748b' }}>Capítulos da Obra</span>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-              {chapters.length} capítulos
-            </div>
-          </div>
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 13,
+              color: '#475569',
+              backgroundColor: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: '6px 12px',
+              cursor: 'pointer',
+              fontWeight: 500,
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <ArrowLeft size={14} /> Voltar
+          </button>
+        )}
+      </div>
 
-          <div>
-            <span style={{ fontSize: 11, color: '#64748b' }}>Total de Palavras</span>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-              {totalBookWords.toLocaleString('pt-BR')} palavras
-            </div>
+      {/* RESUMO DO LIVRO ATUAL */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          backgroundColor: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 12,
+          padding: '14px 18px',
+          marginBottom: 24
+        }}
+      >
+        {capaUrl ? (
+          <img
+            src={capaUrl}
+            alt="Capa do Livro"
+            style={{ width: 44, height: 60, objectFit: 'cover', borderRadius: 4, border: '1px solid #cbd5e1' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 44,
+              height: 60,
+              borderRadius: 4,
+              backgroundColor: '#f1f5f9',
+              border: '1px solid #cbd5e1',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#94a3b8'
+            }}
+          >
+            <BookOpen size={20} />
           </div>
-
-          <div>
-            <span style={{ fontSize: 11, color: '#64748b' }}>Tempo Estimado</span>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#2563eb' }}>
-              ~{Math.max(1, Math.round(totalBookDurationSeconds / 60))} min
-            </div>
-          </div>
-
-          <div>
-            <span style={{ fontSize: 11, color: '#64748b' }}>Status da Produção</span>
-            <div style={{ fontSize: 14, fontWeight: 700, color: completedChaptersCount === chapters.length ? '#10b981' : '#f59e0b' }}>
-              {completedChaptersCount} de {chapters.length} prontos ({overallProgressPercent}%)
-            </div>
-          </div>
-        </div>
-
-        {/* BARRA DE PROGRESSO GLOBAL */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-            <span>PROGRESSO DO AUDIOBOOK: CAPÍTULO {completedChaptersCount} / {chapters.length}</span>
-            <span>{overallProgressPercent}% CONCLUÍDO</span>
-          </div>
-          <div style={{ width: '100%', height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{
-              width: `${overallProgressPercent}%`,
-              height: '100%',
-              background: 'linear-gradient(90deg, #3b82f6, #10b981)',
-              transition: 'width 0.4s ease'
-            }} />
-          </div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h4
+            style={{
+              margin: 0,
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#0f172a',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {initialTitle || 'Obra sem Título'}
+          </h4>
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+            {initialAuthor ? `Por ${initialAuthor} • ` : ''}
+            {normalizedChapters.length}{' '}
+            {normalizedChapters.length === 1 ? 'capítulo identificado' : 'capítulos identificados'}
+          </p>
         </div>
       </div>
 
-      {/* MENSAGEM DE STATUS EM DESTAQUE */}
-      {statusMessage && (
-        <div style={{
-          background: '#eff6ff',
-          border: '1px solid #bfdbfe',
-          borderRadius: 8,
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          color: '#1e40af',
-          fontSize: 13
-        }}>
-          <Sparkles size={16} />
-          <span style={{ flex: 1 }}>{statusMessage}</span>
-          {processingProgress > 0 && (
-            <span style={{ fontWeight: 700 }}>{processingProgress}%</span>
-          )}
-          <button
-            type="button"
-            onClick={() => setStatusMessage(null)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
-          >
-            <X size={14} />
-          </button>
+      {/* MENSAGEM DE ERRO (CASO OCORRA) */}
+      {errorMessage && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '12px 16px',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            color: '#b91c1c',
+            fontSize: 13,
+            marginBottom: 20
+          }}
+        >
+          <AlertCircle size={18} style={{ flexShrink: 0 }} />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* CASO: NENHUM CAPÍTULO ESCRITO */}
+      {normalizedChapters.length === 0 && (
+        <div
+          style={{
+            padding: '24px 20px',
+            backgroundColor: '#fffbeb',
+            border: '1px solid #fde68a',
+            borderRadius: 12,
+            color: '#92400e',
+            fontSize: 13,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 20
+          }}
+        >
+          <BookOpen size={22} style={{ flexShrink: 0, color: '#d97706' }} />
+          <div>
+            <strong>Nenhum capítulo disponível para narração.</strong>
+            <p style={{ margin: '4px 0 0', color: '#b45309' }}>
+              Volte à etapa de criação ou edição do livro para escrever ou gerar seus capítulos antes de criar o audiobook.
+            </p>
+          </div>
         </div>
       )}
 
       {/* ================================================================ */}
-      {/* 2. ESCOLHA DA VOZ (🎙️ VOZ DO NARRADOR) */}
+      {/* ESTADO 1: IDLE / CONFIGURAÇÃO (APENAS 2 ESCOLHAS DO USUÁRIO) */}
       {/* ================================================================ */}
-      <div style={{
-        background: '#ffffff',
-        borderRadius: 12,
-        border: '1px solid #e2e8f0',
-        padding: '20px 24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-              🎙️ VOZ DO NARRADOR (10 Perfis Neuris Kokoro)
-            </h3>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
-              Selecione o timbre ideal para a atmosfera literária da sua obra. Cada perfil possui prosódia customizada.
-            </p>
-          </div>
-          <span style={{ fontSize: 12, color: '#2563eb', fontWeight: 600 }}>
-            Voz Ativa: {activeVoice.name}
-          </span>
-        </div>
-
-        {/* GRID DOS 10 CARDS DE VOZES */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: 12
-        }}>
-          {KOKORO_NARRATOR_VOICES.map(voice => {
-            const isSelected = selectedVoiceId === voice.id;
-            const isPlayingSample = samplePlayingVoiceId === voice.id;
-
-            return (
-              <div
-                key={voice.id}
-                style={{
-                  border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                  borderRadius: 10,
-                  padding: 14,
-                  background: isSelected ? '#f0f7ff' : '#ffffff',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  boxShadow: isSelected ? '0 4px 12px rgba(37,99,235,0.1)' : 'none',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      background: voice.gender === 'masculino' ? '#dbeafe' : '#fce7f3',
-                      color: voice.gender === 'masculino' ? '#1e40af' : '#9d174d'
-                    }}>
-                      {voice.gender} • {voice.style}
-                    </span>
-                    {isSelected && (
-                      <span style={{ fontSize: 11, color: '#2563eb', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Check size={13} /> Ativa
-                      </span>
-                    )}
-                  </div>
-
-                  <h4 style={{ margin: '4px 0', fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-                    {voice.name}
-                  </h4>
-                  <p style={{ margin: 0, fontSize: 12, color: '#64748b', lineHeight: 1.35 }}>
-                    {voice.description}
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <button
-                    type="button"
-                    onClick={() => handlePlayVoiceSample(voice)}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 4,
-                      background: isPlayingSample ? '#ef4444' : '#f1f5f9',
-                      color: isPlayingSample ? '#ffffff' : '#334155',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 6,
-                      padding: '6px 10px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {isPlayingSample ? <Pause size={12} /> : <Play size={12} />}
-                    {isPlayingSample ? 'Pausar' : '▶ Ouvir amostra'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedVoiceId(voice.id);
-                      setStatusMessage(`Voz "${voice.name}" definida como narrador oficial.`);
-                    }}
-                    style={{
-                      flex: 1,
-                      background: isSelected ? '#2563eb' : '#ffffff',
-                      color: isSelected ? '#ffffff' : '#2563eb',
-                      border: isSelected ? 'none' : '1px solid #2563eb',
-                      borderRadius: 6,
-                      padding: '6px 10px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {isSelected ? '✓ Selecionada' : 'Selecionar voz'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ================================================================ */}
-      {/* 3. CONFIGURAÇÕES DA NARRAÇÃO */}
-      {/* ================================================================ */}
-      <div style={{
-        background: '#ffffff',
-        borderRadius: 12,
-        border: '1px solid #e2e8f0',
-        padding: '18px 24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14
-      }}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Settings size={16} /> CONFIGURAÇÕES DA NARRAÇÃO
-        </h3>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-          {/* VELOCIDADE */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 6 }}>
-              Velocidade da Narração
-            </label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {([0.8, 0.9, 1.0, 1.1, 1.2] as NarrationSpeed[]).map(val => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setSpeed(val)}
-                  style={{
-                    flex: 1,
-                    padding: '6px 0',
-                    border: speed === val ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                    borderRadius: 6,
-                    background: speed === val ? '#2563eb' : '#f8fafc',
-                    color: speed === val ? '#ffffff' : '#334155',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {val.toFixed(1)}x
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* PAUSAS */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 6 }}>
-              Pausas entre Parágrafos & Pontuação
-            </label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setPauseMode('automaticas')}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  border: pauseMode === 'automaticas' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                  borderRadius: 6,
-                  background: pauseMode === 'automaticas' ? '#2563eb' : '#f8fafc',
-                  color: pauseMode === 'automaticas' ? '#ffffff' : '#334155',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Automáticas
-              </button>
-              <button
-                type="button"
-                onClick={() => setPauseMode('personalizadas')}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  border: pauseMode === 'personalizadas' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                  borderRadius: 6,
-                  background: pauseMode === 'personalizadas' ? '#2563eb' : '#f8fafc',
-                  color: pauseMode === 'personalizadas' ? '#ffffff' : '#334155',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Personalizadas
-              </button>
-            </div>
-            {pauseMode === 'personalizadas' && (
-              <div style={{ marginTop: 8, display: 'flex', gap: 10, fontSize: 11, color: '#64748b' }}>
-                <span>Pausa parágrafo: {paragraphPauseMs}ms</span>
-                <span>Pausa frase: {sentencePauseMs}ms</span>
-              </div>
-            )}
-          </div>
-
-          {/* ESTILO NARRATIVO */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 6 }}>
-              Estilo Narrativo
-            </label>
-            <select
-              value={styleMode}
-              onChange={(e) => setStyleMode(e.target.value as NarrationStyleMode)}
-              style={{
-                width: '100%',
-                padding: '7px 10px',
-                border: '1px solid #cbd5e1',
-                borderRadius: 6,
-                fontSize: 13,
-                color: '#1e293b',
-                background: '#ffffff'
-              }}
-            >
-              <option value="natural">Natural (Fluidez Neutra)</option>
-              <option value="cinematografico">Cinematográfico (Imersivo & Envolvente)</option>
-              <option value="suspense">Suspense (Tensão & Pausas Calculadas)</option>
-              <option value="dramatico">Dramático (Expressão Enérgica)</option>
-              <option value="documental">Documental (Precisão & Autoridade)</option>
-              <option value="calmo">Calmo (Voz Suave & Terapêutica)</option>
-              <option value="emocional">Emocional (Sensibilidade & Afeto)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* ================================================================ */}
-      {/* 4. GERAÇÃO POR CAPÍTULO & NAVEGAÇÃO */}
-      {/* ================================================================ */}
-      <div style={{
-        background: '#ffffff',
-        borderRadius: 12,
-        border: '1px solid #e2e8f0',
-        padding: '20px 24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-              PRODUÇÃO CAPÍTULO POR CAPÍTULO
-            </h3>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
-              Trabalhe cada capítulo individualmente para calibrar a voz, eventos sonoros e mixagem.
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => handleGenerateChapterVoice(selectedChapterIndex)}
-              disabled={isGeneratingVoice}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 14px',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: isGeneratingVoice ? 'wait' : 'pointer'
-              }}
-            >
-              <Mic size={14} />
-              {isGeneratingVoice ? 'Gerando Narração...' : '🎙️ Gerar Voz do Capítulo'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleAnalyzeChapterSoundDesign(selectedChapterIndex)}
-              disabled={isAnalyzingSfx}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#7c3aed',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 14px',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: isAnalyzingSfx ? 'wait' : 'pointer'
-              }}
-            >
-              <Sparkles size={14} />
-              {isAnalyzingSfx ? 'Analisando...' : '🎬 SMART SOUND DESIGN'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleMixChapter(selectedChapterIndex)}
-              disabled={isMixingAudio}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#059669',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 14px',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: isMixingAudio ? 'wait' : 'pointer'
-              }}
-            >
-              <Layers size={14} />
-              {isMixingAudio ? 'Mixando...' : '⚡ Mixar Trilha'}
-            </button>
-          </div>
-        </div>
-
-        {/* SELETOR DE CAPÍTULOS HORIZONTAL COM BADGES DE STATUS */}
-        <div style={{
-          display: 'flex',
-          gap: 8,
-          overflowX: 'auto',
-          paddingBottom: 6
-        }}>
-          {chapters.map((chap, idx) => {
-            const isCurrent = idx === selectedChapterIndex;
-            const isReady = Boolean(chap.mixedBlobUrl || chap.voiceBlobUrl || chap.audioBlobUrl);
-
-            return (
-              <button
-                key={chap.id || idx}
-                type="button"
-                onClick={() => setSelectedChapterIndex(idx)}
-                style={{
-                  minWidth: 160,
-                  textAlign: 'left',
-                  border: isCurrent ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                  borderRadius: 8,
-                  padding: '10px 12px',
-                  background: isCurrent ? '#eff6ff' : '#f8fafc',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: isCurrent ? '#2563eb' : '#64748b' }}>
-                    CAP. {String(idx + 1).padStart(2, '0')}
-                  </span>
-                  {isReady ? (
-                    <span style={{ fontSize: 10, color: '#10b981', fontWeight: 700 }}>✓ Pronto</span>
-                  ) : (
-                    <span style={{ fontSize: 10, color: '#94a3b8' }}>Pendente</span>
-                  )}
-                </div>
-                <div style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#1e293b',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {chap.title}
-                </div>
-                <div style={{ fontSize: 10, color: '#64748b' }}>
-                  {chap.wordCount} palavras • ~{Math.round(chap.durationSeconds)}s
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* TEXTO DO CAPÍTULO ATUAL E EDITOR */}
-        <div style={{
-          background: '#f8fafc',
-          borderRadius: 8,
-          border: '1px solid #e2e8f0',
-          padding: 14
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
-              Texto do Capítulo Selecionado ({currentChapter?.wordCount || 0} palavras)
-            </span>
-            {editingChapterId === currentChapter?.id ? (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => handleSaveChapterText(selectedChapterIndex)}
-                  style={{
-                    background: '#10b981',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: 4,
-                    padding: '4px 10px',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Salvar Alteração
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingChapterId(null)}
-                  style={{
-                    background: '#cbd5e1',
-                    border: 'none',
-                    borderRadius: 4,
-                    padding: '4px 8px',
-                    fontSize: 11,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancelar
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentChapter) {
-                    setEditingChapterId(currentChapter.id);
-                    setEditingText(currentChapter.fullText || currentChapter.textSnippet || '');
-                  }
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  background: 'none',
-                  border: 'none',
-                  color: '#2563eb',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                <Edit3 size={12} /> Editar Texto
-              </button>
-            )}
-          </div>
-
-          {editingChapterId === currentChapter?.id ? (
-            <textarea
-              value={editingText}
-              onChange={(e) => setEditingText(e.target.value)}
-              rows={5}
-              style={{
-                width: '100%',
-                padding: 10,
-                border: '1px solid #cbd5e1',
-                borderRadius: 6,
-                fontSize: 13,
-                fontFamily: 'inherit',
-                lineHeight: 1.5
-              }}
-            />
-          ) : (
-            <p style={{
-              margin: 0,
-              fontSize: 13,
-              color: '#334155',
-              lineHeight: 1.6,
-              maxHeight: 110,
-              overflowY: 'auto'
-            }}>
-              {currentChapter?.fullText || currentChapter?.textSnippet || 'Nenhum texto associado a este capítulo.'}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* ================================================================ */}
-      {/* 5. TIMELINE VISUAL DE ÁUDIO (MULTI-TRACK COM SMART SOUND DESIGN) */}
-      {/* ================================================================ */}
-      <AudioTimeline
-        chapterDurationSeconds={currentChapter.durationSeconds || 60}
-        events={currentChapter.timelineEvents || []}
-        onUpdateEvent={handleUpdateTimelineEvent}
-        onDeleteEvent={handleDeleteTimelineEvent}
-        onDuplicateEvent={handleDuplicateTimelineEvent}
-        onAddEvent={handleAddTimelineEvent}
-        currentTimeSeconds={playbackCurrentTime}
-      />
-
-      {/* ================================================================ */}
-      {/* 6. DUAL PREVIEW PLAYER (VOZ PURA vs CINEMATOGRÁFICO) */}
-      {/* ================================================================ */}
-      <div style={{
-        background: '#ffffff',
-        borderRadius: 12,
-        border: '1px solid #e2e8f0',
-        padding: '18px 24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
-              PREVIEW & COMPARAÇÃO EM TEMPO REAL
-            </h3>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
-              Compare a narração da voz pura com a versão cinematográfica sonorizada com auto-ducking.
-            </p>
-          </div>
-
-          {/* CHAVE SELETORA DUAL-MODE */}
-          <div style={{
-            display: 'flex',
-            background: '#f1f5f9',
-            padding: 3,
-            borderRadius: 8,
-            border: '1px solid #cbd5e1'
-          }}>
-            <button
-              type="button"
-              onClick={() => setPreviewMode('voice-only')}
-              style={{
-                border: 'none',
-                background: previewMode === 'voice-only' ? '#ffffff' : 'transparent',
-                color: previewMode === 'voice-only' ? '#2563eb' : '#64748b',
-                padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: previewMode === 'voice-only' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-              }}
-            >
-              🎙️ Ouvir somente voz
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreviewMode('mixed')}
-              style={{
-                border: 'none',
-                background: previewMode === 'mixed' ? '#ffffff' : 'transparent',
-                color: previewMode === 'mixed' ? '#059669' : '#64748b',
-                padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: previewMode === 'mixed' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-              }}
-            >
-              🎬 Ouvir voz + efeitos (Cinematográfico)
-            </button>
-          </div>
-        </div>
-
-        {/* CONTROLES DO PLAYER */}
-        <div style={{
-          background: '#0f172a',
-          borderRadius: 8,
-          padding: 14,
-          color: '#ffffff',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16
-        }}>
-          <button
-            type="button"
-            onClick={handleTogglePlayPreview}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              background: '#2563eb',
-              border: 'none',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0
-            }}
-          >
-            {isPlayingPreview ? <Pause size={18} /> : <Play size={18} style={{ marginLeft: 2 }} />}
-          </button>
-
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8' }}>
-              <span>
-                {currentChapter?.title || 'Capítulo'} • {previewMode === 'mixed' ? 'Mixagem Cinematográfica' : 'Voz Pura Kokoro'}
-              </span>
-              <span>
-                {Math.floor(playbackCurrentTime / 60)}:{String(Math.floor(playbackCurrentTime % 60)).padStart(2, '0')} / {Math.floor((currentChapter?.durationSeconds || 60) / 60)}:{String(Math.floor((currentChapter?.durationSeconds || 60) % 60)).padStart(2, '0')}
-              </span>
-            </div>
-
-            <input
-              type="range"
-              min="0"
-              max={currentChapter?.durationSeconds || 60}
-              step="0.5"
-              value={playbackCurrentTime}
-              onChange={(e) => {
-                const newT = parseFloat(e.target.value);
-                setPlaybackCurrentTime(newT);
-                if (playerAudioRef.current) {
-                  playerAudioRef.current.currentTime = newT;
-                }
-              }}
-              style={{ width: '100%', accentColor: '#2563eb' }}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => handleDownloadChapter(selectedChapterIndex)}
-            title="Baixar MP3 deste capítulo"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              background: '#1e293b',
-              color: '#f8fafc',
-              border: '1px solid #334155',
-              borderRadius: 6,
-              padding: '8px 12px',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-              flexShrink: 0
-            }}
-          >
-            <Download size={13} /> Baixar Capítulo
-          </button>
-        </div>
-      </div>
-
-      {/* ================================================================ */}
-      {/* 7. PAINEL DE EXPORTAÇÃO E INTEGRAÇÕES MULTIPLATAFORMA */}
-      {/* ================================================================ */}
-      <div style={{
-        background: '#ffffff',
-        borderRadius: 12,
-        border: '1px solid #e2e8f0',
-        padding: '18px 24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 12
-      }}>
-        <div>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-            Distribuição Multiplataforma (Spotify, Audible, Apple Books)
-          </h4>
-          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
-            Auditoria técnica ACX e pacote oficial para publicação mundial.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => setIsNotebookLmModalOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: 6,
-              padding: '8px 14px',
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#334155',
-              cursor: 'pointer'
-            }}
-          >
-            <ExternalLink size={14} /> Pacote NotebookLM
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportPublicationPackage}
-            disabled={isExportingZip}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#2563eb',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 6,
-              padding: '8px 14px',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: isExportingZip ? 'wait' : 'pointer'
-            }}
-          >
-            <Download size={14} />
-            {isExportingZip ? 'Exportando ZIP...' : 'Exportar Pacote (.ZIP)'}
-          </button>
-        </div>
-      </div>
-
-      {/* MODAL NOTEBOOKLM PRESERVADO */}
-      {isNotebookLmModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.6)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 16
-        }}>
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 12,
-            maxWidth: 580,
-            width: '100%',
+      {!isGenerating && !isCompleted && !isPartial && (
+        <div
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 14,
+            border: '1px solid #e2e8f0',
             padding: 24,
             display: 'flex',
             flexDirection: 'column',
-            gap: 16
-          }}>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
-              Guia de Narração com Google NotebookLM
-            </h3>
-            <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-              Você também pode exportar os capítulos formatados para o Google NotebookLM e usar a ferramenta Audio Overview para podcasts e análises complementares da sua obra.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setIsNotebookLmModalOpen(false)}
+            gap: 24
+          }}
+        >
+          {/* 1. SELEÇÃO DE IDIOMA */}
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 700,
+                color: '#334155',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: 8
+              }}
+            >
+              IDIOMA:
+            </label>
+            <div style={{ position: 'relative', maxWidth: 360 }}>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
                 style={{
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '8px 16px',
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  fontSize: 14,
                   fontWeight: 600,
-                  cursor: 'pointer'
+                  color: '#0f172a',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                  outline: 'none',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                 }}
               >
-                Entendi
+                {languages.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.flag} {l.label}
+                  </option>
+                ))}
+              </select>
+              <span
+                style={{
+                  position: 'absolute',
+                  right: 14,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  color: '#64748b',
+                  fontSize: 12
+                }}
+              >
+                ▼
+              </span>
+            </div>
+
+            {isLanguageDifferent && (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#f59e0b' }}>
+                💡 <strong>Dica:</strong> O livro foi escrito originalmente em português. Selecionar outro idioma narrará as palavras com pronúncia adaptada, sem tradução do texto.
+              </p>
+            )}
+          </div>
+
+          {/* 2. SELEÇÃO DE VOZ (MASCULINA OU FEMININA) */}
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 700,
+                color: '#334155',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: 10
+              }}
+            >
+              VOZ:
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, maxWidth: 500 }}>
+              {/* Opção Masculina */}
+              <button
+                type="button"
+                onClick={() => setSelectedVoice('male')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 18px',
+                  borderRadius: 12,
+                  border: selectedVoice === 'male' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                  backgroundColor: selectedVoice === 'male' ? '#eff6ff' : '#ffffff',
+                  color: selectedVoice === 'male' ? '#1d4ed8' : '#334155',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  transition: 'all 0.15s ease',
+                  boxShadow: selectedVoice === 'male' ? '0 2px 8px rgba(37, 99, 235, 0.15)' : 'none'
+                }}
+              >
+                <span style={{ fontSize: 24 }}>👨</span>
+                <span>MASCULINA</span>
+                {selectedVoice === 'male' && <CheckCircle2 size={18} style={{ marginLeft: 'auto', color: '#2563eb' }} />}
               </button>
+
+              {/* Opção Feminina */}
+              <button
+                type="button"
+                onClick={() => setSelectedVoice('female')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 18px',
+                  borderRadius: 12,
+                  border: selectedVoice === 'female' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                  backgroundColor: selectedVoice === 'female' ? '#eff6ff' : '#ffffff',
+                  color: selectedVoice === 'female' ? '#1d4ed8' : '#334155',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  transition: 'all 0.15s ease',
+                  boxShadow: selectedVoice === 'female' ? '0 2px 8px rgba(37, 99, 235, 0.15)' : 'none'
+                }}
+              >
+                <span style={{ fontSize: 24 }}>👩</span>
+                <span>FEMININA</span>
+                {selectedVoice === 'female' && <CheckCircle2 size={18} style={{ marginLeft: 'auto', color: '#2563eb' }} />}
+              </button>
+            </div>
+          </div>
+
+          {/* BOTÃO PRINCIPAL: GERAR AUDIOBOOK */}
+          <div style={{ paddingTop: 8 }}>
+            <button
+              type="button"
+              disabled={isStarting || normalizedChapters.length === 0}
+              onClick={handleStartGeneration}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '14px 32px',
+                borderRadius: 12,
+                border: 'none',
+                backgroundColor: normalizedChapters.length === 0 ? '#cbd5e1' : '#059669',
+                color: '#ffffff',
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: normalizedChapters.length === 0 ? 'not-allowed' : 'pointer',
+                boxShadow: normalizedChapters.length === 0 ? 'none' : '0 4px 12px rgba(5, 150, 105, 0.3)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Headphones size={20} />
+              <span>🎧 GERAR AUDIOBOOK</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* ESTADO 2: PROGRESSO DA GERAÇÃO (CONFORME ESPECIFICAÇÃO EXATA) */}
+      {/* ================================================================ */}
+      {isGenerating && (
+        <div
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 14,
+            border: '1px solid #e2e8f0',
+            padding: 28,
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <Headphones size={24} style={{ color: '#2563eb' }} />
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
+              🎧 Gerando audiobook...
+            </h3>
+          </div>
+
+          <div style={{ display: 'flex', gap: 20, fontSize: 13, color: '#475569', marginBottom: 20 }}>
+            <div>
+              <strong>Idioma:</strong> {statusData?.language?.label || (selectedLanguage === 'pt-BR' ? 'Português (Brasil)' : selectedLanguage)}
+            </div>
+            <div>
+              <strong>Voz:</strong> {statusData?.voiceLabel || (selectedVoice === 'male' ? 'Masculina' : 'Feminina')}
+            </div>
+          </div>
+
+          {/* BARRA DE PROGRESSO COM % */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+              <span style={{ color: '#334155' }}>Progresso geral</span>
+              <span style={{ color: '#2563eb' }}>{statusData?.progressPercent ?? 0}%</span>
+            </div>
+            <div
+              style={{
+                width: '100%',
+                height: 12,
+                borderRadius: 999,
+                backgroundColor: '#e2e8f0',
+                overflow: 'hidden'
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${statusData?.progressPercent ?? 0}%`,
+                  backgroundColor: '#2563eb',
+                  borderRadius: 999,
+                  transition: 'width 0.4s ease'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* DETALHES DE ANDAMENTO */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: 16,
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 10,
+              padding: '16px 20px',
+              marginBottom: 20
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                Capítulo atual:
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginTop: 4 }}>
+                {statusData?.current?.label || 'Iniciando narração...'}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                Capítulos concluídos:
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#059669', marginTop: 4 }}>
+                {statusData?.completedCount ?? 0} / {statusData?.totalUnits ?? (normalizedChapters.length + 1)}
+              </div>
+            </div>
+          </div>
+
+          <p style={{ margin: 0, fontSize: 12, color: '#64748b', textAlign: 'center' }}>
+            ☕ A narração está sendo gravada automaticamente capítulo por capítulo. Se fechar ou atualizar esta tela, o processo continuará de onde parou.
+          </p>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* ESTADO 3: PARCIAL / INTERROMPIDO (RETOMADA TRANSPARENTE) */}
+      {/* ================================================================ */}
+      {isPartial && !isGenerating && (
+        <div
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 14,
+            border: '1px solid #fde68a',
+            padding: 24,
+            marginBottom: 20
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#b45309', marginBottom: 12 }}>
+            <AlertCircle size={22} />
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+              Geração parcial disponível ({statusData?.completedCount || 0} de {statusData?.totalUnits || 0} prontos)
+            </h3>
+          </div>
+          <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 18px' }}>
+            A gravação foi pausada ou encontrou uma instabilidade temporária. Os capítulos já gravados foram salvos e não serão refeitos.
+          </p>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              type="button"
+              onClick={handleStartGeneration}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 20px',
+                borderRadius: 10,
+                backgroundColor: '#2563eb',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              <Play size={16} /> Continuar de onde parou
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '10px 16px',
+                borderRadius: 10,
+                backgroundColor: '#ffffff',
+                color: '#64748b',
+                border: '1px solid #cbd5e1',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <RotateCcw size={14} /> Começar do zero
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* ESTADO 4: FINALIZAÇÃO (🎉 AUDIOBOOK CONCLUÍDO + PLAYER COMPLETO) */}
+      {/* ================================================================ */}
+      {isCompleted && statusData && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* CARD DE CONCLUSÃO */}
+          <div
+            style={{
+              backgroundColor: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              borderRadius: 14,
+              padding: 24
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 24 }}>🎉</span>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#065f46' }}>
+                AUDIOBOOK CONCLUÍDO
+              </h3>
+            </div>
+
+            {/* DETALHES DO AUDIOBOOK PRONTO */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: 16,
+                backgroundColor: '#ffffff',
+                border: '1px solid #d1fae5',
+                borderRadius: 12,
+                padding: '16px 20px',
+                marginBottom: 20
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Título</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{initialTitle || 'Livro'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Idioma</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                  {statusData.language?.label || 'Português (Brasil)'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Voz</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                  {statusData.voiceLabel || (statusData.voiceGender === 'female' ? 'Feminina' : 'Masculina')}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Duração</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                  {formatTime(statusData.durationSeconds)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Capítulos</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                  {statusData.bookChapters} capítulos (+ intro)
+                </div>
+              </div>
+            </div>
+
+            {/* BOTÕES DE AÇÃO EXIGIDOS */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              <button
+                type="button"
+                onClick={togglePlayPause}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 22px',
+                  borderRadius: 10,
+                  backgroundColor: '#059669',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)'
+                }}
+              >
+                {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                <span>{isPlaying ? 'PAUSAR AUDIOBOOK' : '▶ OUVIR AUDIOBOOK'}</span>
+              </button>
+
+              <a
+                href={AudiobookClient.getFinalAudioUrl(resolvedProjectId, true)}
+                download={`audiobook_${resolvedProjectId}.mp3`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 20px',
+                  borderRadius: 10,
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+                }}
+              >
+                <Download size={16} />
+                <span>⬇ BAIXAR AUDIOBOOK</span>
+              </a>
+
+              <a
+                href={AudiobookClient.getDownloadAllChaptersUrl(resolvedProjectId)}
+                download={`audiobook_${resolvedProjectId}_capitulos.zip`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 20px',
+                  borderRadius: 10,
+                  backgroundColor: '#ffffff',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  textDecoration: 'none',
+                  fontSize: 14,
+                  fontWeight: 600
+                }}
+              >
+                <Download size={16} />
+                <span>⬇ BAIXAR CAPÍTULOS (.ZIP)</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={handleReset}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 18px',
+                  borderRadius: 10,
+                  backgroundColor: '#ffffff',
+                  color: '#64748b',
+                  border: '1px solid #cbd5e1',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  marginLeft: 'auto'
+                }}
+              >
+                <RotateCcw size={14} />
+                <span>🔄 GERAR NOVAMENTE</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ============================================================ */}
+          {/* PLAYER INTEGRADO COM CONTROLES COMPLETOS */}
+          {/* ============================================================ */}
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 14,
+              border: '1px solid #e2e8f0',
+              padding: 24,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+            }}
+          >
+            {/* ELEMENTO AUDIO OCULTO */}
+            <audio
+              ref={audioRef}
+              src={AudiobookClient.getFinalAudioUrl(resolvedProjectId)}
+              preload="metadata"
+              onTimeUpdate={() => {
+                if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+              }}
+              onLoadedMetadata={() => {
+                if (audioRef.current) setAudioDuration(audioRef.current.duration || statusData.durationSeconds || 0);
+              }}
+              onEnded={() => setIsPlaying(false)}
+            />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 8,
+                  backgroundColor: '#f1f5f9',
+                  color: '#2563eb',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Headphones size={20} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                  {initialTitle || 'Audiobook Completo'}
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                  Tocando:{' '}
+                  <strong>
+                    {statusData.chapters.find((c) => c.index === activeChapterIndex)?.label || 'Introdução'}
+                  </strong>
+                </p>
+              </div>
+            </div>
+
+            {/* BARRA DE PROGRESSO DO PLAYER */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', minWidth: 45 }}>
+                {formatTime(currentTime)}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={audioDuration || statusData.durationSeconds || 100}
+                step={0.1}
+                value={currentTime}
+                onChange={handleSeek}
+                style={{
+                  flex: 1,
+                  accentColor: '#2563eb',
+                  cursor: 'pointer',
+                  height: 6
+                }}
+              />
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', minWidth: 45, textAlign: 'right' }}>
+                {formatTime(audioDuration || statusData.durationSeconds)}
+              </span>
+            </div>
+
+            {/* CONTROLES: PLAY, VOLUME E SELETOR */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+              {/* PLAY / PAUSE */}
+              <button
+                type="button"
+                onClick={togglePlayPause}
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)'
+                }}
+              >
+                {isPlaying ? <Pause size={22} /> : <Play size={22} style={{ marginLeft: 2 }} />}
+              </button>
+
+              {/* CONTROLE DE VOLUME */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  style={{ width: 80, accentColor: '#2563eb', cursor: 'pointer' }}
+                />
+              </div>
+            </div>
+
+            {/* LISTA / SELEÇÃO DE CAPÍTULOS */}
+            <div style={{ marginTop: 24, borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 10 }}>
+                SELEÇÃO DE CAPÍTULOS ({statusData.chapters.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                {statusData.chapters.map((ch) => {
+                  const isActive = ch.index === activeChapterIndex;
+                  return (
+                    <div
+                      key={ch.file}
+                      onClick={() => jumpToChapter(ch)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        backgroundColor: isActive ? '#eff6ff' : '#f8fafc',
+                        border: isActive ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+                        cursor: 'pointer',
+                        transition: 'all 0.1s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <span style={{ fontSize: 12, color: isActive ? '#2563eb' : '#94a3b8' }}>
+                          {isActive && isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                        </span>
+                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? '#1d4ed8' : '#1e293b' }}>
+                            {ch.label}
+                          </span>
+                          {ch.title && ch.title !== ch.label && (
+                            <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>
+                              • {ch.title}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>
+                          {formatTime(ch.durationSeconds)}
+                        </span>
+                        <a
+                          href={AudiobookClient.getChapterAudioUrl(resolvedProjectId, ch.file, true)}
+                          download={ch.file}
+                          onClick={(e) => e.stopPropagation()}
+                          title="Baixar capítulo individual"
+                          style={{
+                            color: '#64748b',
+                            padding: 4,
+                            borderRadius: 4,
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <Download size={14} />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

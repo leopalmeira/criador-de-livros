@@ -462,13 +462,15 @@ export const MultiplatformPublishingModal: React.FC<MultiplatformPublishingModal
 
           {/* ABA 2: AUDIOBOOK STUDIO INTEGRADO */}
           {activeTab === 'audiobook' && (
-            <ErrorBoundary fallbackTitle="Audiobook Studio (Kokoro TTS)">
+            <ErrorBoundary fallbackTitle="Audiobook Studio">
               <AudiobookStudio
+                projectId={project.id}
                 initialTitle={project.title}
                 initialSubtitle={project.subtitle}
                 initialAuthor={project.author}
                 initialChapters={project.capitulos}
                 capaUrl={project.coverUrl}
+                bookLanguage={(project as any)?.idioma || 'português'}
               />
             </ErrorBoundary>
           )}

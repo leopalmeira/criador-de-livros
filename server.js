@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import * as cheerio from 'cheerio';
+import { handleAudiobookApi } from './server/audiobook/api.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -302,6 +303,12 @@ const server = http.createServer(async (req, res) => {
       uptime: process.uptime(),
       timestamp: Date.now()
     });
+  }
+
+  // 1.5. APIs de AudiobookStudio 100% Automático (/api/audiobook/...)
+  if (pathname.startsWith('/api/audiobook')) {
+    const handled = await handleAudiobookApi(req, res, reqUrl);
+    if (handled) return;
   }
 
   // 2. APIs de Agentes KDP (/api/kdp-agents)

@@ -3649,13 +3649,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {/* ABA 6: AUDIOBOOK STUDIO (LIVRO -> AUDIOBOOK) */}
               {activeTab === 'audiobook' && (
                 <div style={{ maxHeight: 780, overflowY: 'auto' }}>
-                  <ErrorBoundary fallbackTitle="Audiobook Studio (Kokoro TTS)">
+                  <ErrorBoundary fallbackTitle="Audiobook Studio">
                     <AudiobookStudio
+                      projectId={projectIdRef.current}
                       initialTitle={titulo}
                       initialSubtitle={subtitulo}
                       initialAuthor={autor}
                       initialChapters={livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || []}
                       capaUrl={capaFinal}
+                      bookLanguage={idioma}
                       onBack={() => setActiveTab('preview')}
                     />
                   </ErrorBoundary>

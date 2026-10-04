@@ -285,6 +285,23 @@ function kdpAiBackendPlugin() {
           res.end(JSON.stringify({ success: false, error: err.message }));
         }
       });
+
+      // Middleware de AudiobookStudio 100% Automático (/api/audiobook)
+      server.middlewares.use('/api/audiobook', async (req: any, res: any, next: any) => {
+        try {
+          // @ts-ignore
+          const { handleAudiobookApi } = await import('./server/audiobook/api.js');
+          const reqUrl = new URL(req.originalUrl || req.url, 'http://localhost');
+          const handled = await handleAudiobookApi(req, res, reqUrl);
+          if (!handled) next();
+        } catch (err: any) {
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message }));
+          }
+        }
+      });
     }
   };
 }
