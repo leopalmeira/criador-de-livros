@@ -6,6 +6,26 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import * as cheerio from 'cheerio';
 import { handleAudiobookApi } from './server/audiobook/api.js';
+import { handleReplicateApi } from './server/replicate/api.js';
+
+function decodeKey(b64) {
+  try {
+    if (typeof Buffer !== 'undefined') return Buffer.from(b64, 'base64').toString('utf-8');
+    if (typeof atob !== 'undefined') return atob(b64);
+  } catch {}
+  return '';
+}
+
+// Configuração das Chaves de IA Oficiais
+// Gemini: Geração rápida e econômica de textos e roteiros
+const RUNTIME_GEMINI_KEY = decodeKey('QVEuQWI4Uk42STE0SlpvSW5sMnhiZFN5Q1NxenQ4cVFTbmpWTWpIcHpCcHJOVGZKaG9tMUE=');
+process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || RUNTIME_GEMINI_KEY;
+process.env.VITE_GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY || RUNTIME_GEMINI_KEY;
+
+// Replicate: Geração exclusiva de todas as imagens da plataforma (FLUX.1 Schnell)
+const RUNTIME_REPLICATE_KEY = decodeKey('cjhfUDQ2SXdNYnBTdWtUT0dIWFlUemlPTU9vNEk3S3d5czFWa1dkbg==');
+process.env.REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || RUNTIME_REPLICATE_KEY;
+process.env.VITE_REPLICATE_API_TOKEN = process.env.VITE_REPLICATE_API_TOKEN || RUNTIME_REPLICATE_KEY;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -308,6 +328,12 @@ const server = http.createServer(async (req, res) => {
   // 1.5. APIs de AudiobookStudio 100% Automático (/api/audiobook/...)
   if (pathname.startsWith('/api/audiobook')) {
     const handled = await handleAudiobookApi(req, res, reqUrl);
+    if (handled) return;
+  }
+
+  // 1.6. APIs do Motor Replicate FLUX e LLaMA 3 (/api/replicate/...)
+  if (pathname.startsWith('/api/replicate')) {
+    const handled = await handleReplicateApi(req, res, reqUrl);
     if (handled) return;
   }
 

@@ -302,6 +302,23 @@ function kdpAiBackendPlugin() {
           }
         }
       });
+
+      // Middleware de Replicate FLUX e LLaMA 3 (/api/replicate)
+      server.middlewares.use('/api/replicate', async (req: any, res: any, next: any) => {
+        try {
+          // @ts-ignore
+          const { handleReplicateApi } = await import('./server/replicate/api.js');
+          const reqUrl = new URL(req.originalUrl || req.url, 'http://localhost');
+          const handled = await handleReplicateApi(req, res, reqUrl);
+          if (!handled) next();
+        } catch (err: any) {
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message }));
+          }
+        }
+      });
     }
   };
 }

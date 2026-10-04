@@ -1,9 +1,10 @@
 // ================================================================
-// MOTOR EDITORIAL E DE IMAGEM GEMINI KDP PRO & PÁGINA PROMOCIONAL
-// Suporte nativo a Gemini 3.8 Flash, 3.7, 3.6, 3.1 Flash Lite e Imagen 3
+// MOTOR EDITORIAL E DE IMAGEM KDP PRO & PÁGINA PROMOCIONAL
+// Suporte nativo a Replicate (FLUX.1 Schnell & LLaMA 3 70B), Gemini e Imagen 3
 // ================================================================
 
 import { BookPromotionalPageData, GenreVisualTheme } from '../types/promotional-page';
+import { gerarImagemReplicate, gerarTextoReplicate } from './replicate-service';
 
 export const MODELOS_GEMINI = [
   "gemini-3.8-flash",
@@ -184,15 +185,26 @@ export async function chamarGeminiTexto(
   throw new Error(`Falha na geração com Gemini: ${lastError || 'Nenhum modelo respondeu'}`);
 }
 
-// Chamada para geração de imagem com modelos nativos Gemini e fallbacks
+// Chamada para geração de imagem com Replicate FLUX.1 Schnell, Imagen 3 e fallbacks
 export async function chamarImagen(
   prompt: string,
   aspectRatio: '2:3' | '16:9' | '1:1' | '3:4' = '2:3'
 ): Promise<string> {
+  // 1. Tentar prioritariamente o motor REPLICATE (FLUX.1 Schnell) com a chave oficial do servidor
+  try {
+    const replicateImg = await gerarImagemReplicate(prompt, { aspectRatio });
+    if (replicateImg && replicateImg.length > 50) {
+      console.log('[KDP Engine] Imagem gerada com sucesso via Replicate FLUX.1');
+      return replicateImg;
+    }
+  } catch (repErr: any) {
+    console.warn('[KDP Engine] Replicate FLUX indisponível, acionando fallback Gemini/Imagen:', repErr.message);
+  }
+
   const keys = getAvailableApiKeys();
   let lastError = '';
 
-  // 1. Tentar os modelos de imagem generativa do Gemini (ex: gemini-2.5-flash-image)
+  // 2. Tentar os modelos de imagem generativa do Gemini (ex: gemini-2.5-flash-image)
   for (const modeloImg of MODELOS_IMAGEM_GEMINI) {
     for (const key of keys) {
       try {
