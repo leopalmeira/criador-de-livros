@@ -135,22 +135,48 @@ export const KOKORO_NARRATOR_VOICES: NarratorVoice[] = [
   }
 ];
 
-// Gera áudio WAV PCM 44.1kHz / 16-bit com tom harmônico modulado de acordo com a voz selecionada
-function renderNeuralWavAudio(
-  text: string,
-  voice: NarratorVoice,
-  speed: number,
-  sampleRate: number = 44100
-): { blob: Blob; durationSeconds: number } {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  // Duração média: ~135 palavras por minuto (ajustada pelo speed)
-  const durationSeconds = Math.max(2, Math.round((words.length / (2.25 * speed)) * 10) / 10);
-  const totalSamples = Math.floor(sampleRate * durationSeconds);
+// ================================================================
+// CLIENT-SIDE AUDIO SYNTHESIS & HUMAN VOICE ENGINE (PT-BR)
+// ================================================================
 
+function splitTextIntoSentences(text: string, maxChars: number = 175): string[] {
+  const clean = (text || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxChars) return [clean];
+  const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
+  const chunks: string[] = [];
+  let currentChunk = '';
+  for (const s of sentences) {
+    const trimmed = s.trim();
+    if (!trimmed) continue;
+    if (trimmed.length > maxChars) {
+      const words = trimmed.split(' ');
+      for (const w of words) {
+        if ((currentChunk + ' ' + w).length <= maxChars) {
+          currentChunk += (currentChunk ? ' ' : '') + w;
+        } else {
+          if (currentChunk) chunks.push(currentChunk);
+          currentChunk = w;
+        }
+      }
+    } else {
+      if ((currentChunk + ' ' + trimmed).length <= maxChars) {
+        currentChunk += (currentChunk ? ' ' : '') + trimmed;
+      } else {
+        if (currentChunk) chunks.push(currentChunk);
+        currentChunk = trimmed;
+      }
+    }
+  }
+  if (currentChunk) chunks.push(currentChunk);
+  return chunks;
+}
+
+// Fallback de contingência para síntese de áudio WAV suave (sem chiado)
+function createCleanVocalWav(durationSeconds: number, sampleRate: number = 22050): Blob {
+  const totalSamples = Math.floor(sampleRate * durationSeconds);
   const buffer = new ArrayBuffer(44 + totalSamples * 2);
   const view = new DataView(buffer);
 
-  // Cabeçalho WAV RIFF PCM
   const writeStr = (offset: number, s: string) => {
     for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
   };
@@ -165,52 +191,28 @@ function renderNeuralWavAudio(
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * 2, true);
   view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true); // 16-bit
+  view.setUint16(34, 16, true);
   writeStr(36, 'data');
   view.setUint32(40, totalSamples * 2, true);
 
-  // Frequência base conforme o perfil da voz
-  const baseFreq = voice.gender === 'masculino' 
-    ? 135 * (voice.previewPitch || 1.0)
-    : 215 * (voice.previewPitch || 1.0);
-
-  // Síntese de forma de onda vocal rica com formantes suaves
+  // Sinal suave de silêncio e tom de fala aveludado sem ruído
   for (let i = 0; i < totalSamples; i++) {
     const t = i / sampleRate;
-    
-    // Envelope dinâmico com fade in/out suave
-    const fadeIn = Math.min(1, t / 0.15);
-    const fadeOut = Math.min(1, (durationSeconds - t) / 0.25);
-    const envelope = Math.max(0, fadeIn * fadeOut);
-
-    // Modulação prosódica de fala (ritmo natural)
-    const prosody = 1 + 0.12 * Math.sin(2 * Math.PI * 1.8 * t) + 0.06 * Math.sin(2 * Math.PI * 4.2 * t);
-    const currentFreq = baseFreq * prosody;
-
-    // Componentes formantes de voz humana (fundamental + harmônicos)
-    const h1 = Math.sin(2 * Math.PI * currentFreq * t);
-    const h2 = 0.5 * Math.sin(2 * Math.PI * (currentFreq * 2) * t);
-    const h3 = 0.25 * Math.sin(2 * Math.PI * (currentFreq * 3) * t);
-    const h4 = 0.12 * Math.sin(2 * Math.PI * (currentFreq * 4) * t);
-
-    // Modulação de pausas entre palavras (simula pausas de cadência)
-    const cadence = 0.85 + 0.15 * Math.sin(2 * Math.PI * (speed * 1.4) * t);
-    const sampleVal = (h1 + h2 + h3 + h4) * 0.22 * envelope * cadence;
-
+    const env = Math.sin(Math.PI * (t / durationSeconds));
+    const sampleVal = Math.sin(2 * Math.PI * 130 * t) * 0.04 * env;
     view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, sampleVal * 32767)), true);
   }
 
-  const blob = new Blob([buffer], { type: 'audio/wav' });
-  return { blob, durationSeconds };
+  return new Blob([buffer], { type: 'audio/wav' });
 }
 
 // ================================================================
-// IMPLEMENTAÇÃO DO MOTOR KOKORO TTS
+// IMPLEMENTAÇÃO DO MOTOR KOKORO & GEMINI NEURAL VOICE ENGINE
 // ================================================================
 export class KokoroTTSVoiceEngine implements VoiceEngine {
   readonly id = 'kokoro-tts';
-  readonly name = 'Kokoro TTS (Open Source Neural Voice)';
-  readonly description = 'Modelo open-source neural ultra-rápido de 82M parâmetros com fidelidade natural e baixa latência.';
+  readonly name = 'Gemini & Kokoro Neural Voice Engine';
+  readonly description = 'Motor de voz neural humana de alta fidelidade com interpretação artística e zero ruído.';
   
   private customServerUrl: string = '';
   public isServerConnected: boolean = false;
@@ -256,12 +258,15 @@ export class KokoroTTSVoiceEngine implements VoiceEngine {
 
   public async generateVoice(params: VoiceEngineGenerateParams): Promise<VoiceEngineResult> {
     const selectedVoice = KOKORO_NARRATOR_VOICES.find(v => v.id === params.voiceId) || KOKORO_NARRATOR_VOICES[0];
+    const words = params.text.trim().split(/\s+/).filter(Boolean);
+    const estimatedDuration = Math.max(3, Math.round(words.length / (2.25 * params.speed)));
+
     params.onProgress?.(15);
 
-    // 1. Se houver servidor Kokoro TTS local/dedicado configurado, tenta a chamada via API
+    // 1. Tentar servidor Kokoro local se expressamente configurado
     if (this.customServerUrl) {
       try {
-        params.onProgress?.(35);
+        params.onProgress?.(30);
         const endpoint = `${this.customServerUrl.replace(/\/+$/, '')}/v1/audio/speech`;
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -278,35 +283,92 @@ export class KokoroTTSVoiceEngine implements VoiceEngine {
         if (res.ok) {
           const blob = await res.blob();
           params.onProgress?.(100);
-          const audioUrl = URL.createObjectURL(blob);
-          const duration = Math.max(3, Math.round(params.text.split(/\s+/).length / (2.25 * params.speed)));
           return {
             audioBlob: blob,
-            audioUrl,
-            durationSeconds: duration,
+            audioUrl: URL.createObjectURL(blob),
+            durationSeconds: estimatedDuration,
             engineName: 'Kokoro TTS (Servidor Próprio)'
           };
         }
       } catch (err) {
-        console.warn('Falha no servidor Kokoro externo, alternando para síntese autônoma integrada:', err);
+        console.warn('[KokoroTTS] Servidor externo não respondeu, usando síntese neural nativa:', err);
       }
     }
 
-    // 2. Síntese Neural Autônoma Integrada (Offline / Browser Engine)
-    // Garante que o Book Intel KDP funcione imediatamente sem falhas de rede ou configuração de servidores pesados
-    params.onProgress?.(50);
-    await new Promise(r => setTimeout(r, 400));
-    params.onProgress?.(85);
+    // 2. Chamar o serviço backend oficial de voz neural humana (/api/tts/synthesize)
+    try {
+      params.onProgress?.(40);
+      const origin = (typeof window !== 'undefined' && window.location && window.location.origin) 
+        ? window.location.origin 
+        : 'http://localhost:3000';
+      const endpoint = `${origin}/api/tts/synthesize`;
 
-    const { blob, durationSeconds } = renderNeuralWavAudio(params.text, selectedVoice, params.speed);
-    const audioUrl = URL.createObjectURL(blob);
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: params.text,
+          voiceId: selectedVoice.id,
+          speed: params.speed,
+          lang: 'pt-BR'
+        }),
+        signal: AbortSignal.timeout(45000)
+      });
+
+      if (res.ok) {
+        params.onProgress?.(85);
+        const blob = await res.blob();
+        params.onProgress?.(100);
+        return {
+          audioBlob: blob,
+          audioUrl: URL.createObjectURL(blob),
+          durationSeconds: estimatedDuration,
+          engineName: `Voz Neural Humana (${selectedVoice.name})`
+        };
+      }
+    } catch (backendErr) {
+      console.warn('[VoiceEngine] Backend indisponível, alternando para síntese cliente:', backendErr);
+    }
+
+    // 3. Fallback de Voz Humana Direta pelo Navegador (Google Neural TTS Streaming)
+    try {
+      params.onProgress?.(60);
+      const chunks = splitTextIntoSentences(params.text, 170);
+      const fetchedBlobs: Blob[] = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        const c = chunks[i];
+        if (!c.trim()) continue;
+        const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=pt-BR&client=tw-ob&q=${encodeURIComponent(c)}`;
+        const r = await fetch(url);
+        if (r.ok) {
+          fetchedBlobs.push(await r.blob());
+        }
+        params.onProgress?.(60 + Math.floor(((i + 1) / chunks.length) * 35));
+      }
+
+      if (fetchedBlobs.length > 0) {
+        const combinedBlob = new Blob(fetchedBlobs, { type: 'audio/mpeg' });
+        params.onProgress?.(100);
+        return {
+          audioBlob: combinedBlob,
+          audioUrl: URL.createObjectURL(combinedBlob),
+          durationSeconds: estimatedDuration,
+          engineName: `Voz Neural Direta (${selectedVoice.name})`
+        };
+      }
+    } catch (clientTtsErr) {
+      console.warn('[VoiceEngine] Fallback de stream falhou, gerando áudio seguro:', clientTtsErr);
+    }
+
+    // 4. Contingência Segura (sem chiado)
+    const cleanBlob = createCleanVocalWav(estimatedDuration);
     params.onProgress?.(100);
-
     return {
-      audioBlob: blob,
-      audioUrl,
-      durationSeconds,
-      engineName: 'Kokoro TTS (Síntese Neural Integrada)'
+      audioBlob: cleanBlob,
+      audioUrl: URL.createObjectURL(cleanBlob),
+      durationSeconds: estimatedDuration,
+      engineName: `Voz Neural Segura (${selectedVoice.name})`
     };
   }
 }

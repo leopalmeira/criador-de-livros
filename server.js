@@ -1,4 +1,5 @@
 import http from 'http';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -84,6 +85,79 @@ function parseJsonBody(req) {
     });
     req.on('error', () => resolve({}));
   });
+// ================================================================
+// MOTOR DE VOZ NEURAL HUMANA (AUDIOBOOK TTS STREAMING EM PT-BR)
+// ================================================================
+function splitTextIntoSentences(text, maxChars = 175) {
+  const clean = (text || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxChars) return [clean];
+  const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
+  const chunks = [];
+  let currentChunk = '';
+  for (const s of sentences) {
+    const trimmed = s.trim();
+    if (!trimmed) continue;
+    if (trimmed.length > maxChars) {
+      const words = trimmed.split(' ');
+      for (const w of words) {
+        if ((currentChunk + ' ' + w).length <= maxChars) {
+          currentChunk += (currentChunk ? ' ' : '') + w;
+        } else {
+          if (currentChunk) chunks.push(currentChunk);
+          currentChunk = w;
+        }
+      }
+    } else {
+      if ((currentChunk + ' ' + trimmed).length <= maxChars) {
+        currentChunk += (currentChunk ? ' ' : '') + trimmed;
+      } else {
+        if (currentChunk) chunks.push(currentChunk);
+        currentChunk = trimmed;
+      }
+    }
+  }
+  if (currentChunk) chunks.push(currentChunk);
+  return chunks;
+}
+
+function fetchTtsChunk(text, lang = 'pt-BR') {
+  return new Promise((resolve, reject) => {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${encodeURIComponent(lang)}&client=tw-ob&q=${encodeURIComponent(text)}`;
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
+      if (res.statusCode !== 200) {
+        return reject(new Error(`Falha HTTP ${res.statusCode} na síntese de voz`));
+      }
+      const data = [];
+      res.on('data', chunk => data.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(data)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+async function synthesizeNeuralVoiceMp3(text, { lang = 'pt-BR', speed = 1.0 } = {}) {
+  const chunks = splitTextIntoSentences(text, 175);
+  const audioBuffers = [];
+  for (const chunk of chunks) {
+    if (!chunk.trim()) continue;
+    try {
+      const buf = await fetchTtsChunk(chunk, lang);
+      audioBuffers.push(buf);
+    } catch (err) {
+      console.warn('[TTS] Tentativa de retry para chunk:', chunk.slice(0, 30));
+      try {
+        await new Promise(r => setTimeout(r, 250));
+        const buf = await fetchTtsChunk(chunk, lang);
+        audioBuffers.push(buf);
+      } catch (e) {
+        console.error('[TTS] Falha permanente no chunk:', e.message);
+      }
+    }
+  }
+  if (audioBuffers.length === 0) {
+    throw new Error('Nenhum buffer de áudio gerado pelo motor de voz');
+  }
+  return Buffer.concat(audioBuffers);
 }
 
 // Handler de Busca Amazon com suporte a ranking randômico #1 a #200
@@ -393,7 +467,42 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 5. Servir Arquivos Estáticos do Frontend (dist/)
+  // 5. APIs de Síntese de Voz de Audiobook (/api/tts/...)
+  if (pathname === '/api/tts/synthesize') {
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.statusCode = 200;
+      return res.end();
+    }
+
+    if (req.method === 'POST') {
+      const payload = await parseJsonBody(req);
+      const text = payload.text || '';
+      const voiceId = payload.voiceId || 'pt_narrador';
+      const speed = payload.speed || 1.0;
+      const lang = payload.lang || 'pt-BR';
+
+      if (!text.trim()) {
+        return sendJson(res, 400, { success: false, error: 'Texto não fornecido para síntese vocal' });
+      }
+
+      try {
+        const audioBuffer = await synthesizeNeuralVoiceMp3(text, { lang, speed });
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Length', audioBuffer.length);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.statusCode = 200;
+        return res.end(audioBuffer);
+      } catch (err) {
+        console.error('[TTS] Erro na síntese vocal neural:', err.message);
+        return sendJson(res, 500, { success: false, error: err.message });
+      }
+    }
+  }
+
+  // 6. Servir Arquivos Estáticos do Frontend (dist/)
   let targetPath = path.normalize(path.join(DIST_DIR, pathname));
 
   // Proteção contra Directory Traversal

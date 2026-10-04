@@ -51,7 +51,7 @@ describe('AudiobookStudio — Kokoro TTS, Smart Sound Design & Multi-track Mixer
 
     expect(result.audioBlob).toBeDefined();
     expect(result.audioBlob.size).toBeGreaterThan(1000);
-    expect(result.audioBlob.type).toBe('audio/wav');
+    expect(['audio/wav', 'audio/mpeg']).toContain(result.audioBlob.type);
     expect(result.durationSeconds).toBeGreaterThan(0);
     expect(result.audioUrl).toContain('blob:');
   });
