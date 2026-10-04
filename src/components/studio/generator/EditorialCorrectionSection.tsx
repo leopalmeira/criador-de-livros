@@ -242,6 +242,75 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
     setPdfPreviewUrl(url);
   };
 
+  // AUTORIZAÇÃO DE PENDÊNCIAS PELO AUTOR (APROVAÇÃO DIRETA)
+  const handleAuthorizeChapter = async (chapterIndex: number) => {
+    if (!job) return;
+    const updatedChapters = job.chapters.map(c => {
+      if (c.index === chapterIndex) {
+        return {
+          ...c,
+          status: 'corrigido_salvo' as const,
+          pendings: c.pendings.map(p => ({ ...p, resolution: 'RESOLVIDO_AUTOR' as any }))
+        };
+      }
+      return c;
+    });
+
+    const updatedJob: EditorialJob = {
+      ...job,
+      chapters: updatedChapters
+    };
+
+    if (finalBook) {
+      const updatedFinalPendings = finalBook.pendings.map(p => {
+        if (p.chapterIndex === chapterIndex) {
+          return { ...p, resolution: 'RESOLVIDO_AUTOR' as any };
+        }
+        return p;
+      });
+      const updatedFinal = { ...finalBook, pendings: updatedFinalPendings };
+      setFinalBook(updatedFinal);
+      await db.saveFinalBook(updatedFinal);
+    }
+
+    setJob(updatedJob);
+    await db.saveEditorialJob(updatedJob);
+    onStatusMessage?.(`✓ Capítulo ${chapterIndex + 1} validado e autorizado com sucesso!`, 'ok');
+
+    if (selectedChapterDetails && selectedChapterDetails.index === chapterIndex) {
+      setSelectedChapterDetails({
+        ...selectedChapterDetails,
+        status: 'corrigido_salvo' as const
+      });
+    }
+  };
+
+  const handleAuthorizeAllPendings = async () => {
+    if (!job) return;
+    const updatedChapters = job.chapters.map(c => ({
+      ...c,
+      status: (c.status === 'pendente_autor' ? 'corrigido_salvo' : c.status) as ChapterRecord['status'],
+      pendings: c.pendings.map(p => ({ ...p, resolution: 'RESOLVIDO_AUTOR' as any }))
+    }));
+
+    const updatedJob: EditorialJob = {
+      ...job,
+      chapters: updatedChapters
+    };
+
+    if (finalBook) {
+      const updatedFinalPendings = finalBook.pendings.map(p => ({ ...p, resolution: 'RESOLVIDO_AUTOR' as any }));
+      const updatedFinal = { ...finalBook, pendings: updatedFinalPendings };
+      setFinalBook(updatedFinal);
+      await db.saveFinalBook(updatedFinal);
+    }
+
+    setJob(updatedJob);
+    await db.saveEditorialJob(updatedJob);
+    setShowPendingsModal(false);
+    onStatusMessage?.('✓ Todas as pendências foram aprovadas e autorizadas com sucesso!', 'ok');
+  };
+
   // ESTATÍSTICAS
   const totalChapters = job?.chapters.length || livro?.capitulos?.length || 0;
   const doneChapters = job?.chapters.filter(c => c.status === 'corrigido_salvo' || c.status === 'pendente_autor').length || 0;
@@ -249,12 +318,29 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
   const totalErrorsFixed = job?.chapters.reduce((s, c) => s + c.errorsFixed, 0) || 0;
   const totalPendings = (job?.chapters.reduce((s, c) => s + c.pendings.length, 0) || 0) + (job?.crossReview?.findings.length || 0);
 
-  const getStatusBadge = (status: ChapterRecord['status']) => {
+  const getStatusBadge = (status: ChapterRecord['status'], chapterIdx?: number) => {
     switch (status) {
       case 'corrigido_salvo':
         return <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>✓ Corrigido e salvo</span>;
       case 'pendente_autor':
-        return <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>⚠️ Pendente de validação</span>;
+        return (
+          <span
+            onClick={() => chapterIdx !== undefined && handleAuthorizeChapter(chapterIdx)}
+            title="Clique para autorizar este capítulo agora"
+            style={{
+              background: '#fef3c7',
+              color: '#b45309',
+              padding: '3px 8px',
+              borderRadius: 4,
+              fontSize: 10,
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: '1px solid #fde68a'
+            }}
+          >
+            ⚠️ Pendente de validação
+          </span>
+        );
       case 'corrigindo':
         return <span style={{ background: '#e0e7ff', color: '#4338ca', padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>⚡ Corrigindo...</span>;
       case 'validando':
@@ -665,7 +751,30 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
                     </span>
                   )}
 
-                  {getStatusBadge(status)}
+                  {getStatusBadge(status, idx)}
+
+                  {status === 'pendente_autor' && (
+                    <button
+                      type="button"
+                      onClick={() => handleAuthorizeChapter(idx)}
+                      style={{
+                        background: '#059669',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 4,
+                        padding: '3px 8px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3
+                      }}
+                      title="Clique para aprovar e autorizar as alterações deste capítulo"
+                    >
+                      <Check size={11} /> Autorizar
+                    </button>
+                  )}
 
                   {chRecord && (chRecord.changes.length > 0 || chRecord.pendings.length > 0) && (
                     <button
@@ -781,7 +890,29 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
               )}
             </div>
 
-            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc' }}>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+              {selectedChapterDetails.status === 'pendente_autor' ? (
+                <button
+                  type="button"
+                  onClick={() => handleAuthorizeChapter(selectedChapterDetails.index)}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#059669',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Check size={14} /> Aprovar Alterações & Autorizar Capítulo
+                </button>
+              ) : <div />}
+
               <button
                 onClick={() => setSelectedChapterDetails(null)}
                 style={{ padding: '6px 14px', background: '#2563eb', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
@@ -940,12 +1071,33 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
                   Alterações que afetam sentido, títulos ou continuidade para sua aprovação
                 </span>
               </div>
-              <button
-                onClick={() => setShowPendingsModal(false)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
-              >
-                <X size={20} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleAuthorizeAllPendings}
+                  style={{
+                    background: '#059669',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '6px 12px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  <Check size={13} /> Autorizar Todas
+                </button>
+                <button
+                  onClick={() => setShowPendingsModal(false)}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -957,12 +1109,38 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
                       background: p.resolution === 'PENDENTE_VALIDACAO_AUTOR' ? '#fffbeb' : '#f8fafc',
                       border: `1px solid ${p.resolution === 'PENDENTE_VALIDACAO_AUTOR' ? '#fde68a' : '#e2e8f0'}`,
                       borderRadius: 6,
-                      padding: '10px 12px'
+                      padding: '10px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4
                     }}
                   >
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#b45309', marginBottom: 2 }}>
-                      {p.resolution === 'PENDENTE_VALIDACAO_AUTOR' ? '⚠️ PENDENTE DO AUTOR' : 'ℹ️ NÃO FOI POSSÍVEL VERIFICAR'}
-                      {p.chapterIndex >= 0 ? ` (Capítulo ${p.chapterIndex + 1})` : ''}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#b45309' }}>
+                        {p.resolution === 'PENDENTE_VALIDACAO_AUTOR' ? '⚠️ PENDENTE DO AUTOR' : '✓ RESOLVIDO / VERIFICADO'}
+                        {p.chapterIndex >= 0 ? ` (Capítulo ${p.chapterIndex + 1})` : ''}
+                      </div>
+                      {p.chapterIndex >= 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleAuthorizeChapter(p.chapterIndex)}
+                          style={{
+                            background: '#059669',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 4,
+                            padding: '3px 8px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 3
+                          }}
+                        >
+                          <Check size={11} /> Autorizar Capítulo {p.chapterIndex + 1}
+                        </button>
+                      )}
                     </div>
                     <div style={{ fontSize: 12, color: '#1e293b' }}>{p.description}</div>
                     {p.snippet && (
@@ -980,7 +1158,27 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
               )}
             </div>
 
-            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc' }}>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+              <button
+                type="button"
+                onClick={handleAuthorizeAllPendings}
+                style={{
+                  padding: '8px 16px',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <CheckCircle2 size={14} /> Aprovar e Autorizar Todas as Pendências
+              </button>
+
               <button
                 onClick={() => setShowPendingsModal(false)}
                 style={{ padding: '6px 14px', background: '#2563eb', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}

@@ -36,6 +36,7 @@ import { preflightPdf } from '../../../services/pdf-preflight';
 import { ColoringBookStudio } from '../coloring/ColoringBookStudio';
 import { AudiobookStudio } from '../audiobook/AudiobookStudio';
 import { MultiplatformPublishingModal } from '../publishing/MultiplatformPublishingModal';
+import { KdpTourGuideModal } from './KdpTourGuideModal';
 
 const newProjectId = () => newId('prj_');
 
@@ -126,6 +127,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [autoClickCountdown, setAutoClickCountdown] = useState<number | null>(null);
   const [isAutoClicking, setIsAutoClicking] = useState(false);
   const autoClickTimerRef = useRef<any>(null);
+
+  // Modal de Tour Guiado de Cada Função
+  const [isTourModalOpen, setIsTourModalOpen] = useState(false);
 
   // Sistema de Auditoria & Verificação em 1 Clique
   const [auditReport, setAuditReport] = useState<FullBookVerificationReport | null>(null);
@@ -1633,7 +1637,29 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => setIsTourModalOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'linear-gradient(135deg, #4f46e5, #3b82f6)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 20,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)'
+            }}
+            title="Abrir o tour guiado e explicação detalhada de cada botão e função"
+          >
+            🎓 Tour Guiado / Como Usar
+          </button>
+
           <div
             style={{
               fontSize: 12,
@@ -3846,6 +3872,13 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           capitulos: livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || [],
           coverUrl: capaFinal
         }}
+      />
+
+      {/* MODAL DO TOUR GUIADO DE CADA FUNÇÃO E BOTÃO */}
+      <KdpTourGuideModal
+        isOpen={isTourModalOpen}
+        onClose={() => setIsTourModalOpen(false)}
+        onNavigateToTab={(t) => setActiveTab(t as any)}
       />
     </div>
   );
