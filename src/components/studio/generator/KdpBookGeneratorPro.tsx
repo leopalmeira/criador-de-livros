@@ -3642,6 +3642,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     titulo={titulo}
                     autor={autor}
                     capaDataUrl={capaFinal}
+                    onCapaGerada={setCapaFinal}
                   />
                 </div>
               )}
