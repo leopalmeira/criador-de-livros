@@ -15,10 +15,10 @@ export const MODELOS_GEMINI = [
 ];
 
 export const MODELOS_IMAGEM_GEMINI = [
-  "gemini-2.5-flash-image",
   "gemini-3.1-flash-image",
   "gemini-3-pro-image",
-  "gemini-3.1-flash-lite-image"
+  "gemini-3.1-flash-lite-image",
+  "gemini-2.5-flash-image"
 ];
 
 export const MODELO_IMAGEN = "imagen-3.0-generate-002";
@@ -294,7 +294,8 @@ Retorne APENAS o título, sem aspas, sem numeração e sem introdução.`,
 Título: "${titulo}"
 Gênero: ${genero}
 Idioma: ${idioma}
-Sugira 1 SUBTÍTULO com 5 a 12 palavras, com forte gancho emocional e promessa clara ao leitor.
+Sugira 1 SUBTÍTULO comercial com 6 a 14 palavras, com forte gancho emocional e promessa clara ao leitor.
+REGRA CRÍTICA: Crie uma FRASE 100% COMPLETA e bem pontuada. NUNCA corte palavras pela metade e NUNCA deixe a frase truncada ou interrompida no meio.
 Retorne APENAS o subtítulo, sem aspas e sem explicações.`,
 
     premissa: `Você é editor profissional de ficção e não-ficção para Amazon KDP.

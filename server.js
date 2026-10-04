@@ -86,18 +86,23 @@ function parseJsonBody(req) {
   });
 }
 
-// Handler de Busca Amazon
-async function handleAmazonSearch(query, limit = 8) {
+// Handler de Busca Amazon com suporte a ranking randômico #1 a #200
+async function handleAmazonSearch(query, limit = 20, options = {}) {
   const cleanKeyword = (query || 'bestseller books').trim().toLowerCase();
-  const cacheKey = `${cleanKeyword}_${limit}`;
+  const page = options.page || (options.randomize ? Math.floor(Math.random() * 5) + 1 : 1);
+  const bypassCache = Boolean(options.bypassCache);
+  const cacheKey = `${cleanKeyword}_p${page}_${limit}`;
 
-  const cached = amazonSearchCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.data;
+  if (!bypassCache) {
+    const cached = amazonSearchCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
   }
 
   try {
-    const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(cleanKeyword)}&i=stripbooks`;
+    const pageParam = page > 1 ? `&page=${page}` : '';
+    const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(cleanKeyword)}&i=stripbooks${pageParam}`;
     const response = await fetch(searchUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -114,8 +119,9 @@ async function handleAmazonSearch(query, limit = 8) {
     const html = await response.text();
     const $ = cheerio.load(html);
     const results = [];
+    const baseOffset = (page - 1) * 20;
 
-    $('[data-component-type="s-search-result"]').each((_, el) => {
+    $('[data-component-type="s-search-result"]').each((idx, el) => {
       if (results.length >= limit) return false;
 
       const asin = $(el).attr('data-asin') || '';
@@ -154,11 +160,15 @@ async function handleAmazonSearch(query, limit = 8) {
       if (!author) author = 'Autor Amazon KDP';
 
       const badgeText = $(el).find('.a-badge-text').text().trim();
+      const position = baseOffset + idx + 1;
 
       results.push({
         asin,
-        title: title.replace(/\s+/g, ' ').substring(0, 80),
+        title: title.replace(/\s+/g, ' ').substring(0, 120),
         author: author.replace(/\s+/g, ' ').substring(0, 50),
+        position,
+        rank: position,
+        rankType: 'SEARCH_POSITION',
         priceUsd: price,
         royaltyEstUsd,
         rating,
@@ -298,8 +308,11 @@ const server = http.createServer(async (req, res) => {
   if (pathname.startsWith('/api/amazon/')) {
     if (pathname === '/api/amazon/search') {
       const query = reqUrl.searchParams.get('query') || 'bestseller books';
-      const limit = parseInt(reqUrl.searchParams.get('limit') || '8', 10);
-      const books = await handleAmazonSearch(query, limit);
+      const limit = parseInt(reqUrl.searchParams.get('limit') || '20', 10);
+      const page = parseInt(reqUrl.searchParams.get('page') || '1', 10);
+      const bypassCache = reqUrl.searchParams.get('bypassCache') === '1' || reqUrl.searchParams.get('bypassCache') === 'true';
+      const randomize = reqUrl.searchParams.get('randomize') === '1' || reqUrl.searchParams.get('randomize') === 'true';
+      const books = await handleAmazonSearch(query, limit, { page, bypassCache, randomize });
       return sendJson(res, 200, { success: true, count: books.length, books });
     }
 

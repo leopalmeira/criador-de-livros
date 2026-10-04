@@ -53,11 +53,32 @@ export function referenceScore(ref: MarketReference, opts: { query: string; form
   return Math.round(score);
 }
 
-/** Seleciona as N melhores referências (padrão 5), com score — referências, NÃO modelos para copiar. */
-export function pickReferences(items: MarketReference[], opts: { query: string; formatHint?: string; limit?: number }): MarketReference[] {
-  return items
+/** Seleciona N referências (padrão 5), com score. Suporta sorteio dinâmico/randômico entre o ranking. */
+export function pickReferences(
+  items: MarketReference[],
+  opts: { query: string; formatHint?: string; limit?: number; randomize?: boolean; offset?: number }
+): MarketReference[] {
+  const scored = items
     .filter(i => i.title)
-    .map(i => ({ ...i, referenceScore: referenceScore(i, opts) }))
+    .map(i => ({ ...i, referenceScore: referenceScore(i, opts) }));
+
+  if (opts.randomize) {
+    // Sorteia dinamicamente do pool com rotação aleatória
+    const shuffled = [...scored].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, opts.limit ?? 5);
+  }
+
+  if (opts.offset && opts.offset > 0) {
+    const sorted = scored.sort((a, b) => (b.referenceScore ?? 0) - (a.referenceScore ?? 0));
+    const start = opts.offset % Math.max(1, sorted.length);
+    const sliced = sorted.slice(start, start + (opts.limit ?? 5));
+    if (sliced.length < (opts.limit ?? 5)) {
+      sliced.push(...sorted.slice(0, (opts.limit ?? 5) - sliced.length));
+    }
+    return sliced;
+  }
+
+  return scored
     .sort((a, b) => (b.referenceScore ?? 0) - (a.referenceScore ?? 0))
     .slice(0, opts.limit ?? 5);
 }
@@ -106,22 +127,29 @@ export class MarketCache {
  */
 export async function researchMarket(
   query: string,
-  opts: { marketplace?: string; category?: string; limit?: number; fetchImpl?: typeof fetch; cache?: MarketCache } = {},
+  opts: { marketplace?: string; category?: string; limit?: number; fetchImpl?: typeof fetch; cache?: MarketCache; bypassCache?: boolean; page?: number; randomize?: boolean } = {},
 ): Promise<{ items: MarketReference[]; error?: string; fromCache?: boolean; collectedAt: number }> {
   const marketplace = opts.marketplace || 'amazon.com.br';
   const category = opts.category || 'stripbooks';
-  const cached = opts.cache?.get(marketplace, category, query);
-  if (cached) return { items: cached.items, fromCache: true, collectedAt: cached.collectedAt };
+  if (!opts.bypassCache && !opts.randomize) {
+    const cached = opts.cache?.get(marketplace, category, query);
+    if (cached) return { items: cached.items, fromCache: true, collectedAt: cached.collectedAt };
+  }
   const f = opts.fetchImpl || (typeof fetch !== 'undefined' ? fetch : undefined);
   if (!f) return { items: [], error: 'fetch indisponível neste ambiente', collectedAt: Date.now() };
   try {
-    const res = await f(`/api/amazon/search?query=${encodeURIComponent(query)}&limit=${opts.limit ?? 40}`);
+    const pageParam = opts.page ? `&page=${opts.page}` : (opts.randomize ? `&page=${Math.floor(Math.random() * 5) + 1}` : '');
+    const bypassParam = (opts.bypassCache || opts.randomize) ? '&bypassCache=1' : '';
+    const randParam = opts.randomize ? '&randomize=1' : '';
+    const res = await f(`/api/amazon/search?query=${encodeURIComponent(query)}&limit=${opts.limit ?? 40}${pageParam}${bypassParam}${randParam}`);
     if (!res.ok) return { items: [], error: `API Amazon retornou HTTP ${res.status}`, collectedAt: Date.now() };
     const data = await res.json();
     const now = Date.now();
     const items = (data?.books || []).map((b: any, i: number) =>
-      normalizeMarketItem({ ...b, position: b.position ?? i + 1 }, { source: 'api/amazon/search (posição nos resultados)', collectedAt: now, rankField: 'SEARCH_POSITION' }));
-    opts.cache?.set(marketplace, category, query, items);
+      normalizeMarketItem({ ...b, position: b.position ?? b.rank ?? i + 1 }, { source: 'api/amazon/search (posição nos resultados)', collectedAt: now, rankField: 'SEARCH_POSITION' }));
+    if (!opts.randomize && !opts.bypassCache) {
+      opts.cache?.set(marketplace, category, query, items);
+    }
     return { items, collectedAt: now, error: items.length ? undefined : 'A busca não retornou livros' };
   } catch (e: any) {
     return { items: [], error: e?.message || 'falha na pesquisa', collectedAt: Date.now() };

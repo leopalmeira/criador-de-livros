@@ -33,6 +33,7 @@ import { AGE_BANDS, type AgeBandId, validateAgeRequirement, buildAgeDirective } 
 import { researchMarket, pickReferences, describeRank, displayField, DATA_UNAVAILABLE, type MarketReference } from '../../../services/market-intel';
 import { filterOriginalCandidates, checkTitleSimilarity } from '../../../services/similarity-engine';
 import { preflightPdf } from '../../../services/pdf-preflight';
+import { ColoringBookStudio } from '../coloring/ColoringBookStudio';
 
 const newProjectId = () => newId('prj_');
 
@@ -90,12 +91,14 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [bookPromise, setBookPromise] = useState('');
   const [targetReader, setTargetReader] = useState('');
   const [marketReferences, setMarketReferences] = useState<MarketReference[]>([]);
+  const [marketPool, setMarketPool] = useState<MarketReference[]>([]);
   const [isAnalyzingMarket, setIsAnalyzingMarket] = useState(false);
   const [marketFeedback, setMarketFeedback] = useState<string | null>(null);
   const [opcoesTitulos, setOpcoesTitulos] = useState<string[]>([]);
   const [opcoesSubtitulos, setOpcoesSubtitulos] = useState<string[]>([]);
   const [isGeneratingTitulos, setIsGeneratingTitulos] = useState(false);
   const [isGeneratingSubtitulos, setIsGeneratingSubtitulos] = useState(false);
+  const [isSuggestingDiferencial, setIsSuggestingDiferencial] = useState(false);
 
   // Estados de execução
   const [livro, setLivro] = useState<LivroGerado | null>(null);
@@ -114,7 +117,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [statusType, setStatusType] = useState<'normal' | 'ok' | 'error'>('normal');
   const [progressPercent, setProgressPercent] = useState(0);
   const [diagnostico, setDiagnostico] = useState('Sistema pronto.');
-  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'colorir'>('preview');
 
   // Sistema de Auto-Clique Automático do Botão de Continuar Geração
   const [autoClickCountdown, setAutoClickCountdown] = useState<number | null>(null);
@@ -301,23 +304,41 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     } catch {}
   };
 
-  // Análise de Mercado Amazon KDP (TOP 1-200) com diferenciação clara entre BSR e busca
-  const handleAnalisarMercado = async () => {
+  // Análise de Mercado Amazon KDP (TOP 1-200) com sorteio dinâmico e randômico
+  const handleAnalisarMercado = async (forceRandom = false) => {
     const temaObj = getTheme(temaSelecionado);
     const query = subtemaSelecionado || temaObj?.marketQuery || temaSelecionado || genero || 'livros';
     setIsAnalyzingMarket(true);
     setMarketFeedback(null);
     logDiag(`Iniciando análise de mercado na Amazon para "${query}"...`);
     try {
-      const res = await researchMarket(query, { marketplace: 'amazon.com.br' });
+      // Se já temos um pool amplo carregado e o usuário clicou em sortear outras referências:
+      if (forceRandom && marketPool.length > 5) {
+        const sortedRandom = pickReferences(marketPool, { query, limit: 5, randomize: true });
+        setMarketReferences(sortedRandom);
+        setMarketFeedback(`🔄 5 novas referências sorteadas dinamicamente do ranking (#1 a #200).`);
+        logDiag(`5 novas referências sorteadas dinamicamente do pool de ${marketPool.length} itens.`);
+        return;
+      }
+
+      // Consulta de mercado na Amazon com suporte a ranking randômico #1 a #200
+      const res = await researchMarket(query, {
+        marketplace: 'amazon.com.br',
+        limit: 40,
+        bypassCache: forceRandom,
+        randomize: forceRandom
+      });
       if (res.error && (!res.items || res.items.length === 0)) {
         setMarketFeedback(`⚠️ ${res.error}`);
         logDiag(`Aviso de mercado: ${res.error}`);
       } else {
-        const top5 = pickReferences(res.items, { query, limit: 5 });
+        const pool = res.items || [];
+        setMarketPool(pool);
+        // Sorteia 5 referências aleatórias do ranking para nunca ficar travado nos mesmos livros
+        const top5 = pickReferences(pool, { query, limit: 5, randomize: true });
         setMarketReferences(top5);
-        setMarketFeedback(`✓ ${top5.length} referências de mercado identificadas.`);
-        logDiag(`Mercado analisado: ${top5.length} referências selecionadas.`);
+        setMarketFeedback(`✓ ${top5.length} referências dinâmicas identificadas no ranking de #1 a #200.`);
+        logDiag(`Mercado analisado: ${top5.length} referências selecionadas dinamicamente de ${pool.length} encontradas.`);
       }
     } catch (err: any) {
       setMarketFeedback(`Erro na análise de mercado: ${err?.message || 'Falha de conexão'}`);
@@ -326,23 +347,52 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     }
   };
 
-  // Geração de 5 Títulos Originais com IA e Validador de Similaridade
+  // Geração de 5 Títulos Originais com IA, Validador de Similaridade e Variação Dinâmica (#1 a #200)
   const handleGerarTitulosOriginais = async () => {
     setIsGeneratingTitulos(true);
     try {
-      const refTitles = marketReferences.map(r => r.title);
-      const prompt = `Você é um editor sênior de best-sellers. Crie exatamente 5 opções de títulos comerciais, impactantes e TOTALMENTE ORIGINAIS para um livro.
+      // Amostra aleatória de referências para a IA nunca ficar engessada nas mesmas referências
+      const pool = marketPool.length > 0 ? marketPool : marketReferences;
+      const sampledRefs = pool.length > 0
+        ? [...pool].sort(() => Math.random() - 0.5).slice(0, 5)
+        : marketReferences;
+
+      // Se temos itens no pool, atualizamos também as referências visíveis na tela para dinamismo total
+      if (sampledRefs.length > 0 && pool.length > 5) {
+        setMarketReferences(sampledRefs);
+      }
+
+      const refTitles = sampledRefs.map(r => r.title).filter(Boolean);
+
+      const ganchosCriativos = [
+        'comercial de alto impacto de vendas na Amazon KDP com promessa irresistível',
+        'curiosidade extrema, suspense hipnótico e quebra imediata de padrão',
+        'autoridade editorial, transformação pessoal e clareza magnética',
+        'tensão dramática psicológica, segredos ocultos e reviravoltas intensas',
+        'estilo cinematográfico contemporâneo com ritmo veloz e apelo de best-seller internacional',
+        'provocação direta, mistério não resolvido e gancho visceral'
+      ];
+      const ganchoEscolhido = ganchosCriativos[Math.floor(Math.random() * ganchosCriativos.length)];
+
+      const prompt = `Você é o principal diretor editorial de best-sellers da Amazon. Crie exatamente 5 opções de títulos comerciais, impactantes e TOTALMENTE ORIGINAIS para um novo livro.
+Enfoque criativo desta rodada: ${ganchoEscolhido}.
 Tema: ${temaSelecionado || genero}
 Subtema: ${subtemaSelecionado || 'Geral'}
 Público Alvo: ${targetReader || 'Geral'}
 Diferencial/Promessa: ${bookPromise || uniqueAngle || topico || 'Não informado'}
+Seed de novidade: ${Date.now()}_${Math.random().toString(36).slice(2, 7)}
 
-REFERÊNCIAS DE MERCADO (NÃO COPIE ESTES TÍTULOS OU ESTRUTURAS):
-${refTitles.length ? refTitles.map((t, i) => `${i + 1}. ${t}`).join('\n') : 'Nenhuma'}
+REFERÊNCIAS DE MERCADO PARA CONTRASTE (CRIE TÍTULOS DIFERENTES DESTES, NUNCA COPIE NEM REPITA):
+${refTitles.length ? refTitles.map((t, i) => `- ${t}`).join('\n') : 'Nenhuma'}
+
+Regras:
+1. Títulos originais, memoráveis e com alto apelo comercial no KDP.
+2. Cada título deve ter entre 2 e 6 palavras.
+3. Não use títulos genéricos ou repetitivos de rodadas anteriores. Crie opções frescas e inovadoras.
 
 Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explicações adicionais.`;
 
-      const resposta = await chamarGeminiTexto(prompt);
+      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.98 });
       const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
       const linhas = textoResp
         .split('\n')
@@ -361,7 +411,7 @@ Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explic
     }
   };
 
-  // Geração de 5 Subtítulos Originais com IA e Validador de Similaridade
+  // Geração de 5 Subtítulos Originais com IA, Frases 100% Completas sem Cortes
   const handleGerarSubtitulosOriginais = async () => {
     if (!titulo.trim()) {
       setStatusMsg('⚠️ Defina ou selecione um Título primeiro.');
@@ -371,19 +421,27 @@ Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explic
     setIsGeneratingSubtitulos(true);
     try {
       const refSubtitles = marketReferences.map(r => r.subtitle).filter(Boolean) as string[];
-      const prompt = `Você é um estrategista editorial KDP. Crie exatamente 5 opções de subtítulos comerciais persuasivos e TOTALMENTE ORIGINAIS para o livro:
+      const prompt = `Você é um estrategista editorial KDP especializado em conversão de vendas. Crie exatamente 5 opções de subtítulos comerciais persuasivos e TOTALMENTE ORIGINAIS para o livro:
 Título: "${titulo}"
 Tema: ${temaSelecionado || genero}
+Subtema: ${subtemaSelecionado || 'Geral'}
 Diferencial: ${uniqueAngle || bookPromise || 'Transformador'}
+Público Alvo: ${targetReader || 'Geral'}
+Seed de novidade: ${Date.now()}_${Math.random().toString(36).slice(2, 6)}
 
-Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explicações adicionais.`;
+REGRAS OBRIGATÓRIAS:
+1. CRIE FRASES 100% COMPLETAS COM SENTIDO GRAMATICAL FINALIZADO E PONTUAÇÃO (NUNCA CORTE PALAVRAS PELA METADE E NUNCA DEIXE FRASES TRUNCADAS OU INCOMPLETAS).
+2. Tamanho ideal: entre 6 e 14 palavras bem elaboradas.
+3. Forte gancho de curiosidade, suspense ou benefício tangível para o leitor.
 
-      const resposta = await chamarGeminiTexto(prompt);
+Responda APENAS com as 5 opções completas, uma por linha, numeradas de 1 a 5, sem explicações adicionais.`;
+
+      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.92 });
       const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
       const linhas = textoResp
         .split('\n')
         .map((l: string) => l.replace(/^\d+[\.\-\)]\s*/, '').replace(/[\*\"\_]/g, '').trim())
-        .filter((l: string) => l.length > 2)
+        .filter((l: string) => l.length > 5)
         .slice(0, 5);
 
       const originais = filterOriginalCandidates(linhas, refSubtitles);
@@ -394,6 +452,80 @@ Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explic
       logDiag(`Erro ao gerar subtítulos: ${err?.message}`);
     } finally {
       setIsGeneratingSubtitulos(false);
+    }
+  };
+
+  // Sugestão de Diferencial Editorial KDP Completo (Etapa 4)
+  const handleSugerirDiferencialCompleto = async () => {
+    setIsSuggestingDiferencial(true);
+    setStatusMsg('✨ Gerando estratégia de Diferencial Editorial com Gemini...');
+    try {
+      const prompt = `Você é um estrategista sênior de posicionamento editorial para livros da Amazon KDP.
+Crie a estratégia completa de diferenciação para a seguinte obra:
+Tema Central: ${temaSelecionado || genero || 'Geral'}
+Subtema: ${subtemaSelecionado || 'Geral'}
+Título da Obra: "${titulo || 'Ainda não definido'}"
+Subtítulo: "${subtitulo || ''}"
+Premissa: "${topico || ''}"
+
+Gere EXATAMENTE o seguinte objeto JSON:
+{
+  "uniqueAngle": "Um ângulo único, original e inovador que destaca este livro de todos os concorrentes da categoria (1 a 2 frases)",
+  "bookPromise": "A promessa central transformadora entregue ao leitor (1 frase impactante)",
+  "targetReader": "Descrição do leitor ideal e nicho demográfico/psicográfico (ex: Jovens adultos, profissionais em transição, leitores vorazes de suspense)"
+}
+Responda APENAS com o JSON puro, sem markdown e sem introduções.`;
+
+      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.85 });
+      const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
+      const cleanJson = textoResp.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+      const parsed = JSON.parse(cleanJson);
+
+      if (parsed.uniqueAngle) setUniqueAngle(parsed.uniqueAngle);
+      if (parsed.bookPromise) setBookPromise(parsed.bookPromise);
+      if (parsed.targetReader) setTargetReader(parsed.targetReader);
+
+      setStatusMsg('✓ Diferencial Editorial (Ângulo, Promessa e Público) gerado com sucesso!');
+      setStatusType('ok');
+      logDiag('Diferencial editorial completo sugerido com sucesso.');
+    } catch (err: any) {
+      setStatusMsg(`Erro ao sugerir diferencial: ${err?.message}`);
+      setStatusType('error');
+    } finally {
+      setIsSuggestingDiferencial(false);
+    }
+  };
+
+  // Sugestão individual para cada campo da Etapa 4
+  const handleSugerirCampoDiferencial = async (campo: 'uniqueAngle' | 'bookPromise' | 'targetReader') => {
+    setLoadingSugestao(campo);
+    try {
+      const descricoes = {
+        uniqueAngle: '1 ÂNGULO ÚNICO em uma frase que diferencie o livro de concorrentes',
+        bookPromise: '1 PROMESSA CENTRAL clara e emocionante ao leitor em uma frase',
+        targetReader: '1 PERFIL DO LEITOR ALVO ideal e demografia para este nicho'
+      };
+
+      const prompt = `Você é estrategista editorial KDP.
+Tema: ${temaSelecionado || genero}
+Subtema: ${subtemaSelecionado || 'Geral'}
+Título: "${titulo}"
+Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem explicações.`;
+
+      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.85 });
+      const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
+      const limpo = textoResp.replace(/^["'\*]+|["'\*]+$/g, '').trim();
+
+      if (campo === 'uniqueAngle') setUniqueAngle(limpo);
+      if (campo === 'bookPromise') setBookPromise(limpo);
+      if (campo === 'targetReader') setTargetReader(limpo);
+
+      setStatusMsg(`✓ Sugestão aplicada.`);
+      setStatusType('ok');
+    } catch (err: any) {
+      setStatusMsg(`Erro na sugestão: ${err?.message}`);
+    } finally {
+      setLoadingSugestao(null);
     }
   };
 
@@ -1503,6 +1635,9 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   if (tObj?.childrenBook) {
                     setFaixaEtaria('6-8');
                   }
+                  if (val.toLowerCase().includes('colorir')) {
+                    setActiveTab('colorir');
+                  }
                   setGenero(val || 'Thriller / Mistério Investigativo');
                 }}
                 style={{
@@ -1588,27 +1723,51 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
                   2. Inteligência de Mercado Amazon KDP
                 </label>
-                <button
-                  type="button"
-                  onClick={handleAnalisarMercado}
-                  disabled={isAnalyzingMarket}
-                  style={{
-                    padding: '4px 10px',
-                    background: isAnalyzingMarket ? '#94a3b8' : '#0f172a',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: 6,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4
-                  }}
-                >
-                  <RefreshCw size={11} className={isAnalyzingMarket ? 'spin' : ''} />
-                  {isAnalyzingMarket ? 'Analisando...' : 'Analisar Mercado'}
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleAnalisarMercado(true)}
+                    disabled={isAnalyzingMarket}
+                    title="Sortear outros títulos e referências dinamicamente do ranking de #1 a #200"
+                    style={{
+                      padding: '4px 8px',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <RefreshCw size={11} className={isAnalyzingMarket ? 'spin' : ''} />
+                    {isAnalyzingMarket ? 'Sorteando...' : '🔄 Sortear Outros (#1-#200)'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAnalisarMercado(false)}
+                    disabled={isAnalyzingMarket}
+                    style={{
+                      padding: '4px 10px',
+                      background: isAnalyzingMarket ? '#94a3b8' : '#0f172a',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Sparkles size={11} />
+                    {isAnalyzingMarket ? 'Analisando...' : 'Analisar Mercado'}
+                  </button>
+                </div>
               </div>
 
               {marketFeedback && (
@@ -1743,7 +1902,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
             </div>
 
-            {/* Subtítulo */}
+            {/* Subtítulo Comercial (sem corte de palavras com textarea auto-ajustável) */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
@@ -1778,13 +1937,16 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       onClick={() => setSubtitulo(opt)}
                       style={{
                         textAlign: 'left',
-                        padding: '4px 8px',
+                        padding: '6px 10px',
                         background: subtitulo === opt ? '#dbeafe' : '#f8fafc',
                         border: '1px solid #cbd5e1',
-                        borderRadius: 4,
-                        fontSize: 11,
+                        borderRadius: 6,
+                        fontSize: 12,
+                        lineHeight: 1.4,
                         color: '#1e293b',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word'
                       }}
                     >
                       {opt}
@@ -1793,20 +1955,25 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  type="text"
+              <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                <textarea
+                  rows={2}
                   value={subtitulo}
                   onChange={(e) => setSubtitulo(e.target.value)}
-                  placeholder="Ex: O que está oculto nas sombras da mente"
+                  placeholder="Ex: O que está oculto nas sombras da mente humana e os segredos que ninguém ousa revelar"
                   style={{
                     flex: 1,
                     padding: '8px 12px',
                     borderRadius: 6,
                     border: '1px solid #cbd5e1',
                     fontSize: 13,
+                    lineHeight: 1.4,
                     background: '#ffffff',
-                    color: '#0f172a'
+                    color: '#0f172a',
+                    resize: 'vertical',
+                    minHeight: 52,
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap'
                   }}
                 />
                 <button
@@ -1824,7 +1991,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     borderRadius: 6,
                     fontSize: 12,
                     fontWeight: 600,
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    minHeight: 52
                   }}
                 >
                   <Sparkles size={13} /> IA
@@ -1832,73 +2000,181 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
             </div>
 
-            {/* ETAPA 4 — DIFERENCIAL EDITORIAL & ESTRATÉGIA (REGRA 13) */}
+            {/* ETAPA 4 — DIFERENCIAL EDITORIAL & ESTRATÉGIA KDP (COM SUGESTÕES DE IA) */}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
-                4. Diferencial Editorial KDP
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
+                  4. Diferencial Editorial KDP
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSugerirDiferencialCompleto}
+                  disabled={isSuggestingDiferencial}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#2563eb',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3
+                  }}
+                >
+                  <Sparkles size={11} className={isSuggestingDiferencial ? 'spin' : ''} />
+                  {isSuggestingDiferencial ? 'Sugerindo...' : '✨ Sugerir com IA'}
+                </button>
+              </div>
 
+              {/* Ângulo Único */}
               <div style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
                   Ângulo Único (Por que este livro é diferente?)
                 </label>
-                <input
-                  type="text"
-                  value={uniqueAngle}
-                  onChange={(e) => setUniqueAngle(e.target.value)}
-                  placeholder="Ex: Abordagem neurocientífica aplicada a casos reais"
-                  style={{
-                    width: '100%',
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: '1px solid #cbd5e1',
-                    fontSize: 12,
-                    background: '#ffffff',
-                    color: '#0f172a'
-                  }}
-                />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                  <textarea
+                    rows={2}
+                    value={uniqueAngle}
+                    onChange={(e) => setUniqueAngle(e.target.value)}
+                    placeholder="Ex: Abordagem neurocientífica aplicada a casos reais e análise forense"
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      lineHeight: 1.4,
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      resize: 'vertical',
+                      minHeight: 46,
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSugerirCampoDiferencial('uniqueAngle')}
+                    disabled={loadingSugestao === 'uniqueAngle'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      padding: '6px 10px',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      minHeight: 46
+                    }}
+                  >
+                    <Sparkles size={11} /> IA
+                  </button>
+                </div>
               </div>
 
+              {/* Promessa Central */}
               <div style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
                   Promessa Central ao Leitor
                 </label>
-                <input
-                  type="text"
-                  value={bookPromise}
-                  onChange={(e) => setBookPromise(e.target.value)}
-                  placeholder="Ex: Transformar a clareza mental e a tomada de decisão"
-                  style={{
-                    width: '100%',
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: '1px solid #cbd5e1',
-                    fontSize: 12,
-                    background: '#ffffff',
-                    color: '#0f172a'
-                  }}
-                />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                  <textarea
+                    rows={2}
+                    value={bookPromise}
+                    onChange={(e) => setBookPromise(e.target.value)}
+                    placeholder="Ex: Revelar os padrões ocultos da mente humana e prender o leitor a cada reviravolta"
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      lineHeight: 1.4,
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      resize: 'vertical',
+                      minHeight: 46,
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSugerirCampoDiferencial('bookPromise')}
+                    disabled={loadingSugestao === 'bookPromise'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      padding: '6px 10px',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      minHeight: 46
+                    }}
+                  >
+                    <Sparkles size={11} /> IA
+                  </button>
+                </div>
               </div>
 
+              {/* Público / Leitor Alvo */}
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
                   Público / Leitor Alvo
                 </label>
-                <input
-                  type="text"
-                  value={targetReader}
-                  onChange={(e) => setTargetReader(e.target.value)}
-                  placeholder="Ex: Jovens adultos, profissionais em transição, leitores de suspense"
-                  style={{
-                    width: '100%',
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: '1px solid #cbd5e1',
-                    fontSize: 12,
-                    background: '#ffffff',
-                    color: '#0f172a'
-                  }}
-                />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                  <textarea
+                    rows={2}
+                    value={targetReader}
+                    onChange={(e) => setTargetReader(e.target.value)}
+                    placeholder="Ex: Jovens adultos, profissionais em transição, leitores vorazes de suspense psicológico"
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      lineHeight: 1.4,
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      resize: 'vertical',
+                      minHeight: 46,
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSugerirCampoDiferencial('targetReader')}
+                    disabled={loadingSugestao === 'targetReader'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      padding: '6px 10px',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      minHeight: 46
+                    }}
+                  >
+                    <Sparkles size={11} /> IA
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2551,6 +2827,27 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 >
                   <ShieldCheck size={15} /> 🔍 Auditoria & Verificadores {auditReport && `(${auditReport.score}%)`}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('colorir')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    borderColor: activeTab === 'colorir' ? '#0284c7' : '#e2e8f0',
+                    background: activeTab === 'colorir' ? '#f0f9ff' : '#ffffff',
+                    color: activeTab === 'colorir' ? '#0284c7' : '#64748b',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span>🎨</span> Livro de Colorir KDP
+                </button>
               </div>
 
               {/* Botão para abrir o editor/visualizador completo da página promocional */}
@@ -3146,6 +3443,19 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   )}
                     </div>
                   </details>
+                </div>
+              )}
+
+              {/* ABA 5: LIVRO DE COLORIR KDP COM CONTROLE RIGOROSO DE CRÉDITOS */}
+              {activeTab === 'colorir' && (
+                <div style={{ maxHeight: 720, overflowY: 'auto' }}>
+                  <ColoringBookStudio
+                    tema={temaSelecionado || genero}
+                    subtema={subtemaSelecionado}
+                    titulo={titulo}
+                    autor={autor}
+                    capaDataUrl={capaFinal}
+                  />
                 </div>
               )}
             </div>
