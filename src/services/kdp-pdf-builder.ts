@@ -23,13 +23,20 @@ export interface BuildPdfInput {
     titulo: string;
     subtitulo?: string;
     autor: string;
-    capitulos: { titulo: string; texto: string }[];
+    capitulos: { titulo: string; texto: string; imagemDataUrl?: string | null }[];
   };
   capaDataUrl?: string | null;
   formato: string;
   optSumario: boolean;
   tamCapitulo: number;
   corCapitulo: string;
+  silhuetaConfig?: {
+    ativado: boolean;
+    imagemDataUrl?: string | null;
+    paginasSelecionadas: number[];
+    opacidade?: number;
+    sangriaPct?: number;
+  };
 }
 
 export type PageKind = 'capa' | 'rosto' | 'sumario' | 'capitulo';
@@ -192,6 +199,38 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     if (page === 0) return;
     const meta = pageMeta[page - 1];
     if (meta.kind === 'capa' || meta.kind === 'rosto') return;
+
+    // Renderização de Silhueta Marginal (Marca d'água com sangria de 3% da metade da página para fora)
+    if (input.silhuetaConfig?.ativado && input.silhuetaConfig.imagemDataUrl) {
+      const paginas = input.silhuetaConfig.paginasSelecionadas || [];
+      if (paginas.includes(page)) {
+        try {
+          const halfW = LW / 2;
+          const sangria = halfW * (input.silhuetaConfig.sangriaPct ?? 0.03); // 3% da metade da página para fora
+          const silW = LW * 0.36;
+          const silH = silW * 1.33; // proporção 3:4
+          const isRight = isRecto(page);
+          const silX = isRight ? (LW - silW + sangria) : -sangria;
+          const silY = LH - silH - 0.6;
+
+          const opacidade = input.silhuetaConfig.opacidade ?? 0.18;
+          if ((doc as any).GState) {
+            try {
+              (doc as any).setGState(new (doc as any).GState({ opacity: opacidade }));
+            } catch {}
+          }
+          doc.addImage(input.silhuetaConfig.imagemDataUrl, 'PNG', silX, silY, silW, silH, undefined, 'FAST');
+          if ((doc as any).GState) {
+            try {
+              (doc as any).setGState(new (doc as any).GState({ opacity: 1.0 }));
+            } catch {}
+          }
+        } catch {
+          // Continua normalmente se a imagem falhar
+        }
+      }
+    }
+
     if (meta.kind === 'capitulo' && !meta.firstOfChapter) {
       const header = isRecto(page) ? cleanTitles[meta.chapterIndex!] : bookTitle;
       doc.setFont('times', 'italic').setFontSize(9).setTextColor(120);
@@ -348,6 +387,19 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     doc.line(LW / 2 - 0.35, y - 0.05, LW / 2 + 0.35, y - 0.05);
     y += 0.5;
     doc.setTextColor(0);
+
+    // Ilustração dedicada do capítulo (se presente)
+    if (cap.imagemDataUrl) {
+      try {
+        const maxImgW = Math.min(textW, 3.8);
+        const imgH = maxImgW * 0.65;
+        const imgX = leftOf(page) + (textW - maxImgW) / 2;
+        doc.addImage(cap.imagemDataUrl, 'PNG', imgX, y, maxImgW, imgH, undefined, 'FAST');
+        y += imgH + 0.35;
+      } catch (e: any) {
+        warnings.push(`Capítulo ${ci + 1}: Imagem ilustrada não pôde ser renderizada.`);
+      }
+    }
 
     const body = sanitize(cap.texto || '');
     sanitized.push(body);

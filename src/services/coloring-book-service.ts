@@ -269,17 +269,35 @@ Responda APENAS com um array JSON válido contendo a Capa (pageNumber: 0) e as $
   }
 }
 
+import { comporCapaComTipografia } from './kdp-cover-composer';
+
 /**
  * Gera a ilustração de UMA página individual sob demanda.
- * Se for Capa, gera colorida; se for página interna, gera line art preto e branco.
+ * Se for Capa, gera colorida e estampa título, subtítulo e autor; se for página interna, gera line art preto e branco.
  */
 export async function gerarIlustracaoPaginaColorir(
   page: ColoringPage,
-  aspectRatio: '2:3' | '3:4' | '1:1' = '3:4'
+  aspectRatio: '2:3' | '3:4' | '1:1' = '3:4',
+  coverOptions?: {
+    titulo: string;
+    subtitulo?: string;
+    autor: string;
+  }
 ): Promise<string> {
   const chosenRatio = page.isCover ? '2:3' : aspectRatio;
-  const dataUrl = await chamarImagen(page.prompt, chosenRatio);
-  return dataUrl;
+  const rawDataUrl = await chamarImagen(page.prompt, chosenRatio);
+
+  if (page.isCover && coverOptions?.titulo) {
+    const capaComposta = await comporCapaComTipografia(rawDataUrl, {
+      titulo: coverOptions.titulo,
+      subtitulo: coverOptions.subtitulo,
+      autor: coverOptions.autor || 'Book Intel KDP',
+      selo: 'EDIÇÃO ESPECIAL PARA COLORIR'
+    });
+    return capaComposta;
+  }
+
+  return rawDataUrl;
 }
 
 /**

@@ -7,6 +7,7 @@ import {
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
 import { FinalBooksShelf } from './FinalBooksShelf';
+import { QuickIllustratedBookCard } from './dashboard/QuickIllustratedBookCard';
 import { db } from '../../database/local-database';
 
 interface Props {
@@ -172,6 +173,9 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 </div>
               </div>
             </div>
+
+            {/* CARD DE GERAÇÃO RÁPIDA DE LIVROS ILUSTRADOS (COM 32 OPÇÕES, PROMPT POR PÁGINA E CAPA OFICIAL COM TÍTULO E AUTOR) */}
+            <QuickIllustratedBookCard onOpenProject={onOpenProject} />
 
             {/* CARD DE RETOMADA IMEDIATA DE LIVRO EM ANDAMENTO (PRESERVAÇÃO APÓS F5 / ATUALIZAÇÃO DA PÁGINA) */}
             {projetoEmAndamento && (

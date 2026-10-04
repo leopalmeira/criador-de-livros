@@ -38,12 +38,21 @@ import { AudiobookStudio } from '../audiobook/AudiobookStudio';
 import { MultiplatformPublishingModal } from '../publishing/MultiplatformPublishingModal';
 import { KdpTourGuideModal } from './KdpTourGuideModal';
 import { ErrorBoundary } from '../../common/ErrorBoundary';
+import {
+  SilhuetaMarginalConfig,
+  SILHUETA_CONFIG_PADRAO,
+  calcularPaginasSilhueta,
+  gerarSilhuetaPersonagem,
+  gerarIlustracaoCapitulo
+} from '../../../services/kdp-silhouette-service';
 
 const newProjectId = () => newId('prj_');
 
 interface Capitulo {
   titulo: string;
   texto: string;
+  imagemDataUrl?: string | null;
+  imagemPrompt?: string;
 }
 
 interface LivroGerado {
@@ -110,6 +119,13 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [fundoImg, setFundoImg] = useState<string | null>(null);
   const [promoData, setPromoData] = useState<BookPromotionalPageData | null>(null);
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+
+  // Motor de Silhuetas Marginais & Ilustrações de Capítulos (3% Sangria Externa)
+  const [silhuetaConfig, setSilhuetaConfig] = useState<SilhuetaMarginalConfig>(SILHUETA_CONFIG_PADRAO);
+  const [isGeneratingSilhueta, setIsGeneratingSilhueta] = useState(false);
+  const [personagemSilhuetaFoco, setPersonagemSilhuetaFoco] = useState('');
+  const [generatingCapImgIndex, setGeneratingCapImgIndex] = useState<number | null>(null);
+  const [showSilhuetaPanel, setShowSilhuetaPanel] = useState(false);
 
   // Status e controle do pipeline
   const [gerando, setGerando] = useState(false);
@@ -1149,7 +1165,70 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
     return linhas;
   };
 
-  // BAIXAR PDF KDP DIAGRAMADO (MULTI-PASSE COM CAPA E SUMÁRIO DE PÁGINAS REAIS)
+  // GERAR SILHUETA MARGINAL ARTÍSTICA DO PROTAGONISTA (REPLICATE FLUX)
+  const handleGerarSilhueta = async () => {
+    setIsGeneratingSilhueta(true);
+    setStatusMsg('✨ Gerando silhueta artística do personagem no Replicate FLUX.1 Schnell...');
+    logDiag('Solicitando silhueta marginal com sangria externa de 3%...');
+
+    try {
+      const { prompt, imageDataUrl } = await gerarSilhuetaPersonagem(
+        livro?.titulo || titulo,
+        livro?.genero || genero,
+        personagemSilhuetaFoco
+      );
+      setSilhuetaConfig(prev => ({
+        ...prev,
+        ativado: true,
+        imagemDataUrl: imageDataUrl
+      }));
+      setStatusMsg('✓ Silhueta artística gerada com sucesso! Sangria marginal de 3% ativada no PDF.');
+      setStatusType('ok');
+      logDiag('Silhueta marginal gerada e armazenada no estado');
+    } catch (err: any) {
+      console.error('Erro ao gerar silhueta:', err);
+      setStatusMsg(`Erro ao gerar silhueta: ${err.message || err}`);
+      setStatusType('error');
+    } finally {
+      setIsGeneratingSilhueta(false);
+    }
+  };
+
+  // GERAR ILUSTRAÇÃO INDIVIDUAL DE CAPÍTULO (REPLICATE FLUX)
+  const handleGerarIlustracaoCapitulo = async (idx: number) => {
+    if (!livro || !livro.capitulos[idx]) return;
+    const target = livro.capitulos[idx];
+    setGeneratingCapImgIndex(idx);
+    setStatusMsg(`🎨 Gerando ilustração do Capítulo ${idx + 1} ("${target.titulo}") via Replicate FLUX...`);
+    logDiag(`Gerando imagem de abertura para Capítulo ${idx + 1}`);
+
+    try {
+      const dataUrl = await gerarIlustracaoCapitulo(
+        target.titulo,
+        target.texto.substring(0, 350),
+        'arte_editorial'
+      );
+
+      setLivro(prev => {
+        if (!prev) return null;
+        const nextCaps = [...prev.capitulos];
+        nextCaps[idx] = { ...nextCaps[idx], imagemDataUrl: dataUrl };
+        return { ...prev, capitulos: nextCaps };
+      });
+
+      setStatusMsg(`✓ Ilustração do Capítulo ${idx + 1} gerada com sucesso!`);
+      setStatusType('ok');
+      logDiag(`Ilustração do Capítulo ${idx + 1} incorporada.`);
+    } catch (err: any) {
+      console.error('Erro ao gerar ilustração de capítulo:', err);
+      setStatusMsg(`Erro ao ilustrar capítulo: ${err.message || err}`);
+      setStatusType('error');
+    } finally {
+      setGeneratingCapImgIndex(null);
+    }
+  };
+
+  // BAIXAR PDF KDP DIAGRAMADO (MULTI-PASSE COM CAPA, SUMÁRIO E SILHUETAS MARGINAIS)
   const baixarPDF = async () => {
     if (!livro || livro.capitulos.length === 0) {
       setStatusMsg('Gere o livro primeiro para exportar o PDF.');
@@ -1159,7 +1238,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
 
     setStatusMsg('📄 Diagramando PDF oficial para Amazon KDP...');
     setStatusType('normal');
-    logDiag('Iniciando construção de PDF com margens espelhadas KDP e sumário multi-passe...');
+    logDiag('Iniciando construção de PDF com margens espelhadas KDP, sumário e silhuetas marginais...');
 
     try {
       const validTrimSizes = ['6x9', '5x8', '5.5x8.5', '8.5x11'] as const;
@@ -1176,7 +1255,21 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
         formato,
         optSumario,
         tamCapitulo,
-        corCapitulo
+        corCapitulo,
+        silhuetaConfig: silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl ? {
+          ativado: true,
+          imagemDataUrl: silhuetaConfig.imagemDataUrl,
+          paginasSelecionadas: calcularPaginasSilhueta(
+            livro.capitulos.length * 8,
+            silhuetaConfig.modo,
+            {
+              intervalo: silhuetaConfig.intervalo,
+              totalAleatorio: silhuetaConfig.totalAleatorio
+            }
+          ),
+          opacidade: silhuetaConfig.opacidade,
+          sangriaPct: silhuetaConfig.sangriaPct
+        } : undefined
       });
 
       const blob = new Blob([result.bytes as any], { type: 'application/pdf' });
@@ -1351,7 +1444,21 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
         formato,
         optSumario,
         tamCapitulo,
-        corCapitulo
+        corCapitulo,
+        silhuetaConfig: silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl ? {
+          ativado: true,
+          imagemDataUrl: silhuetaConfig.imagemDataUrl,
+          paginasSelecionadas: calcularPaginasSilhueta(
+            livro.capitulos.length * 8,
+            silhuetaConfig.modo,
+            {
+              intervalo: silhuetaConfig.intervalo,
+              totalAleatorio: silhuetaConfig.totalAleatorio
+            }
+          ),
+          opacidade: silhuetaConfig.opacidade,
+          sangriaPct: silhuetaConfig.sangriaPct
+        } : undefined
       });
 
       const totalWords = livro.capitulos.reduce((sum, c) => sum + (c.texto ? c.texto.split(/\s+/).length : 0), 0);
@@ -3066,6 +3173,172 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
               {activeTab === 'preview' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* PAINEL DO MOTOR DE SILHUETAS MARGINAIS COM 3% DE SANGRIA EXTERNA */}
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 8,
+                      padding: '12px 16px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 16 }}>👤</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                            Motor de Silhuetas Marginais & Vinhetas (3% Sangria Externa)
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>
+                            Insere a silhueta artística do personagem projetada 3% para fora da borda física da página
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={silhuetaConfig.ativado}
+                            onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, ativado: e.target.checked }))}
+                            style={{ width: 16, height: 16, cursor: 'pointer' }}
+                          />
+                          Ativar no Miolo KDP
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowSilhuetaPanel(!showSilhuetaPanel)}
+                          style={{
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 6,
+                            padding: '4px 8px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: '#334155',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {showSilhuetaPanel ? 'Recolher Opções' : 'Configurar Silhueta'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {showSilhuetaPanel && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                              Modo de Distribuição
+                            </label>
+                            <select
+                              value={silhuetaConfig.modo}
+                              onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, modo: e.target.value as any }))}
+                              style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                            >
+                              <option value="aleatorio">Aleatório Inteligente (ex: 10 páginas)</option>
+                              <option value="intervalo">Intervalo Fixo (a cada X páginas)</option>
+                              <option value="capitulos">Início de Cada Capítulo</option>
+                            </select>
+                          </div>
+
+                          {silhuetaConfig.modo === 'aleatorio' && (
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                                Quantidade de Páginas
+                              </label>
+                              <input
+                                type="number"
+                                min={2}
+                                max={30}
+                                value={silhuetaConfig.totalAleatorio}
+                                onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, totalAleatorio: Number(e.target.value) || 10 }))}
+                                style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                              />
+                            </div>
+                          )}
+
+                          {silhuetaConfig.modo === 'intervalo' && (
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                                A cada quantas páginas?
+                              </label>
+                              <input
+                                type="number"
+                                min={3}
+                                max={20}
+                                value={silhuetaConfig.intervalo}
+                                onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, intervalo: Number(e.target.value) || 10 }))}
+                                style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                              Foco do Personagem (Opcional)
+                            </label>
+                            <input
+                              type="text"
+                              value={personagemSilhuetaFoco}
+                              onChange={(e) => setPersonagemSilhuetaFoco(e.target.value)}
+                              placeholder="Ex: Protagonista de sobretudo..."
+                              style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <button
+                              type="button"
+                              onClick={handleGerarSilhueta}
+                              disabled={isGeneratingSilhueta}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '7px 14px',
+                                borderRadius: 6,
+                                background: '#4f46e5',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: isGeneratingSilhueta ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              {isGeneratingSilhueta ? (
+                                <>
+                                  <RefreshCw size={13} className="animate-spin" /> Gerando Silhueta FLUX...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles size={13} /> ✨ Gerar Silhueta com Replicate FLUX
+                                </>
+                              )}
+                            </button>
+
+                            {silhuetaConfig.imagemDataUrl && (
+                              <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <CheckCircle2 size={13} /> Silhueta pronta e vinculada ao PDF (Sangria 3% ativa)
+                              </span>
+                            )}
+                          </div>
+
+                          {silhuetaConfig.imagemDataUrl && (
+                            <img
+                              src={silhuetaConfig.imagemDataUrl}
+                              alt="Silhueta"
+                              style={{ height: 48, width: 36, objectFit: 'cover', borderRadius: 4, border: '1px solid #cbd5e1' }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div
                     ref={previewScrollRef}
                     style={{
@@ -3130,17 +3403,67 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
                           {livro.capitulos.map((c, idx) => (
                             <div key={idx} style={{ marginBottom: 32 }}>
-                              <h2
-                                style={{
-                                  color: corCapitulo,
-                                  fontSize: `${tamCapitulo + 3}pt`,
-                                  borderBottom: '1px solid #e2e8f0',
-                                  paddingBottom: 6,
-                                  marginBottom: 12
-                                }}
-                              >
-                                {c.titulo}
-                              </h2>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: 6, marginBottom: 12 }}>
+                                <h2
+                                  style={{
+                                    color: corCapitulo,
+                                    fontSize: `${tamCapitulo + 3}pt`,
+                                    margin: 0
+                                  }}
+                                >
+                                  {c.titulo}
+                                </h2>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleGerarIlustracaoCapitulo(idx)}
+                                  disabled={generatingCapImgIndex !== null}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '5px 12px',
+                                    borderRadius: 6,
+                                    background: c.imagemDataUrl ? '#ecfdf5' : '#eff6ff',
+                                    color: c.imagemDataUrl ? '#059669' : '#2563eb',
+                                    border: `1px solid ${c.imagemDataUrl ? '#a7f3d0' : '#bfdbfe'}`,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: generatingCapImgIndex !== null ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  {generatingCapImgIndex === idx ? (
+                                    <>
+                                      <RefreshCw size={12} className="animate-spin" /> Gerando Ilustração...
+                                    </>
+                                  ) : c.imagemDataUrl ? (
+                                    <>
+                                      <CheckCircle2 size={12} /> Ilustrado (Regenerar)
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ImageIcon size={12} /> 🖼️ Ilustrar Capítulo
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              {/* Imagem Ilustrada do Capítulo */}
+                              {c.imagemDataUrl && (
+                                <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                                  <img
+                                    src={c.imagemDataUrl}
+                                    alt={c.titulo}
+                                    style={{
+                                      maxWidth: '100%',
+                                      maxHeight: 280,
+                                      borderRadius: 6,
+                                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                    }}
+                                  />
+                                </div>
+                              )}
+
                               {c.texto.split(/\n\s*\n/).map((p, pIdx) => (
                                 <p
                                   key={pIdx}

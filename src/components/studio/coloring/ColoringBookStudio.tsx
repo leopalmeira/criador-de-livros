@@ -6,11 +6,11 @@
 // - Geração estritamente sequencial (uma página por vez seguindo a ordem)
 // ================================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles, Download, RefreshCw, CheckCircle2, AlertTriangle,
   Layers, Shield, Eye, Image as ImageIcon, Trash2, FileText,
-  Lock, ArrowRight, Palette, BookOpen
+  Lock, ArrowRight, Palette, BookOpen, Plus, Type
 } from 'lucide-react';
 import {
   ColoringPage,
@@ -18,6 +18,7 @@ import {
   gerarIlustracaoPaginaColorir,
   buildColoringBookPdf
 } from '../../../services/coloring-book-service';
+import { comporCapaComTipografia } from '../../../services/kdp-cover-composer';
 import { db } from '../../../database/local-database';
 
 interface ColoringBookStudioProps {
@@ -49,6 +50,23 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [expandedPromptId, setExpandedPromptId] = useState<string | null>(null);
   const [localCapaDataUrl, setLocalCapaDataUrl] = useState<string | null>(capaDataUrl || null);
+
+  // Textos oficiais da Capa do Livro (Editáveis para sobreposição tipográfica KDP)
+  const [tituloLocal, setTituloLocal] = useState(titulo || 'Meu Livro de Colorir KDP');
+  const [subtituloLocal, setSubtituloLocal] = useState(subtema ? `Coleção ${subtema}` : 'Edição Especial para Colorir');
+  const [autorLocal, setAutorLocal] = useState(autor || 'Leandro Palmeira');
+
+  useEffect(() => {
+    if (titulo && titulo.trim()) setTituloLocal(titulo);
+  }, [titulo]);
+
+  useEffect(() => {
+    if (autor && autor.trim()) setAutorLocal(autor);
+  }, [autor]);
+
+  useEffect(() => {
+    if (subtema && subtema.trim()) setSubtituloLocal(`Coleção ${subtema}`);
+  }, [subtema]);
 
   // 1. Identificar a próxima página obrigatória da fila sequencial
   const nextPendingIndex = useMemo(() => {
@@ -98,7 +116,15 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
     setStatusMsg(`Gerando ${targetPage.isCover ? 'a Capa Colorida' : `os traços da Página ${targetPage.pageNumber}`} com modelo Google Imagen 3...`);
 
     try {
-      const dataUrl = await gerarIlustracaoPaginaColorir(targetPage, targetPage.isCover ? '2:3' : '3:4');
+      const dataUrl = await gerarIlustracaoPaginaColorir(
+        targetPage,
+        targetPage.isCover ? '2:3' : '3:4',
+        targetPage.isCover ? {
+          titulo: tituloLocal || titulo || 'Livro de Colorir KDP',
+          subtitulo: subtituloLocal || (subtema ? `Coleção ${subtema}` : 'Edição Especial para Colorir'),
+          autor: autorLocal || autor || 'Leandro Palmeira'
+        } : undefined
+      );
 
       setPages(prev => {
         const next = [...prev];
@@ -116,7 +142,7 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
       if (targetPage.isCover) {
         setLocalCapaDataUrl(dataUrl);
         if (onCapaGerada) onCapaGerada(dataUrl);
-        setStatusMsg('✓ Capa Colorida gerada com sucesso! Agora você pode gerar a Página 1.');
+        setStatusMsg('✓ Capa Colorida gerada e diagramada com título e autor! Agora você pode gerar a Página 1.');
       } else {
         setStatusMsg(`✓ Ilustração da Página ${targetPage.pageNumber} gerada com sucesso!`);
       }
@@ -141,6 +167,72 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
     setPages(prev => prev.map(p => (p.id === pageId ? { ...p, prompt: newPrompt } : p)));
   };
 
+  // 4b. Atualizar título da página / cena
+  const handleUpdateTitle = (pageId: string, newTitle: string) => {
+    setPages(prev => prev.map(p => (p.id === pageId ? { ...p, title: newTitle } : p)));
+  };
+
+  // 4c. Recompor tipografia da Capa (Título, Subtítulo e Autor) sobre a imagem existente instantaneamente
+  const handleRecomporCapaComTipografia = async (pageId: string) => {
+    const targetPage = pages.find(p => p.id === pageId);
+    if (!targetPage || !targetPage.imageDataUrl) {
+      alert('Gere primeiro a imagem da capa para poder estampar os textos.');
+      return;
+    }
+
+    setStatusMsg('🎨 Diagramando tipografia KDP (Título, Subtítulo e Autor) sobre a Capa...');
+    try {
+      const capaComposta = await comporCapaComTipografia(targetPage.imageDataUrl, {
+        titulo: tituloLocal || titulo || 'Livro de Colorir KDP',
+        subtitulo: subtituloLocal,
+        autor: autorLocal || autor || 'Leandro Palmeira',
+        selo: 'EDIÇÃO ESPECIAL PARA COLORIR'
+      });
+
+      setPages(prev => prev.map(p => (p.id === pageId ? { ...p, imageDataUrl: capaComposta } : p)));
+      setLocalCapaDataUrl(capaComposta);
+      if (onCapaGerada) onCapaGerada(capaComposta);
+      setStatusMsg('✓ Título, Subtítulo e Autor sobrepostos na Capa com padrão oficial KDP!');
+    } catch (err: any) {
+      setStatusMsg(`Erro ao estampar tipografia na capa: ${err.message}`);
+    }
+  };
+
+  // 4d. Adicionar página manual com prompt personalizado
+  const handleAddManualPage = () => {
+    const nextNum = pages.filter(p => !p.isCover).length + 1;
+    const newPage: ColoringPage = {
+      id: `manual_${Date.now()}`,
+      pageNumber: nextNum,
+      isCover: false,
+      title: `Página ${nextNum}: Nova Cena`,
+      description: 'Página personalizada criada manualmente pelo autor com prompt denso.',
+      prompt: `Clean coloring book page, crisp thick black outlines on pure white background, scene for children's coloring book with high details, no shading, no grayscale, no colors. Ready to color.`,
+      status: 'pendente'
+    };
+    setPages(prev => [...prev, newPage]);
+    setStatusMsg(`✓ Nova página manual adicionada (Página ${nextNum}). Edite o prompt livremente e gere a imagem!`);
+  };
+
+  // 4e. Excluir página manual ou indesejada
+  const handleDeletePage = (pageId: string) => {
+    if (!window.confirm('Deseja realmente remover esta página do livro de colorir?')) return;
+    setPages(prev => {
+      const filtered = prev.filter(p => p.id !== pageId);
+      // Renumera as páginas que não são capa
+      let counter = 1;
+      return filtered.map(p => {
+        if (p.isCover) return p;
+        return {
+          ...p,
+          pageNumber: counter++,
+          title: p.id.startsWith('manual_') ? `Página ${counter - 1}: Cena Personalizada` : p.title
+        };
+      });
+    });
+    setStatusMsg('Página removida e numeração reorganizada.');
+  };
+
   // 5. Compilar e Baixar o Livro de Colorir em PDF 8.5x11 KDP
   const handleDownloadPdf = async () => {
     const paginasComImagem = pages.filter(p => p.imageDataUrl);
@@ -154,8 +246,8 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
 
     try {
       const pdfBytes = await buildColoringBookPdf(
-        titulo || 'Meu Livro de Colorir KDP',
-        autor || 'Book Intel Studio',
+        tituloLocal || titulo || 'Meu Livro de Colorir KDP',
+        autorLocal || autor || 'Book Intel Studio',
         pages,
         localCapaDataUrl
       );
@@ -471,6 +563,31 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
             </button>
           )}
 
+          {pages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleAddManualPage}
+              disabled={generatingPageId !== null || isPlanning}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '9px 14px',
+                borderRadius: 8,
+                background: '#ffffff',
+                color: '#2563eb',
+                border: '1px solid #bfdbfe',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: (generatingPageId !== null || isPlanning) ? 'not-allowed' : 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+              }}
+              title="Adicionar uma página personalizada extra com prompt próprio"
+            >
+              <Plus size={14} /> + Adicionar Página Manual
+            </button>
+          )}
+
           {paginasProntas > 0 && (
             <button
               type="button"
@@ -580,19 +697,41 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
                     )}
                   </div>
 
-                  {isCompleted ? (
-                    <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <CheckCircle2 size={13} /> Pronta
-                    </span>
-                  ) : isNextInLine ? (
-                    <span style={{ fontSize: 10, color: '#0284c7', fontWeight: 700, background: '#e0f2fe', padding: '2px 6px', borderRadius: 4 }}>
-                      👉 Próxima da Fila
-                    </span>
-                  ) : isLocked ? (
-                    <span style={{ fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Lock size={12} /> Bloqueada
-                    </span>
-                  ) : null}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {isCompleted ? (
+                      <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <CheckCircle2 size={13} /> Pronta
+                      </span>
+                    ) : isNextInLine ? (
+                      <span style={{ fontSize: 10, color: '#0284c7', fontWeight: 700, background: '#e0f2fe', padding: '2px 6px', borderRadius: 4 }}>
+                        👉 Próxima da Fila
+                      </span>
+                    ) : isLocked ? (
+                      <span style={{ fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Lock size={12} /> Bloqueada
+                      </span>
+                    ) : null}
+
+                    {!p.isCover && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePage(p.id)}
+                        disabled={isGenerating || generatingPageId !== null}
+                        title="Remover esta página do livro"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: '2px 4px',
+                          color: '#94a3b8',
+                          cursor: (isGenerating || generatingPageId !== null) ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Área da Imagem / Pré-visualização */}
@@ -649,49 +788,147 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
                   )}
                 </div>
 
-                {/* Conteúdo, Prompt Denso e Ações */}
+                {/* Conteúdo, Prompt Editável e Ações */}
                 <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, flex: 1, justifyContent: 'space-between' }}>
                   <div>
-                    <div style={{ fontSize: 12, color: '#334155', lineHeight: '1.4', fontWeight: 500 }}>
+                    {/* Bloco de Textos da Capa KDP ou Título da Página de Desenho */}
+                    {p.isCover ? (
+                      <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Type size={13} /> Textos Oficiais da Capa KDP (Diagramação Real)
+                          </span>
+                          {p.imageDataUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handleRecomporCapaComTipografia(p.id)}
+                              title="Sobrepõe o título, subtítulo e autor atualizados sem gerar nova imagem na IA"
+                              style={{
+                                background: '#d97706',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 5,
+                                padding: '4px 8px',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                            >
+                              <Sparkles size={11} /> Re-estampar Textos
+                            </button>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 6 }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#78350f', marginBottom: 2 }}>
+                              Título Principal:
+                            </label>
+                            <input
+                              type="text"
+                              value={tituloLocal}
+                              onChange={(e) => setTituloLocal(e.target.value)}
+                              placeholder="Título do livro..."
+                              style={{ width: '100%', fontSize: 11, padding: '5px 8px', borderRadius: 5, border: '1px solid #fde68a', fontWeight: 600, boxSizing: 'border-box' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#78350f', marginBottom: 2 }}>
+                              Nome do Autor:
+                            </label>
+                            <input
+                              type="text"
+                              value={autorLocal}
+                              onChange={(e) => setAutorLocal(e.target.value)}
+                              placeholder="Nome do autor..."
+                              style={{ width: '100%', fontSize: 11, padding: '5px 8px', borderRadius: 5, border: '1px solid #fde68a', fontWeight: 600, boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#78350f', marginBottom: 2 }}>
+                            Subtítulo Comercial:
+                          </label>
+                          <input
+                            type="text"
+                            value={subtituloLocal}
+                            onChange={(e) => setSubtituloLocal(e.target.value)}
+                            placeholder="Subtítulo ou coleção..."
+                            style={{ width: '100%', fontSize: 11, padding: '5px 8px', borderRadius: 5, border: '1px solid #fde68a', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: 8 }}>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                          Título da Cena / Página {p.pageNumber}:
+                        </label>
+                        <input
+                          type="text"
+                          value={p.title}
+                          onChange={(e) => handleUpdateTitle(p.id, e.target.value)}
+                          placeholder={`Cena da Página ${p.pageNumber}...`}
+                          style={{ width: '100%', fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 600, boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 12, color: '#334155', lineHeight: '1.4', fontWeight: 500, marginBottom: 8 }}>
                       {p.description}
                     </div>
 
-                    {/* Tag de Validação da Densidade do Prompt (+1500 caracteres) */}
-                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 10, color: '#0369a1', fontWeight: 600, background: '#f0f9ff', padding: '2px 6px', borderRadius: 4, border: '1px solid #bae6fd' }}>
-                        ✓ Prompt Denso: {p.prompt.length} caracteres
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setExpandedPromptId(isExpanded ? null : p.id)}
-                        style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
-                      >
-                        {isExpanded ? 'Ocultar prompt' : 'Ver prompt completo'}
-                      </button>
-                    </div>
-
-                    {isExpanded && (
-                      <div style={{ marginTop: 8 }}>
-                        <textarea
-                          value={p.prompt}
-                          onChange={(e) => handleUpdatePrompt(p.id, e.target.value)}
-                          rows={6}
-                          style={{
-                            width: '100%',
-                            fontSize: 11,
-                            padding: 8,
-                            borderRadius: 6,
-                            border: '1px solid #cbd5e1',
-                            color: '#0f172a',
-                            fontFamily: 'monospace',
-                            lineHeight: 1.3
-                          }}
-                        />
-                        <span style={{ fontSize: 10, color: '#64748b' }}>
-                          Total de caracteres do prompt: <b>{p.prompt.length}</b> (Mínimo exigido: 1500)
+                    {/* Campo de Prompt Editável Direto para Cada Página */}
+                    <div style={{ marginTop: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                          ✍️ Prompt da Imagem (Editável):
+                        </label>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: p.prompt.length >= 1500 ? '#059669' : '#d97706',
+                          background: p.prompt.length >= 1500 ? '#ecfdf5' : '#fffbeb',
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          border: `1px solid ${p.prompt.length >= 1500 ? '#a7f3d0' : '#fde68a'}`
+                        }}>
+                          {p.prompt.length} chars {p.prompt.length >= 1500 ? '✓ (Denso)' : '(Min: 1500)'}
                         </span>
                       </div>
-                    )}
+
+                      <textarea
+                        value={p.prompt}
+                        onChange={(e) => handleUpdatePrompt(p.id, e.target.value)}
+                        rows={isExpanded ? 8 : 4}
+                        placeholder="Descreva minuciosamente a cena, personagem, expressões e cenário..."
+                        style={{
+                          width: '100%',
+                          fontSize: 11,
+                          padding: '7px 9px',
+                          borderRadius: 6,
+                          border: '1px solid #cbd5e1',
+                          color: '#0f172a',
+                          fontFamily: 'monospace',
+                          lineHeight: 1.35,
+                          backgroundColor: '#f8fafc',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPromptId(isExpanded ? null : p.id)}
+                          style={{ background: 'none', border: 'none', padding: 0, fontSize: 10, color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
+                        >
+                          {isExpanded ? 'Recolher caixa de texto' : 'Expandir caixa de texto'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Botões de Ação na Ordem Sequencial */}

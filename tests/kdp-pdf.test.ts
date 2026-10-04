@@ -117,4 +117,35 @@ describe('kdp-pdf-builder + kdp-pdf-validator (PDF real aberto com pdf.js)', () 
       { title: 'Ano 2020 em foco', page: 15 },
     ]);
   });
+
+  it('gera PDF com silhueta marginal 3% sangria e ilustrações de capítulos', () => {
+    const pngDummy = makePng(200, 200);
+    const livroComImagens = {
+      ...livro,
+      capitulos: livro.capitulos.map((c, i) => ({
+        ...c,
+        imagemDataUrl: i === 0 ? pngDummy : undefined
+      }))
+    };
+
+    const build = buildKdpPdf({
+      livro: livroComImagens,
+      capaDataUrl: pngDummy,
+      formato: '6x9',
+      optSumario: true,
+      tamCapitulo: 11,
+      corCapitulo: '#1e293b',
+      silhuetaConfig: {
+        ativado: true,
+        imagemDataUrl: pngDummy,
+        paginasSelecionadas: [4, 6, 8],
+        opacidade: 0.15,
+        sangriaPct: 0.03
+      }
+    });
+
+    expect(build.pageCount).toBeGreaterThan(6);
+    expect(build.coverIncluded).toBe(true);
+    expect(build.bytes.length).toBeGreaterThan(1000);
+  });
 });
