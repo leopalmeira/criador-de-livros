@@ -15,6 +15,7 @@ import {
   buildPublicationPackageZip
 } from '../../../services/audiobook-service';
 import { AudiobookStudio } from '../audiobook/AudiobookStudio';
+import { ErrorBoundary } from '../../common/ErrorBoundary';
 
 interface MultiplatformPublishingModalProps {
   isOpen: boolean;
@@ -461,13 +462,15 @@ export const MultiplatformPublishingModal: React.FC<MultiplatformPublishingModal
 
           {/* ABA 2: AUDIOBOOK STUDIO INTEGRADO */}
           {activeTab === 'audiobook' && (
-            <AudiobookStudio
-              initialTitle={project.title}
-              initialSubtitle={project.subtitle}
-              initialAuthor={project.author}
-              initialChapters={project.capitulos}
-              capaUrl={project.coverUrl}
-            />
+            <ErrorBoundary fallbackTitle="Audiobook Studio (Kokoro TTS)">
+              <AudiobookStudio
+                initialTitle={project.title}
+                initialSubtitle={project.subtitle}
+                initialAuthor={project.author}
+                initialChapters={project.capitulos}
+                capaUrl={project.coverUrl}
+              />
+            </ErrorBoundary>
           )}
 
           {/* ABA 3: DETALHES DE DISTRIBUIÇÃO (SPOTIFY, AUDIBLE ETC.) */}

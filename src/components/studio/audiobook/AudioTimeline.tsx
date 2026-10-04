@@ -40,15 +40,16 @@ export const AudioTimeline: React.FC<AudioTimelineProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
-  const totalDuration = Math.max(30, chapterDurationSeconds);
+  const safeEvents = Array.isArray(events) ? events : [];
+  const totalDuration = Math.max(30, chapterDurationSeconds || 60);
 
   // Divide a duração em marcadores na régua de tempo (intervalos de 10s ou 15s)
   const markerStep = totalDuration > 120 ? 30 : 15;
   const numMarkers = Math.ceil(totalDuration / markerStep);
   const markers = Array.from({ length: numMarkers + 1 }, (_, i) => i * markerStep);
 
-  const ambientEvents = events.filter(e => e.trackType === 'ambient');
-  const sfxEvents = events.filter(e => e.trackType === 'sfx');
+  const ambientEvents = safeEvents.filter(e => e && e.trackType === 'ambient');
+  const sfxEvents = safeEvents.filter(e => e && e.trackType === 'sfx');
 
   // Adicionar efeito a partir do catálogo
   const handleSelectSoundFromCatalog = (sound: SoundEffectItem) => {

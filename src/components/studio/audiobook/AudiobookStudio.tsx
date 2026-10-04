@@ -69,8 +69,44 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
   const [paragraphPauseMs, setParagraphPauseMs] = useState(650);
   const [sentencePauseMs, setSentencePauseMs] = useState(350);
 
-  // 2. CAPÍTULOS EXTRAÍDOS DO PROJETO ATUAL
-  const [chapters, setChapters] = useState<AudiobookChapterItem[]>([]);
+  // Helper de inicialização síncrona dos capítulos da obra
+  const parseInitialChapters = (list?: Array<{ titulo: string; texto: string }>): AudiobookChapterItem[] => {
+    if (list && list.length > 0) {
+      return list.map((c, i) => {
+        const words = c.texto ? c.texto.trim().split(/\s+/).length : 0;
+        const durationSeconds = Math.max(30, Math.round(words / 2.25));
+        return {
+          id: `chap_audio_${i}_${Date.now()}`,
+          chapterIndex: i,
+          title: c.titulo || `Capítulo ${i + 1}`,
+          textSnippet: c.texto ? c.texto.slice(0, 160) + '...' : '',
+          fullText: c.texto || '',
+          status: 'pendente',
+          durationSeconds,
+          wordCount: words,
+          isStale: false,
+          timelineEvents: []
+        };
+      });
+    }
+    return [
+      {
+        id: 'chap_audio_0',
+        chapterIndex: 0,
+        title: '01 — Introdução & Abertura',
+        textSnippet: 'Pronto para narração de alta qualidade...',
+        fullText: 'Texto editorial pronto para conversão em áudio neural com efeitos sonoros imersivos.',
+        status: 'pendente',
+        durationSeconds: 45,
+        wordCount: 15,
+        isStale: false,
+        timelineEvents: []
+      }
+    ];
+  };
+
+  // 2. CAPÍTULOS EXTRAÍDOS DO PROJETO ATUAL (INICIALIZAÇÃO SÍNCRONA GARANTIDA)
+  const [chapters, setChapters] = useState<AudiobookChapterItem[]>(() => parseInitialChapters(initialChapters));
   const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
 
   // 3. ESTADOS DE PROCESSAMENTO
@@ -100,48 +136,30 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
   const playerAudioRef = useRef<HTMLAudioElement | null>(null);
   const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Sincroniza capítulos a partir das props da obra ATUAL (Garante que nunca venham dados de outro projeto)
+  // Sincroniza capítulos quando as props mudarem
   useEffect(() => {
     if (initialChapters && initialChapters.length > 0) {
-      const items: AudiobookChapterItem[] = initialChapters.map((c, i) => {
-        const words = c.texto ? c.texto.trim().split(/\s+/).length : 0;
-        const durationSeconds = Math.max(30, Math.round(words / (2.25 * speed)));
-
-        return {
-          id: `chap_audio_${i}_${Date.now()}`,
-          chapterIndex: i,
-          title: c.titulo || `Capítulo ${i + 1}`,
-          textSnippet: c.texto ? c.texto.slice(0, 160) + '...' : '',
-          fullText: c.texto || '',
-          status: 'pendente',
-          durationSeconds,
-          wordCount: words,
-          isStale: false,
-          timelineEvents: []
-        };
-      });
-      setChapters(items);
+      setChapters(parseInitialChapters(initialChapters));
       setSelectedChapterIndex(0);
-    } else {
-      setChapters([
-        {
-          id: 'chap_audio_0',
-          chapterIndex: 0,
-          title: '01 — Introdução & Abertura',
-          textSnippet: 'Uma forte chuva batia contra as janelas da casa...',
-          fullText: 'Uma forte chuva batia contra as janelas. Maria caminhou lentamente pelo corredor. Então a porta se abriu com um rangido inesperado, quebrando o silêncio da noite.',
-          status: 'pendente',
-          durationSeconds: 45,
-          wordCount: 29,
-          isStale: false,
-          timelineEvents: []
-        }
-      ]);
     }
   }, [initialChapters]);
 
-  const currentChapter = chapters[selectedChapterIndex] || chapters[0];
-  const activeVoice = KOKORO_NARRATOR_VOICES.find(v => v.id === selectedVoiceId) || KOKORO_NARRATOR_VOICES[0];
+  // Fallback seguro: garante que currentChapter NUNCA seja undefined mesmo antes do primeiro paint
+  const safeDefaultChapter: AudiobookChapterItem = {
+    id: 'chap_default_fallback',
+    chapterIndex: 0,
+    title: 'Capítulo 1',
+    textSnippet: '',
+    fullText: '',
+    status: 'pendente',
+    durationSeconds: 60,
+    wordCount: 0,
+    isStale: false,
+    timelineEvents: []
+  };
+
+  const currentChapter: AudiobookChapterItem = chapters[selectedChapterIndex] || chapters[0] || safeDefaultChapter;
+  const activeVoice: NarratorVoice = KOKORO_NARRATOR_VOICES.find(v => v.id === selectedVoiceId) || KOKORO_NARRATOR_VOICES[0];
 
   // Cálculo dos totais da obra atual
   const totalBookWords = chapters.reduce((acc, c) => acc + c.wordCount, 0);
@@ -1171,9 +1189,9 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
-              Texto do Capítulo Selecionado ({currentChapter.wordCount} palavras)
+              Texto do Capítulo Selecionado ({currentChapter?.wordCount || 0} palavras)
             </span>
-            {editingChapterId === currentChapter.id ? (
+            {editingChapterId === currentChapter?.id ? (
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   type="button"
@@ -1210,8 +1228,10 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setEditingChapterId(currentChapter.id);
-                  setEditingText(currentChapter.fullText);
+                  if (currentChapter) {
+                    setEditingChapterId(currentChapter.id);
+                    setEditingText(currentChapter.fullText || currentChapter.textSnippet || '');
+                  }
                 }}
                 style={{
                   display: 'flex',
@@ -1230,7 +1250,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
             )}
           </div>
 
-          {editingChapterId === currentChapter.id ? (
+          {editingChapterId === currentChapter?.id ? (
             <textarea
               value={editingText}
               onChange={(e) => setEditingText(e.target.value)}
@@ -1254,7 +1274,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
               maxHeight: 110,
               overflowY: 'auto'
             }}>
-              {currentChapter.fullText || currentChapter.textSnippet || 'Nenhum texto associado a este capítulo.'}
+              {currentChapter?.fullText || currentChapter?.textSnippet || 'Nenhum texto associado a este capítulo.'}
             </p>
           )}
         </div>
@@ -1374,17 +1394,17 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8' }}>
               <span>
-                {currentChapter.title} • {previewMode === 'mixed' ? 'Mixagem Cinematográfica' : 'Voz Pura Kokoro'}
+                {currentChapter?.title || 'Capítulo'} • {previewMode === 'mixed' ? 'Mixagem Cinematográfica' : 'Voz Pura Kokoro'}
               </span>
               <span>
-                {Math.floor(playbackCurrentTime / 60)}:{String(Math.floor(playbackCurrentTime % 60)).padStart(2, '0')} / {Math.floor((currentChapter.durationSeconds || 60) / 60)}:{String(Math.floor((currentChapter.durationSeconds || 60) % 60)).padStart(2, '0')}
+                {Math.floor(playbackCurrentTime / 60)}:{String(Math.floor(playbackCurrentTime % 60)).padStart(2, '0')} / {Math.floor((currentChapter?.durationSeconds || 60) / 60)}:{String(Math.floor((currentChapter?.durationSeconds || 60) % 60)).padStart(2, '0')}
               </span>
             </div>
 
             <input
               type="range"
               min="0"
-              max={currentChapter.durationSeconds || 60}
+              max={currentChapter?.durationSeconds || 60}
               step="0.5"
               value={playbackCurrentTime}
               onChange={(e) => {

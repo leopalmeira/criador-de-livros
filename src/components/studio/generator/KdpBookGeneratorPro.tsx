@@ -37,6 +37,7 @@ import { ColoringBookStudio } from '../coloring/ColoringBookStudio';
 import { AudiobookStudio } from '../audiobook/AudiobookStudio';
 import { MultiplatformPublishingModal } from '../publishing/MultiplatformPublishingModal';
 import { KdpTourGuideModal } from './KdpTourGuideModal';
+import { ErrorBoundary } from '../../common/ErrorBoundary';
 
 const newProjectId = () => newId('prj_');
 
@@ -993,61 +994,93 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
 
       if (ctx) {
         const img = await carregarElementoImagem(capaImgUrl);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // Corta os últimos 7% da base da imagem de fundo para eliminar 100% de marcas d'água ou logotipos externos
+        const srcW = img.naturalWidth || img.width || canvas.width;
+        const srcH = img.naturalHeight || img.height || canvas.height;
+        const cropH = Math.floor(srcH * 0.93);
+        ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
 
-        // Vinheta de gradiente para contraste da tipografia
+        // Vinheta de gradiente superior e central para contraste da tipografia
         const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        grad.addColorStop(0, 'rgba(0,0,0,0.8)');
-        grad.addColorStop(0.35, 'rgba(0,0,0,0.2)');
-        grad.addColorStop(0.65, 'rgba(0,0,0,0.2)');
-        grad.addColorStop(1, 'rgba(0,0,0,0.92)');
+        grad.addColorStop(0, 'rgba(0,0,0,0.88)');
+        grad.addColorStop(0.32, 'rgba(0,0,0,0.3)');
+        grad.addColorStop(0.68, 'rgba(0,0,0,0.25)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.95)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Título da Obra
+        // Vinheta profunda sólida no rodapé para blindar contra qualquer logotipo ou ruído
+        const footerGrad = ctx.createLinearGradient(0, canvas.height - 400, 0, canvas.height);
+        footerGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        footerGrad.addColorStop(0.35, 'rgba(5,7,10,0.85)');
+        footerGrad.addColorStop(1, '#05070a');
+        ctx.fillStyle = footerGrad;
+        ctx.fillRect(0, canvas.height - 400, canvas.width, 400);
+
+        // 1. Tag de Gênero / Selo Editorial no topo (Clean e Profissional de Best-Seller)
+        const getGenreTag = (gen: string, prem: string) => {
+          const g = (gen + ' ' + prem).toLowerCase();
+          if (g.includes('investiga') || g.includes('crime') || g.includes('forense') || g.includes('policia') || g.includes('misterio')) {
+            return 'UM THRILLER PSICOLÓGICO DE INVESTIGAÇÃO & SUSPENSE';
+          }
+          if (g.includes('terror') || g.includes('horror') || g.includes('fantasma') || g.includes('sombri')) {
+            return 'UMA NARRATIVA OBSCURA DE SUSPENSE & TERROR';
+          }
+          if (g.includes('psicologia') || g.includes('habito') || g.includes('produtiv') || g.includes('negocio') || g.includes('dinheiro') || g.includes('desenvolvimento')) {
+            return 'O GUIA DEFINITIVO • TRANSFORMAÇÃO & ALTA PERFORMANCE';
+          }
+          if (g.includes('romance') || g.includes('amor') || g.includes('paixao')) {
+            return 'UMA HISTÓRIA ARREBATADORA DE AMOR, SEGREDO & DESTINO';
+          }
+          if (g.includes('ficcao') || g.includes('sci-fi') || g.includes('espaco') || g.includes('futuro')) {
+            return 'UMA OBRA ÉPICA DE FICÇÃO & MISTÉRIO';
+          }
+          return 'BEST-SELLER EDITORIAL • EDIÇÃO OFICIAL KDP';
+        };
+
+        const tagGenero = getGenreTag(obraGenero, obraPremissa);
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 14;
         ctx.shadowColor = 'rgba(0,0,0,0.95)';
-        ctx.shadowBlur = 28;
-        ctx.font = 'bold 110px Georgia, serif';
+        ctx.font = 'bold 30px Georgia, serif';
+        ctx.fillStyle = '#fde68a'; // Dourado editorial suave
+        ctx.fillText(tagGenero, canvas.width / 2, 210);
+
+        // 2. Título da Obra (Tipografia cinematográfica imponente)
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.98)';
+        ctx.shadowBlur = 32;
+        ctx.font = 'bold 112px Georgia, serif';
         const linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), canvas.width - 200);
-        let yTit = 320;
+        let yTit = 380;
         linhasTitulo.forEach(l => {
           ctx.fillText(l, canvas.width / 2, yTit);
-          yTit += 130;
+          yTit += 132;
         });
 
-        // Linha divisória ornamental
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(canvas.width / 2 - 160, yTit + 20);
-        ctx.lineTo(canvas.width / 2 + 160, yTit + 20);
-        ctx.stroke();
-
-        // Subtítulo
+        // 3. Subtítulo com respiro editorial (SEM nenhuma linha horizontal atravessada)
         if (obraSubtitulo) {
           ctx.shadowBlur = 18;
-          ctx.font = 'italic 60px Georgia, serif';
+          ctx.font = 'italic 58px Georgia, serif';
           ctx.fillStyle = '#f1f5f9';
           const linhasSub = quebrarLinhas(ctx, obraSubtitulo, canvas.width - 240);
-          let ySub = yTit + 120;
+          let ySub = yTit + 80;
           linhasSub.forEach(l => {
             ctx.fillText(l, canvas.width / 2, ySub);
-            ySub += 75;
+            ySub += 76;
           });
         }
 
-        // Nome do Autor
-        ctx.shadowBlur = 20;
+        // 4. Nome do Autor com visual sofisticado de Best-seller
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = 'rgba(0,0,0,0.98)';
         ctx.font = 'bold 64px Georgia, serif';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(obraAutor.toUpperCase(), canvas.width / 2, canvas.height - 200);
+        ctx.fillText(obraAutor.toUpperCase(), canvas.width / 2, canvas.height - 180);
 
         const capaFinalBase64 = canvas.toDataURL('image/png');
         setCapaFinal(capaFinalBase64);
-        logDiag('Capa diagramada em 1600x2400 finalizada.');
+        logDiag('Capa diagramada em 1600x2400 finalizada com design editorial limpo.');
 
         // 3. GERAÇÃO AUTOMÁTICA DA IMAGEM PROMOCIONAL NARRATIVA + PÁGINA PROMOCIONAL
         setStatusMsg('✨ 3/3 Gerando Imagem Narrativa e Página Promocional Automática...');
@@ -1336,7 +1369,21 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
       }
 
       const projId = initialProject?.id || projectIdRef.current || `proj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-      const finalId = `final_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const finalId = `final_proj_${projId}`;
+
+      // Remove duplicatas pré-existentes do mesmo livro para garantir que apareça apenas 1 vez na Dashboard
+      try {
+        const existingBooks = await db.getAllFinalBooks();
+        const normTitle = livro.titulo.trim().toLowerCase().replace(/[^a-z0-9]/gi, '');
+        for (const eb of existingBooks) {
+          const ebNorm = (eb.title || '').trim().toLowerCase().replace(/[^a-z0-9]/gi, '');
+          if (eb.bookId === projId || (ebNorm && ebNorm === normTitle)) {
+            await db.deleteFinalBook(eb.id);
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao limpar duplicatas de finalBook:', e);
+      }
 
       const finalRec: FinalBookRecord = {
         id: finalId,
@@ -3602,14 +3649,16 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {/* ABA 6: AUDIOBOOK STUDIO (LIVRO -> AUDIOBOOK) */}
               {activeTab === 'audiobook' && (
                 <div style={{ maxHeight: 780, overflowY: 'auto' }}>
-                  <AudiobookStudio
-                    initialTitle={titulo}
-                    initialSubtitle={subtitulo}
-                    initialAuthor={autor}
-                    initialChapters={livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || []}
-                    capaUrl={capaFinal}
-                    onBack={() => setActiveTab('preview')}
-                  />
+                  <ErrorBoundary fallbackTitle="Audiobook Studio (Kokoro TTS)">
+                    <AudiobookStudio
+                      initialTitle={titulo}
+                      initialSubtitle={subtitulo}
+                      initialAuthor={autor}
+                      initialChapters={livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || []}
+                      capaUrl={capaFinal}
+                      onBack={() => setActiveTab('preview')}
+                    />
+                  </ErrorBoundary>
                 </div>
               )}
             </div>

@@ -10,13 +10,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle2, Download, Eye, FileText, AlertCircle, Trash2,
   BookOpen, Calendar, Clock, ShieldCheck, X, Sparkles, Layers,
-  FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw
+  FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { db } from '../../database/local-database';
 import type { FinalBookRecord, PendingItem } from '../../types/editorial-correction';
 import { buildKdpPdf } from '../../services/kdp-pdf-builder';
+import { SequenceCreationModal } from './publishing/SequenceCreationModal';
+import { SeriesBoxCreationModal } from './publishing/SeriesBoxCreationModal';
 
 export const FinalBooksShelf: React.FC = () => {
   const [books, setBooks] = useState<FinalBookRecord[]>([]);
@@ -25,6 +27,8 @@ export const FinalBooksShelf: React.FC = () => {
   const [selectedBookForReport, setSelectedBookForReport] = useState<FinalBookRecord | null>(null);
   const [selectedBookForPendings, setSelectedBookForPendings] = useState<FinalBookRecord | null>(null);
   const [viewingPdfUrl, setViewingPdfUrl] = useState<{ url: string; title: string } | null>(null);
+  const [sequenceBaseBook, setSequenceBaseBook] = useState<FinalBookRecord | null>(null);
+  const [boxBaseBook, setBoxBaseBook] = useState<FinalBookRecord | null>(null);
 
   // Carrega tanto livros finalizados do IndexedDB quanto projetos marcados como finalizados
   const loadBooks = useCallback(async () => {
@@ -110,8 +114,42 @@ export const FinalBooksShelf: React.FC = () => {
         }
       }
 
-      mergedList.sort((a, b) => b.finalizedAt - a.finalizedAt);
-      setBooks(mergedList);
+      // Desduplicação inteligente: mantém apenas 1 registro por título normalizado, preservando o mais recente
+      const dedupMap = new Map<string, FinalBookRecord>();
+      const duplicatesToDelete: string[] = [];
+
+      for (const b of mergedList) {
+        const normKey = (b.title || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/[^a-z0-9]/gi, '');
+        if (!normKey) continue;
+
+        const existing = dedupMap.get(normKey);
+        if (!existing) {
+          dedupMap.set(normKey, b);
+        } else {
+          // Já existe um livro com o mesmo título na estante
+          if ((b.finalizedAt || 0) > (existing.finalizedAt || 0)) {
+            // Este registro é mais recente, substitui e marca o antigo para exclusão
+            if (existing.id && !existing.id.startsWith('final_proj_')) {
+              duplicatesToDelete.push(existing.id);
+            }
+            dedupMap.set(normKey, b);
+          } else {
+            // O anterior já era mais recente, marca este duplicado para exclusão
+            if (b.id && !b.id.startsWith('final_proj_')) {
+              duplicatesToDelete.push(b.id);
+            }
+          }
+        }
+      }
+
+      // Limpa duplicatas em background no IndexedDB
+      if (duplicatesToDelete.length > 0) {
+        Promise.all(duplicatesToDelete.map(id => db.deleteFinalBook(id))).catch(e => console.warn(e));
+      }
+
+      const uniqueList = Array.from(dedupMap.values());
+      uniqueList.sort((a, b) => (b.finalizedAt || 0) - (a.finalizedAt || 0));
+      setBooks(uniqueList);
     } catch (err) {
       console.error('Erro ao carregar livros finalizados:', err);
     } finally {
@@ -890,6 +928,54 @@ export const FinalBooksShelf: React.FC = () => {
                       <FileText size={13} /> Relatório Editorial
                     </button>
                   )}
+
+                  {/* NOVO: CRIAR VOLUME 2 / SEQUÊNCIA */}
+                  <button
+                    type="button"
+                    onClick={() => setSequenceBaseBook(book)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '7px 12px',
+                      background: '#f0fdf4',
+                      color: '#15803d',
+                      border: '1px solid #bbf7d0',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Iniciar Volume 2 ou Volume 3 dando continuidade a esta história"
+                  >
+                    <Sparkles size={13} color="#16a34a" />
+                    <span>Criar Volume 2 / Sequência</span>
+                  </button>
+
+                  {/* NOVO: CRIAR BOX / TRILOGIA */}
+                  <button
+                    type="button"
+                    onClick={() => setBoxBaseBook(book)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '7px 12px',
+                      background: '#faf5ff',
+                      color: '#7e22ce',
+                      border: '1px solid #e9d5ff',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Empacotar esta obra em um Box / Trilogia para a Amazon KDP"
+                  >
+                    <Package size={13} color="#9333ea" />
+                    <span>Criar Box / Trilogia</span>
+                  </button>
                 </div>
 
                 <button
@@ -1049,6 +1135,23 @@ export const FinalBooksShelf: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL PARA CRIAÇÃO DE SEQUÊNCIA (VOLUME 2 OU VOLUME 3) */}
+      {sequenceBaseBook && (
+        <SequenceCreationModal
+          baseBook={sequenceBaseBook}
+          onClose={() => setSequenceBaseBook(null)}
+        />
+      )}
+
+      {/* MODAL PARA CRIAÇÃO DE BOX / TRILOGIA KDP */}
+      {boxBaseBook && (
+        <SeriesBoxCreationModal
+          baseBook={boxBaseBook}
+          availableBooks={books}
+          onClose={() => setBoxBaseBook(null)}
+        />
       )}
     </div>
   );
