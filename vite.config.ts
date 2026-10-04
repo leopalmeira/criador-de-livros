@@ -10,6 +10,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 function kdpAiBackendPlugin() {
   return {
     name: 'kdp-ai-backend-middleware',
+    apply: 'serve' as const,
     configureServer(server: any) {
       server.middlewares.use('/api/kdp-agents', async (req: any, res: any) => {
         if (req.method !== 'POST') {

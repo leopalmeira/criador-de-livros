@@ -9,6 +9,7 @@ import {
 } from '../src/services/project-state';
 import {
   CanonicalBookBible,
+  createBible,
   validateClothing,
   validateGeographic,
   validateKnowledge,
@@ -31,7 +32,7 @@ import {
   filterOriginalCandidates,
   compareCovers,
   validateCoverVariants,
-  CoverDescriptor
+  type CoverDescriptor
 } from '../src/services/similarity-engine';
 import {
   normalizeMarketItem,
@@ -119,10 +120,11 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
     original.title = 'Obra Matriz';
     await store.save(original);
 
-    const duplicata = await store.duplicate(original.projectId, 'Obra Matriz (Volume 2)');
-    expect(duplicata.projectId).not.toBe(original.projectId);
-    expect(duplicata.duplicatedFromProjectId).toBe(original.projectId);
-    expect(duplicata.title).toBe('Obra Matriz (Volume 2)');
+    const duplicata = store.duplicate(original.projectId, 'Obra Matriz (Volume 2)');
+    expect(duplicata).not.toBeNull();
+    expect(duplicata!.projectId).not.toBe(original.projectId);
+    expect(duplicata!.duplicatedFromProjectId).toBe(original.projectId);
+    expect(duplicata!.title).toBe('Obra Matriz (Volume 2)');
   });
 
   // 5. Autosave funciona por projectId
@@ -159,7 +161,7 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
         name: 'Marcos',
         startLocation: 'sala',
         endLocation: 'sala',
-        startClothing: ['smoking preto'], // Mudou de roupa sem motivo
+        startClothing: ['smoking preto'],
         endClothing: ['smoking preto']
       }]
     };
@@ -183,7 +185,7 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
       chapter: 2,
       characters: [{
         name: 'Helena',
-        startLocation: 'Paris', // Teletransporte sem transição explicada
+        startLocation: 'Paris',
         endLocation: 'Paris'
       }]
     };
@@ -210,7 +212,7 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
         name: 'Arthur',
         startLocation: 'sala',
         endLocation: 'sala',
-        actsOn: ['o mordomo é o assassino'] // Age sobre fato que não aprendeu
+        actsOn: ['o mordomo é o assassino']
       }]
     };
 
@@ -237,7 +239,7 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
         name: 'Diego',
         startLocation: 'sala',
         endLocation: 'sala',
-        startObjects: ['carteira'], // Perdeu 'chave mestra' sem explicação
+        startObjects: ['carteira'],
         endObjects: ['carteira']
       }]
     };
@@ -257,7 +259,7 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
 
     const snap2: ChapterSnapshot = {
       chapter: 2,
-      startMinute: 90, // Começa antes do fim do anterior sem ser flashback
+      startMinute: 90,
       endMinute: 150,
       flashback: false,
       characters: []
@@ -320,9 +322,9 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
   // 16. Página PDF em branco é detectada
   it('16. Página em branco inesperada é detectada pelo detector de páginas', () => {
     const pages: ExtractedPage[] = [
-      { page: 1, text: 'Capítulo 1 Introdução', width: 400, height: 600, lines: 1, hasImage: false, outOfBounds: 0, nearEdge: 0 },
-      { page: 2, text: '', width: 400, height: 600, lines: 0, hasImage: false, outOfBounds: 0, nearEdge: 0 }, // Em branco não intencional
-      { page: 3, text: 'Continuação da narrativa', width: 400, height: 600, lines: 1, hasImage: false, outOfBounds: 0, nearEdge: 0 }
+      { page: 1, text: 'Capítulo 1 Introdução', width: 400, height: 600, lines: ['Capítulo 1'], hasImage: false, outOfBounds: 0, nearEdge: 0 },
+      { page: 2, text: '', width: 400, height: 600, lines: [], hasImage: false, outOfBounds: 0, nearEdge: 0 },
+      { page: 3, text: 'Continuação da narrativa', width: 400, height: 600, lines: ['Continuação'], hasImage: false, outOfBounds: 0, nearEdge: 0 }
     ];
 
     const blanks = detectBlankPages(pages, []);
@@ -336,7 +338,7 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
   // 17. Texto cortado é detectado
   it('17. Texto fora da margem ou cortado é detectado no preflight', () => {
     const pages: ExtractedPage[] = [
-      { page: 1, text: 'Texto com extravasamento', width: 400, height: 600, lines: 5, hasImage: false, outOfBounds: 2, nearEdge: 0 }
+      { page: 1, text: 'Texto com extravasamento', width: 400, height: 600, lines: ['Linha 1'], hasImage: false, outOfBounds: 2, nearEdge: 0 }
     ];
 
     const preflight = preflightFromPages(pages);
@@ -346,7 +348,7 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
   // 18. Imagem ausente é detectada quando exigida
   it('18. Ausência de capa em livro finalizado é identificada no preflight', () => {
     const pages: ExtractedPage[] = [
-      { page: 1, text: 'Sumário Sem Capa', width: 400, height: 600, lines: 5, hasImage: false, outOfBounds: 0, nearEdge: 0 }
+      { page: 1, text: 'Sumário Sem Capa', width: 400, height: 600, lines: ['Linha 1'], hasImage: false, outOfBounds: 0, nearEdge: 0 }
     ];
 
     const preflight = preflightFromPages(pages, { coverRequired: true });
@@ -367,8 +369,8 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
   // 20. PDF final passa pelo preflight
   it('20. PDF válido e bem diagramado passa com sucesso pelo preflight', () => {
     const pages: ExtractedPage[] = [
-      { page: 1, text: 'Capa da Obra', width: 432, height: 648, lines: 1, hasImage: true, outOfBounds: 0, nearEdge: 0 },
-      { page: 2, text: 'O detetive caminhou pela rua deserta na noite chuvosa. Havia mistério em cada esquina.', width: 432, height: 648, lines: 2, hasImage: false, outOfBounds: 0, nearEdge: 0 }
+      { page: 1, text: 'Capa da Obra', width: 432, height: 648, lines: ['Capa'], hasImage: true, outOfBounds: 0, nearEdge: 0 },
+      { page: 2, text: 'O detetive caminhou pela rua deserta na noite chuvosa. Havia mistério em cada esquina.', width: 432, height: 648, lines: ['Capítulo 1'], hasImage: false, outOfBounds: 0, nearEdge: 0 }
     ];
 
     const preflight = preflightFromPages(pages, {
@@ -384,16 +386,20 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
   it('21. Capa excessivamente idêntica a variante anterior é rejeitada (Cover Similarity Engine)', () => {
     const cap1: CoverDescriptor = {
       palette: ['#0f172a', '#1e293b'],
-      composition: 'central-hero',
-      dominantStyle: 'cinematic',
-      perceptualHash: '1111222233334444'
+      composition: 'centralizada',
+      mainElement: 'cabana',
+      typography: 'serifada',
+      atmosphere: 'dark',
+      hash: '1111222233334444'
     };
 
     const cap2QuaseIdentica: CoverDescriptor = {
       palette: ['#0f172a', '#1e293b'],
-      composition: 'central-hero',
-      dominantStyle: 'cinematic',
-      perceptualHash: '1111222233334445'
+      composition: 'centralizada',
+      mainElement: 'cabana',
+      typography: 'serifada',
+      atmosphere: 'dark',
+      hash: '1111222233334445'
     };
 
     const comp = compareCovers(cap1, cap2QuaseIdentica);
@@ -418,7 +424,12 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
   it('23. Projeto antigo permanece 100% inalterado ao criar e salvar novo projeto', async () => {
     const antigo = createEmptyProjectState();
     antigo.title = 'Projeto Antigo Consolidado';
-    antigo.chapters = [{ index: 1, title: 'Cap 1', text: 'Texto original', versions: [], approved: true, wordCount: 100 }];
+    antigo.chapters = [{
+      index: 0,
+      approved: true,
+      currentVersion: 0,
+      versions: [{ version: 1, title: 'Capítulo 1', text: 'Texto original', createdAt: Date.now(), approved: true }]
+    }];
     await store.save(antigo);
 
     const novo = createEmptyProjectState();
@@ -428,20 +439,21 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
     const conferido = await store.open(antigo.projectId);
     expect(conferido?.title).toBe('Projeto Antigo Consolidado');
     expect(conferido?.chapters).toHaveLength(1);
-    expect(conferido?.chapters[0].title).toBe('Cap 1');
+    expect(conferido?.chapters[0].versions[0].text).toBe('Texto original');
   });
 
   // 24. Book Bible não é compartilhada entre projetos independentes
   it('24. Context Packer impede contaminação e rejeita Book Bible de outro projeto', () => {
-    const projA = createEmptyProjectState();
-    projA.projectId = 'prj_A_111';
-
     const projB = createEmptyProjectState();
     projB.projectId = 'prj_B_222';
     projB.bookBible = {
-      projectId: 'prj_ESTRANHO_999', // ID divergente do projeto
-      permanent: { characters: {}, locations: {}, objects: {}, facts: [] },
-      dynamicSnapshots: []
+      projectId: 'prj_ESTRANHO_999',
+      version: 1,
+      locked: false,
+      permanent: { characters: {}, worldRules: [], locations: [] },
+      geography: {},
+      facts: [],
+      factLedger: []
     };
 
     expect(() => {
@@ -452,23 +464,13 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
   // 56. TESTE DE REGRESSÃO COM "A CABANA"
   describe('56. Teste de Regressão com "A Cabana"', () => {
     it('Detecta inconsistências narrativas (teletransporte, roupa e vazamento de conhecimento) no enredo de "A Cabana"', () => {
-      const bibleCabana: CanonicalBookBible = {
-        projectId: 'proj_cabana_regressao',
-        permanent: {
-          characters: {
-            'mack': { name: 'Mack', role: 'protagonista', traits: ['luto', 'determinado'] }
-          },
-          locations: {
-            'cidade': { name: 'Cidade', description: 'Casa da família' },
-            'cabana': { name: 'Cabana', description: 'Local isolado' }
-          },
-          objects: {
-            'bilhete': { name: 'Bilhete', description: 'Bilhete misterioso' }
-          },
-          facts: []
-        },
-        dynamicSnapshots: []
+      const bibleCabana = createBible('proj_cabana_regressao');
+      bibleCabana.permanent.characters['mack'] = {
+        name: 'Mack',
+        appearance: ['barba por fazer', 'olhar cansado'],
+        personality: ['determinado']
       };
+      bibleCabana.permanent.locations = ['Cidade', 'Cabana'];
 
       const snapCap1: ChapterSnapshot = {
         chapter: 1,
@@ -488,13 +490,13 @@ describe('Suíte de Testes Obrigatórios do Prompt Mestre (Regras 1 a 64)', () =
         chapter: 2,
         characters: [{
           name: 'Mack',
-          startLocation: 'Cabana', // Teletransporte sem transição
+          startLocation: 'Cabana',
           endLocation: 'Cabana',
-          startClothing: ['camisa polo de verão'], // Mudança brusca sem justificativa
+          startClothing: ['camisa polo de verão'],
           endClothing: ['camisa polo de verão'],
-          startObjects: [], // Perdeu o bilhete misteriosamente
+          startObjects: [],
           endObjects: [],
-          actsOn: ['sabe a identidade secreta de quem enviou'] // Vazamento de conhecimento
+          actsOn: ['sabe a identidade secreta de quem enviou']
         }]
       };
 
