@@ -37,6 +37,16 @@ export const BookStudioApp: React.FC = () => {
     reloadProjects();
   }, [reloadProjects]);
 
+  // Keep-Alive Ping no Render enquanto a aba estiver aberta (a cada 5 min)
+  useEffect(() => {
+    const doPing = () => {
+      fetch('/ping').catch(() => {});
+    };
+    doPing();
+    const timer = setInterval(doPing, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Abrir projeto existente diretamente no Gerador KDP Pro
   const openProject = (projectId: string) => {
     const found = projects.find(p => p.id === projectId);

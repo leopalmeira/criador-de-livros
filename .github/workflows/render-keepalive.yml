@@ -1,0 +1,24 @@
+name: Render Keep-Alive Ping
+
+on:
+  schedule:
+    # Executa a cada 10 minutos para garantir que o Render nunca adormeça (limite Render: 15 min)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    name: Ping Render Web Service
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Book Intel KDP no Render
+        run: |
+          echo "Disparando Keep-Alive Ping para https://book-intel-kdp.onrender.com/ping..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 60 https://book-intel-kdp.onrender.com/ping || echo "FAILED")
+          echo "Status HTTP retornado: $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "✅ Render ativo e respondendo perfeitamente!"
+          else
+            echo "⚠️ Servidor respondeu com status $STATUS ou estava iniciando. Próxima checagem em 10 minutos."
+          fi

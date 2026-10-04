@@ -207,10 +207,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 1. Health checks do Render
-  if (pathname === '/health' || pathname === '/healthz' || pathname === '/api/health') {
+  // 1. Health checks e Keep-Alive Ping do Render
+  if (pathname === '/ping' || pathname === '/health' || pathname === '/healthz' || pathname === '/api/health') {
     return sendJson(res, 200, {
       status: 'ok',
+      ping: 'pong',
       service: 'Book Intel KDP',
       uptime: process.uptime(),
       timestamp: Date.now()
@@ -458,7 +459,38 @@ const server = http.createServer(async (req, res) => {
   res.end('Not Found');
 });
 
+// ================================================================
+// SISTEMA ANTI-SLEEP / KEEP-ALIVE PING PARA RENDER
+// Mantém o container do Render sempre ativo (ping a cada 10 min)
+// ================================================================
+function startKeepAlivePing() {
+  const externalUrl = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || 'https://book-intel-kdp.onrender.com';
+  const pingUrl = `${externalUrl.replace(/\/$/, '')}/ping`;
+  const PING_INTERVAL_MS = 10 * 60 * 1000; // 10 minutos (Render adormece com 15 min de inatividade)
+
+  console.log(`[Book Intel KDP] 🛡️ Keep-Alive Ping ativado: monitorando ${pingUrl} a cada 10 min`);
+
+  // Primeiro ping após 30 segundos
+  setTimeout(() => runPing(pingUrl), 30000);
+
+  // Pings contínuos
+  setInterval(() => runPing(pingUrl), PING_INTERVAL_MS);
+}
+
+async function runPing(url) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'BookIntel-KeepAlive-Ping/1.0' },
+      signal: AbortSignal.timeout(15000)
+    });
+    console.log(`[Keep-Alive Ping] 🟢 ${new Date().toLocaleTimeString('pt-BR')} - Ping para ${url} [Status ${res.status}]`);
+  } catch (err) {
+    console.warn(`[Keep-Alive Ping] 🟡 Aviso no ping para ${url}: ${err.message}`);
+  }
+}
+
 server.listen(PORT, HOST, () => {
   console.log(`[Book Intel KDP] Servidor Node online em http://${HOST}:${PORT}`);
   console.log(`[Book Intel KDP] Servindo frontend de ${DIST_DIR}`);
+  startKeepAlivePing();
 });

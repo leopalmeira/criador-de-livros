@@ -2,7 +2,7 @@
 // PDF_PREFLIGHT + BLANK_PAGE_DETECTOR
 // Núcleo puro (preflightFromPages) + wrapper que abre o PDF real com pdf.js.
 // ================================================================
-import { extractPages, openPdf, type ExtractedPage } from './kdp-pdf-validator';
+import type { ExtractedPage } from './kdp-pdf-validator';
 import type { AuditIssue, Severity } from './continuity-engine';
 import { worstSeverity } from './continuity-engine';
 
@@ -83,6 +83,7 @@ export function preflightFromPages(pages: ExtractedPage[], opts: PreflightOption
 
 /** Preflight sobre o PDF real. */
 export async function preflightPdf(bytes: Uint8Array, opts: PreflightOptions = {}): Promise<PreflightResult> {
+  const { openPdf, extractPages } = await import('./kdp-pdf-validator');
   const pdf = await openPdf(bytes);
   const pages = await extractPages(pdf);
   return preflightFromPages(pages, opts);

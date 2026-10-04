@@ -40,8 +40,9 @@ scratch/
 Thumbs.db
 
 # Storage e Sessões do Backend
-covers/
-data/
+/covers/
+/data/
+!src/data/
 
 # Repositórios Locais de Referência
 antigravity-kit-2.0/
