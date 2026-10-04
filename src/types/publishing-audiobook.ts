@@ -28,6 +28,13 @@ export interface AudiobookChapterItem {
   isStale?: boolean; // Verdadeiro se o texto do livro foi alterado após gerar o áudio
   lastGeneratedAt?: number;
   error?: string;
+  // Campos do Smart Sound Design e Multi-track
+  timelineEvents?: import('./audiobook-studio').SoundTimelineEvent[];
+  voiceBlobUrl?: string;
+  mixedBlobUrl?: string;
+  voiceBlob?: Blob;
+  mixedBlob?: Blob;
+  soundDesignAnalyzed?: boolean;
 }
 
 export interface AudiobookConfig {
