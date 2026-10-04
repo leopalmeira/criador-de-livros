@@ -85,6 +85,8 @@ function parseJsonBody(req) {
     });
     req.on('error', () => resolve({}));
   });
+}
+
 // ================================================================
 // MOTOR DE VOZ NEURAL HUMANA (AUDIOBOOK TTS STREAMING EM PT-BR)
 // ================================================================
