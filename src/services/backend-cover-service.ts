@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { getReplicateToken } from './replicate-service';
+import { getReplicateToken } from './replicate-service.ts';
 
 export interface BookCoverJobPayload {
   projectId: string;
