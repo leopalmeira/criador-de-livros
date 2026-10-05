@@ -140,6 +140,11 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'colorir' | 'audiobook'>('preview');
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
 
+  // Sistema de Eficiência Máxima de API (Modo Ultra Econômico Google Gemini)
+  const [modoEconomico, setModoEconomico] = useState(true);
+  const [tokensConsumidosTotal, setTokensConsumidosTotal] = useState(0);
+  const [custoEstimadoTotalBrl, setCustoEstimadoTotalBrl] = useState(0);
+
   // Sistema de Auto-Clique Automático do Botão de Continuar Geração
   const [autoClickCountdown, setAutoClickCountdown] = useState<number | null>(null);
   const [isAutoClicking, setIsAutoClicking] = useState(false);
@@ -485,7 +490,11 @@ Regras:
 
 Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explicações adicionais.`;
 
-      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.98 });
+      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.95, maxTokens: 300 });
+      if (resposta?.tokensTotal) {
+        setTokensConsumidosTotal(prev => prev + resposta.tokensTotal!);
+        setCustoEstimadoTotalBrl(prev => prev + (resposta.custoBrl || 0));
+      }
       const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
       const linhas = textoResp
         .split('\n')
@@ -496,7 +505,7 @@ Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explic
       const originais = filterOriginalCandidates(linhas, refTitles);
       const aceitas = originais.accepted.map(a => a.text);
       setOpcoesTitulos(aceitas.length > 0 ? aceitas : linhas);
-      logDiag(`${aceitas.length} títulos originais gerados e validados contra similaridade.`);
+      logDiag(`${aceitas.length} títulos originais gerados (${resposta.tokensTotal || 0} tokens usados).`);
     } catch (err: any) {
       logDiag(`Erro ao gerar títulos: ${err?.message}`);
     } finally {
@@ -529,7 +538,11 @@ REGRAS OBRIGATÓRIAS:
 
 Responda APENAS com as 5 opções completas, uma por linha, numeradas de 1 a 5, sem explicações adicionais.`;
 
-      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.92 });
+      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.90, maxTokens: 350 });
+      if (resposta?.tokensTotal) {
+        setTokensConsumidosTotal(prev => prev + resposta.tokensTotal!);
+        setCustoEstimadoTotalBrl(prev => prev + (resposta.custoBrl || 0));
+      }
       const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
       const linhas = textoResp
         .split('\n')
@@ -540,7 +553,7 @@ Responda APENAS com as 5 opções completas, uma por linha, numeradas de 1 a 5, 
       const originais = filterOriginalCandidates(linhas, refSubtitles);
       const aceitas = originais.accepted.map(a => a.text);
       setOpcoesSubtitulos(aceitas.length > 0 ? aceitas : linhas);
-      logDiag(`${aceitas.length} subtítulos originais gerados.`);
+      logDiag(`${aceitas.length} subtítulos originais gerados (${resposta.tokensTotal || 0} tokens usados).`);
     } catch (err: any) {
       logDiag(`Erro ao gerar subtítulos: ${err?.message}`);
     } finally {
@@ -569,7 +582,11 @@ Gere EXATAMENTE o seguinte objeto JSON:
 }
 Responda APENAS com o JSON puro, sem markdown e sem introduções.`;
 
-      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.85 });
+      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.85, maxTokens: 400 });
+      if (resposta?.tokensTotal) {
+        setTokensConsumidosTotal(prev => prev + resposta.tokensTotal!);
+        setCustoEstimadoTotalBrl(prev => prev + (resposta.custoBrl || 0));
+      }
       const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
       const cleanJson = textoResp.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
       const parsed = JSON.parse(cleanJson);
@@ -605,7 +622,11 @@ Subtema: ${subtemaSelecionado || 'Geral'}
 Título: "${titulo}"
 Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem explicações.`;
 
-      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.85 });
+      const resposta = await chamarGeminiTexto(prompt, { temperature: 0.85, maxTokens: 150 });
+      if (resposta?.tokensTotal) {
+        setTokensConsumidosTotal(prev => prev + resposta.tokensTotal!);
+        setCustoEstimadoTotalBrl(prev => prev + (resposta.custoBrl || 0));
+      }
       const textoResp = typeof resposta === 'string' ? resposta : (resposta?.texto || '');
       const limpo = textoResp.replace(/^["'\*]+|["'\*]+$/g, '').trim();
 
@@ -743,24 +764,28 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       }
 
       const num = i + 1;
-      setStatusMsg(`⏳ Escrevendo Capítulo ${num} de ${total} com Gemini 3.8/3.7...`);
+      const modeloLabel = modoEconomico ? 'Gemini Flash Lite (Ultra Econômico)' : 'Gemini Flash';
+      setStatusMsg(`⏳ Escrevendo Capítulo ${num} de ${total} com ${modeloLabel}...`);
       setStatusType('normal');
       setProgressPercent(Math.round((i / total) * 100));
-      logDiag(`Iniciando capítulo ${num}/${total}`);
+      logDiag(`Iniciando capítulo ${num}/${total} [Modo Econômico: ${modoEconomico ? 'SIM' : 'NÃO'}]`);
 
-      // Breve pausa preventiva de 1.2s para evitar limites de taxa (QPS)
+      // Breve pausa preventiva de 1.0s para evitar limites de taxa (QPS)
       if (i > inicio && tentativasConsecutivasCapitulo === 0) {
-        await new Promise(r => setTimeout(r, 1200));
+        await new Promise(r => setTimeout(r, 1000));
       }
 
       try {
-        const frasesArray = Array.from(frasesUsadas).slice(-25);
+        // MODO ULTRA ECONÔMICO: Mantém apenas 5 termos proibidos para poupar tokens de entrada
+        const frasesArray = Array.from(frasesUsadas).slice(modoEconomico ? -5 : -15);
 
-        // BÍBLIA NARRATIVA PROGRESSIVA (Story Progression Engine)
+        // BÍBLIA NARRATIVA PROGRESSIVA COMPACTA (Prompt Caching Friendly)
         let historicoEnredo = 'Início da narrativa.';
         if (livroBase.capitulos.length > 0) {
-          historicoEnredo = livroBase.capitulos.map((c, idx) => {
-            return `• Capítulo ${idx + 1} ("${c.titulo}"): ${extrairResumoContinuo(c.texto)}`;
+          const capsParaResumo = modoEconomico ? livroBase.capitulos.slice(-2) : livroBase.capitulos;
+          historicoEnredo = capsParaResumo.map((c, idx) => {
+            const numCap = livroBase.capitulos.length - capsParaResumo.length + idx + 1;
+            return `• Cap. ${numCap} ("${c.titulo}"): ${extrairResumoContinuo(c.texto)}`;
           }).join('\n');
         }
 
@@ -769,7 +794,7 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
           : null;
 
         const ganchoImediato = ultimoCapitulo
-          ? `O Capítulo anterior ("${ultimoCapitulo.titulo}") terminou com este trecho:\n"${ultimoCapitulo.texto.slice(-450)}"`
+          ? `O Capítulo anterior ("${ultimoCapitulo.titulo}") terminou com este trecho:\n"${ultimoCapitulo.texto.slice(-320)}"`
           : 'Primeira cena da obra.';
 
         let diretrizEstrutural = '';
@@ -781,56 +806,66 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
           diretrizEstrutural = `ESTE É O CAPÍTULO ${num} DE ${total} (PROGRESSÃO & TENSÃO): Conecte diretamente com o final do capítulo anterior, mantenha os mesmos personagens, aprofunde o conflito e aumente a tensão.`;
         }
 
-        let prompt = `Você é um escritor best-seller profissional de literatura na Amazon KDP.
-Escreva o CAPÍTULO ${num} de um livro de ${livroBase.genero} em ${livroBase.idioma}.
-
-━━━ DADOS FUNDAMENTAIS DA OBRA (NUNCA DESVIE DISTO) ━━━
-Título: ${livroBase.titulo}
-Subtítulo: ${livroBase.subtitulo}
-Autor: ${livroBase.autor}
-Premissa Central (Eixo Inegociável): ${topico}
-Gênero Literário: ${livroBase.genero}
-
-━━━ MEMÓRIA DA HISTÓRIA ATÉ AGORA (BÍBLIA DE ENREDO) ━━━
-${historicoEnredo}
-
-━━━ GANCHO DE TRANSIÇÃO DIRETA ━━━
-${ganchoImediato}
-
-━━━ DIRETRIZ NARRATIVA DO CAPÍTULO ${num} ━━━
-${diretrizEstrutural}
-
-━━━ REGRAS TÉCNICAS OBRIGATÓRIAS (ESTILO EDITORIAL KDP PROFISSIONAL) ━━━
+        // INSTRUÇÃO DO SISTEMA FIXA (Permite context caching no servidor do Google Gemini)
+        const systemInstruction = `Você é um escritor best-seller profissional de literatura na Amazon KDP.
+REGRAS TÉCNICAS OBRIGATÓRIAS (ESTILO EDITORIAL KDP):
 1. Escreva em torno de ${palavrasPorCap} palavras (mínimo ${Math.round(palavrasPorCap * 0.85)} palavras ricas em detalhes).
 2. COERÊNCIA TOTAL: Mantenha rigorosamente os mesmos personagens, cenários e tom. Não invente premissas contraditórias.
 3. PROIBIÇÃO ABSOLUTA DE METÁFORAS: Seja o livro infantil, jovem ou adulto, NUNCA use metáforas, floreios poéticos abstratos, analogias figuradas ou palavras em sentido metafórico. Todas as descrições de cenários, sentimentos, ações e diálogos devem ser totalmente literais, diretas, claras e realistas.
-4. VOCABULÁRIO POPULAR E COMUM: Evite estritamente palavras difíceis, rebuscadas, arcaicas, eruditas ou não populares ao se referir a coisas, artigos, pessoas, objetos, lugares e ações. Utilize palavras simples, naturais, amplamente conhecidas e populares do dia a dia da língua portuguesa, garantindo uma leitura fluida e acessível para qualquer pessoa.
+4. VOCABULÁRIO POPULAR E COMUM: Evite estritamente palavras difíceis, rebuscadas, arcaicas ou eruditas. Utilize palavras simples, naturais, amplamente conhecidas e populares do dia a dia da língua portuguesa.
 5. Não repita expressões ou diálogos clichês dos capítulos anteriores.
 6. Use diálogos dinâmicos, ações concretas, descrições sensoriais realistas e conflito ativo.
 7. Termine com um gancho forte (cliffhanger) conectando para o próximo capítulo (a menos que seja o capítulo final).
-8. Texto puro pronto para publicação. Não use asteriscos, markdown, nem notas explicativas de rodapé.
+8. Texto puro pronto para publicação. Não use asteriscos, markdown nem notas de rodapé.
 
 FORMATO ESTRITO:
 TITULO: Título Criativo e Impactante do Capítulo ${num}
 TEXTO:
 (Parágrafos da história separados por linha em branco)`;
 
-        if (frasesArray.length > 0) {
-          prompt += `\n\nEVITE REPETIR AS SEGUINTES FRASES:\n${frasesArray.map(f => `- ${f}`).join('\n')}`;
+        // PROMPT DO USUÁRIO ENXUTO E DIRETO
+        let prompt = `━━━ DADOS DA OBRA ━━━
+Título: "${livroBase.titulo}" | Subtítulo: "${livroBase.subtitulo}"
+Autor: ${livroBase.autor} | Gênero: ${livroBase.genero} (${livroBase.idioma})
+Premissa Central: ${topico}
+
+━━━ DIRETRIZ DO CAPÍTULO ${num} DE ${total} ━━━
+${diretrizEstrutural}
+
+━━━ GANCHO DE TRANSIÇÃO DIRETA ━━━
+${ganchoImediato}`;
+
+        if (historicoEnredo && historicoEnredo !== 'Início da narrativa.') {
+          prompt += `\n\n━━━ CONTINUIDADE DOS CAPÍTULOS ANTERIORES ━━━\n${historicoEnredo}`;
         }
+
+        if (frasesArray.length > 0) {
+          prompt += `\n\nEVITE REPETIR AS SEGUINTES EXPRESSÕES:\n${frasesArray.map(f => `- ${f}`).join('\n')}`;
+        }
+
+        // Limite de saída dinâmico calibrado (impede alocação ou divagações excessivas)
+        const maxTokensCapitulo = modoEconomico
+          ? Math.min(3000, Math.max(1200, Math.round(palavrasPorCap * 2.2)))
+          : Math.min(4500, Math.round(palavrasPorCap * 2.8));
 
         const res = await chamarGeminiTexto(prompt, {
           temperature: 0.88,
-          maxTokens: 8192,
-          maxRetries: 3,
+          maxTokens: maxTokensCapitulo,
+          systemInstruction,
+          maxRetries: 2,
           onStatusUpdate: (msg) => {
             setStatusMsg(msg);
             logDiag(msg);
           },
-          onAttemptModel: () => {
-            logDiag(`Capítulo ${num}: gerando narrativa com motor editorial...`);
+          onAttemptModel: (mod) => {
+            logDiag(`Capítulo ${num}: gerando narrativa com ${mod}...`);
           }
         });
+
+        if (res.tokensTotal) {
+          setTokensConsumidosTotal(prev => prev + res.tokensTotal!);
+          setCustoEstimadoTotalBrl(prev => prev + (res.custoBrl || 0));
+        }
 
         const cap = parseCapitulo(res.texto, num);
 
@@ -2748,6 +2783,60 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 />
                 Incluir sumário diagramado com numeração KDP
               </label>
+            </div>
+
+            {/* PAINEL DE EFICIÊNCIA DE CUSTO & MODO ULTRA ECONÔMICO */}
+            <div style={{
+              background: modoEconomico ? '#f0fdf4' : '#f8fafc',
+              border: `1px solid ${modoEconomico ? '#86efac' : '#e2e8f0'}`,
+              borderRadius: 8,
+              padding: '10px 12px',
+              marginBottom: 16
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: modoEconomico ? '#15803d' : '#334155', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={modoEconomico}
+                    onChange={(e) => setModoEconomico(e.target.checked)}
+                  />
+                  <span>⚡ Modo Ultra Econômico (Google Gemini)</span>
+                </label>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  background: modoEconomico ? '#dcfce7' : '#e2e8f0',
+                  color: modoEconomico ? '#166534' : '#64748b',
+                  padding: '2px 6px',
+                  borderRadius: 4
+                }}>
+                  {modoEconomico ? 'Até 75% Menos Custo' : 'Padrão'}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: 11, color: '#64748b', lineHeight: 1.4 }}>
+                {modoEconomico
+                  ? 'Ativa Gemini 3.5 Flash Lite com supressão de tokens de raciocínio, limites dinâmicos de saída e cache inteligente. Custo médio estimado: ~R$ 0,15 por livro.'
+                  : 'Modo padrão sem restrição de tokens de saída.'}
+              </p>
+
+              {tokensConsumidosTotal > 0 && (
+                <div style={{
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: '1px dashed #cbd5e1',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: 11
+                }}>
+                  <span style={{ color: '#475569' }}>
+                    Tokens usados nesta sessão: <strong>{tokensConsumidosTotal.toLocaleString('pt-BR')}</strong>
+                  </span>
+                  <span style={{ fontWeight: 700, color: '#166534' }}>
+                    ~R$ {custoEstimadoTotalBrl.toFixed(3)}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* BOTÕES DE CONTROLE DA PRODUÇÃO */}

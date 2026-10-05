@@ -36,7 +36,7 @@ export async function defaultAiCall(prompt: string, opts: AiCallOptions = {}): P
   const { chamarGeminiTexto } = await import('./kdp-ai-engine');
   return chamarGeminiTexto(prompt, {
     temperature: opts.temperature ?? 0.2,
-    maxTokens: opts.maxTokens ?? 8192,
+    maxTokens: opts.maxTokens ?? 2500,
     maxRetries: 2,
     systemInstruction: opts.system,
   });
@@ -440,7 +440,7 @@ export async function correctChapter(
         previousTail: b > 0 ? outBlocks[b - 1].text.slice(-220) : undefined,
         strictReasons: v > 0 ? reasons : undefined,
       });
-      const resp = await callWithRetry(ai, prompt, { system: CORRECTOR_SYSTEM, temperature: v === 0 ? 0.2 : 0.1, maxTokens: 8192 }, cfg, hooks.shouldStop, hooks.onStatus);
+      const resp = await callWithRetry(ai, prompt, { system: CORRECTOR_SYSTEM, temperature: v === 0 ? 0.2 : 0.1, maxTokens: 2500 }, cfg, hooks.shouldStop, hooks.onStatus);
       model = resp.modelo;
       const parsed = parseAiBlock(resp.texto);
       if (!parsed) { reasons = ['formato inválido (faltam marcadores <<<TEXTO>>> / <<<FIM>>>)']; continue; }

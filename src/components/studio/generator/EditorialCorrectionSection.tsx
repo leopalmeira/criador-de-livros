@@ -65,6 +65,9 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
   const shouldStopRef = useRef(false);
   const bookId = computeBookId(livro);
 
+  // Modo Econômico Zero Tokens na Revisão Editorial (usa regras determinísticas locais com 0 chamadas de API)
+  const [usarModoZeroTokens, setUsarModoZeroTokens] = useState(true);
+
   // Carrega job existente e livro finalizado ao montar ou mudar livro
   const loadExistingState = useCallback(async () => {
     try {
@@ -102,7 +105,9 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
     shouldStopRef.current = false;
     setIsRunning(true);
     setProgressPercent(forceRestart ? 1 : (job ? Math.round((job.chapters.filter(c => c.status === 'corrigido_salvo' || c.status === 'pendente_autor').length / Math.max(1, job.chapters.length)) * 60) : 1));
-    setCurrentStageMessage('Iniciando pipeline de correção editorial capítulo a capítulo...');
+    setCurrentStageMessage(usarModoZeroTokens 
+      ? 'Iniciando revisão determinística ultra-rápida local (0 tokens de API)...' 
+      : 'Iniciando pipeline de correção editorial capítulo a capítulo com Gemini...');
 
     try {
       const res = await runEditorialPipeline({
@@ -110,7 +115,7 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
         capaDataUrl: capaFinal,
         config: pipelineConfig,
         premissa: topico,
-        ai: defaultAiCall,
+        ai: usarModoZeroTokens ? null : defaultAiCall,
         store: indexedDbStore,
         forceRestart,
         shouldStop: () => shouldStopRef.current,
@@ -425,6 +430,31 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
             </button>
           ) : (
             <>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 12px',
+                  background: usarModoZeroTokens ? '#f0fdf4' : '#f8fafc',
+                  border: `1px solid ${usarModoZeroTokens ? '#86efac' : '#cbd5e1'}`,
+                  borderRadius: 8,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: usarModoZeroTokens ? '#166534' : '#475569',
+                  cursor: 'pointer',
+                  userSelect: 'none'
+                }}
+                title="Aplica regras determinísticas de ortografia, acentuação, diálogos e paragrafação localmente sem gastar tokens da API Google"
+              >
+                <input
+                  type="checkbox"
+                  checked={usarModoZeroTokens}
+                  onChange={(e) => setUsarModoZeroTokens(e.target.checked)}
+                />
+                ⚡ Zero Tokens (Revisão Local)
+              </label>
+
               <button
                 type="button"
                 onClick={() => handleStartCorrection(false)}

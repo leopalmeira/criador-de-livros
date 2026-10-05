@@ -17,12 +17,10 @@ export const MODELOS_OPENROUTER = [
 ];
 
 export const MODELOS_GEMINI = [
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite"
+  "gemini-3.5-flash-lite", // Modelo Lite mais econômico da Google (custo ~60% menor, sem overhead de reasoning)
+  "gemini-flash-latest",   // Fallback Flash balanceado de alta velocidade
+  "gemini-3.8-flash",      // Fallback Flash avançado (com thinkingBudget: 0 configurado para poupar tokens)
+  "gemini-3.5-flash"       // Fallback de contingência
 ];
 
 export const MODELOS_IMAGEM_GEMINI = [
@@ -191,7 +189,38 @@ export async function chamarOpenRouterTexto(
   return null;
 }
 
-// Chamada oficial de texto com Google Gemini (chaves e modelos oficiais)
+// Cache em memória de prompts recentes (TTL 15 min) para evitar cobranças de tokens duplicadas
+interface CachedPromptEntry {
+  texto: string;
+  modelo: string;
+  tokensPrompt: number;
+  tokensOutput: number;
+  tokensTotal: number;
+  custoBrl: number;
+  timestamp: number;
+}
+const geminiPromptCache = new Map<string, CachedPromptEntry>();
+
+export function calcularCustoAproximadoBrl(promptTokens: number, outputTokens: number, modelo: string = 'gemini-3.5-flash-lite'): number {
+  // Preços oficiais Google Gemini Flash Lite: ~$0.075/1M input, ~$0.30/1M output (cotação USD/BRL ~5.70)
+  const isLite = modelo.includes('lite');
+  const precoInput1M = isLite ? 0.075 : 0.20;
+  const precoOutput1M = isLite ? 0.30 : 0.80;
+  const custoUsd = ((promptTokens / 1_000_000) * precoInput1M) + ((outputTokens / 1_000_000) * precoOutput1M);
+  return custoUsd * 5.70;
+}
+
+export interface GeminiTextoResult {
+  texto: string;
+  modelo: string;
+  tokensPrompt?: number;
+  tokensOutput?: number;
+  tokensTotal?: number;
+  custoBrl?: number;
+  cached?: boolean;
+}
+
+// Chamada oficial de texto com Google Gemini otimizada para eficiência máxima de custos
 export async function chamarGeminiTexto(
   prompt: string,
   options: {
@@ -199,17 +228,38 @@ export async function chamarGeminiTexto(
     maxTokens?: number;
     maxRetries?: number;
     systemInstruction?: string;
+    bypassCache?: boolean;
     onAttemptModel?: (model: string) => void;
     onStatusUpdate?: (status: string) => void;
   } = {}
-): Promise<{ texto: string; modelo: string }> {
+): Promise<GeminiTextoResult> {
   const temperature = options.temperature ?? 0.85;
-  const maxTokens = options.maxTokens ?? 8192;
-  const maxRetries = options.maxRetries ?? 3;
+  const maxTokens = options.maxTokens ?? 3200; // Limite calibrado para evitar desperdício de tokens
+  const maxRetries = options.maxRetries ?? 2;
   const keys = getAvailableApiKeys();
 
   if (keys.length === 0) {
     throw new Error('Nenhuma chave de API do Gemini configurada.');
+  }
+
+  // 1. Verificação de Cache Local para evitar requisições idênticas repetidas (0 tokens)
+  const cacheKey = `${prompt}__${options.systemInstruction || ''}__${maxTokens}`;
+  if (!options.bypassCache && geminiPromptCache.has(cacheKey)) {
+    const cached = geminiPromptCache.get(cacheKey)!;
+    // Validade de 15 minutos
+    if (Date.now() - cached.timestamp < 15 * 60 * 1000) {
+      return {
+        texto: cached.texto,
+        modelo: `${cached.modelo} (Cache 0 tokens)`,
+        tokensPrompt: 0,
+        tokensOutput: 0,
+        tokensTotal: 0,
+        custoBrl: 0,
+        cached: true
+      };
+    } else {
+      geminiPromptCache.delete(cacheKey);
+    }
   }
 
   let lastError = '';
@@ -217,18 +267,26 @@ export async function chamarGeminiTexto(
   for (const modelo of MODELOS_GEMINI) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       if (options.onAttemptModel) {
-        options.onAttemptModel('Motor Editorial');
+        options.onAttemptModel(modelo.includes('lite') ? 'Motor Flash Lite (Econômico)' : 'Motor Editorial');
       }
 
       for (const key of keys) {
         try {
+          const isThinkingModel = modelo.includes('3.8') || modelo.includes('pro');
+          const generationConfig: Record<string, any> = {
+            temperature,
+            topP: 0.95,
+            maxOutputTokens: maxTokens
+          };
+
+          // Suprime tokens de pensamento invisíveis nos modelos com reasoning (economiza centenas de tokens por chamada)
+          if (isThinkingModel) {
+            generationConfig.thinkingConfig = { thinkingBudget: 0 };
+          }
+
           const body: Record<string, any> = {
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature,
-              topP: 0.95,
-              maxOutputTokens: maxTokens
-            },
+            generationConfig,
             safetySettings: [
               { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
               { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
@@ -237,6 +295,7 @@ export async function chamarGeminiTexto(
             ]
           };
 
+          // Instrução do sistema enviada separadamente para permitir o Context Caching do Google
           if (options.systemInstruction) {
             body.systemInstruction = {
               parts: [{ text: options.systemInstruction }]
@@ -263,9 +322,9 @@ export async function chamarGeminiTexto(
             // 503 ou 429: alta demanda momentânea
             if (response.status === 503 || response.status === 429) {
               if (attempt < maxRetries) {
-                const waitMs = 1600 * attempt;
+                const waitMs = 1500 * attempt;
                 if (options.onStatusUpdate) {
-                  options.onStatusUpdate(`⏳ Sistema com alta demanda. Aguardando ${(waitMs / 1000).toFixed(1)}s para retentativa...`);
+                  options.onStatusUpdate(`⏳ Alta demanda na Google API. Aguardando ${(waitMs / 1000).toFixed(1)}s para retentativa...`);
                 }
                 await new Promise(r => setTimeout(r, waitMs));
                 continue;
@@ -284,12 +343,43 @@ export async function chamarGeminiTexto(
 
           const texto = cand?.content?.parts?.map((p: any) => p.text || '').join('') || '';
           if (texto.trim()) {
-            return { texto: texto.trim(), modelo: 'Motor Editorial IA' };
+            const usage = data?.usageMetadata;
+            const promptTokens = usage?.promptTokenCount || 0;
+            const outputTokens = usage?.candidatesTokenCount || 0;
+            const totalTokens = usage?.totalTokenCount || (promptTokens + outputTokens);
+            const custoBrl = calcularCustoAproximadoBrl(promptTokens, outputTokens, modelo);
+
+            // Armazenar no cache para reuso gratuito caso a mesma chamada ocorra
+            geminiPromptCache.set(cacheKey, {
+              texto: texto.trim(),
+              modelo,
+              tokensPrompt: promptTokens,
+              tokensOutput: outputTokens,
+              tokensTotal: totalTokens,
+              custoBrl,
+              timestamp: Date.now()
+            });
+
+            // Limitar tamanho do cache a 100 entradas
+            if (geminiPromptCache.size > 100) {
+              const firstKey = geminiPromptCache.keys().next().value;
+              if (firstKey) geminiPromptCache.delete(firstKey);
+            }
+
+            return {
+              texto: texto.trim(),
+              modelo: modelo.includes('lite') ? 'Gemini Flash Lite (Ultra Econômico)' : 'Gemini Flash',
+              tokensPrompt: promptTokens,
+              tokensOutput: outputTokens,
+              tokensTotal: totalTokens,
+              custoBrl,
+              cached: false
+            };
           }
         } catch (err: any) {
           lastError = err.message || 'Falha de conexão';
           if (attempt < maxRetries) {
-            await new Promise(r => setTimeout(r, 1200));
+            await new Promise(r => setTimeout(r, 1000));
           }
         }
       }
