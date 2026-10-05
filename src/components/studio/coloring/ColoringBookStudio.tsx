@@ -113,7 +113,7 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
 
     const targetPage = pages[pageIndex];
     setGeneratingPageId(pageId);
-    setStatusMsg(`Gerando ${targetPage.isCover ? 'a Capa Colorida' : `os traços da Página ${targetPage.pageNumber}`} com modelo Google Imagen 3...`);
+    setStatusMsg(`Gerando ${targetPage.isCover ? 'a Capa Colorida' : `os traços da Página ${targetPage.pageNumber}`} com motor FLUX (Replicate)...`);
 
     try {
       const dataUrl = await gerarIlustracaoPaginaColorir(

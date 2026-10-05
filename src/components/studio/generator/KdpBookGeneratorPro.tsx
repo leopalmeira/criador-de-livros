@@ -3,7 +3,7 @@ import {
   BookOpen, Sparkles, Plus, Download, Copy, Save, Eye,
   Play, Square, RefreshCw, Trash2, ArrowLeft, Check, Layers,
   Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight,
-  ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe
+  ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -37,6 +37,7 @@ import { ColoringBookStudio } from '../coloring/ColoringBookStudio';
 import { AudiobookStudio } from '../audiobook/AudiobookStudio';
 import { MultiplatformPublishingModal } from '../publishing/MultiplatformPublishingModal';
 import { KdpTourGuideModal } from './KdpTourGuideModal';
+import { KdpPageReviewerModal } from './KdpPageReviewerModal';
 import { ErrorBoundary } from '../../common/ErrorBoundary';
 import {
   SilhuetaMarginalConfig,
@@ -152,6 +153,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
 
   // Modal de Tour Guiado de Cada Função
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
+
+  // Modal do Revisor Editorial Página por Página (Folhear & Validar Finais de Frase)
+  const [isPageReviewerOpen, setIsPageReviewerOpen] = useState(false);
 
   // Sistema de Auditoria & Verificação em 1 Clique
   const [auditReport, setAuditReport] = useState<FullBookVerificationReport | null>(null);
@@ -801,7 +805,7 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
         if (num === 1) {
           diretrizEstrutural = 'ESTE É O PRIMEIRO CAPÍTULO: Apresente o protagonista, estabeleça o cenário, o tom e o incidente incitante.';
         } else if (num === total) {
-          diretrizEstrutural = 'ESTE É O CAPÍTULO FINAL (CLÍMAX & DESFECHO): Confronte o conflito principal, resolva os mistérios pendentes e entregue uma conclusão completa e inesquecível.';
+          diretrizEstrutural = 'ESTE É O CAPÍTULO FINAL DA OBRA INTEIRA (CLÍMAX, DESFECHO & EPÍLOGO): Confronte o conflito principal, resolva todos os mistérios pendentes e entregue uma conclusão completa, definitiva e memorável. O último parágrafo DEVE encerrar a história de forma plena e terminar com uma frase 100% finalizada com ponto final (.).';
         } else {
           diretrizEstrutural = `ESTE É O CAPÍTULO ${num} DE ${total} (PROGRESSÃO & TENSÃO): Conecte diretamente com o final do capítulo anterior, mantenha os mesmos personagens, aprofunde o conflito e aumente a tensão.`;
         }
@@ -816,7 +820,9 @@ REGRAS TÉCNICAS OBRIGATÓRIAS (ESTILO EDITORIAL KDP):
 5. Não repita expressões ou diálogos clichês dos capítulos anteriores.
 6. Use diálogos dinâmicos, ações concretas, descrições sensoriais realistas e conflito ativo.
 7. Termine com um gancho forte (cliffhanger) conectando para o próximo capítulo (a menos que seja o capítulo final).
-8. Texto puro pronto para publicação. Não use asteriscos, markdown nem notas de rodapé.
+8. REGRA INEGOCIÁVEL DE FECHAMENTO COMPLETO: NUNCA pare no meio de uma frase, nunca corte palavras e nunca deixe reticências abertas. O último parágrafo DEVE obrigatoriamente terminar com uma frase 100% finalizada com ponto final (.), exclamação (!) ou interrogação (?).
+${num === total ? '9. DESFECHO DEFINITIVO: Este é o encerramento do livro completo. A obra DEVE ter conclusão definitiva, com último parágrafo finalizado perfeitamente com ponto final (.), sem deixar nenhuma frase cortada ou em aberto.' : ''}
+10. Texto puro pronto para publicação. Não use asteriscos, markdown nem notas de rodapé.
 
 FORMATO ESTRITO:
 TITULO: Título Criativo e Impactante do Capítulo ${num}
@@ -843,10 +849,10 @@ ${ganchoImediato}`;
           prompt += `\n\nEVITE REPETIR AS SEGUINTES EXPRESSÕES:\n${frasesArray.map(f => `- ${f}`).join('\n')}`;
         }
 
-        // Limite de saída dinâmico calibrado (impede alocação ou divagações excessivas)
+        // Folga generosa de tokens para que o modelo NUNCA sofra corte prematuro (MAX_TOKENS)
         const maxTokensCapitulo = modoEconomico
-          ? Math.min(3000, Math.max(1200, Math.round(palavrasPorCap * 2.2)))
-          : Math.min(4500, Math.round(palavrasPorCap * 2.8));
+          ? Math.max(3500, Math.round(palavrasPorCap * 3.5))
+          : Math.max(6000, Math.min(8192, Math.round(palavrasPorCap * 4.2)));
 
         const res = await chamarGeminiTexto(prompt, {
           temperature: 0.88,
@@ -867,7 +873,7 @@ ${ganchoImediato}`;
           setCustoEstimadoTotalBrl(prev => prev + (res.custoBrl || 0));
         }
 
-        const cap = parseCapitulo(res.texto, num);
+        const cap = parseCapitulo(res.texto, num, total);
 
         // Extrair frases para evitar repetições nos próximos capítulos
         cap.texto.split(/[.!?]\s+/).forEach(f => {
@@ -995,15 +1001,53 @@ ${ganchoImediato}`;
     setGerando(false);
   };
 
-  const parseCapitulo = (txt: string, num: number): Capitulo => {
+  const assegurarConclusaoCapitulo = (texto: string, isUltimoCapitulo: boolean): string => {
+    let t = texto.trim();
+    if (!t) return t;
+
+    // Se o texto não termina com pontuação terminal (. ! ? " ” »)
+    const terminaComPontuacao = /[.!?…"”»]$/.test(t);
+
+    if (!terminaComPontuacao) {
+      // O texto foi cortado prematuramente no final: localiza o último ponto terminal completo
+      const ultimoPonto = Math.max(
+        t.lastIndexOf('.'),
+        t.lastIndexOf('!'),
+        t.lastIndexOf('?')
+      );
+
+      // Se houver um ponto terminal nos últimos 350 caracteres, preserva até ele para não deixar fragmento quebrado
+      if (ultimoPonto > 0 && ultimoPonto > t.length - 350) {
+        t = t.substring(0, ultimoPonto + 1).trim();
+      } else {
+        // Caso contrário, fecha a frase com ponto final gramatical
+        t = t + '.';
+      }
+    }
+
+    // Se for o último capítulo da obra inteira, assegurar um desfecho digno e ponto final
+    if (isUltimoCapitulo) {
+      if (!/[.!?]$/.test(t)) {
+        t = t + '.';
+      }
+    }
+
+    return t;
+  };
+
+  const parseCapitulo = (txt: string, num: number, totalCaps?: number): Capitulo => {
     const mt = txt.match(/TITULO:\s*(.+)/i);
     const mx = txt.match(/TEXTO:\s*([\s\S]+)/i);
     let texto = mx ? mx[1].trim() : txt.trim();
     texto = texto.replace(/^TITLE:\s*.+$/im, '').replace(/^TEXT:\s*/im, '')
-      .replace(/^TITULO:\s*.+$/im, '').replace(/^TEXTO:\s*/im, '');
+      .replace(/^TITULO:\s*.+$/im, '').replace(/^TEXTO:\s*/im, '').trim();
+
+    // GARANTE INTEGRIDADE DO FINAL: impede término com frase cortada ou palavras faltando
+    texto = assegurarConclusaoCapitulo(texto, totalCaps ? num === totalCaps : false);
+
     return {
       titulo: mt ? mt[1].trim() : `Capítulo ${num}`,
-      texto: texto.trim()
+      texto
     };
   };
 
@@ -1022,12 +1066,12 @@ ${ganchoImediato}`;
     const obraPremissa = topico.trim();
     const trechoAmostra = livro?.capitulos?.slice(0, 3).map(c => c.texto).join(' ').slice(0, 1000) || obraPremissa;
 
-    setStatusMsg('🎨 1/3 Gerando ilustração da Capa com Imagen 3...');
+    setStatusMsg('🎨 1/3 Gerando ilustração da Capa com motor FLUX (Replicate)...');
     setStatusType('normal');
-    logDiag('Iniciando geração da capa com Imagen 3');
+    logDiag('Iniciando geração da capa com motor FLUX (Replicate)');
 
     try {
-      // 1. ILUSTRAÇÃO DA CAPA (IMAGEN 3 / REPLICATE)
+      // 1. ILUSTRAÇÃO DA CAPA (MOTOR EXCLUSIVO FLUX / REPLICATE)
       const promptCapa = `Book cover background illustration, clean artwork, NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON, NO FAKE LABELS.
 Genre: ${obraGenero}
 Atmosphere: ${obraPremissa}
@@ -1587,6 +1631,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
         chaptersCount: livro.capitulos.length,
         chapters: livro.capitulos.map(c => ({ titulo: c.titulo, texto: c.texto })),
         manuscriptText: livro.capitulos.map((c, i) => `\n\n### Capítulo ${i + 1}: ${c.titulo}\n\n${c.texto}`).join(''),
+        promoData: promoData || undefined,
         report: {
           generatedAt: Date.now(),
           bookTitle: livro.titulo,
@@ -1862,7 +1907,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 border: '1px solid #bfdbfe'
               }}
             >
-              GEMINI 3.8 FLASH & IMAGEN 3
+              GEMINI 3.8 FLASH & MOTOR FLUX (REPLICATE)
             </span>
           </div>
         </div>
@@ -3510,6 +3555,47 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     )}
                   </div>
 
+                  {livro && livro.capitulos.length > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 12,
+                        padding: '10px 14px',
+                        background: '#f8fafc',
+                        borderRadius: 8,
+                        border: '1px solid #cbd5e1'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1e293b', fontWeight: 600 }}>
+                        <CheckCircle2 size={16} color="#16a34a" />
+                        <span>Manuscrito: {livro.capitulos.length} capítulos ({livro.capitulos.reduce((acc, c) => acc + (c.texto?.split(/\s+/).filter(Boolean).length || 0), 0)} palavras)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsPageReviewerOpen(true)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '7px 16px',
+                          borderRadius: 6,
+                          background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
+                        }}
+                        title="Abrir revisor interativo para folhear e validar cada página antes de gerar o PDF"
+                      >
+                        <BookOpen size={14} /> 📖 Folhear Página por Página
+                      </button>
+                    </div>
+                  )}
+
                   <div
                     ref={previewScrollRef}
                     style={{
@@ -4180,6 +4266,29 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   type="button"
+                  onClick={() => setIsPageReviewerOpen(true)}
+                  disabled={!livro || livro.capitulos.length === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 16px',
+                    borderRadius: 6,
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
+                  }}
+                  title="Folhear e inspecionar cada página individualmente antes de gerar o PDF"
+                >
+                  <BookOpen size={15} /> 📖 Revisar Página por Página
+                </button>
+
+                <button
+                  type="button"
                   onClick={baixarPDF}
                   disabled={!livro || livro.capitulos.length === 0}
                   style={{
@@ -4420,6 +4529,57 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         onClose={() => setIsTourModalOpen(false)}
         onNavigateToTab={(t) => setActiveTab(t as any)}
       />
+
+      {/* MODAL DO REVISOR EDITORIAL PÁGINA POR PÁGINA */}
+      {isPageReviewerOpen && livro && (
+        <KdpPageReviewerModal
+          isOpen={isPageReviewerOpen}
+          onClose={() => setIsPageReviewerOpen(false)}
+          livro={{
+            titulo: livro.titulo,
+            subtitulo: livro.subtitulo,
+            autor: livro.autor,
+            genero: livro.genero,
+            capitulos: livro.capitulos
+          }}
+          capaUrl={capaFinal}
+          formato={formato}
+          optSumario={optSumario}
+          tamCapitulo={tamCapitulo}
+          corCapitulo={corCapitulo}
+          silhuetaConfig={silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl ? {
+            ativado: true,
+            imagemDataUrl: silhuetaConfig.imagemDataUrl,
+            paginasSelecionadas: calcularPaginasSilhueta(
+              livro.capitulos.length * 8,
+              silhuetaConfig.modo,
+              {
+                intervalo: silhuetaConfig.intervalo,
+                totalAleatorio: silhuetaConfig.totalAleatorio
+              }
+            ),
+            opacidade: silhuetaConfig.opacidade,
+            sangriaPct: silhuetaConfig.sangriaPct
+          } : undefined}
+          onUpdateCapitulo={(cIdx, novoTexto, novoTitulo) => {
+            setLivro(prev => {
+              if (!prev) return prev;
+              const novosCaps = [...prev.capitulos];
+              if (novosCaps[cIdx]) {
+                novosCaps[cIdx] = {
+                  ...novosCaps[cIdx],
+                  texto: novoTexto,
+                  titulo: novoTitulo || novosCaps[cIdx].titulo
+                };
+              }
+              const atualizado = { ...prev, capitulos: novosCaps };
+              salvarProgressoLocal(atualizado);
+              return atualizado;
+            });
+          }}
+          onDownloadPdf={baixarPDF}
+        />
+      )}
     </div>
   );
 };

@@ -72,7 +72,7 @@ export const BookPromotionalPageModal: React.FC<Props> = ({
   const handleRegenerateImage = async () => {
     setIsRegeneratingImage(true);
     try {
-      showToast('🎨 Criando nova cena narrativa com Imagen 3...');
+      showToast('🎨 Criando nova cena narrativa com motor FLUX (Replicate)...');
       const novaImg = await gerarImagemPromocionalNarrativa({
         title: data.title,
         genre: data.genre,

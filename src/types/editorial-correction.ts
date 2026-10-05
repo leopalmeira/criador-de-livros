@@ -247,4 +247,6 @@ export interface FinalBookRecord {
   wordCount?: number;
   chaptersCount?: number;
   chapters?: Array<{ titulo: string; texto: string }>;
+  promoData?: any;
+  descriptionHtml?: string;
 }

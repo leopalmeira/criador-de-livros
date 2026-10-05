@@ -11,16 +11,18 @@ import {
   CheckCircle2, Download, Eye, FileText, AlertCircle, Trash2,
   BookOpen, Calendar, Clock, ShieldCheck, X, Sparkles, Layers,
   FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package,
-  Rocket
+  Rocket, Code2
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { db } from '../../database/local-database';
 import type { FinalBookRecord, PendingItem } from '../../types/editorial-correction';
 import { buildKdpPdf } from '../../services/kdp-pdf-builder';
+import { KdpHtmlGenerator } from '../../services/kdp-html-generator';
 import { SequenceCreationModal } from './publishing/SequenceCreationModal';
 import { SeriesBoxCreationModal } from './publishing/SeriesBoxCreationModal';
 import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
+import { KdpDescriptionHtmlModal } from './promotional/KdpDescriptionHtmlModal';
 
 export const FinalBooksShelf: React.FC = () => {
   const [books, setBooks] = useState<FinalBookRecord[]>([]);
@@ -35,6 +37,9 @@ export const FinalBooksShelf: React.FC = () => {
   // Estado para Publicação Direta KDP In-App a partir da Estante
   const [selectedBookForKdpPublish, setSelectedBookForKdpPublish] = useState<FinalBookRecord | null>(null);
   const [isKdpModalOpen, setIsKdpModalOpen] = useState(false);
+
+  // Estado para Visualização e Cópia do HTML da Descrição / Promoção KDP
+  const [selectedBookForHtml, setSelectedBookForHtml] = useState<FinalBookRecord | null>(null);
 
   // Carrega tanto livros finalizados do IndexedDB quanto projetos marcados como finalizados
   const loadBooks = useCallback(async () => {
@@ -450,7 +455,31 @@ export const FinalBooksShelf: React.FC = () => {
       pageDoc.text('1', 76.2, 218, { align: 'center' });
       root.file('04_PAGINA_DO_LIVRO_AMOSTRA.pdf', pageDoc.output('arraybuffer'));
 
-      // 5. Ficha Técnica em JSON
+      // 5. HTML Oficial da Descrição Amazon KDP (Tags oficiais KDP para colar no campo de descrição)
+      const descHtml = KdpHtmlGenerator.generateKdpDescriptionHtml({
+        title: book.title,
+        subtitle: book.subtitle,
+        author: book.author,
+        genre: book.genre,
+        coverDataUrl: book.coverDataUrl,
+        chapters: book.chapters,
+        promoData: book.promoData
+      });
+      root.file('05_DESCRICAO_HTML_AMAZON_KDP.html', descHtml);
+
+      // 6. Landing Page Promocional Web Standalone
+      const promoPageHtml = KdpHtmlGenerator.generateStandalonePromotionalPageHtml({
+        title: book.title,
+        subtitle: book.subtitle,
+        author: book.author,
+        genre: book.genre,
+        coverDataUrl: book.coverDataUrl,
+        chapters: book.chapters,
+        promoData: book.promoData
+      });
+      root.file('06_PAGINA_PROMOCIONAL_WEB.html', promoPageHtml);
+
+      // 7. Ficha Técnica em JSON
       const meta = {
         titulo: book.title,
         subtitulo: book.subtitle,
@@ -858,6 +887,34 @@ export const FinalBooksShelf: React.FC = () => {
                   <Layers size={15} />
                   <span>Baixar PDF da Página</span>
                 </button>
+
+                {/* 5. HTML DA PÁGINA & DESCRIÇÃO DO LIVRO */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedBookForHtml(book)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    padding: '10px 14px',
+                    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#c2410c'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'; }}
+                  title="Abrir a página de promoção do livro e o código HTML formatado para a descrição na Amazon KDP"
+                >
+                  <Code2 size={15} />
+                  <span>HTML da Página / Descrição</span>
+                </button>
               </div>
 
               {/* AÇÕES COMPLEMENTARES: PACOTE ZIP, VISUALIZAR PDF, RELATÓRIO E EXCLUIR */}
@@ -870,32 +927,6 @@ export const FinalBooksShelf: React.FC = () => {
                 gap: 8
               }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedBookForKdpPublish(book);
-                      setIsKdpModalOpen(true);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '7px 14px',
-                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                      color: '#0f172a',
-                      border: 'none',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
-                    }}
-                    title="Publicar este livro diretamente na Amazon KDP sem sair da plataforma"
-                  >
-                    <Rocket size={13} />
-                    <span>Publicar Direto no KDP</span>
-                  </button>
-
                   <button
                     type="button"
                     onClick={() => handleDownloadAllZip(book)}
@@ -1196,6 +1227,23 @@ export const FinalBooksShelf: React.FC = () => {
           }}
           onPublishSuccess={() => {
             loadBooks();
+          }}
+        />
+      )}
+
+      {/* MODAL DO HTML DA DESCRIÇÃO & PÁGINA PROMOCIONAL KDP */}
+      {selectedBookForHtml && (
+        <KdpDescriptionHtmlModal
+          isOpen={Boolean(selectedBookForHtml)}
+          onClose={() => setSelectedBookForHtml(null)}
+          book={{
+            title: selectedBookForHtml.title,
+            subtitle: selectedBookForHtml.subtitle,
+            author: selectedBookForHtml.author,
+            genre: selectedBookForHtml.genre,
+            coverDataUrl: selectedBookForHtml.coverDataUrl,
+            chapters: selectedBookForHtml.chapters,
+            promoData: selectedBookForHtml.promoData
           }}
         />
       )}
