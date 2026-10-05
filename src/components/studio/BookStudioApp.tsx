@@ -14,17 +14,45 @@ import { BookIntelDashboard } from './BookIntelDashboard';
 import { SegmentSelectorModal } from './SegmentSelectorModal';
 import { KdpBookGeneratorPro } from './generator/KdpBookGeneratorPro';
 import { MultiplatformPublishingModal } from './publishing/MultiplatformPublishingModal';
+import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
+import { PassiveIncomeSalesPage } from './landing/PassiveIncomeSalesPage';
 import '../../styles/book-intel-dashboard.css';
 
-type AppMode = 'project-list' | 'settings' | 'kdp-generator';
+type AppMode = 'landing' | 'project-list' | 'settings' | 'kdp-generator';
 
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
   const [activeProject, setActiveProject] = useState<BookProject | null>(null);
-  const [mode, setMode] = useState<AppMode>('project-list');
+  const [mode, setMode] = useState<AppMode>(() => {
+    if (typeof window !== 'undefined') {
+      const h = (window.location.hash || '').toLowerCase();
+      if (h.includes('dashboard') || h.includes('studio') || h.includes('project')) {
+        return 'project-list';
+      }
+    }
+    return 'landing';
+  });
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
   const [publishingProject, setPublishingProject] = useState<BookProject | null>(null);
+
+  // Estado para Publicação Direta KDP In-App
+  const [isKdpPublishOpen, setIsKdpPublishOpen] = useState(false);
+  const [kdpPublishTarget, setKdpPublishTarget] = useState<BookProject | null>(null);
+
+  // Sincronização de rotas com URL hash (#landing, #dashboard, #studio)
+  useEffect(() => {
+    const handleHash = () => {
+      const h = (window.location.hash || '').toLowerCase();
+      if (h.includes('dashboard')) {
+        setMode('project-list');
+      } else if (h.includes('landing') || h === '' || h === '#') {
+        setMode('landing');
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   // Carregar projetos do IndexedDB
   const reloadProjects = useCallback(async () => {
@@ -202,6 +230,18 @@ export const BookStudioApp: React.FC = () => {
     setProjects(prev => [copy, ...prev]);
   };
 
+  // Abrir Publicação Direta Amazon KDP In-App
+  const handleOpenKdpPublish = (projectId?: string) => {
+    if (projectId) {
+      const p = projects.find(item => item.id === projectId);
+      setKdpPublishTarget(p || null);
+    } else {
+      const defaultProj = projects.find(p => p.status === 'FINALIZADO') || projects[0] || null;
+      setKdpPublishTarget(defaultProj);
+    }
+    setIsKdpPublishOpen(true);
+  };
+
   // Abrir Publicação Multiplataforma a partir da Dashboard
   const handleOpenPublishing = (projectId?: string) => {
     if (projectId) {
@@ -213,6 +253,24 @@ export const BookStudioApp: React.FC = () => {
     }
     setIsPublishingModalOpen(true);
   };
+
+  // ============================================================
+  // TELA 0: PÁGINA DE VENDAS & RENDA PASSIVA (ANTES DA DASHBOARD)
+  // ============================================================
+  if (mode === 'landing') {
+    return (
+      <PassiveIncomeSalesPage
+        onEnterDashboard={() => {
+          setMode('project-list');
+          if (typeof window !== 'undefined') window.location.hash = '#dashboard';
+        }}
+        onStartCreation={() => {
+          handleCreateNewProject();
+          if (typeof window !== 'undefined') window.location.hash = '#studio';
+        }}
+      />
+    );
+  }
 
   // ============================================================
   // TELA 1: DASHBOARD BOOK INTEL KDP (DESIGN PROFISSIONAL)
@@ -227,6 +285,21 @@ export const BookStudioApp: React.FC = () => {
       coverUrl: null
     };
 
+    const targetKdpDirect = kdpPublishTarget || projects.find(p => p.status === 'FINALIZADO') || projects[0] || {
+      id: 'demo_kdp',
+      title: 'Meu Livro KDP Pro',
+      subtitle: 'Edição Publicada Direta',
+      author: 'Leandro Palmeira',
+      description: '',
+      categories: ['Não-Ficção / Desenvolvimento Pessoal'],
+      keywords: [],
+      capitulos: [],
+      coverUrl: null,
+      targetPrice: 39.90,
+      currency: 'BRL',
+      trimSize: '6x9'
+    };
+
     return (
       <>
         <BookIntelDashboard
@@ -238,6 +311,11 @@ export const BookStudioApp: React.FC = () => {
           onOpenSettings={() => setMode('settings')}
           onSelectOpportunity={handleSelectOpportunity}
           onOpenPublishing={handleOpenPublishing}
+          onOpenKdpPublish={handleOpenKdpPublish}
+          onOpenLanding={() => {
+            setMode('landing');
+            if (typeof window !== 'undefined') window.location.hash = '#landing';
+          }}
         />
         <SegmentSelectorModal
           isOpen={isSegmentModalOpen}
@@ -256,7 +334,31 @@ export const BookStudioApp: React.FC = () => {
               titulo: c.title || c.titulo || 'Capítulo',
               texto: c.content || c.conteudo || ''
             })) || (targetProjectForPublishing as any).capitulos || [],
-            coverUrl: (targetProjectForPublishing as any).coverUrl || (targetProjectForPublishing as any).capaFinal || null
+            coverUrl: (targetProjectForPublishing as any).coverUrl || (targetProjectForPublishing as any).capaFinal || (targetProjectForPublishing as any).coverImageUrl || null
+          }}
+        />
+        <KdpDirectPublishModal
+          isOpen={isKdpPublishOpen}
+          onClose={() => setIsKdpPublishOpen(false)}
+          project={{
+            id: targetKdpDirect.id,
+            title: targetKdpDirect.title || 'Livro Sem Título',
+            subtitle: targetKdpDirect.subtitle,
+            author: targetKdpDirect.author || 'Leandro Palmeira',
+            description: targetKdpDirect.description,
+            categories: targetKdpDirect.categories,
+            keywords: targetKdpDirect.keywords,
+            capitulos: (targetKdpDirect as any).kdpChapters?.map((c: any) => ({
+              titulo: c.title || c.titulo || 'Capítulo',
+              texto: c.content || c.conteudo || ''
+            })) || (targetKdpDirect as any).capitulos || [],
+            coverUrl: (targetKdpDirect as any).coverImageUrl || (targetKdpDirect as any).coverUrl || (targetKdpDirect as any).capaFinal || null,
+            targetPrice: targetKdpDirect.targetPrice || 39.90,
+            currency: targetKdpDirect.currency || 'BRL',
+            trimSize: targetKdpDirect.trimSize || '6x9'
+          }}
+          onPublishSuccess={() => {
+            reloadProjects();
           }}
         />
       </>

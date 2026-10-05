@@ -10,7 +10,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle2, Download, Eye, FileText, AlertCircle, Trash2,
   BookOpen, Calendar, Clock, ShieldCheck, X, Sparkles, Layers,
-  FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package
+  FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package,
+  Rocket
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
@@ -19,6 +20,7 @@ import type { FinalBookRecord, PendingItem } from '../../types/editorial-correct
 import { buildKdpPdf } from '../../services/kdp-pdf-builder';
 import { SequenceCreationModal } from './publishing/SequenceCreationModal';
 import { SeriesBoxCreationModal } from './publishing/SeriesBoxCreationModal';
+import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
 
 export const FinalBooksShelf: React.FC = () => {
   const [books, setBooks] = useState<FinalBookRecord[]>([]);
@@ -29,6 +31,10 @@ export const FinalBooksShelf: React.FC = () => {
   const [viewingPdfUrl, setViewingPdfUrl] = useState<{ url: string; title: string } | null>(null);
   const [sequenceBaseBook, setSequenceBaseBook] = useState<FinalBookRecord | null>(null);
   const [boxBaseBook, setBoxBaseBook] = useState<FinalBookRecord | null>(null);
+
+  // Estado para Publicação Direta KDP In-App a partir da Estante
+  const [selectedBookForKdpPublish, setSelectedBookForKdpPublish] = useState<FinalBookRecord | null>(null);
+  const [isKdpModalOpen, setIsKdpModalOpen] = useState(false);
 
   // Carrega tanto livros finalizados do IndexedDB quanto projetos marcados como finalizados
   const loadBooks = useCallback(async () => {
@@ -866,6 +872,32 @@ export const FinalBooksShelf: React.FC = () => {
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button
                     type="button"
+                    onClick={() => {
+                      setSelectedBookForKdpPublish(book);
+                      setIsKdpModalOpen(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '7px 14px',
+                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                      color: '#0f172a',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
+                    }}
+                    title="Publicar este livro diretamente na Amazon KDP sem sair da plataforma"
+                  >
+                    <Rocket size={13} />
+                    <span>Publicar Direto no KDP</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => handleDownloadAllZip(book)}
                     disabled={isBusy}
                     style={{
@@ -1145,12 +1177,26 @@ export const FinalBooksShelf: React.FC = () => {
         />
       )}
 
-      {/* MODAL PARA CRIAÇÃO DE BOX / TRILOGIA KDP */}
-      {boxBaseBook && (
-        <SeriesBoxCreationModal
-          baseBook={boxBaseBook}
-          availableBooks={books}
-          onClose={() => setBoxBaseBook(null)}
+      {/* MODAL DE PUBLICAÇÃO DIRETA AMAZON KDP IN-APP */}
+      {isKdpModalOpen && selectedBookForKdpPublish && (
+        <KdpDirectPublishModal
+          isOpen={isKdpModalOpen}
+          onClose={() => {
+            setIsKdpModalOpen(false);
+            setSelectedBookForKdpPublish(null);
+          }}
+          project={{
+            id: selectedBookForKdpPublish.projectId || selectedBookForKdpPublish.id,
+            title: selectedBookForKdpPublish.title || 'Livro KDP',
+            subtitle: selectedBookForKdpPublish.subtitle,
+            author: selectedBookForKdpPublish.author || 'Autor Book Intel',
+            capitulos: selectedBookForKdpPublish.chapters || [],
+            coverUrl: selectedBookForKdpPublish.coverDataUrl || null,
+            trimSize: selectedBookForKdpPublish.trimSize || '6x9'
+          }}
+          onPublishSuccess={() => {
+            loadBooks();
+          }}
         />
       )}
     </div>

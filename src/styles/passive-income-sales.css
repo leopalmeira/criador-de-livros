@@ -1,0 +1,1124 @@
+/* ================================================================
+   PÁGINA DE VENDAS E RENDA PASSIVA AMAZON KDP (R$ 49,90/MÊS)
+   Design Premium Executivo, Alta Conversão & Experiência Imersiva
+   ================================================================ */
+
+:root {
+  --pis-bg-dark: #0a0e17;
+  --pis-bg-card: #111726;
+  --pis-bg-card-hover: #172033;
+  --pis-border: rgba(255, 255, 255, 0.08);
+  --pis-border-hover: rgba(245, 158, 11, 0.3);
+  --pis-gold: #f59e0b;
+  --pis-gold-light: #fbbf24;
+  --pis-gold-glow: rgba(245, 158, 11, 0.25);
+  --pis-blue: #3b82f6;
+  --pis-blue-light: #60a5fa;
+  --pis-emerald: #10b981;
+  --pis-text-main: #f8fafc;
+  --pis-text-muted: #94a3b8;
+  --pis-text-dim: #64748b;
+  --pis-font-title: 'Montserrat', 'Inter', -apple-system, sans-serif;
+  --pis-font-serif: 'Cinzel', Georgia, serif;
+}
+
+.pis-wrapper {
+  background-color: var(--pis-bg-dark);
+  color: var(--pis-text-main);
+  font-family: 'Inter', -apple-system, sans-serif;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* Background Atmosphere Glows */
+.pis-glow-1 {
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.12) 0%, rgba(59, 130, 246, 0.06) 50%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.pis-glow-2 {
+  position: absolute;
+  top: 1600px;
+  right: -100px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Container */
+.pis-container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ================= NAVBAR ================= */
+.pis-navbar {
+  position: sticky;
+  top: 0;
+  background: rgba(10, 14, 23, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--pis-border);
+  z-index: 100;
+  padding: 16px 0;
+}
+
+.pis-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pis-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.pis-logo-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+}
+
+.pis-logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.pis-logo-title {
+  font-family: var(--pis-font-title);
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pis-logo-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--pis-gold-light);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pis-logo-sub {
+  font-size: 0.72rem;
+  color: var(--pis-text-muted);
+}
+
+.pis-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pis-nav-links a {
+  color: var(--pis-text-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.pis-nav-links a:hover {
+  color: var(--pis-text-main);
+}
+
+.pis-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pis-btn-nav-dashboard {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--pis-text-main);
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.pis-btn-nav-dashboard:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.pis-btn-nav-cta {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0b0f19;
+  border: none;
+  padding: 9px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.25);
+  transition: all 0.2s ease;
+}
+
+.pis-btn-nav-cta:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ================= HERO SECTION ================= */
+.pis-hero {
+  padding: 80px 0 60px;
+  text-align: center;
+}
+
+.pis-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 999px;
+  color: var(--pis-gold-light);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.pis-hero-title {
+  font-family: var(--pis-font-title);
+  font-weight: 800;
+  font-size: clamp(2.4rem, 5vw, 3.8rem);
+  line-height: 1.15;
+  letter-spacing: -1.5px;
+  max-width: 960px;
+  margin: 0 auto 24px;
+  color: #ffffff;
+}
+
+.pis-hero-title .pis-gradient-text {
+  background: linear-gradient(135deg, #fbbf24 20%, #f59e0b 60%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.pis-hero-sub {
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  color: var(--pis-text-muted);
+  max-width: 780px;
+  margin: 0 auto 40px;
+  line-height: 1.6;
+}
+
+.pis-hero-sub strong {
+  color: var(--pis-text-main);
+}
+
+.pis-hero-ctas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 48px;
+}
+
+.pis-btn-hero-primary {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0b0f19;
+  border: none;
+  padding: 16px 36px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1.08rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(245, 158, 11, 0.35);
+  transition: all 0.25s ease;
+}
+
+.pis-btn-hero-primary:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  box-shadow: 0 14px 40px rgba(245, 158, 11, 0.5);
+  transform: translateY(-2px);
+}
+
+.pis-btn-hero-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--pis-text-main);
+  padding: 16px 32px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.25s ease;
+}
+
+.pis-btn-hero-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Badges de Confiança */
+.pis-hero-badges {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.pis-badge-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pis-text-muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.pis-badge-item svg {
+  color: var(--pis-gold);
+}
+
+/* ================= BANNER DE DESTAQUE ================= */
+.pis-highlight-banner {
+  margin: 20px 0 80px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(59, 130, 246, 0.06) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 16px;
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.pis-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pis-banner-icon {
+  width: 52px;
+  height: 52px;
+  background: rgba(245, 158, 11, 0.15);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pis-gold-light);
+  flex-shrink: 0;
+}
+
+.pis-banner-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.pis-banner-desc {
+  font-size: 0.92rem;
+  color: var(--pis-text-muted);
+}
+
+.pis-banner-price-tag {
+  background: #0b0f19;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  padding: 10px 20px;
+  border-radius: 12px;
+  text-align: right;
+}
+
+.pis-price-label {
+  font-size: 0.72rem;
+  color: var(--pis-text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.pis-price-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--pis-gold-light);
+}
+
+.pis-price-val span {
+  font-size: 0.9rem;
+  color: var(--pis-text-muted);
+  font-weight: 500;
+}
+
+/* ================= CALCULADORA DE RENDA PASSIVA ================= */
+.pis-section-title-wrap {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto 50px;
+}
+
+.pis-tag-section {
+  color: var(--pis-gold);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.pis-section-title {
+  font-family: var(--pis-font-title);
+  font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+  font-weight: 800;
+  margin-bottom: 16px;
+  line-height: 1.25;
+}
+
+.pis-section-desc {
+  color: var(--pis-text-muted);
+  font-size: 1.02rem;
+}
+
+.pis-calc-box {
+  background: var(--pis-bg-card);
+  border: 1px solid var(--pis-border);
+  border-radius: 24px;
+  padding: 44px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  margin-bottom: 100px;
+}
+
+.pis-calc-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.pis-calc-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.pis-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pis-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pis-slider-label {
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--pis-text-main);
+}
+
+.pis-slider-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--pis-gold-light);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.pis-range-input {
+  width: 100%;
+  accent-color: var(--pis-gold);
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+
+.pis-calc-result-card {
+  background: linear-gradient(145deg, #141b2d 0%, #0d121f 100%);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 20px;
+  padding: 36px;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.pis-calc-result-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.pis-result-header-text {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--pis-text-muted);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.pis-result-income-main {
+  font-size: clamp(2.4rem, 4vw, 3.2rem);
+  font-weight: 800;
+  color: var(--pis-gold-light);
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.pis-result-income-main span {
+  font-size: 1.1rem;
+  color: var(--pis-text-muted);
+  font-weight: 500;
+}
+
+.pis-result-subtext {
+  font-size: 0.88rem;
+  color: var(--pis-text-muted);
+  margin-bottom: 28px;
+}
+
+.pis-calc-metrics-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 24px;
+  margin-bottom: 28px;
+}
+
+.pis-metric-item-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.pis-metric-item-val.green {
+  color: var(--pis-emerald);
+}
+
+.pis-metric-item-lbl {
+  font-size: 0.78rem;
+  color: var(--pis-text-muted);
+}
+
+.pis-btn-calc-cta {
+  width: 100%;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0b0f19;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.98rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.pis-btn-calc-cta:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  transform: translateY(-1px);
+}
+
+/* ================= 3 PASSOS DA MÁQUINA ================= */
+.pis-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  margin-bottom: 120px;
+}
+
+.pis-step-card {
+  background: var(--pis-bg-card);
+  border: 1px solid var(--pis-border);
+  border-radius: 20px;
+  padding: 36px 28px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.pis-step-card:hover {
+  border-color: rgba(245, 158, 11, 0.35);
+  transform: translateY(-4px);
+  background: var(--pis-bg-card-hover);
+}
+
+.pis-step-number {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  font-size: 2.4rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.05);
+  font-family: var(--pis-font-title);
+}
+
+.pis-step-icon {
+  width: 56px;
+  height: 56px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pis-gold-light);
+  margin-bottom: 24px;
+}
+
+.pis-step-title {
+  font-size: 1.22rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.pis-step-desc {
+  font-size: 0.94rem;
+  color: var(--pis-text-muted);
+  line-height: 1.6;
+}
+
+/* ================= PLANO PRINCIPAL ================= */
+.pis-pricing-section {
+  margin-bottom: 120px;
+}
+
+.pis-pricing-card-spotlight {
+  max-width: 680px;
+  margin: 0 auto;
+  background: linear-gradient(145deg, #131b2e 0%, #0d121f 100%);
+  border: 2px solid var(--pis-gold);
+  border-radius: 28px;
+  padding: 48px;
+  box-shadow: 0 0 50px rgba(245, 158, 11, 0.18), 0 20px 40px rgba(0, 0, 0, 0.6);
+  position: relative;
+  text-align: center;
+}
+
+.pis-pricing-badge-popular {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #0b0f19;
+  font-weight: 800;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 6px 20px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+
+.pis-plan-name {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.pis-plan-sub {
+  color: var(--pis-text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 32px;
+}
+
+.pis-plan-price-block {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.pis-plan-currency {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--pis-text-main);
+}
+
+.pis-plan-amount {
+  font-size: 4rem;
+  font-weight: 900;
+  color: var(--pis-gold-light);
+  line-height: 1;
+}
+
+.pis-plan-period {
+  font-size: 1.1rem;
+  color: var(--pis-text-muted);
+}
+
+.pis-plan-daily-cost {
+  display: inline-block;
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 36px;
+}
+
+.pis-features-list {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 40px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pis-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 0.95rem;
+}
+
+.pis-feature-item svg {
+  color: var(--pis-gold);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.pis-feature-item strong {
+  color: #fff;
+}
+
+.pis-btn-pricing-cta {
+  width: 100%;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0b0f19;
+  border: none;
+  padding: 18px 32px;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 1.15rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 8px 30px rgba(245, 158, 11, 0.4);
+  transition: all 0.25s ease;
+  margin-bottom: 16px;
+}
+
+.pis-btn-pricing-cta:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  box-shadow: 0 12px 35px rgba(245, 158, 11, 0.55);
+  transform: translateY(-2px);
+}
+
+.pis-guarantee-note {
+  font-size: 0.82rem;
+  color: var(--pis-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* ================= PROVA SOCIAL / DEPOIMENTOS ================= */
+.pis-testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  margin-bottom: 120px;
+}
+
+.pis-test-card {
+  background: var(--pis-bg-card);
+  border: 1px solid var(--pis-border);
+  border-radius: 18px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.pis-test-quote {
+  font-size: 0.95rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+  margin-bottom: 24px;
+  font-style: italic;
+}
+
+.pis-test-author-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pis-test-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1e293b, #334155);
+  border: 2px solid rgba(245, 158, 11, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--pis-gold-light);
+  font-size: 0.92rem;
+}
+
+.pis-test-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.pis-test-role {
+  font-size: 0.76rem;
+  color: var(--pis-gold);
+}
+
+/* ================= FAQ ================= */
+.pis-faq-list {
+  max-width: 800px;
+  margin: 0 auto 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pis-faq-item {
+  background: var(--pis-bg-card);
+  border: 1px solid var(--pis-border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.pis-faq-item.open {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.pis-faq-question {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 20px 24px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--pis-text-main);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.pis-faq-question svg {
+  transition: transform 0.25s ease;
+  color: var(--pis-gold);
+}
+
+.pis-faq-item.open .pis-faq-question svg {
+  transform: rotate(180deg);
+}
+
+.pis-faq-answer {
+  padding: 0 24px 22px;
+  color: var(--pis-text-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+/* ================= FOOTER ================= */
+.pis-footer {
+  border-top: 1px solid var(--pis-border);
+  padding: 48px 0;
+  text-align: center;
+  color: var(--pis-text-muted);
+  font-size: 0.88rem;
+}
+
+.pis-footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.pis-footer-links a,
+.pis-footer-links button {
+  color: var(--pis-text-muted);
+  background: none;
+  border: none;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: color 0.2s;
+  text-decoration: none;
+}
+
+.pis-footer-links a:hover,
+.pis-footer-links button:hover {
+  color: var(--pis-gold-light);
+}
+
+/* ================= MODAL DE CHECKOUT SIMULADO ================= */
+.pis-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.pis-modal-card {
+  background: #111726;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 520px;
+  padding: 36px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  position: relative;
+  animation: pisFadeIn 0.25s ease-out;
+}
+
+@keyframes pisFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.pis-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: var(--pis-text-muted);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pis-modal-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.pis-modal-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.pis-modal-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.pis-modal-sub {
+  font-size: 0.9rem;
+  color: var(--pis-text-muted);
+}
+
+.pis-modal-plan-box {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.pis-modal-plan-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fff;
+}
+
+.pis-modal-plan-desc {
+  font-size: 0.8rem;
+  color: var(--pis-gold-light);
+}
+
+.pis-modal-plan-price {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--pis-gold-light);
+}
+
+.pis-modal-plan-price span {
+  font-size: 0.8rem;
+  color: var(--pis-text-muted);
+}
+
+.pis-modal-payment-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.pis-payment-tab-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--pis-text-muted);
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.pis-payment-tab-btn.active {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: var(--pis-gold);
+  color: var(--pis-gold-light);
+}
+
+.pis-modal-btn-confirm {
+  width: 100%;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0b0f19;
+  border: none;
+  padding: 16px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+  transition: all 0.2s ease;
+  margin-bottom: 14px;
+}
+
+.pis-modal-btn-confirm:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  transform: translateY(-1px);
+}
+
+.pis-modal-btn-direct-dash {
+  width: 100%;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--pis-text-muted);
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pis-modal-btn-direct-dash:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+/* ================= RESPONSIVO ================= */
+@media (max-width: 900px) {
+  .pis-calc-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .pis-steps-grid,
+  .pis-testimonials-grid {
+    grid-template-columns: 1fr;
+  }
+  .pis-nav-links {
+    display: none;
+  }
+  .pis-calc-box {
+    padding: 24px;
+  }
+}

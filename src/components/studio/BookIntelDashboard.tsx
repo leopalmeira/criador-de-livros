@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
   BookOpen, Plus, TrendingUp, FileText,
   HelpCircle, ChevronDown, ArrowRight,
-  Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play
+  Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play,
+  Rocket, DollarSign
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -24,6 +25,8 @@ interface Props {
     subcategory: string
   ) => void;
   onOpenPublishing?: (projectId?: string) => void;
+  onOpenKdpPublish?: (projectId?: string) => void;
+  onOpenLanding?: () => void;
 }
 
 export const BookIntelDashboard: React.FC<Props> = ({
@@ -34,7 +37,9 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onDeleteProject,
   onOpenSettings,
   onQuickAction,
-  onOpenPublishing
+  onOpenPublishing,
+  onOpenKdpPublish,
+  onOpenLanding
 }) => {
   const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
   const [finalizingProjectId, setFinalizingProjectId] = useState<string | null>(null);
@@ -95,8 +100,31 @@ export const BookIntelDashboard: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Ações da Direita: Ajuda e Perfil (Sino e Barra de Busca Removidos) */}
-          <div className="header-right-tools">
+          {/* Ações da Direita: Página de Vendas, Ajuda e Perfil */}
+          <div className="header-right-tools" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {onOpenLanding && (
+              <button
+                onClick={onOpenLanding}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  color: '#d97706',
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                title="Acessar Página de Vendas e Renda Passiva (R$ 49,90/mês)"
+              >
+                <DollarSign size={14} /> Página de Vendas (R$ 49,90)
+              </button>
+            )}
+
             <button className="tool-round-btn" onClick={onOpenSettings} title="Configurações e Ajuda">
               <HelpCircle size={18} />
             </button>
@@ -128,11 +156,24 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <span className="hero-greeting">Olá, Leandro</span>
                 <h1 className="hero-main-title">Bem-vindo ao Book Intel KDP</h1>
                 <p className="hero-description">
-                  Encontre nichos lucrativos, analise a concorrência e crie livros com alto potencial de venda na Amazon.
+                  Encontre nichos lucrativos, crie livros profissionais e publique diretamente na Amazon KDP sem sair da plataforma.
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button className="btn-hero-cta" onClick={onCreateNewProject}>
                     <Plus size={18} /> Criar Novo Projeto
+                  </button>
+                  <button
+                    className="btn-hero-cta"
+                    onClick={() => onOpenKdpPublish && onOpenKdpPublish()}
+                    style={{
+                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                      color: '#0f172a',
+                      fontWeight: 700,
+                      boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
+                    }}
+                    title="Publicar Livro Diretamente no Amazon KDP sem Sair da Plataforma"
+                  >
+                    <Rocket size={18} /> Publicar Direto no KDP
                   </button>
                   <button
                     className="btn-hero-cta"
@@ -143,7 +184,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     }}
                     title="Central de Publicação Multiplataforma (Kindle, Paperback, Hardcover, Spotify e Audiobook Studio)"
                   >
-                    <Globe size={18} /> Publicação Multiplataforma
+                    <Globe size={18} /> Multiplataforma
                   </button>
                 </div>
               </div>
@@ -398,6 +439,17 @@ export const BookIntelDashboard: React.FC<Props> = ({
                               <CheckCircle2 size={14} />
                             </button>
                           )}
+                          <button
+                            className="btn-icon-soft"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenKdpPublish && onOpenKdpPublish(p.id);
+                            }}
+                            title="Publicar Direto no Amazon KDP In-App"
+                            style={{ color: '#d97706', borderColor: '#f59e0b', background: 'rgba(245, 158, 11, 0.08)' }}
+                          >
+                            <Rocket size={14} />
+                          </button>
                           <button
                             className="btn-icon-soft"
                             onClick={(e) => {
