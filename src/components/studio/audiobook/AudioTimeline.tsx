@@ -54,6 +54,11 @@ export const AudioTimeline: React.FC<AudioTimelineProps> = ({
 
   const safeEvents = Array.isArray(events) ? events : [];
   const totalDuration = Math.max(30, chapterDurationSeconds || 60);
+  const markerStep = totalDuration > 120 ? 30 : 15;
+  const numMarkers = Math.ceil(totalDuration / markerStep);
+  const markers = Array.from({ length: numMarkers + 1 }, (_, i) => i * markerStep);
+  const ambientEvents = safeEvents.filter(e => e && e.trackType === 'ambient');
+  const sfxEvents = safeEvents.filter(e => e && e.trackType === 'sfx');
 
   // Busca efeitos no backend / cache / Freesound ao abrir ou digitar
   useEffect(() => {

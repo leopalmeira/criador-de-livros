@@ -229,6 +229,13 @@ export class AudiobookClient {
   }
 
   // ================================================================
+  // PRÉVIA / TESTE DE VOZ
+  // ================================================================
+  static getVoicePreviewUrl(language: string, voiceGender: AudiobookVoiceGender): string {
+    return `/api/audiobook/preview-voice?language=${encodeURIComponent(language)}&voiceGender=${encodeURIComponent(voiceGender)}`;
+  }
+
+  // ================================================================
   // MÉTODOS DE EFEITOS SONOROS (SFX) & BANCO DE ÁUDIO
   // ================================================================
 

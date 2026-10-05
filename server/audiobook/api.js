@@ -17,6 +17,8 @@ import { listPublicLanguages } from './languages.js';
 import { getEngineStatus, getAvailableVoices } from './engine-diagnostics.js';
 import { getDefaultSFXProvider } from './sfx-provider.js';
 
+const previewCache = new Map();
+
 function sendJson(res, statusCode, data) {
   const body = JSON.stringify(data);
   res.statusCode = statusCode;
@@ -151,6 +153,69 @@ export function createAudiobookApi(options = {}) {
         const result = await getAvailableVoices(language, service.engines);
         sendJson(res, 200, { success: true, ...result });
         return true;
+      }
+
+      // 1d. GET ou POST /preview-voice — Sintetiza uma amostra curta para teste de voz antes da geração
+      if ((req.method === 'GET' || req.method === 'POST') && (sub === '/preview-voice' || sub === '/preview-voice/')) {
+        let language = 'pt-BR';
+        let voiceGender = 'male';
+        let text = '';
+        if (req.method === 'POST') {
+          const body = await parseBody(req);
+          language = String(body?.language || 'pt-BR');
+          voiceGender = String(body?.voiceGender || 'male');
+          text = String(body?.text || '');
+        } else {
+          language = String(reqUrl.searchParams?.get('language') || 'pt-BR');
+          voiceGender = String(reqUrl.searchParams?.get('voiceGender') || 'male');
+          text = String(reqUrl.searchParams?.get('text') || '');
+        }
+
+        const sampleText = text.trim() || (
+          language.startsWith('en')
+            ? 'Hello! This is a preview of the neural voice that will narrate your book.'
+            : language.startsWith('es')
+            ? '¡Hola! Esta es una vista previa de la voz neuronal para su audiolibro.'
+            : language.startsWith('fr')
+            ? 'Bonjour! Ceci est un aperçu de la voix neuronale pour votre livre audio.'
+            : language.startsWith('de')
+            ? 'Hallo! Dies ist eine Vorschau der neuronalen Stimme für Ihr Hörbuch.'
+            : language.startsWith('it')
+            ? 'Ciao! Questa è un anteprima della voce neurale per il tuo audiolibro.'
+            : 'Olá! Esta é uma demonstração da voz neural selecionada para narrar o seu livro com fidelidade.'
+        );
+
+        const cacheKey = `${language}_${voiceGender}_${sampleText}`;
+        if (previewCache.has(cacheKey)) {
+          const cached = previewCache.get(cacheKey);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Content-Length', cached.length);
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Cache-Control', 'public, max-age=86400');
+          res.end(cached);
+          return true;
+        }
+
+        try {
+          const synthRes = await service.engines.synthesize(sampleText, language, voiceGender, {
+            allowDegraded: true
+          });
+          if (synthRes && synthRes.audio) {
+            previewCache.set(cacheKey, synthRes.audio);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Content-Length', synthRes.audio.length);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            res.end(synthRes.audio);
+            return true;
+          }
+          throw new Error('Falha na síntese do áudio de prévia');
+        } catch (err) {
+          sendJson(res, 500, { success: false, error: err.message || 'Erro ao gerar amostra de voz' });
+          return true;
+        }
       }
 
       // 2. POST /manuscript

@@ -46,6 +46,8 @@ import {
 } from '../../../services/audiobook/smart-sound-design';
 import { mixChapterAudio, MixResult } from '../../../services/audiobook/audio-mixer';
 import { SoundTimelineEvent } from '../../../types/audiobook-studio';
+import { localDatabase } from '../../../database/local-database';
+import type { BookProject } from '../../../types/book-project';
 
 
 export interface AudiobookStudioProps {
@@ -121,6 +123,21 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       .filter((c) => c.text.length > 0);
   }, [initialChapters]);
 
+  // 2b. Seleção dinâmica de livro (livro atual ou livros salvos na biblioteca)
+  const [savedProjects, setSavedProjects] = useState<BookProject[]>([]);
+  const [selectedBookSource, setSelectedBookSource] = useState<'current' | string>('current');
+  const [activeBookTitle, setActiveBookTitle] = useState<string>(initialTitle || '');
+  const [activeBookSubtitle, setActiveBookSubtitle] = useState<string>(initialSubtitle || '');
+  const [activeBookAuthor, setActiveBookAuthor] = useState<string>(initialAuthor || '');
+  const [activeBookCover, setActiveBookCover] = useState<string | null>(capaUrl || null);
+  const [activeChapters, setActiveChapters] = useState<Array<{ title: string; text: string }>>(normalizedChapters);
+  const [showChaptersList, setShowChaptersList] = useState<boolean>(false);
+
+  // 2c. Estado de Teste / Prévia da Voz em Tempo Real
+  const [previewVoicePlaying, setPreviewVoicePlaying] = useState<AudiobookVoiceGender | null>(null);
+  const [testedVoices, setTestedVoices] = useState<{ male: boolean; female: boolean }>({ male: false, female: false });
+  const previewVoiceAudioRef = useRef<HTMLAudioElement | null>(null);
+
   // 3. Escolhas do usuário (apenas Idioma e Gênero da Voz)
   const [languages, setLanguages] = useState<AudiobookLanguage[]>(FALLBACK_LANGUAGES);
   const [selectedLanguage, setSelectedLanguage] = useState<string>(() =>
@@ -179,6 +196,137 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     };
   }, []);
 
+  // Carregar lista de projetos salvos para permitir ao usuário escolher o livro
+  useEffect(() => {
+    let mounted = true;
+    localDatabase.getAllBookProjects()
+      .then((projs: BookProject[]) => {
+        if (mounted && Array.isArray(projs)) {
+          setSavedProjects(projs.filter(p => p && p.title));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Sincronizar dados do livro quando as props mudarem
+  useEffect(() => {
+    if (selectedBookSource === 'current') {
+      setActiveBookTitle(initialTitle || '');
+      setActiveBookSubtitle(initialSubtitle || '');
+      setActiveBookAuthor(initialAuthor || '');
+      setActiveBookCover(capaUrl || null);
+      setActiveChapters(normalizedChapters);
+    }
+  }, [initialTitle, initialSubtitle, initialAuthor, capaUrl, normalizedChapters, selectedBookSource]);
+
+  // Alternar livro selecionado
+  const handleSelectBook = (sourceId: string) => {
+    setSelectedBookSource(sourceId);
+    stopVoicePreview();
+    if (sourceId === 'current') {
+      setActiveBookTitle(initialTitle || '');
+      setActiveBookSubtitle(initialSubtitle || '');
+      setActiveBookAuthor(initialAuthor || '');
+      setActiveBookCover(capaUrl || null);
+      setActiveChapters(normalizedChapters);
+      return;
+    }
+    const found = savedProjects.find(p => p.id === sourceId);
+    if (found) {
+      setActiveBookTitle(found.title || 'Livro Sem Título');
+      setActiveBookSubtitle(found.subtitle || '');
+      setActiveBookAuthor(found.author || 'Autor');
+      setActiveBookCover(found.kdpCoverDesign?.frontImageUrl || null);
+      const chaps = (found.kdpChapters || []).map((c: any, i: number) => ({
+        title: c.title || `Capítulo ${i + 1}`,
+        text: (c.prose || (c.scenes || []).map((s: any) => s.prose || s.text || '').join('\n') || '').trim()
+      })).filter(c => c.text.length > 0);
+      setActiveChapters(chaps);
+      if (found.language) {
+        setSelectedLanguage(mapBookLanguageToAudiobook(found.language));
+      }
+    }
+  };
+
+  // Parar teste de voz
+  const stopVoicePreview = useCallback(() => {
+    if (previewVoiceAudioRef.current) {
+      try {
+        previewVoiceAudioRef.current.pause();
+        previewVoiceAudioRef.current.currentTime = 0;
+      } catch {}
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+    }
+    setPreviewVoicePlaying(null);
+  }, []);
+
+  // Testar e ouvir amostra da voz em tempo real
+  const handleTestVoice = (gender: AudiobookVoiceGender) => {
+    if (previewVoicePlaying === gender) {
+      stopVoicePreview();
+      return;
+    }
+
+    stopVoicePreview();
+    setPreviewVoicePlaying(gender);
+    setSelectedVoice(gender);
+    setTestedVoices(prev => ({ ...prev, [gender]: true }));
+
+    const previewUrl = AudiobookClient.getVoicePreviewUrl(selectedLanguage, gender);
+    const audio = new Audio(previewUrl);
+    previewVoiceAudioRef.current = audio;
+
+    let fallbackUsed = false;
+    const runSpeechFallback = () => {
+      if (fallbackUsed) return;
+      fallbackUsed = true;
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const sampleText = selectedLanguage.startsWith('en')
+          ? 'Hello! This is a preview of the neural voice selected for your audiobook in Book Intel.'
+          : selectedLanguage.startsWith('es')
+          ? '¡Hola! Esta es una vista previa de la voz seleccionada para su audiolibro en Book Intel.'
+          : selectedLanguage.startsWith('fr')
+          ? 'Bonjour! Ceci est un aperçu de la voix sélectionnée pour votre livre audio.'
+          : 'Olá! Esta é uma demonstração da voz neural selecionada para narrar o seu livro com alta fidelidade.';
+        const utter = new SpeechSynthesisUtterance(sampleText);
+        utter.lang = selectedLanguage;
+        const voices = window.speechSynthesis.getVoices();
+        const match = voices.find(v => v.lang.startsWith(selectedLanguage.slice(0, 2)) && 
+          (gender === 'female' ? /female|mulher|maria|helena|zira|francisca/i.test(v.name) : /male|homem|daniel|lucas|david|antonio/i.test(v.name)));
+        if (match) utter.voice = match;
+        utter.onend = () => setPreviewVoicePlaying(null);
+        utter.onerror = () => setPreviewVoicePlaying(null);
+        window.speechSynthesis.speak(utter);
+      } else {
+        setPreviewVoicePlaying(null);
+      }
+    };
+
+    audio.onended = () => {
+      setPreviewVoicePlaying(null);
+    };
+    audio.onerror = () => {
+      runSpeechFallback();
+    };
+
+    audio.play().catch(() => {
+      runSpeechFallback();
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      stopVoicePreview();
+    };
+  }, [stopVoicePreview]);
+
   // Consultar status inicial do projeto
   const checkStatus = useCallback(async () => {
     if (!resolvedProjectId) return;
@@ -230,22 +378,23 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
   // Sincronizar e Iniciar / Retomar a geração
   const handleStartGeneration = async () => {
     if (!resolvedProjectId) return;
-    if (normalizedChapters.length === 0) {
-      setErrorMessage('O livro precisa ter ao menos um capítulo escrito para gerar a narração.');
+    if (activeChapters.length === 0) {
+      setErrorMessage('O livro precisa ter ao menos um capítulo com texto escrito para gerar a narração.');
       return;
     }
 
     setErrorMessage(null);
     setIsStarting(true);
+    stopVoicePreview();
 
     try {
       // 1. Sincronizar manuscrito atual do livro com o estúdio
       await AudiobookClient.syncManuscript(resolvedProjectId, {
-        title: initialTitle || 'Livro Sem Título',
-        subtitle: initialSubtitle || '',
-        author: initialAuthor || 'Autor',
+        title: activeBookTitle || 'Livro Sem Título',
+        subtitle: activeBookSubtitle || '',
+        author: activeBookAuthor || 'Autor',
         preface: '',
-        chapters: normalizedChapters
+        chapters: activeChapters
       });
 
       // 2. Disparar a geração no backend (somente projectId, language e voiceGender)
@@ -514,9 +663,9 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
           marginBottom: 24
         }}
       >
-        {capaUrl ? (
+        {activeBookCover || capaUrl ? (
           <img
-            src={capaUrl}
+            src={activeBookCover || capaUrl || ''}
             alt="Capa do Livro"
             style={{ width: 44, height: 60, objectFit: 'cover', borderRadius: 4, border: '1px solid #cbd5e1' }}
           />
@@ -549,12 +698,12 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
               textOverflow: 'ellipsis'
             }}
           >
-            {initialTitle || 'Obra sem Título'}
+            {activeBookTitle || initialTitle || 'Obra sem Título'}
           </h4>
           <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
-            {initialAuthor ? `Por ${initialAuthor} • ` : ''}
-            {normalizedChapters.length}{' '}
-            {normalizedChapters.length === 1 ? 'capítulo identificado' : 'capítulos identificados'}
+            {activeBookAuthor || initialAuthor ? `Por ${activeBookAuthor || initialAuthor} • ` : ''}
+            {activeChapters.length}{' '}
+            {activeChapters.length === 1 ? 'capítulo identificado' : 'capítulos identificados'}
           </p>
         </div>
       </div>
@@ -703,7 +852,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       )}
 
       {/* CASO: NENHUM CAPÍTULO ESCRITO */}
-      {normalizedChapters.length === 0 && (
+      {activeChapters.length === 0 && savedProjects.length === 0 && (
         <div
           style={{
             padding: '24px 20px',
@@ -803,177 +952,523 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
             </div>
           )}
 
-          {/* ESTADO 1: IDLE / CONFIGURAÇÃO (APENAS 2 ESCOLHAS DO USUÁRIO) */}
-          {!isGenerating && !isCompleted && !isPartial && (
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-            borderRadius: 14,
-            border: '1px solid #e2e8f0',
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 24
-          }}
-        >
-          {/* 1. SELEÇÃO DE IDIOMA */}
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#334155',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: 8
-              }}
-            >
-              IDIOMA:
-            </label>
-            <div style={{ position: 'relative', maxWidth: 360 }}>
-              <select
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  border: '1px solid #cbd5e1',
-                  backgroundColor: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#0f172a',
-                  cursor: 'pointer',
-                  appearance: 'none',
-                  outline: 'none',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                }}
-              >
-                {languages.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.flag} {l.label}
-                  </option>
-                ))}
-              </select>
-              <span
-                style={{
-                  position: 'absolute',
-                  right: 14,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  pointerEvents: 'none',
-                  color: '#64748b',
-                  fontSize: 12
-                }}
-              >
-                ▼
-              </span>
-            </div>
+          {/* ESTADO 1: FLUXO GUIADO EM 3 PASSOS (LIVRO -> VOZ & TESTE -> GRAVAÇÃO) */}
+          {!isGenerating && !isCompleted && !isPartial && (() => {
+            const totalWords = activeChapters.reduce((acc, c) => acc + (c.text.trim().split(/\s+/).filter(Boolean).length), 0);
+            const estimatedMinutes = Math.max(1, Math.round(totalWords / 140));
 
-            {isLanguageDifferent && (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#f59e0b' }}>
-                💡 <strong>Dica:</strong> O livro foi escrito originalmente em português. Selecionar outro idioma narrará as palavras com pronúncia adaptada, sem tradução do texto.
-              </p>
-            )}
-          </div>
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* 1️⃣ PASSO 1: ESCOLHA / CONFIRMAÇÃO DO LIVRO */}
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: 14,
+                    border: '1px solid #e2e8f0',
+                    padding: 22,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 16,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          backgroundColor: '#eff6ff',
+                          color: '#2563eb',
+                          fontWeight: 800,
+                          fontSize: 14
+                        }}
+                      >
+                        1
+                      </span>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                          Passo 1: Livro Selecionado para Narração
+                        </h4>
+                        <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                          Confirme os dados do livro ou escolha outro livro salvo da sua biblioteca.
+                        </p>
+                      </div>
+                    </div>
 
-          {/* 2. SELEÇÃO DE VOZ (MASCULINA OU FEMININA) */}
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#334155',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: 10
-              }}
-            >
-              VOZ:
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, maxWidth: 500 }}>
-              {/* Opção Masculina */}
-              <button
-                type="button"
-                onClick={() => setSelectedVoice('male')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '14px 18px',
-                  borderRadius: 12,
-                  border: selectedVoice === 'male' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                  backgroundColor: selectedVoice === 'male' ? '#eff6ff' : '#ffffff',
-                  color: selectedVoice === 'male' ? '#1d4ed8' : '#334155',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  transition: 'all 0.15s ease',
-                  boxShadow: selectedVoice === 'male' ? '0 2px 8px rgba(37, 99, 235, 0.15)' : 'none'
-                }}
-              >
-                <span style={{ fontSize: 24 }}>👨</span>
-                <span>MASCULINA</span>
-                {selectedVoice === 'male' && <CheckCircle2 size={18} style={{ marginLeft: 'auto', color: '#2563eb' }} />}
-              </button>
+                    {/* Alternador de livro salvo da biblioteca */}
+                    {savedProjects.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Trocar Livro:</span>
+                        <select
+                          value={selectedBookSource}
+                          onChange={(e) => handleSelectBook(e.target.value)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #cbd5e1',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: '#1e293b',
+                            backgroundColor: '#f8fafc',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="current">📘 Livro Atual: {initialTitle || 'Obra sem Título'}</option>
+                          {savedProjects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              📚 {p.title} ({p.kdpChapters?.length || 0} cap.)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
 
-              {/* Opção Feminina */}
-              <button
-                type="button"
-                onClick={() => setSelectedVoice('female')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '14px 18px',
-                  borderRadius: 12,
-                  border: selectedVoice === 'female' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                  backgroundColor: selectedVoice === 'female' ? '#eff6ff' : '#ffffff',
-                  color: selectedVoice === 'female' ? '#1d4ed8' : '#334155',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  transition: 'all 0.15s ease',
-                  boxShadow: selectedVoice === 'female' ? '0 2px 8px rgba(37, 99, 235, 0.15)' : 'none'
-                }}
-              >
-                <span style={{ fontSize: 24 }}>👩</span>
-                <span>FEMININA</span>
-                {selectedVoice === 'female' && <CheckCircle2 size={18} style={{ marginLeft: 'auto', color: '#2563eb' }} />}
-              </button>
-            </div>
-          </div>
+                  {/* Card com Detalhes do Livro */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 16,
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 12,
+                      padding: '14px 18px',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    {activeBookCover ? (
+                      <img
+                        src={activeBookCover}
+                        alt="Capa do Livro"
+                        style={{ width: 48, height: 66, objectFit: 'cover', borderRadius: 6, border: '1px solid #cbd5e1', boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 48,
+                          height: 66,
+                          borderRadius: 6,
+                          backgroundColor: '#e2e8f0',
+                          border: '1px solid #cbd5e1',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#64748b'
+                        }}
+                      >
+                        <BookOpen size={22} />
+                      </div>
+                    )}
 
-          {/* BOTÃO PRINCIPAL: GERAR AUDIOBOOK */}
-          <div style={{ paddingTop: 8 }}>
-            <button
-              type="button"
-              disabled={isStarting || normalizedChapters.length === 0}
-              onClick={handleStartGeneration}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '14px 32px',
-                borderRadius: 12,
-                border: 'none',
-                backgroundColor: normalizedChapters.length === 0 ? '#cbd5e1' : '#059669',
-                color: '#ffffff',
-                fontSize: 15,
-                fontWeight: 700,
-                cursor: normalizedChapters.length === 0 ? 'not-allowed' : 'pointer',
-                boxShadow: normalizedChapters.length === 0 ? 'none' : '0 4px 12px rgba(5, 150, 105, 0.3)',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Headphones size={20} />
-              <span>🎧 GERAR AUDIOBOOK</span>
-            </button>
-          </div>
-        </div>
-      )}
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                        {activeBookTitle || 'Obra sem Título'}
+                      </h4>
+                      {activeBookSubtitle && (
+                        <p style={{ margin: '2px 0 0', fontSize: 13, color: '#475569' }}>
+                          {activeBookSubtitle}
+                        </p>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+                        {activeBookAuthor && (
+                          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>
+                            Autor: <strong>{activeBookAuthor}</strong>
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            backgroundColor: activeChapters.length > 0 ? '#ecfdf5' : '#fffbeb',
+                            color: activeChapters.length > 0 ? '#065f46' : '#92400e',
+                            border: activeChapters.length > 0 ? '1px solid #a7f3d0' : '1px solid #fde68a'
+                          }}
+                        >
+                          {activeChapters.length > 0
+                            ? `✅ ${activeChapters.length} capítulos identificados • ~${totalWords.toLocaleString()} palavras • Est. ~${estimatedMinutes} min`
+                            : '⚠️ 0 capítulos com texto'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {activeChapters.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowChaptersList(!showChaptersList)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: '1px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          color: '#334155',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {showChaptersList ? 'Ocultar Capítulos ▲' : `Ver Capítulos (${activeChapters.length}) ▼`}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Lista recolhível de capítulos */}
+                  {showChaptersList && activeChapters.length > 0 && (
+                    <div
+                      style={{
+                        maxHeight: 180,
+                        overflowY: 'auto',
+                        backgroundColor: '#f1f5f9',
+                        borderRadius: 8,
+                        padding: '10px 14px',
+                        fontSize: 12,
+                        border: '1px solid #e2e8f0'
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: '#475569', marginBottom: 6 }}>Capítulos que serão narrados:</div>
+                      {activeChapters.map((ch, idx) => (
+                        <div key={idx} style={{ padding: '4px 0', borderBottom: idx < activeChapters.length - 1 ? '1px solid #e2e8f0' : 'none', color: '#1e293b' }}>
+                          <strong>{idx + 1}. {ch.title}</strong> — <span style={{ color: '#64748b' }}>{ch.text.slice(0, 90)}...</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {activeChapters.length === 0 && (
+                    <div style={{ padding: 12, backgroundColor: '#fffbeb', borderRadius: 8, border: '1px solid #fde68a', color: '#92400e', fontSize: 13 }}>
+                      ⚠️ <strong>Nenhum capítulo disponível para narração.</strong> Escreva ou gere os capítulos no editor à esquerda, ou selecione um livro com capítulos salvos no seletor acima.
+                    </div>
+                  )}
+                </div>
+
+                {/* 2️⃣ PASSO 2: ESCOLHER IDIOMA, VOZ NEURAL E TESTAR A VOZ PRIMEIRO */}
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: 14,
+                    border: '1px solid #e2e8f0',
+                    padding: 22,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 18,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        backgroundColor: '#eff6ff',
+                        color: '#2563eb',
+                        fontWeight: 800,
+                        fontSize: 14
+                      }}
+                    >
+                      2
+                    </span>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                        Passo 2: Escolher o Idioma, a Voz e Testar a Voz Primeiro
+                      </h4>
+                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                        Selecione a voz neural e clique em &quot;Testar Voz&quot; para ouvir a entonação e a clareza antes de gravar.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 2a. IDIOMA */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>
+                      Idioma:
+                    </label>
+                    <div style={{ position: 'relative', maxWidth: 360 }}>
+                      <select
+                        value={selectedLanguage}
+                        onChange={(e) => {
+                          setSelectedLanguage(e.target.value);
+                          stopVoicePreview();
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          border: '1px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {languages.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.flag} {l.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {isLanguageDifferent && (
+                      <p style={{ margin: '8px 0 0', fontSize: 12, color: '#f59e0b' }}>
+                        💡 <strong>Dica:</strong> O livro foi escrito em português. Selecionar outro idioma narrará as palavras com pronúncia adaptada.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 2b. SELEÇÃO DE VOZ COM TESTE EM TEMPO REAL */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 10 }}>
+                      Voz da Narração (Clique no Card para Escolher e em Testar para Ouvir):
+                    </label>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+                      {/* CARD VOZ MASCULINA */}
+                      <div
+                        style={{
+                          borderRadius: 12,
+                          border: selectedVoice === 'male' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                          backgroundColor: selectedVoice === 'male' ? '#eff6ff' : '#ffffff',
+                          padding: 16,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 12,
+                          boxShadow: selectedVoice === 'male' ? '0 4px 12px rgba(37,99,235,0.12)' : 'none',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div
+                          onClick={() => setSelectedVoice('male')}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                        >
+                          <span style={{ fontSize: 32 }}>👨</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <strong style={{ fontSize: 15, color: selectedVoice === 'male' ? '#1d4ed8' : '#0f172a' }}>
+                                VOZ MASCULINA
+                              </strong>
+                              {selectedVoice === 'male' && <CheckCircle2 size={18} color="#2563eb" />}
+                            </div>
+                            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                              Entonação firme, equilibrada e profunda.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Botão de Testar Voz Masculina */}
+                        <button
+                          type="button"
+                          onClick={() => handleTestVoice('male')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            border: previewVoicePlaying === 'male' ? '1px solid #f59e0b' : '1px solid #2563eb',
+                            backgroundColor: previewVoicePlaying === 'male' ? '#fffbeb' : '#2563eb',
+                            color: previewVoicePlaying === 'male' ? '#b45309' : '#ffffff',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {previewVoicePlaying === 'male' ? (
+                            <>
+                              <Pause size={15} /> ⏹️ Parar Demonstração
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 size={15} /> 🔊 Testar Voz Masculina
+                            </>
+                          )}
+                        </button>
+
+                        {testedVoices.male && (
+                          <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Check size={13} /> Amostra testada com sucesso
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CARD VOZ FEMININA */}
+                      <div
+                        style={{
+                          borderRadius: 12,
+                          border: selectedVoice === 'female' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                          backgroundColor: selectedVoice === 'female' ? '#eff6ff' : '#ffffff',
+                          padding: 16,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 12,
+                          boxShadow: selectedVoice === 'female' ? '0 4px 12px rgba(37,99,235,0.12)' : 'none',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div
+                          onClick={() => setSelectedVoice('female')}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                        >
+                          <span style={{ fontSize: 32 }}>👩</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <strong style={{ fontSize: 15, color: selectedVoice === 'female' ? '#1d4ed8' : '#0f172a' }}>
+                                VOZ FEMININA
+                              </strong>
+                              {selectedVoice === 'female' && <CheckCircle2 size={18} color="#2563eb" />}
+                            </div>
+                            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                              Entonação suave, expressiva e natural.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Botão de Testar Voz Feminina */}
+                        <button
+                          type="button"
+                          onClick={() => handleTestVoice('female')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            border: previewVoicePlaying === 'female' ? '1px solid #f59e0b' : '1px solid #2563eb',
+                            backgroundColor: previewVoicePlaying === 'female' ? '#fffbeb' : '#2563eb',
+                            color: previewVoicePlaying === 'female' ? '#b45309' : '#ffffff',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {previewVoicePlaying === 'female' ? (
+                            <>
+                              <Pause size={15} /> ⏹️ Parar Demonstração
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 size={15} /> 🔊 Testar Voz Feminina
+                            </>
+                          )}
+                        </button>
+
+                        {testedVoices.female && (
+                          <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Check size={13} /> Amostra testada com sucesso
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ALERTA VISUAL DURANTE O TESTE */}
+                    {previewVoicePlaying && (
+                      <div
+                        style={{
+                          marginTop: 12,
+                          padding: '10px 16px',
+                          borderRadius: 8,
+                          backgroundColor: '#eff6ff',
+                          border: '1px solid #bfdbfe',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          fontSize: 13,
+                          color: '#1d4ed8'
+                        }}
+                      >
+                        <Volume1 size={18} />
+                        <span>
+                          Reproduzindo demonstração da voz <strong>{previewVoicePlaying === 'male' ? 'Masculina' : 'Feminina'}</strong>... Ouça a clareza e pronúncia antes de confirmar.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3️⃣ PASSO 3: SEGUIR PARA A GRAVAÇÃO */}
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: 14,
+                    border: '1px solid #e2e8f0',
+                    padding: 22,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 16,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        backgroundColor: '#ecfdf5',
+                        color: '#059669',
+                        fontWeight: 800,
+                        fontSize: 14
+                      }}
+                    >
+                      3
+                    </span>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                        Passo 3: Iniciar Narração do Livro
+                      </h4>
+                      <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                        Livro: <strong>{activeBookTitle || 'Obra'}</strong> ({activeChapters.length} cap.) • Voz <strong>{selectedVoice === 'male' ? 'Masculina' : 'Feminina'}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isStarting || activeChapters.length === 0}
+                    onClick={handleStartGeneration}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '14px 32px',
+                      borderRadius: 12,
+                      border: 'none',
+                      backgroundColor: activeChapters.length === 0 ? '#cbd5e1' : '#059669',
+                      color: '#ffffff',
+                      fontSize: 15,
+                      fontWeight: 700,
+                      cursor: activeChapters.length === 0 ? 'not-allowed' : 'pointer',
+                      boxShadow: activeChapters.length === 0 ? 'none' : '0 4px 14px rgba(5, 150, 105, 0.3)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {isStarting ? <Loader2 size={20} className="animate-spin" /> : <Headphones size={20} />}
+                    <span>{isStarting ? 'Iniciando Gravação...' : '🎧 INICIAR GRAVAÇÃO DO AUDIOBOOK'}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
       {/* ================================================================ */}
       {/* ESTADO 2: PROGRESSO DA GERAÇÃO (CONFORME ESPECIFICAÇÃO EXATA) */}

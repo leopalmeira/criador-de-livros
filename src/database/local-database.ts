@@ -725,3 +725,4 @@ class LocalDatabase {
 }
 
 export const db = new LocalDatabase();
+export const localDatabase = db;
