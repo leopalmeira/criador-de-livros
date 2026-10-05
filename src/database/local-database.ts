@@ -11,7 +11,8 @@ import {
 } from '../types';
 import { 
   BookProject,
-  ProjectSummary 
+  ProjectSummary,
+  BookAudiobookAsset
 } from '../types/book-project';
 import { CategoryMarketMetrics } from '../types/category-intelligence';
 import type { EditorialJob, FinalBookRecord } from '../types/editorial-correction';
@@ -451,6 +452,77 @@ class LocalDatabase {
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
+  }
+
+  // --- AUDIOBOOK ATIVOS E METADADOS DO LIVRO ---
+  async saveAudiobookToProject(projectId: string, audiobookData: Partial<BookAudiobookAsset>): Promise<void> {
+    try {
+      let project = await this.getBookProject(projectId);
+      if (!project) {
+        const allProjects = await this.getAllBookProjects();
+        project = allProjects.find(p => p.id === projectId || (audiobookData.title && p.title.trim().toLowerCase() === audiobookData.title.trim().toLowerCase())) || null;
+      }
+
+      const mergedAudiobook: BookAudiobookAsset = {
+        id: project?.audiobook?.id || `ab_${projectId}`,
+        projectId,
+        status: audiobookData.status || project?.audiobook?.status || 'completed',
+        title: audiobookData.title || project?.title || 'Audiobook',
+        author: audiobookData.author || project?.author || 'Autor',
+        narratorVoice: audiobookData.narratorVoice || project?.audiobook?.narratorVoice,
+        language: audiobookData.language || project?.audiobook?.language || 'pt-BR',
+        voiceGender: audiobookData.voiceGender || project?.audiobook?.voiceGender || 'male',
+        durationSeconds: audiobookData.durationSeconds ?? project?.audiobook?.durationSeconds ?? 0,
+        totalChapters: audiobookData.totalChapters ?? project?.audiobook?.totalChapters ?? (project?.kdpChapters?.length || 0),
+        audioUrl: audiobookData.audioUrl || project?.audiobook?.audioUrl,
+        finalFile: audiobookData.finalFile || project?.audiobook?.finalFile,
+        mixedMasterUrl: audiobookData.mixedMasterUrl || project?.audiobook?.mixedMasterUrl,
+        timelineEvents: audiobookData.timelineEvents || project?.audiobook?.timelineEvents,
+        soundDesignSummary: audiobookData.soundDesignSummary || project?.audiobook?.soundDesignSummary,
+        chapterMixedAudio: audiobookData.chapterMixedAudio || project?.audiobook?.chapterMixedAudio,
+        generatedAt: project?.audiobook?.generatedAt || Date.now(),
+        updatedAt: Date.now()
+      };
+
+      if (project) {
+        project.audiobook = mergedAudiobook;
+        await this.saveBookProject(project);
+      }
+
+      // Sincroniza também com o registro final do livro (FinalBookRecord) se já catalogado
+      const allFinals = await this.getAllFinalBooks();
+      const finalBook = allFinals.find(f => 
+        f.bookId === projectId || 
+        f.id === `final_proj_${projectId}` || 
+        (audiobookData.title && f.title.trim().toLowerCase() === audiobookData.title.trim().toLowerCase())
+      );
+      if (finalBook) {
+        finalBook.audiobook = mergedAudiobook;
+        await this.saveFinalBook(finalBook);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('kdp-final-books-updated'));
+        window.dispatchEvent(new CustomEvent('kdp-audiobook-updated', { detail: { projectId, audiobook: mergedAudiobook } }));
+      }
+    } catch (err) {
+      console.warn('[LocalDatabase] Erro ao salvar audiobook no projeto:', err);
+    }
+  }
+
+  async getAudiobookForProject(projectId: string): Promise<BookAudiobookAsset | null> {
+    try {
+      const project = await this.getBookProject(projectId);
+      if (project?.audiobook) return project.audiobook;
+
+      const allFinals = await this.getAllFinalBooks();
+      const finalBook = allFinals.find(f => f.bookId === projectId || f.id === `final_proj_${projectId}`);
+      if (finalBook?.audiobook) return finalBook.audiobook;
+
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   // --- CORREÇÃO EDITORIAL: JOBS ---

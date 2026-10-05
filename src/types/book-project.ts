@@ -1123,6 +1123,28 @@ export interface BookVersionItem {
   snapshotJson: string;
 }
 
+// --- ATIVOS DE AUDIOBOOK DO LIVRO (PARA REPRODUÇÃO E REMIXAGEM POSTERIOR) ---
+export interface BookAudiobookAsset {
+  id: string;
+  projectId: string;
+  status: 'completed' | 'generating' | 'partial' | 'error' | 'idle';
+  title: string;
+  author: string;
+  narratorVoice?: string;
+  language: string;
+  voiceGender: 'male' | 'female';
+  durationSeconds: number;
+  totalChapters: number;
+  audioUrl?: string;
+  finalFile?: string;
+  mixedMasterUrl?: string;
+  timelineEvents?: Record<number, any[]>;
+  soundDesignSummary?: Record<number, any>;
+  chapterMixedAudio?: Record<number, { url: string; duration: number }>;
+  generatedAt: number;
+  updatedAt: number;
+}
+
 // --- ENTIDADE PRINCIPAL DO PROJETO ---
 export interface BookProject {
   id: string;
@@ -1185,6 +1207,9 @@ export interface BookProject {
   promotionalPage?: any;
   promotionalImageUrl?: string;
   
+  // Ativos de Audiobook (Narração, Master e Timeline Multi-track para Remix)
+  audiobook?: BookAudiobookAsset;
+
   // 13-Stage Editorial Pipeline Tracking
   stageStatuses?: Record<StageId, StageStatus>;
   stageData?: StageDataMap;

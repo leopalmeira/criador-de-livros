@@ -126,6 +126,12 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
   // 2b. Seleção dinâmica de livro (livro atual ou livros salvos na biblioteca)
   const [savedProjects, setSavedProjects] = useState<BookProject[]>([]);
   const [selectedBookSource, setSelectedBookSource] = useState<'current' | string>('current');
+  const activeProjectId = useMemo(() => {
+    if (selectedBookSource !== 'current' && selectedBookSource) return selectedBookSource;
+    return resolvedProjectId;
+  }, [selectedBookSource, resolvedProjectId]);
+  const hasAutoProcessedRef = useRef<boolean>(false);
+  const [isAutoProcessing, setIsAutoProcessing] = useState<boolean>(false);
   const [activeBookTitle, setActiveBookTitle] = useState<string>(initialTitle || '');
   const [activeBookSubtitle, setActiveBookSubtitle] = useState<string>(initialSubtitle || '');
   const [activeBookAuthor, setActiveBookAuthor] = useState<string>(initialAuthor || '');
@@ -174,7 +180,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
   // 8. Estado de Mixagem com Auto-Ducking
   const [isMixing, setIsMixing] = useState<boolean>(false);
   const [mixProgress, setMixProgress] = useState<{ percent: number; status: string } | null>(null);
-  const [chapterMixedAudio, setChapterMixedAudio] = useState<Record<number, { url: string; blob: Blob; duration: number }>>({});
+  const [chapterMixedAudio, setChapterMixedAudio] = useState<Record<number, { url: string; blob?: Blob; duration: number }>>({});
   const [playMixedAudio, setPlayMixedAudio] = useState<boolean>(false);
   const mixedAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -226,6 +232,12 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
   const handleSelectBook = (sourceId: string) => {
     setSelectedBookSource(sourceId);
     stopVoicePreview();
+    hasAutoProcessedRef.current = false;
+    setChapterTimelineEvents({});
+    setSoundDesignSummary({});
+    setChapterMixedAudio({});
+    setPlayMixedAudio(false);
+
     if (sourceId === 'current') {
       setActiveBookTitle(initialTitle || '');
       setActiveBookSubtitle(initialSubtitle || '');
@@ -250,6 +262,33 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       }
     }
   };
+
+  // Carregar dados de audiobook previamente salvos no LocalDatabase para este livro
+  useEffect(() => {
+    let mounted = true;
+    if (!activeProjectId) return;
+    localDatabase.getAudiobookForProject(activeProjectId).then((saved) => {
+      if (!mounted || !saved) return;
+      if (saved.timelineEvents && Object.keys(saved.timelineEvents).length > 0) {
+        setChapterTimelineEvents(prev => ({ ...(saved.timelineEvents as any), ...prev }));
+      }
+      if (saved.soundDesignSummary && Object.keys(saved.soundDesignSummary).length > 0) {
+        setSoundDesignSummary(prev => ({ ...(saved.soundDesignSummary as any), ...prev }));
+      }
+      if (saved.chapterMixedAudio && Object.keys(saved.chapterMixedAudio).length > 0) {
+        setChapterMixedAudio(prev => ({ ...(saved.chapterMixedAudio as any), ...prev }));
+      }
+      if (saved.language) setSelectedLanguage(saved.language);
+      if (saved.voiceGender) setSelectedVoice(saved.voiceGender);
+      if (saved.status === 'completed') {
+        hasAutoProcessedRef.current = true;
+      }
+    }).catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeProjectId]);
 
   // Parar teste de voz
   const stopVoicePreview = useCallback(() => {
@@ -327,14 +366,105 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     };
   }, [stopVoicePreview]);
 
+  // Processamento automático completo de Sound Design e Masterização pós-narração
+  const autoProcessCompleteAudiobook = useCallback(async (data: AudiobookStatusResponse) => {
+    if (!data || !activeProjectId) return;
+    setIsAutoProcessing(true);
+
+    try {
+      const chaps = activeChapters.length > 0 ? activeChapters : normalizedChapters;
+      const newTimelineEvents: Record<number, SoundTimelineEvent[]> = { ...chapterTimelineEvents };
+      const newSummaries: Record<number, SmartSoundDesignResult['summary']> = { ...soundDesignSummary };
+      const newMixedAudio: Record<number, { url: string; blob?: Blob; duration: number }> = { ...chapterMixedAudio };
+
+      // 1. Analisar cenas e gerar trilhas de efeitos para cada capítulo automaticamente
+      for (let i = 0; i < chaps.length; i++) {
+        if (!newTimelineEvents[i] || newTimelineEvents[i].length === 0) {
+          const chText = chaps[i]?.text || '';
+          if (chText) {
+            const sdResult = analyzeChapterSoundDesign(chText);
+            newTimelineEvents[i] = sdResult.detectedEvents;
+            newSummaries[i] = sdResult.summary;
+          }
+        }
+      }
+
+      setChapterTimelineEvents(newTimelineEvents);
+      setSoundDesignSummary(newSummaries);
+
+      // 2. Mixar automaticamente o capítulo inicial com auto-ducking se gravação vocal pronta
+      const targetUnit = data.chapters?.find(c => 
+        c.kind === 'chapter' && (c.index === 1 || (c as any).chapterNumber === 1)
+      ) || data.chapters?.find(c => c.index === 1) || data.chapters?.find(c => c.index === 0);
+
+      if (targetUnit && targetUnit.status === 'done' && targetUnit.file) {
+        try {
+          const events0 = newTimelineEvents[0] || [];
+          if (events0.length > 0) {
+            const voiceUrl = AudiobookClient.getChapterAudioUrl(activeProjectId, targetUnit.file);
+            const res = await fetch(voiceUrl);
+            if (res.ok) {
+              const voiceBlob = await res.blob();
+              const mixed = await mixChapterAudio(voiceBlob, events0);
+              newMixedAudio[0] = {
+                url: mixed.mixedUrl,
+                blob: mixed.mixedBlob,
+                duration: mixed.durationSeconds
+              };
+              setChapterMixedAudio(newMixedAudio);
+            }
+          }
+        } catch (e) {
+          console.warn('[AutoMix] Mixagem preliminar completada com narração direta.', e);
+        }
+      }
+
+      // 3. Persistir Audiobook completo junto com os arquivos do livro no LocalDatabase
+      const finalAudioUrl = AudiobookClient.getFinalAudioUrl(activeProjectId);
+      await localDatabase.saveAudiobookToProject(activeProjectId, {
+        projectId: activeProjectId,
+        status: 'completed',
+        title: activeBookTitle || data.title || 'Audiobook',
+        author: activeBookAuthor || data.author || 'Autor',
+        language: selectedLanguage,
+        voiceGender: selectedVoice,
+        durationSeconds: data.durationSeconds || 0,
+        totalChapters: data.bookChapters || chaps.length,
+        audioUrl: finalAudioUrl,
+        finalFile: 'audiobook_final.mp3',
+        mixedMasterUrl: newMixedAudio[0]?.url || finalAudioUrl,
+        timelineEvents: newTimelineEvents,
+        soundDesignSummary: newSummaries,
+        chapterMixedAudio: Object.fromEntries(
+          Object.entries(newMixedAudio).map(([k, v]) => [k, { url: v.url, duration: v.duration }])
+        )
+      });
+
+      // 4. Mudar automaticamente para a aba Player com áudio master pronto para escuta!
+      setActiveTab('player');
+      setPlayMixedAudio(true);
+    } catch (err) {
+      console.error('[AudiobookStudio] Erro no pipeline automático pós-narração:', err);
+    } finally {
+      setIsAutoProcessing(false);
+    }
+  }, [activeProjectId, activeChapters, normalizedChapters, chapterTimelineEvents, soundDesignSummary, chapterMixedAudio, activeBookTitle, activeBookAuthor, selectedLanguage, selectedVoice]);
+
   // Consultar status inicial do projeto
   const checkStatus = useCallback(async () => {
-    if (!resolvedProjectId) return;
+    if (!activeProjectId) return;
     try {
-      const data = await AudiobookClient.getStatus(resolvedProjectId);
+      const data = await AudiobookClient.getStatus(activeProjectId);
       setStatusData(data);
       if (data.language?.id) setSelectedLanguage(data.language.id);
       if (data.voiceGender) setSelectedVoice(data.voiceGender);
+
+      // Se o audiobook já estiver concluído no backend, sincroniza com os arquivos do livro
+      if (data.status === 'completed' && data.finalReady && !hasAutoProcessedRef.current) {
+        hasAutoProcessedRef.current = true;
+        autoProcessCompleteAudiobook(data);
+      }
+
       return data;
     } catch {
       // Projeto ainda sem metadados (normal no primeiro acesso)
@@ -342,7 +472,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     } finally {
       setIsLoadingStatus(false);
     }
-  }, [resolvedProjectId]);
+  }, [activeProjectId, autoProcessCompleteAudiobook]);
 
   useEffect(() => {
     checkStatus();
@@ -353,12 +483,18 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     if (statusData?.status === 'generating') {
       pollingTimerRef.current = setInterval(async () => {
         const latest = await checkStatus();
-        if (latest && latest.status === 'completed' && onAudiobookReady) {
-          onAudiobookReady({
-            title: latest.title,
-            duration: latest.durationSeconds,
-            totalChapters: latest.bookChapters
-          });
+        if (latest && latest.status === 'completed' && latest.finalReady) {
+          if (!hasAutoProcessedRef.current) {
+            hasAutoProcessedRef.current = true;
+            autoProcessCompleteAudiobook(latest);
+          }
+          if (onAudiobookReady) {
+            onAudiobookReady({
+              title: latest.title,
+              duration: latest.durationSeconds,
+              totalChapters: latest.bookChapters
+            });
+          }
         }
       }, 1500);
     } else {
@@ -373,11 +509,11 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
         pollingTimerRef.current = null;
       }
     };
-  }, [statusData?.status, checkStatus, onAudiobookReady]);
+  }, [statusData?.status, checkStatus, onAudiobookReady, autoProcessCompleteAudiobook]);
 
   // Sincronizar e Iniciar / Retomar a geração
   const handleStartGeneration = async () => {
-    if (!resolvedProjectId) return;
+    if (!activeProjectId) return;
     if (activeChapters.length === 0) {
       setErrorMessage('O livro precisa ter ao menos um capítulo com texto escrito para gerar a narração.');
       return;
@@ -386,10 +522,11 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     setErrorMessage(null);
     setIsStarting(true);
     stopVoicePreview();
+    hasAutoProcessedRef.current = false;
 
     try {
       // 1. Sincronizar manuscrito atual do livro com o estúdio
-      await AudiobookClient.syncManuscript(resolvedProjectId, {
+      await AudiobookClient.syncManuscript(activeProjectId, {
         title: activeBookTitle || 'Livro Sem Título',
         subtitle: activeBookSubtitle || '',
         author: activeBookAuthor || 'Autor',
@@ -398,7 +535,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       });
 
       // 2. Disparar a geração no backend (somente projectId, language e voiceGender)
-      const res = await AudiobookClient.startGeneration(resolvedProjectId, selectedLanguage, selectedVoice);
+      const res = await AudiobookClient.startGeneration(activeProjectId, selectedLanguage, selectedVoice);
       setStatusData(res);
     } catch (err: any) {
       setErrorMessage(err.message || 'Não foi possível iniciar a gravação. Tente novamente.');
@@ -413,13 +550,14 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       return;
     }
     setErrorMessage(null);
+    hasAutoProcessedRef.current = false;
     try {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
       }
       setIsPlaying(false);
-      const res = await AudiobookClient.resetAudiobook(resolvedProjectId);
+      const res = await AudiobookClient.resetAudiobook(activeProjectId);
       setStatusData(res);
     } catch (err: any) {
       setErrorMessage(err.message || 'Erro ao reiniciar o estúdio.');
@@ -434,14 +572,23 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     setIsAnalyzingSoundDesign(true);
     try {
       const result = analyzeChapterSoundDesign(chapter.text);
-      setChapterTimelineEvents(prev => ({
-        ...prev,
+      const updatedEvents = {
+        ...chapterTimelineEvents,
         [chapterIdx]: result.detectedEvents
-      }));
-      setSoundDesignSummary(prev => ({
-        ...prev,
+      };
+      const updatedSummaries = {
+        ...soundDesignSummary,
         [chapterIdx]: result.summary
-      }));
+      };
+
+      setChapterTimelineEvents(updatedEvents);
+      setSoundDesignSummary(updatedSummaries);
+
+      // Salva junto com os arquivos do livro
+      localDatabase.saveAudiobookToProject(activeProjectId, {
+        timelineEvents: updatedEvents,
+        soundDesignSummary: updatedSummaries
+      });
     } finally {
       setIsAnalyzingSoundDesign(false);
     }
@@ -455,9 +602,20 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       return;
     }
 
-    const chapterMeta = statusData?.chapters?.find(c => c.index === chapterIdx);
-    if (!chapterMeta || !chapterMeta.file) {
-      alert('A narração deste capítulo ainda não foi gravada. Gere a narração primeiro na aba "Narração & Vozes".');
+    // Busca precisa da unidade correspondente ao capítulo selecionado
+    // (a unidade 0 é Introdução, unit 1 é Capítulo 1, unit 2 é Capítulo 2, etc.)
+    const targetUnit = statusData?.chapters?.find(c => 
+      c.kind === 'chapter' && (c.index === chapterIdx + 1 || (c as any).chapterNumber === chapterIdx + 1)
+    ) || statusData?.chapters?.find(c => c.index === chapterIdx + 1)
+      || statusData?.chapters?.find(c => c.index === chapterIdx);
+
+    if (!targetUnit || !targetUnit.file) {
+      alert(`A gravação do Capítulo ${chapterIdx + 1} ainda não foi localizada no servidor. Certifique-se de que a narração foi gerada na aba 1.`);
+      return;
+    }
+
+    if (targetUnit.status !== 'done') {
+      alert(`A gravação vocal do Capítulo ${chapterIdx + 1} ainda está em processamento (${statusData?.completedCount || 0} de ${statusData?.totalUnits || 0} prontos). Aguarde a conclusão da narração antes de renderizar a mixagem.`);
       return;
     }
 
@@ -465,25 +623,37 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     setMixProgress({ percent: 10, status: 'Carregando gravação vocal do capítulo...' });
 
     try {
-      const voiceAudioUrl = AudiobookClient.getChapterAudioUrl(resolvedProjectId, chapterMeta.file);
+      const voiceAudioUrl = AudiobookClient.getChapterAudioUrl(activeProjectId, targetUnit.file);
       const res = await fetch(voiceAudioUrl);
-      if (!res.ok) throw new Error('Não foi possível carregar a gravação vocal.');
+      if (!res.ok) throw new Error(`Não foi possível carregar a gravação vocal do servidor (HTTP ${res.status}).`);
       const voiceBlob = await res.blob();
 
       const mixResult = await mixChapterAudio(voiceBlob, events, (percent, status) => {
         setMixProgress({ percent, status });
       });
 
-      setChapterMixedAudio(prev => ({
-        ...prev,
+      const updatedMixed = {
+        ...chapterMixedAudio,
         [chapterIdx]: {
           url: mixResult.mixedUrl,
           blob: mixResult.mixedBlob,
           duration: mixResult.durationSeconds
         }
-      }));
+      };
 
+      setChapterMixedAudio(updatedMixed);
       setPlayMixedAudio(true);
+
+      // Salva junto com os arquivos do livro no LocalDatabase para ficar sempre disponível para remixagem
+      await localDatabase.saveAudiobookToProject(activeProjectId, {
+        projectId: activeProjectId,
+        status: 'completed',
+        timelineEvents: chapterTimelineEvents,
+        soundDesignSummary,
+        chapterMixedAudio: Object.fromEntries(
+          Object.entries(updatedMixed).map(([k, v]) => [k, { url: v.url, duration: v.duration }])
+        )
+      });
     } catch (err: any) {
       alert(`Falha na mixagem: ${err.message || 'Erro inesperado.'}`);
     } finally {
@@ -743,6 +913,33 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
           Biblioteca de Efeitos: <strong>CC0 / Public Domain</strong>
         </div>
       </div>
+
+      {/* BANNER DE PROCESSAMENTO AUTOMÁTICO DE DESIGN SONORO E MASTERIZAÇÃO */}
+      {isAutoProcessing && (
+        <div
+          style={{
+            backgroundColor: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: 12,
+            padding: '16px 20px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            boxShadow: '0 2px 6px rgba(37,99,235,0.08)'
+          }}
+        >
+          <Loader2 size={24} className="animate-spin" color="#2563eb" />
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1e40af' }}>
+              ✨ IA Sincronizando Efeitos e Masterizando o Audiobook...
+            </h4>
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#3b82f6' }}>
+              Analisando o clima de cada cena literária, alinhando ambientação sonora e gerando master com auto-ducking estéreo.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ABAS DO ESTÚDIO: NARRAÇÃO | SONORIZAÇÃO & TIMELINE | PLAYER & MASTER */}
       <div
@@ -1771,16 +1968,16 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
             }
             events={chapterTimelineEvents[selectedTimelineChapter] || []}
             onUpdateEvent={(updated) => {
-              setChapterTimelineEvents(prev => ({
-                ...prev,
-                [selectedTimelineChapter]: (prev[selectedTimelineChapter] || []).map(e => e.id === updated.id ? updated : e)
-              }));
+              const nextEvents = (chapterTimelineEvents[selectedTimelineChapter] || []).map(e => e.id === updated.id ? updated : e);
+              const nextTimeline = { ...chapterTimelineEvents, [selectedTimelineChapter]: nextEvents };
+              setChapterTimelineEvents(nextTimeline);
+              localDatabase.saveAudiobookToProject(activeProjectId, { timelineEvents: nextTimeline });
             }}
             onDeleteEvent={(id) => {
-              setChapterTimelineEvents(prev => ({
-                ...prev,
-                [selectedTimelineChapter]: (prev[selectedTimelineChapter] || []).filter(e => e.id !== id)
-              }));
+              const nextEvents = (chapterTimelineEvents[selectedTimelineChapter] || []).filter(e => e.id !== id);
+              const nextTimeline = { ...chapterTimelineEvents, [selectedTimelineChapter]: nextEvents };
+              setChapterTimelineEvents(nextTimeline);
+              localDatabase.saveAudiobookToProject(activeProjectId, { timelineEvents: nextTimeline });
             }}
             onDuplicateEvent={(evt) => {
               const dup: SoundTimelineEvent = {
@@ -1788,16 +1985,16 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
                 id: `${evt.id}_dup_${Date.now()}`,
                 startTimeSeconds: Math.min(60, evt.startTimeSeconds + 3)
               };
-              setChapterTimelineEvents(prev => ({
-                ...prev,
-                [selectedTimelineChapter]: [...(prev[selectedTimelineChapter] || []), dup]
-              }));
+              const nextEvents = [...(chapterTimelineEvents[selectedTimelineChapter] || []), dup];
+              const nextTimeline = { ...chapterTimelineEvents, [selectedTimelineChapter]: nextEvents };
+              setChapterTimelineEvents(nextTimeline);
+              localDatabase.saveAudiobookToProject(activeProjectId, { timelineEvents: nextTimeline });
             }}
             onAddEvent={(newEvent) => {
-              setChapterTimelineEvents(prev => ({
-                ...prev,
-                [selectedTimelineChapter]: [...(prev[selectedTimelineChapter] || []), newEvent]
-              }));
+              const nextEvents = [...(chapterTimelineEvents[selectedTimelineChapter] || []), newEvent];
+              const nextTimeline = { ...chapterTimelineEvents, [selectedTimelineChapter]: nextEvents };
+              setChapterTimelineEvents(nextTimeline);
+              localDatabase.saveAudiobookToProject(activeProjectId, { timelineEvents: nextTimeline });
             }}
             currentTimeSeconds={currentTime}
           />
@@ -2041,8 +2238,8 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
               </button>
 
               <a
-                href={AudiobookClient.getFinalAudioUrl(resolvedProjectId, true)}
-                download={`audiobook_${resolvedProjectId}.mp3`}
+                href={AudiobookClient.getFinalAudioUrl(activeProjectId, true)}
+                download={`audiobook_${activeProjectId}.mp3`}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -2062,8 +2259,8 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
               </a>
 
               <a
-                href={AudiobookClient.getDownloadAllChaptersUrl(resolvedProjectId)}
-                download={`audiobook_${resolvedProjectId}_capitulos.zip`}
+                href={AudiobookClient.getDownloadAllChaptersUrl(activeProjectId)}
+                download={`audiobook_${activeProjectId}_capitulos.zip`}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -2124,7 +2321,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
               src={
                 playMixedAudio && chapterMixedAudio[activeChapterIndex]
                   ? chapterMixedAudio[activeChapterIndex].url
-                  : AudiobookClient.getFinalAudioUrl(resolvedProjectId)
+                  : AudiobookClient.getFinalAudioUrl(activeProjectId)
               }
               preload="metadata"
               onTimeUpdate={() => {
@@ -2336,7 +2533,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
                           {formatTime(ch.durationSeconds)}
                         </span>
                         <a
-                          href={AudiobookClient.getChapterAudioUrl(resolvedProjectId, ch.file, true)}
+                          href={AudiobookClient.getChapterAudioUrl(activeProjectId, ch.file, true)}
                           download={ch.file}
                           onClick={(e) => e.stopPropagation()}
                           title="Baixar capítulo individual"

@@ -11,7 +11,7 @@ import {
   CheckCircle2, Download, Eye, FileText, AlertCircle, Trash2,
   BookOpen, Calendar, Clock, ShieldCheck, X, Sparkles, Layers,
   FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package,
-  Rocket, Code2
+  Rocket, Code2, Headphones, Sliders
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
@@ -23,6 +23,16 @@ import { SequenceCreationModal } from './publishing/SequenceCreationModal';
 import { SeriesBoxCreationModal } from './publishing/SeriesBoxCreationModal';
 import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
 import { KdpDescriptionHtmlModal } from './promotional/KdpDescriptionHtmlModal';
+import { AudiobookStudio } from './audiobook/AudiobookStudio';
+
+function formatAudioSeconds(totalSeconds: number): string {
+  if (!totalSeconds || isNaN(totalSeconds) || totalSeconds <= 0) return '00:00';
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = Math.floor(totalSeconds % 60);
+  if (hrs > 0) return `${hrs}h ${mins.toString().padStart(2, '0')}min`;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 export const FinalBooksShelf: React.FC = () => {
   const [books, setBooks] = useState<FinalBookRecord[]>([]);
@@ -40,6 +50,9 @@ export const FinalBooksShelf: React.FC = () => {
 
   // Estado para Visualização e Cópia do HTML da Descrição / Promoção KDP
   const [selectedBookForHtml, setSelectedBookForHtml] = useState<FinalBookRecord | null>(null);
+
+  // Estado para Abrir o Audiobook Studio com os arquivos do livro para reprodução e mixagem
+  const [audiobookModalBook, setAudiobookModalBook] = useState<FinalBookRecord | null>(null);
 
   // Carrega tanto livros finalizados do IndexedDB quanto projetos marcados como finalizados
   const loadBooks = useCallback(async () => {
@@ -118,9 +131,20 @@ export const FinalBooksShelf: React.FC = () => {
                   { id: 'margins', label: 'Margens Espelhadas KDP', ok: true, critical: true, detail: 'Margens KDP aplicadas' },
                   { id: 'pages', label: 'Numeração de Páginas', ok: true, critical: false, detail: 'Páginas numeradas' }
                 ]
-              }
+              },
+              audiobook: proj.audiobook
             };
             mergedList.push(virtualRecord);
+          }
+        }
+      }
+
+      // Garante que todo livro na lista tenha os dados de audiobook do projeto associado
+      for (const b of mergedList) {
+        if (!b.audiobook) {
+          const matchProj = allProjects.find(p => p.id === b.bookId || (b.title && p.title.trim().toLowerCase() === b.title.trim().toLowerCase()));
+          if (matchProj?.audiobook) {
+            b.audiobook = matchProj.audiobook;
           }
         }
       }
@@ -174,8 +198,10 @@ export const FinalBooksShelf: React.FC = () => {
       loadBooks();
     };
     window.addEventListener('kdp-final-books-updated', handleUpdate);
+    window.addEventListener('kdp-audiobook-updated', handleUpdate);
     return () => {
       window.removeEventListener('kdp-final-books-updated', handleUpdate);
+      window.removeEventListener('kdp-audiobook-updated', handleUpdate);
     };
   }, [loadBooks]);
 
@@ -493,6 +519,33 @@ export const FinalBooksShelf: React.FC = () => {
         statusKDP: 'Aprovado para Publicação'
       };
       root.file('FICHA_TECNICA_KDP.json', JSON.stringify(meta, null, 2));
+
+      // 8. Audiobook Master e Dados de Mixagem (para reprodução e remixagem futura)
+      if (book.audiobook) {
+        const audioMeta = {
+          titulo: book.title,
+          autor: book.author,
+          idioma: book.audiobook.language,
+          voz: book.audiobook.voiceGender,
+          duracaoSegundos: book.audiobook.durationSeconds,
+          capitulosAudio: book.audiobook.totalChapters,
+          geradoEm: new Date(book.audiobook.generatedAt).toLocaleString('pt-BR'),
+          timelineEvents: book.audiobook.timelineEvents || {},
+          soundDesignSummary: book.audiobook.soundDesignSummary || {}
+        };
+        root.file('07_AUDIOBOOK_TIMELINE_MIXAGEM.json', JSON.stringify(audioMeta, null, 2));
+
+        const audioUrl = book.audiobook.audioUrl || `/api/audiobook/files/${book.bookId || book.id}/final`;
+        try {
+          const audioRes = await fetch(audioUrl);
+          if (audioRes.ok) {
+            const audioBlob = await audioRes.blob();
+            root.file('07_AUDIOBOOK_COMPLETO_MASTER.mp3', audioBlob);
+          }
+        } catch (e) {
+          console.warn('[ZipExport] Não foi possível anexar áudio binário direto ao zip:', e);
+        }
+      }
 
       const content = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(content);
@@ -917,6 +970,132 @@ export const FinalBooksShelf: React.FC = () => {
                 </button>
               </div>
 
+              {/* ATIVOS DE AUDIOBOOK DO LIVRO — DISPONÍVEIS COM OS ARQUIVOS PARA ESCUTAR E REMIXAR */}
+              {book.audiobook ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '12px 16px',
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: 10,
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 8,
+                      backgroundColor: '#16a34a',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <Headphones size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>🎧 Audiobook Master Pronto</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d', padding: '1px 8px', borderRadius: 6, border: '1px solid #86efac' }}>
+                          {formatAudioSeconds(book.audiobook.durationSeconds)} • {book.audiobook.totalChapters} cap.
+                        </span>
+                      </div>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#15803d' }}>
+                        Gravação vocal, master e timeline de sonorização integrados aos arquivos do livro.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <a
+                      href={book.audiobook.audioUrl || `/api/audiobook/files/${book.bookId || book.id}/final`}
+                      download={`${book.title.replace(/\s+/g, '_')}_AUDIOBOOK.mp3`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 14px',
+                        backgroundColor: '#16a34a',
+                        color: '#ffffff',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)'
+                      }}
+                      title="Baixar arquivo MP3 do Audiobook"
+                    >
+                      <Download size={14} />
+                      <span>Baixar Áudio (.MP3)</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => setAudiobookModalBook(book)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 14px',
+                        backgroundColor: '#ffffff',
+                        color: '#166534',
+                        border: '1px solid #86efac',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                      title="Abrir no Audiobook Studio para remixar ou reajustar efeitos sonoros"
+                    >
+                      <Sliders size={14} />
+                      <span>🎛️ Remixar / Abrir Estúdio</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '10px 14px',
+                  backgroundColor: '#f8fafc',
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: 10,
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Headphones size={16} color="#64748b" />
+                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                      Audiobook ainda não gerado para esta obra.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAudiobookModalBook(book)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 12px',
+                      backgroundColor: '#eff6ff',
+                      color: '#2563eb',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>🎧 Criar Audiobook deste Livro</span>
+                  </button>
+                </div>
+              )}
+
               {/* AÇÕES COMPLEMENTARES: PACOTE ZIP, VISUALIZAR PDF, RELATÓRIO E EXCLUIR */}
               <div style={{
                 display: 'flex',
@@ -1247,6 +1426,82 @@ export const FinalBooksShelf: React.FC = () => {
             language: selectedBookForHtml.language
           }}
         />
+      )}
+
+      {/* MODAL DO AUDIOBOOK STUDIO COM OS ARQUIVOS DO LIVRO — ESCUTAR, EDITAR E REMIXAR */}
+      {audiobookModalBook && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.8)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20
+        }}>
+          <div style={{
+            backgroundColor: '#f8fafc',
+            borderRadius: 16,
+            maxWidth: 1040,
+            width: '100%',
+            maxHeight: '92vh',
+            overflowY: 'auto',
+            position: 'relative',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+            border: '1px solid #cbd5e1'
+          }}>
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 20px',
+              backgroundColor: '#ffffff',
+              borderBottom: '1px solid #e2e8f0',
+              zIndex: 20
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Headphones size={20} color="#2563eb" />
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                  Estúdio de Audiobook — {audiobookModalBook.title}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAudiobookModalBook(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  padding: 4,
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: 20 }}>
+              <AudiobookStudio
+                projectId={audiobookModalBook.bookId || audiobookModalBook.id}
+                initialTitle={audiobookModalBook.title}
+                initialSubtitle={audiobookModalBook.subtitle}
+                initialAuthor={audiobookModalBook.author}
+                initialChapters={audiobookModalBook.chapters?.map(c => ({ titulo: c.titulo, texto: c.texto })) || []}
+                capaUrl={audiobookModalBook.coverDataUrl}
+                bookLanguage={audiobookModalBook.language || 'português'}
+                onBack={() => setAudiobookModalBook(null)}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

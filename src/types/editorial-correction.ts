@@ -254,4 +254,5 @@ export interface FinalBookRecord {
   tags?: string[];
   kdpExportApproved?: boolean;
   validationReport?: any;
+  audiobook?: import('./book-project').BookAudiobookAsset;
 }
