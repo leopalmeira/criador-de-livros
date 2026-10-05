@@ -800,13 +800,15 @@ ${ganchoImediato}
 ━━━ DIRETRIZ NARRATIVA DO CAPÍTULO ${num} ━━━
 ${diretrizEstrutural}
 
-━━━ REGRAS TÉCNICAS OBRIGATÓRIAS ━━━
+━━━ REGRAS TÉCNICAS OBRIGATÓRIAS (ESTILO EDITORIAL KDP PROFISSIONAL) ━━━
 1. Escreva em torno de ${palavrasPorCap} palavras (mínimo ${Math.round(palavrasPorCap * 0.85)} palavras ricas em detalhes).
 2. COERÊNCIA TOTAL: Mantenha rigorosamente os mesmos personagens, cenários e tom. Não invente premissas contraditórias.
-3. Não repita expressões ou diálogos clichês dos capítulos anteriores.
-4. Use diálogos dinâmicos, descrições sensoriais e conflito ativo.
-5. Termine com um gancho forte (cliffhanger) conectando para o próximo capítulo (a menos que seja o capítulo final).
-6. Texto puro pronto para publicação. Não use asteriscos, markdown, nem notas explicativas de rodapé.
+3. PROIBIÇÃO ABSOLUTA DE METÁFORAS: Seja o livro infantil, jovem ou adulto, NUNCA use metáforas, floreios poéticos abstratos, analogias figuradas ou palavras em sentido metafórico. Todas as descrições de cenários, sentimentos, ações e diálogos devem ser totalmente literais, diretas, claras e realistas.
+4. VOCABULÁRIO POPULAR E COMUM: Evite estritamente palavras difíceis, rebuscadas, arcaicas, eruditas ou não populares ao se referir a coisas, artigos, pessoas, objetos, lugares e ações. Utilize palavras simples, naturais, amplamente conhecidas e populares do dia a dia da língua portuguesa, garantindo uma leitura fluida e acessível para qualquer pessoa.
+5. Não repita expressões ou diálogos clichês dos capítulos anteriores.
+6. Use diálogos dinâmicos, ações concretas, descrições sensoriais realistas e conflito ativo.
+7. Termine com um gancho forte (cliffhanger) conectando para o próximo capítulo (a menos que seja o capítulo final).
+8. Texto puro pronto para publicação. Não use asteriscos, markdown, nem notas explicativas de rodapé.
 
 FORMATO ESTRITO:
 TITULO: Título Criativo e Impactante do Capítulo ${num}
@@ -1016,22 +1018,31 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
         const cropH = Math.floor(srcH * 0.93);
         ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
 
-        // Vinheta de gradiente superior e central para contraste da tipografia
-        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        grad.addColorStop(0, 'rgba(0,0,0,0.88)');
-        grad.addColorStop(0.32, 'rgba(0,0,0,0.3)');
-        grad.addColorStop(0.68, 'rgba(0,0,0,0.25)');
-        grad.addColorStop(1, 'rgba(0,0,0,0.95)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Vinheta de gradiente superior suave para o selo/tag de gênero
+        const topGrad = ctx.createLinearGradient(0, 0, 0, 360);
+        topGrad.addColorStop(0, 'rgba(0,0,0,0.85)');
+        topGrad.addColorStop(0.7, 'rgba(0,0,0,0.4)');
+        topGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = topGrad;
+        ctx.fillRect(0, 0, canvas.width, 360);
 
-        // Vinheta profunda sólida no rodapé para blindar contra qualquer logotipo ou ruído
-        const footerGrad = ctx.createLinearGradient(0, canvas.height - 400, 0, canvas.height);
+        // Vinheta de gradiente central balanceada (garante contraste impecável do Título acima do meio sem escurecer toda a arte)
+        const midGrad = ctx.createLinearGradient(0, 720, 0, 1420);
+        midGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        midGrad.addColorStop(0.3, 'rgba(0,0,0,0.65)');
+        midGrad.addColorStop(0.7, 'rgba(0,0,0,0.65)');
+        midGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = midGrad;
+        ctx.fillRect(0, 720, canvas.width, 700);
+
+        // Vinheta profunda sólida no rodapé (para o Subtítulo perto da base e o Nome do Autor)
+        const footerGrad = ctx.createLinearGradient(0, 1620, 0, canvas.height);
         footerGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        footerGrad.addColorStop(0.35, 'rgba(5,7,10,0.85)');
+        footerGrad.addColorStop(0.28, 'rgba(0,0,0,0.78)');
+        footerGrad.addColorStop(0.75, 'rgba(5,7,10,0.92)');
         footerGrad.addColorStop(1, '#05070a');
         ctx.fillStyle = footerGrad;
-        ctx.fillRect(0, canvas.height - 400, canvas.width, 400);
+        ctx.fillRect(0, 1620, canvas.width, 780);
 
         // 1. Tag de Gênero / Selo Editorial no topo (Clean e Profissional de Best-Seller)
         const getGenreTag = (gen: string, prem: string) => {
@@ -1058,41 +1069,71 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
         ctx.textAlign = 'center';
         ctx.shadowBlur = 14;
         ctx.shadowColor = 'rgba(0,0,0,0.95)';
-        ctx.font = 'bold 30px Georgia, serif';
+        ctx.font = 'bold 28px Georgia, serif';
         ctx.fillStyle = '#fde68a'; // Dourado editorial suave
-        ctx.fillText(tagGenero, canvas.width / 2, 210);
+        ctx.fillText(tagGenero, canvas.width / 2, 160);
 
-        // 2. Título da Obra (Tipografia cinematográfica imponente)
+        // 2. Título da Obra (LIGEIRAMENTE UM POUCO ACIMA DO MEIO DA CAPA)
+        // Meio da capa: 1200px. Alvo do centro do título: Y ≈ 1040px.
+        let fontSizeTit = 104;
+        if (obraTitulo.length > 50) fontSizeTit = 72;
+        else if (obraTitulo.length > 30) fontSizeTit = 84;
+        else if (obraTitulo.length > 18) fontSizeTit = 94;
+
+        ctx.font = `bold ${fontSizeTit}px Georgia, serif`;
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0,0,0,0.98)';
         ctx.shadowBlur = 32;
-        ctx.font = 'bold 112px Georgia, serif';
-        const linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), canvas.width - 200);
-        let yTit = 380;
+
+        const linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), canvas.width - 240);
+        const lineHTit = Math.round(fontSizeTit * 1.18);
+        const alturaTotalTit = linhasTitulo.length * lineHTit;
+
+        // Posiciona o bloco verticalmente para ficar ligeiramente um pouco acima do meio
+        let yTit = Math.round(1040 - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
+
         linhasTitulo.forEach(l => {
+          ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+          ctx.lineWidth = 6;
+          ctx.strokeText(l, canvas.width / 2, yTit);
           ctx.fillText(l, canvas.width / 2, yTit);
-          yTit += 132;
+          yTit += lineHTit;
         });
 
-        // 3. Subtítulo com respiro editorial (SEM nenhuma linha horizontal atravessada)
+        // 3. Subtítulo Comercial (JÁ PERTO DA PARTE DE BAIXO DA CAPA, COM ESPAÇO PARA O NOME DO AUTOR)
         if (obraSubtitulo) {
+          let fontSizeSub = 44;
+          if (obraSubtitulo.length > 80) fontSizeSub = 36;
+          else if (obraSubtitulo.length > 50) fontSizeSub = 40;
+
+          ctx.font = `italic 600 ${fontSizeSub}px Georgia, serif`;
+          ctx.fillStyle = '#f8fafc';
+          ctx.shadowColor = 'rgba(0,0,0,0.95)';
           ctx.shadowBlur = 18;
-          ctx.font = 'italic 58px Georgia, serif';
-          ctx.fillStyle = '#f1f5f9';
-          const linhasSub = quebrarLinhas(ctx, obraSubtitulo, canvas.width - 240);
-          let ySub = yTit + 80;
+
+          const linhasSub = quebrarLinhas(ctx, obraSubtitulo, canvas.width - 260);
+          const lineHSub = Math.round(fontSizeSub * 1.25);
+          const alturaTotalSub = linhasSub.length * lineHSub;
+
+          // Ancorado na parte de baixo da capa, terminando logo acima do autor (autor em 2250)
+          const yBaseSub = 2120;
+          let ySub = Math.max(1780, yBaseSub - alturaTotalSub + fontSizeSub);
+
           linhasSub.forEach(l => {
+            ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+            ctx.lineWidth = 4;
+            ctx.strokeText(l, canvas.width / 2, ySub);
             ctx.fillText(l, canvas.width / 2, ySub);
-            ySub += 76;
+            ySub += lineHSub;
           });
         }
 
-        // 4. Nome do Autor com visual sofisticado de Best-seller
+        // 4. Nome do Autor no Rodapé (Espaço reservado exclusivo com destaque)
         ctx.shadowBlur = 24;
         ctx.shadowColor = 'rgba(0,0,0,0.98)';
-        ctx.font = 'bold 64px Georgia, serif';
+        ctx.font = 'bold 56px Georgia, serif';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(obraAutor.toUpperCase(), canvas.width / 2, canvas.height - 180);
+        ctx.fillText(obraAutor.toUpperCase(), canvas.width / 2, canvas.height - 150);
 
         const capaFinalBase64 = canvas.toDataURL('image/png');
         setCapaFinal(capaFinalBase64);
@@ -2061,10 +2102,43 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
+            {/* DIRETRIZES DO MOTOR NARRATIVO EDITORIAL (SEM METÁFORAS & VOCABULÁRIO POPULAR) */}
+            <div style={{
+              marginBottom: 12,
+              padding: '10px 12px',
+              borderRadius: 8,
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <ShieldCheck size={13} color="#059669" /> Diretriz Editorial Ativa
+                </span>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#059669',
+                  background: '#ecfdf5',
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  border: '1px solid #a7f3d0'
+                }}>
+                  Ativa no Motor
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.4 }}>
+                • <b>Sem Metáforas:</b> Texto 100% literal e claro (infantil ou adulto)<br />
+                • <b>Vocabulário Popular:</b> Palavras simples e comuns para coisas, pessoas e objetos
+              </div>
+            </div>
+
             {/* ETAPA 3 — TÍTULO DO LIVRO (COM IA E VALIDADOR DE ORIGINALIDADE) */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
                   3. Título do Livro (Original)
                 </label>
                 <button
@@ -2072,18 +2146,20 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   onClick={handleGerarTitulosOriginais}
                   disabled={isGeneratingTitulos}
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#2563eb',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    color: '#334155',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 3
+                    gap: 4
                   }}
                 >
-                  <Sparkles size={11} /> {isGeneratingTitulos ? 'Gerando...' : '5 Sugestões Originais'}
+                  <Wand2 size={11} color="#475569" /> {isGeneratingTitulos ? 'Gerando...' : '5 Sugestões Originais'}
                 </button>
               </div>
 
@@ -2101,11 +2177,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       style={{
                         textAlign: 'left',
                         padding: '4px 8px',
-                        background: titulo === opt ? '#dbeafe' : '#f8fafc',
-                        border: '1px solid #cbd5e1',
+                        background: titulo === opt ? '#f1f5f9' : '#ffffff',
+                        border: titulo === opt ? '1px solid #0f172a' : '1px solid #cbd5e1',
                         borderRadius: 4,
                         fontSize: 11,
-                        color: '#1e293b',
+                        fontWeight: titulo === opt ? 700 : 500,
+                        color: '#0f172a',
                         cursor: 'pointer'
                       }}
                     >
@@ -2138,26 +2215,26 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 5,
                     padding: '8px 12px',
-                    background: '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
                     borderRadius: 6,
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
                 >
-                  <Sparkles size={13} /> IA
+                  <Wand2 size={12} color="#475569" /> IA
                 </button>
               </div>
             </div>
 
-            {/* Subtítulo Comercial (sem corte de palavras com textarea auto-ajustável) */}
+            {/* Subtítulo Comercial */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
                   Subtítulo Comercial
                 </label>
                 <button
@@ -2165,18 +2242,20 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   onClick={handleGerarSubtitulosOriginais}
                   disabled={isGeneratingSubtitulos}
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#2563eb',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    color: '#334155',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 3
+                    gap: 4
                   }}
                 >
-                  <Sparkles size={11} /> {isGeneratingSubtitulos ? 'Gerando...' : '5 Sugestões'}
+                  <Wand2 size={11} color="#475569" /> {isGeneratingSubtitulos ? 'Gerando...' : '5 Sugestões'}
                 </button>
               </div>
 
@@ -2190,12 +2269,13 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       style={{
                         textAlign: 'left',
                         padding: '6px 10px',
-                        background: subtitulo === opt ? '#dbeafe' : '#f8fafc',
-                        border: '1px solid #cbd5e1',
+                        background: subtitulo === opt ? '#f1f5f9' : '#ffffff',
+                        border: subtitulo === opt ? '1px solid #0f172a' : '1px solid #cbd5e1',
                         borderRadius: 6,
                         fontSize: 12,
                         lineHeight: 1.4,
-                        color: '#1e293b',
+                        color: '#0f172a',
+                        fontWeight: subtitulo === opt ? 700 : 500,
                         cursor: 'pointer',
                         whiteSpace: 'normal',
                         wordBreak: 'break-word'
@@ -2235,11 +2315,11 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 5,
                     padding: '8px 12px',
-                    background: '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
                     borderRadius: 6,
                     fontSize: 12,
                     fontWeight: 600,
@@ -2247,7 +2327,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     minHeight: 68
                   }}
                 >
-                  <Sparkles size={13} /> IA
+                  <Wand2 size={12} color="#475569" /> IA
                 </button>
               </div>
             </div>
@@ -2255,7 +2335,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             {/* ETAPA 4 — DIFERENCIAL EDITORIAL & ESTRATÉGIA KDP (COM SUGESTÕES DE IA) */}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
                   4. Diferencial Editorial KDP
                 </label>
                 <button
@@ -2263,19 +2343,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   onClick={handleSugerirDiferencialCompleto}
                   disabled={isSuggestingDiferencial}
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#2563eb',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    color: '#334155',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 3
+                    gap: 4
                   }}
                 >
-                  <Sparkles size={11} className={isSuggestingDiferencial ? 'spin' : ''} />
-                  {isSuggestingDiferencial ? 'Sugerindo...' : '✨ Sugerir com IA'}
+                  <Wand2 size={11} color="#475569" className={isSuggestingDiferencial ? 'spin' : ''} />
+                  {isSuggestingDiferencial ? 'Gerando...' : 'Sugerir com IA'}
                 </button>
               </div>
 
@@ -2312,11 +2394,11 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 3,
+                      gap: 4,
                       padding: '6px 10px',
-                      background: '#2563eb',
-                      color: '#ffffff',
-                      border: 'none',
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 600,
@@ -2324,7 +2406,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       minHeight: 46
                     }}
                   >
-                    <Sparkles size={11} /> IA
+                    <Wand2 size={11} color="#475569" /> IA
                   </button>
                 </div>
               </div>
@@ -2362,11 +2444,11 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 3,
+                      gap: 4,
                       padding: '6px 10px',
-                      background: '#2563eb',
-                      color: '#ffffff',
-                      border: 'none',
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 600,
@@ -2374,7 +2456,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       minHeight: 46
                     }}
                   >
-                    <Sparkles size={11} /> IA
+                    <Wand2 size={11} color="#475569" /> IA
                   </button>
                 </div>
               </div>
@@ -2412,11 +2494,11 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 3,
+                      gap: 4,
                       padding: '6px 10px',
-                      background: '#2563eb',
-                      color: '#ffffff',
-                      border: 'none',
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 600,
@@ -2424,7 +2506,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       minHeight: 46
                     }}
                   >
-                    <Sparkles size={11} /> IA
+                    <Wand2 size={11} color="#475569" /> IA
                   </button>
                 </div>
               </div>
@@ -2432,7 +2514,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
             {/* Autor */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
                 Autor / Pseudônimo
               </label>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -2458,25 +2540,25 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 5,
                     padding: '8px 12px',
-                    background: '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
                     borderRadius: 6,
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
                 >
-                  <Sparkles size={13} /> IA
+                  <Wand2 size={12} color="#475569" /> IA
                 </button>
               </div>
             </div>
 
             {/* Premissa Central */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
                 Premissa Central da História
               </label>
               <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
@@ -2504,18 +2586,18 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 5,
                     padding: '8px 12px',
-                    background: '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
                     borderRadius: 6,
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
                 >
-                  <Sparkles size={13} /> IA
+                  <Wand2 size={12} color="#475569" /> IA
                 </button>
               </div>
             </div>
@@ -3989,234 +4071,228 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
-            {/* BARRA DE FERRAMENTAS DO RODAPÉ (AÇÕES DO PROJETO) */}
+            {/* BARRA DE FERRAMENTAS DO RODAPÉ (LAYOUT PROFISSIONAL, SÓBRIO E CLEAN) */}
             <div
               style={{
                 display: 'flex',
-                gap: 8,
-                marginTop: 18,
-                paddingTop: 16,
-                borderTop: '1px solid #f1f5f9',
-                flexWrap: 'wrap'
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                marginTop: 20,
+                padding: '14px 18px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 10,
+                flexWrap: 'wrap',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
               }}
             >
-              <button
-                type="button"
-                onClick={() => setIsPublishingModalOpen(true)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '10px 16px',
-                  borderRadius: 6,
-                  background: 'linear-gradient(135deg, #10b981, #047857)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 5px rgba(16, 185, 129, 0.25)'
-                }}
-              >
-                <Globe size={15} /> 🚀 Publicação Multiplataforma
-              </button>
-              <button
-                type="button"
-                onClick={executarVerificacaoCompleta}
-                disabled={!livro || livro.capitulos.length === 0 || isAuditing}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '10px 16px',
-                  borderRadius: 6,
-                  background: 'linear-gradient(135deg, #059669, #047857)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: !livro || isAuditing ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)'
-                }}
-              >
-                <ShieldCheck size={16} /> {isAuditing ? '🔍 Auditando...' : '🔍 Auditar & Verificar (1 Clique)'}
-              </button>
-
-              <button
-                type="button"
-                onClick={baixarPDF}
-                disabled={!livro || livro.capitulos.length === 0}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  padding: '10px 14px',
-                  borderRadius: 6,
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <Download size={15} /> PDF KDP
-              </button>
-
-              {promoData && (
+              {/* GRUPO ESQUERDO: FERRAMENTAS, EXPORTAÇÃO E AUDITORIA */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={() => setIsPromoModalOpen(true)}
+                  onClick={baixarPDF}
+                  disabled={!livro || livro.capitulos.length === 0}
                   style={{
-                    flex: 1,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
                     gap: 6,
-                    padding: '10px 14px',
+                    padding: '8px 14px',
                     borderRadius: 6,
-                    background: '#7c3aed',
-                    color: '#ffffff',
-                    border: 'none',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: 'pointer'
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
                   }}
+                  title="Baixar Livro Diagramado em PDF KDP"
                 >
-                  <Sparkles size={15} /> Página Promo
+                  <Download size={14} /> PDF do Livro
                 </button>
-              )}
 
-              <button
-                type="button"
-                onClick={baixarPromoHTML}
-                disabled={!livro}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '10px 14px',
-                  borderRadius: 6,
-                  background: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: !livro ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <Download size={15} /> ⬇️ Página Promo (HTML)
-              </button>
+                {capaFinal && (
+                  <button
+                    type="button"
+                    onClick={baixarCapa}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 6,
+                      background: '#f8fafc',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                    title="Baixar Capa Oficial Diagramada em Alta Resolução (1600x2400)"
+                  >
+                    <ImageIcon size={14} /> Capa do Livro
+                  </button>
+                )}
 
-              <button
-                type="button"
-                onClick={copiarTexto}
-                disabled={!livro || livro.capitulos.length === 0}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '10px 14px',
-                  borderRadius: 6,
-                  background: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <Copy size={15} /> 📋 Copiar
-              </button>
-
-              <button
-                type="button"
-                onClick={finalizarLivroEGravarNaDashboard}
-                disabled={!livro || livro.capitulos.length === 0}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '10px 18px',
-                  borderRadius: 6,
-                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 2px 8px rgba(5, 150, 105, 0.35)'
-                }}
-                title="Compilar livro e disponibilizar na Dashboard com Manuscrito, PDF do Livro, PDF da Capa e PDF da Página"
-              >
-                <Sparkles size={16} /> 🎯 Finalizar Livro (Disponibilizar na Dashboard)
-              </button>
-
-              <button
-                type="button"
-                onClick={salvarNoCatalogo}
-                disabled={!livro}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '10px 14px',
-                  borderRadius: 6,
-                  background: '#10b981',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: !livro ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <Save size={15} /> 💾 Salvar no Catálogo
-              </button>
-
-              <button
-                type="button"
-                onClick={baixarJSON}
-                disabled={!livro}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '10px 14px',
-                  borderRadius: 6,
-                  background: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: !livro ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <Download size={15} /> 💾 Baixar JSON
-              </button>
-
-              {capaFinal && (
                 <button
                   type="button"
-                  onClick={baixarCapa}
+                  onClick={executarVerificacaoCompleta}
+                  disabled={!livro || livro.capitulos.length === 0 || isAuditing}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    padding: '10px 14px',
+                    padding: '8px 14px',
                     borderRadius: 6,
-                    background: '#f1f5f9',
-                    color: '#334155',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: !livro || isAuditing ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Auditoria Editorial KDP de Conformidade"
+                >
+                  <ShieldCheck size={14} color="#059669" /> {isAuditing ? 'Auditando...' : 'Auditar Obra'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPublishingModalOpen(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    background: '#f8fafc',
+                    color: '#0f172a',
                     border: '1px solid #cbd5e1',
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
+                  title="Publicação Multiplataforma (Kindle, Audiobook, Impresso)"
                 >
-                  <Download size={15} /> 🖼️ Capa
+                  <Globe size={14} /> Publicação Multiplataforma
                 </button>
-              )}
+
+                {promoData && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPromoModalOpen(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 6,
+                      background: '#f8fafc',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                    title="Visualizar e Personalizar Página Promocional"
+                  >
+                    <Sparkles size={14} /> Página Promo
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={copiarTexto}
+                  disabled={!livro || livro.capitulos.length === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    background: '#f8fafc',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Copiar Texto Integral do Manuscrito"
+                >
+                  <Copy size={14} /> Copiar Texto
+                </button>
+
+                <button
+                  type="button"
+                  onClick={salvarNoCatalogo}
+                  disabled={!livro}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    background: '#f8fafc',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: !livro ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Salvar Estado Atual no Catálogo Local"
+                >
+                  <Save size={14} /> Salvar Catálogo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={baixarJSON}
+                  disabled={!livro}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    background: '#f8fafc',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: !livro ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Exportar Dados da Obra em JSON"
+                >
+                  <FileText size={14} /> Exportar JSON
+                </button>
+              </div>
+
+              {/* GRUPO DIREITO: AÇÃO PRINCIPAL DE FINALIZAÇÃO */}
+              <div>
+                <button
+                  type="button"
+                  onClick={finalizarLivroEGravarNaDashboard}
+                  disabled={!livro || livro.capitulos.length === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 20px',
+                    borderRadius: 6,
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 6px rgba(15, 23, 42, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Compilar obra e disponibilizar na Dashboard com Manuscrito, PDF do Livro, PDF da Capa e PDF da Página"
+                >
+                  <CheckCircle2 size={16} /> Finalizar Livro (Disponibilizar na Dashboard)
+                </button>
+              </div>
             </div>
           </div>
         </div>

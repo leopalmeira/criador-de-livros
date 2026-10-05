@@ -226,54 +226,77 @@ export async function exportCoverHighResCanvas(
         ctx.restore();
       }
 
-      // 4. Título da Obra
+      // 4. Título da Obra (LIGEIRAMENTE UM POUCO ACIMA DO MEIO DA CAPA)
       ctx.save();
       const isSerif = concept.fontFamily.includes('Cinzel') || concept.fontFamily.includes('Playfair');
       ctx.font = `bold 82px ${isSerif ? 'Georgia, serif' : 'sans-serif'}`;
       ctx.fillStyle = concept.titleColor || '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowColor = 'rgba(0,0,0,0.95)';
       ctx.shadowBlur = 24;
       ctx.shadowOffsetY = 4;
 
-      // Quebra de linha automática do título
+      // Quebra e cálculo de altura do título
       const titleWords = title.split(' ');
-      let line = '';
-      let titleY = showBadge && activeBadge ? 180 : 130;
+      const titleLines: string[] = [];
+      let currentTLine = '';
       for (let i = 0; i < titleWords.length; i++) {
-        const testLine = line + titleWords[i] + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > 1300 && i > 0) {
-          ctx.fillText(line.trim(), 800, titleY);
-          line = titleWords[i] + ' ';
-          titleY += 100;
+        const testLine = currentTLine ? `${currentTLine} ${titleWords[i]}` : titleWords[i];
+        if (ctx.measureText(testLine).width > 1300 && currentTLine) {
+          titleLines.push(currentTLine);
+          currentTLine = titleWords[i];
         } else {
-          line = testLine;
+          currentTLine = testLine;
         }
       }
-      ctx.fillText(line.trim(), 800, titleY);
-      titleY += 105;
+      if (currentTLine) titleLines.push(currentTLine);
 
-      // 5. Subtítulo
+      const titleLineH = 98;
+      const totalTH = titleLines.length * titleLineH;
+      // Posiciona o bloco verticalmente um pouco acima do meio da capa (1200px)
+      let titleY = Math.round(1040 - (totalTH / 2));
+
+      titleLines.forEach(l => {
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx.lineWidth = 6;
+        ctx.strokeText(l, 800, titleY);
+        ctx.fillText(l, 800, titleY);
+        titleY += titleLineH;
+      });
+
+      // 5. Subtítulo (JÁ PERTO DA PARTE DE BAIXO DA CAPA, COM ESPAÇO PARA O AUTOR)
       if (subtitle) {
-        ctx.font = '600 36px sans-serif';
+        ctx.font = '600 38px sans-serif';
         ctx.fillStyle = concept.subtitleColor || '#fbbf24';
-        ctx.shadowBlur = 16;
+        ctx.shadowBlur = 18;
 
         const subWords = subtitle.split(' ');
-        let subLine = '';
+        const subLines: string[] = [];
+        let currentSLine = '';
         for (let i = 0; i < subWords.length; i++) {
-          const testLine = subLine + subWords[i] + ' ';
-          if (ctx.measureText(testLine).width > 1250 && i > 0) {
-            ctx.fillText(subLine.trim(), 800, titleY);
-            subLine = subWords[i] + ' ';
-            titleY += 50;
+          const testLine = currentSLine ? `${currentSLine} ${subWords[i]}` : subWords[i];
+          if (ctx.measureText(testLine).width > 1250 && currentSLine) {
+            subLines.push(currentSLine);
+            currentSLine = subWords[i];
           } else {
-            subLine = testLine;
+            currentSLine = testLine;
           }
         }
-        ctx.fillText(subLine.trim(), 800, titleY);
+        if (currentSLine) subLines.push(currentSLine);
+
+        const subLineH = 48;
+        const totalSH = subLines.length * subLineH;
+        // Ancorado perto da parte de baixo da capa, terminando em Y = 2120 (autor em 2280)
+        let subY = Math.max(1780, 2120 - totalSH);
+
+        subLines.forEach(sl => {
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+          ctx.lineWidth = 4;
+          ctx.strokeText(sl, 800, subY);
+          ctx.fillText(sl, 800, subY);
+          subY += subLineH;
+        });
       }
       ctx.restore();
 

@@ -7,7 +7,6 @@ import {
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
 import { FinalBooksShelf } from './FinalBooksShelf';
-import { QuickIllustratedBookCard } from './dashboard/QuickIllustratedBookCard';
 import { db } from '../../database/local-database';
 
 interface Props {
@@ -174,159 +173,227 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* CARD DE GERAÇÃO RÁPIDA DE LIVROS ILUSTRADOS (COM 32 OPÇÕES, PROMPT POR PÁGINA E CAPA OFICIAL COM TÍTULO E AUTOR) */}
-            <QuickIllustratedBookCard onOpenProject={onOpenProject} />
-
-            {/* CARD DE RETOMADA IMEDIATA DE LIVRO EM ANDAMENTO (PRESERVAÇÃO APÓS F5 / ATUALIZAÇÃO DA PÁGINA) */}
-            {projetoEmAndamento && (
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, #eff6ff, #f8fafc)',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: 12,
-                  padding: '16px 20px',
-                  marginBottom: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)',
-                  gap: 16,
-                  flexWrap: 'wrap'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 260 }}>
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      flexShrink: 0,
-                      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
-                    }}
-                  >
-                    <BookOpen size={20} />
+            {/* LISTAGEM PRINCIPAL: TODOS OS LIVROS CRIADOS NA PLATAFORMA COM SUAS CAPAS */}
+            <div className="existing-projects-sublist" style={{ marginTop: 10, marginBottom: 24 }}>
+              <div className="existing-projects-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: '#0f172a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff'
+                  }}>
+                    <BookOpen size={16} />
                   </div>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, background: '#dbeafe', color: '#1d4ed8', padding: '1px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
-                        ⚡ PROJETO EM ANDAMENTO RECUPERADO
-                      </span>
-                      <span style={{ fontSize: 11, color: '#64748b' }}>
-                        {projetoEmAndamento.kdpChapters?.length || 0} capítulos salvos no banco local
-                      </span>
-                    </div>
-                    <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
-                      {projetoEmAndamento.title || 'Livro Sem Título'}
-                    </h4>
-                    <span style={{ fontSize: 12, color: '#475569' }}>
-                      {projetoEmAndamento.author || 'Autor não definido'} • {projetoEmAndamento.categories?.[0] || 'Não-Ficção'} • Seus créditos e progresso foram preservados!
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                      Livros Criados na Plataforma ({projects.length})
+                    </h3>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                      Catálogo completo com capas diagramadas e arquivos de publicação
                     </span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn-create-sub"
+                  onClick={onCreateNewProject}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)'
+                  }}
+                >
+                  <Plus size={14} /> Novo Livro
+                </button>
+              </div>
+
+              {projects.length === 0 ? (
+                <div style={{
+                  padding: '36px 24px',
+                  background: '#f8fafc',
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: 12,
+                  textAlign: 'center'
+                }}>
+                  <BookOpen size={32} color="#94a3b8" style={{ margin: '0 auto 8px' }} />
+                  <p style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#475569' }}>
+                    Nenhum livro criado ainda
+                  </p>
                   <button
-                    onClick={() => onOpenProject(projetoEmAndamento.id)}
+                    onClick={onCreateNewProject}
                     style={{
-                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      background: '#0f172a',
                       color: '#ffffff',
                       border: 'none',
-                      borderRadius: 8,
-                      padding: '10px 18px',
+                      borderRadius: 6,
+                      padding: '8px 16px',
                       fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                      fontWeight: 600,
+                      cursor: 'pointer'
                     }}
                   >
-                    <Play size={14} /> Continuar Livro
+                    Começar Meu Primeiro Livro
                   </button>
                 </div>
-              </div>
-            )}
-
-            {/* ESTANTE DE LIVROS FINALIZADOS DISPONÍVEIS PARA BAIXAR */}
-            <FinalBooksShelf />
-
-            {/* SE HOUVER LIVROS JÁ CRIADOS, EXIBE EM LISTA ORGANIZADA ABAIXO */}
-            {projects.length > 0 && (
-              <div className="existing-projects-sublist">
-                <div className="existing-projects-header">
-                  <h3>Meus Livros & Projetos em Andamento ({projects.length})</h3>
-                  <button className="btn-create-sub" onClick={onCreateNewProject}>
-                    <Plus size={14} /> Novo Livro
-                  </button>
-                </div>
-
-                <div className="existing-projects-grid">
+              ) : (
+                <div className="existing-projects-grid" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {projects.map(p => {
                     const chapters = p.kdpChapters?.length || 0;
                     const words = p.kdpChapters?.reduce((s, c) => s + (c.wordCount || 0), 0) || 0;
                     const isFinalizado = p.status === 'FINALIZADO' || p.pipelineStage === 'final';
+                    const coverUrl = p.coverImageUrl;
 
                     return (
                       <div
                         key={p.id}
                         className="project-row-card"
                         onClick={() => onOpenProject(p.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px 16px',
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: 12,
+                          gap: 16,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                        }}
                       >
-                        <div className="project-row-main">
-                          <div className="project-row-icon">
-                            <BookOpen size={18} color="#2563eb" />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
+                          {/* MINIATURA EXCLUSIVA DA CAPA DO LIVRO (PROPORÇÃO KDP 2:3) */}
+                          <div
+                            style={{
+                              width: 54,
+                              height: 80,
+                              borderRadius: 6,
+                              overflow: 'hidden',
+                              flexShrink: 0,
+                              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                              boxShadow: '0 4px 10px rgba(0,0,0,0.18)',
+                              border: '1px solid #cbd5e1',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              position: 'relative'
+                            }}
+                          >
+                            {coverUrl ? (
+                              <img
+                                src={coverUrl}
+                                alt={`Capa de ${p.title || 'Livro'}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <div style={{ padding: 4, textAlign: 'center', color: '#ffffff' }}>
+                                <span style={{ fontSize: 7, fontWeight: 800, color: '#38bdf8', letterSpacing: '0.5px' }}>
+                                  KDP
+                                </span>
+                                <div style={{
+                                  fontSize: 8,
+                                  fontWeight: 700,
+                                  lineHeight: 1.1,
+                                  maxHeight: 38,
+                                  overflow: 'hidden',
+                                  marginTop: 2,
+                                  color: '#f8fafc'
+                                }}>
+                                  {p.title || 'Obra'}
+                                </div>
+                                <div style={{ fontSize: 6, color: '#94a3b8', marginTop: 3 }}>
+                                  {p.author ? p.author.split(' ')[0] : 'Autor'}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                              <h4 className="project-row-title" style={{ margin: 0 }}>
+
+                          {/* INFORMAÇÕES DA OBRA */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                              <h4 style={{
+                                margin: 0,
+                                fontSize: 15,
+                                fontWeight: 700,
+                                color: '#0f172a',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
                                 {p.title || 'Livro Sem Título'}
                               </h4>
                               {isFinalizado ? (
                                 <span style={{
                                   fontSize: 10,
                                   fontWeight: 700,
-                                  background: '#ecfdf5',
-                                  color: '#059669',
-                                  padding: '1px 6px',
+                                  background: '#f0fdf4',
+                                  color: '#15803d',
+                                  padding: '2px 8px',
                                   borderRadius: 4,
-                                  border: '1px solid #a7f3d0'
+                                  border: '1px solid #bbf7d0'
                                 }}>
                                   ✓ Finalizado
                                 </span>
                               ) : (
                                 <span style={{
                                   fontSize: 10,
-                                  fontWeight: 700,
-                                  background: '#fffbeb',
-                                  color: '#b45309',
-                                  padding: '1px 6px',
+                                  fontWeight: 600,
+                                  background: '#f8fafc',
+                                  color: '#475569',
+                                  padding: '2px 8px',
                                   borderRadius: 4,
-                                  border: '1px solid #fde68a'
+                                  border: '1px solid #e2e8f0'
                                 }}>
-                                  ✏️ Rascunho / Em Andamento ({chapters} cap{chapters === 1 ? '' : 's'})
+                                  Em Andamento • {chapters} {chapters === 1 ? 'capítulo' : 'capítulos'}
                                 </span>
                               )}
                             </div>
-                            <span className="project-row-meta">
-                              {p.author || 'Autor não definido'} • {p.categories?.[0] || p.kdpBookType || 'Não-Ficção'} • {chapters} capítulos • {words.toLocaleString('pt-BR')} palavras
+
+                            {p.subtitle && (
+                              <p style={{
+                                margin: '0 0 3px 0',
+                                fontSize: 12,
+                                color: '#475569',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontStyle: 'italic'
+                              }}>
+                                {p.subtitle}
+                              </p>
+                            )}
+
+                            <span style={{ fontSize: 12, color: '#64748b' }}>
+                              {p.author || 'Autor não definido'} • {p.categories?.[0] || p.kdpBookType || 'Não-Ficção'} • {chapters} capítulos • {words > 0 ? `${words.toLocaleString('pt-BR')} palavras` : 'Em criação'}
                             </span>
                           </div>
                         </div>
 
-                        <div className="project-row-actions" onClick={(e) => e.stopPropagation()}>
+                        {/* BOTÕES DE AÇÃO PROFISSIONAIS E SÓBRIOS */}
+                        <div className="project-row-actions" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           {!isFinalizado && chapters > 0 && (
                             <button
                               className="btn-icon-soft"
                               onClick={(e) => handleQuickFinalize(p, e)}
                               disabled={finalizingProjectId === p.id}
-                              title="Finalizar Obra & Disponibilizar na Estante de Downloads"
-                              style={{ color: '#059669', borderColor: '#a7f3d0', background: '#ecfdf5' }}
+                              title="Finalizar Obra e Disponibilizar para Download"
+                              style={{ color: '#0f172a', borderColor: '#cbd5e1' }}
                             >
                               <CheckCircle2 size={14} />
                             </button>
@@ -337,55 +404,56 @@ export const BookIntelDashboard: React.FC<Props> = ({
                               e.stopPropagation();
                               onOpenPublishing && onOpenPublishing(p.id);
                             }}
-                            title="Publicação Multiplataforma & Audiobook Studio deste livro"
-                            style={{ color: '#059669', borderColor: '#a7f3d0', background: '#ecfdf5' }}
+                            title="Publicação Multiplataforma"
+                            style={{ color: '#0f172a', borderColor: '#cbd5e1' }}
                           >
                             <Globe size={14} />
                           </button>
                           <button
                             className="btn-icon-soft"
                             onClick={(e) => onDuplicateProject(p.id, e)}
-                            title="Duplicar Projeto"
+                            title="Duplicar Obra"
+                            style={{ color: '#475569', borderColor: '#cbd5e1' }}
                           >
                             <Copy size={14} />
                           </button>
                           <button
                             className="btn-icon-soft danger"
                             onClick={(e) => onDeleteProject(p.id, e)}
-                            title="Excluir Projeto"
+                            title="Excluir"
+                            style={{ color: '#dc2626', borderColor: '#fecaca' }}
                           >
                             <Trash2 size={14} />
                           </button>
-                          {!isFinalizado ? (
-                            <button
-                              className="btn-open-proj-arrow"
-                              onClick={() => onOpenProject(p.id)}
-                              title="Continuar Geração do Livro de Onde Parou"
-                              style={{
-                                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                                color: '#ffffff',
-                                border: 'none',
-                                fontWeight: 700
-                              }}
-                            >
-                              <Play size={13} /> Continuar Livro
-                            </button>
-                          ) : (
-                            <button
-                              className="btn-open-proj-arrow"
-                              onClick={() => onOpenProject(p.id)}
-                              title="Continuar Edição no Gerador KDP Pro"
-                            >
-                              Editar <ArrowRight size={14} />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => onOpenProject(p.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '8px 14px',
+                              borderRadius: 6,
+                              background: '#0f172a',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              boxShadow: '0 1px 3px rgba(15, 23, 42, 0.2)'
+                            }}
+                          >
+                            {isFinalizado ? 'Editar' : 'Continuar'} <ArrowRight size={13} />
+                          </button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* ESTANTE DE LIVROS FINALIZADOS DISPONÍVEIS PARA BAIXAR */}
+            <FinalBooksShelf />
 
           </div>
 

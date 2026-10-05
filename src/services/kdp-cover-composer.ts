@@ -131,57 +131,76 @@ export async function comporCapaComTipografia(
         ctx.lineTo(width / 2 + 120, 165);
         ctx.stroke();
 
-        // 6. Título do Livro (Grande, imponente, com sombra cinematográfica)
+        // Gradiente suave central (garante legibilidade impecável do Título posicionado um pouco acima do meio)
+        const midGradient = ctx.createLinearGradient(0, height * 0.3, 0, height * 0.6);
+        midGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        midGradient.addColorStop(0.3, 'rgba(0, 0, 0, 0.62)');
+        midGradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.62)');
+        midGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = midGradient;
+        ctx.fillRect(0, height * 0.3, width, height * 0.3);
+
+        // 6. Título do Livro (LIGEIRAMENTE UM POUCO ACIMA DO MEIO DA CAPA)
         const cleanTitle = (options.titulo || 'LIVRO ILUSTRADO').toUpperCase();
-        const maxTitleWidth = width * 0.88;
+        const maxTitleWidth = width * 0.86;
 
         // Ajuste dinâmico de tamanho de fonte conforme comprimento do título
         let titleFontSize = 100;
-        if (cleanTitle.length > 50) titleFontSize = 74;
-        else if (cleanTitle.length > 35) titleFontSize = 84;
-        else if (cleanTitle.length > 20) titleFontSize = 92;
+        if (cleanTitle.length > 50) titleFontSize = 72;
+        else if (cleanTitle.length > 35) titleFontSize = 82;
+        else if (cleanTitle.length > 20) titleFontSize = 90;
 
         ctx.font = `900 ${titleFontSize}px "Georgia", "Cinzel", "Times New Roman", serif`;
         ctx.letterSpacing = '2px';
         ctx.fillStyle = options.corTitulo || '#ffffff';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-        ctx.shadowBlur = 24;
+        ctx.shadowBlur = 28;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 6;
 
         const titleLines = wrapCanvasText(ctx, cleanTitle, maxTitleWidth);
-        const titleLineHeight = titleFontSize * 1.15;
-        let startY = 250;
+        const titleLineHeight = titleFontSize * 1.18;
+        const totalTitleHeight = titleLines.length * titleLineHeight;
+
+        // Centro alvo: Y ≈ 1040px (ligeiramente um pouco acima do meio de 2400)
+        let startY = Math.round(1040 - (totalTitleHeight / 2) + (titleFontSize * 0.35));
 
         titleLines.forEach((line) => {
-          // Borda preta sutil para contraste máximo
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
           ctx.lineWidth = 6;
           ctx.strokeText(line, width / 2, startY);
-          // Preenchimento
           ctx.fillText(line, width / 2, startY);
           startY += titleLineHeight;
         });
 
-        // 7. Subtítulo Comercial (se houver)
+        // 7. Subtítulo Comercial (JÁ PERTO DA PARTE DE BAIXO DA CAPA, COM ESPAÇO PARA O AUTOR)
         if (options.subtitulo) {
-          const subFontSize = Math.max(34, Math.min(46, Math.round(titleFontSize * 0.45)));
+          const subFontSize = Math.max(34, Math.min(44, Math.round(titleFontSize * 0.44)));
           ctx.font = `italic 600 ${subFontSize}px "Georgia", serif`;
           ctx.letterSpacing = '1px';
-          ctx.fillStyle = '#f1f5f9';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-          ctx.shadowBlur = 14;
+          ctx.fillStyle = '#f8fafc';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+          ctx.shadowBlur = 18;
           ctx.shadowOffsetY = 4;
 
           const subLines = wrapCanvasText(ctx, options.subtitulo, width * 0.84);
-          startY += 15;
+          const subLineHeight = subFontSize * 1.25;
+          const totalSubHeight = subLines.length * subLineHeight;
+
+          // Ancorado na parte de baixo da capa, terminando acima do autor (autor em height - 160)
+          const yBaseSub = height - 280;
+          let subY = Math.max(height * 0.74, yBaseSub - totalSubHeight + subFontSize);
+
           subLines.forEach((sLine) => {
-            ctx.fillText(sLine, width / 2, startY);
-            startY += subFontSize * 1.25;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.lineWidth = 4;
+            ctx.strokeText(sLine, width / 2, subY);
+            ctx.fillText(sLine, width / 2, subY);
+            subY += subLineHeight;
           });
         }
 
-        // 8. Nome do Autor no Rodapé
+        // 8. Nome do Autor no Rodapé (Espaço reservado exclusivo)
         const autorText = (options.autor ? `POR ${options.autor}` : 'BOOK INTEL KDP').toUpperCase();
         ctx.font = '700 44px "Trebuchet MS", sans-serif';
         ctx.letterSpacing = '8px';
@@ -189,14 +208,14 @@ export async function comporCapaComTipografia(
         ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
         ctx.shadowBlur = 18;
         ctx.shadowOffsetY = 4;
-        ctx.fillText(autorText, width / 2, height - 160);
+        ctx.fillText(autorText, width / 2, height - 150);
 
         // Linha divisória ornamental inferior
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(width / 2 - 90, height - 120);
-        ctx.lineTo(width / 2 + 90, height - 120);
+        ctx.moveTo(width / 2 - 90, height - 110);
+        ctx.lineTo(width / 2 + 90, height - 110);
         ctx.stroke();
 
         // 9. Exporta em DataURL PNG
