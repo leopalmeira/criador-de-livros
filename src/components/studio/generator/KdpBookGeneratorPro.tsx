@@ -1945,27 +1945,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            onClick={() => setIsTourModalOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'linear-gradient(135deg, #4f46e5, #3b82f6)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 20,
-              padding: '6px 14px',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)'
-            }}
-            title="Abrir o tour guiado e explicação detalhada de cada botão e função"
-          >
-            🎓 Tour Guiado / Como Usar
-          </button>
+
 
           <div
             style={{
@@ -2862,59 +2842,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </label>
             </div>
 
-            {/* PAINEL DE EFICIÊNCIA DE CUSTO & MODO ULTRA ECONÔMICO */}
-            <div style={{
-              background: modoEconomico ? '#f0fdf4' : '#f8fafc',
-              border: `1px solid ${modoEconomico ? '#86efac' : '#e2e8f0'}`,
-              borderRadius: 8,
-              padding: '10px 12px',
-              marginBottom: 16
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: modoEconomico ? '#15803d' : '#334155', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={modoEconomico}
-                    onChange={(e) => setModoEconomico(e.target.checked)}
-                  />
-                  <span>⚡ Modo Ultra Econômico (Google Gemini)</span>
-                </label>
-                <span style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  background: modoEconomico ? '#dcfce7' : '#e2e8f0',
-                  color: modoEconomico ? '#166534' : '#64748b',
-                  padding: '2px 6px',
-                  borderRadius: 4
-                }}>
-                  {modoEconomico ? 'Até 75% Menos Custo' : 'Padrão'}
-                </span>
-              </div>
-              <p style={{ margin: 0, fontSize: 11, color: '#64748b', lineHeight: 1.4 }}>
-                {modoEconomico
-                  ? 'Ativa Gemini 3.5 Flash Lite com supressão de tokens de raciocínio, limites dinâmicos de saída e cache inteligente. Custo médio estimado: ~R$ 0,15 por livro.'
-                  : 'Modo padrão sem restrição de tokens de saída.'}
-              </p>
-
-              {tokensConsumidosTotal > 0 && (
-                <div style={{
-                  marginTop: 8,
-                  paddingTop: 8,
-                  borderTop: '1px dashed #cbd5e1',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: 11
-                }}>
-                  <span style={{ color: '#475569' }}>
-                    Tokens usados nesta sessão: <strong>{tokensConsumidosTotal.toLocaleString('pt-BR')}</strong>
-                  </span>
-                  <span style={{ fontWeight: 700, color: '#166534' }}>
-                    ~R$ {custoEstimadoTotalBrl.toFixed(3)}
-                  </span>
-                </div>
-              )}
-            </div>
+            {/* Modo econômico ativo silenciosamente — UI removida conforme solicitação */}
 
             {/* BOTÕES DE CONTROLE DA PRODUÇÃO */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -4555,12 +4483,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         }}
       />
 
-      {/* MODAL DO TOUR GUIADO DE CADA FUNÇÃO E BOTÃO */}
-      <KdpTourGuideModal
-        isOpen={isTourModalOpen}
-        onClose={() => setIsTourModalOpen(false)}
-        onNavigateToTab={(t) => setActiveTab(t as any)}
-      />
+      {/* Tour guiado removido da UI conforme solicitação */}
 
       {/* MODAL DO REVISOR EDITORIAL PÁGINA POR PÁGINA */}
       {isPageReviewerOpen && livro && (
