@@ -8,12 +8,13 @@
     "build:main": "vite build",
     "build:content": "vite build --config vite.content.config.ts",
     "build": "npm run build:main && npm run build:content",
+    "postinstall": "npm run build",
     "start": "node --max-old-space-size=460 server.js",
     "preview": "node server.js",
     "test": "vitest run"
   },
   "engines": {
-    "node": ">=22.14.0"
+    "node": ">=20.0.0"
   },
   "keywords": [],
   "author": "",
