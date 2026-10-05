@@ -159,6 +159,7 @@ export const KdpDirectPublishModal: React.FC<KdpDirectPublishModalProps> = ({
         await db.saveFinalBook({
           id: finalId,
           projectId: project.id,
+          bookId: project.id,
           title: bookTitle,
           subtitle: bookSubtitle,
           author: authorName,
@@ -181,7 +182,7 @@ export const KdpDirectPublishModal: React.FC<KdpDirectPublishModalProps> = ({
               { id: 'margins', label: 'Margens KDP', ok: true, critical: true, detail: 'Aprovado' }
             ]
           }
-        });
+        } as any);
 
         // Dispara evento para atualizar a dashboard e a estante
         window.dispatchEvent(new Event('kdp-final-books-updated'));

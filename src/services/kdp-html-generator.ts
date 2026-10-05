@@ -17,6 +17,7 @@ export interface BookHtmlDataInput {
   synopsis?: string;
   chapters?: Array<{ titulo: string; texto: string }>;
   promoData?: BookPromotionalPageData | null;
+  language?: string;
 }
 
 export class KdpHtmlGenerator {
@@ -26,31 +27,43 @@ export class KdpHtmlGenerator {
    * <h2>, <h3>, <b>, <strong>, <i>, <em>, <u>, <ul>, <ol>, <li>, <p>, <br>
    */
   public static generateKdpDescriptionHtml(input: BookHtmlDataInput): string {
-    const title = input.title || 'Livro Sem Título';
+    const isEn = Boolean(input.language && /ingl|en/i.test(input.language));
+    const title = input.title || (isEn ? 'Untitled Book' : 'Livro Sem Título');
     const subtitle = input.subtitle || '';
-    const author = input.author || 'Autor da Obra';
-    const genre = input.genre || 'Literatura';
+    const author = input.author || (isEn ? 'Author' : 'Autor da Obra');
+    const genre = input.genre || (isEn ? 'Literature' : 'Literatura');
 
     const promo = input.promoData;
 
     // 1. Gancho Principal & Headline
-    const headline = promo?.headline || `${title.toUpperCase()}: ${subtitle || 'UMA HISTÓRIA INESQUECÍVEL'}`;
-    const heroHook = promo?.heroHook || (input.synopsis ? input.synopsis.slice(0, 160) : `Um mergulho profundo no universo de ${genre.toLowerCase()} que prenderá sua atenção da primeira à última página.`);
+    const defaultHeadline = isEn
+      ? `${title.toUpperCase()}: ${subtitle || 'AN UNFORGETTABLE STORY'}`
+      : `${title.toUpperCase()}: ${subtitle || 'UMA HISTÓRIA INESQUECÍVEL'}`;
+    const headline = promo?.headline || defaultHeadline;
+
+    const defaultHeroHook = isEn
+      ? (input.synopsis ? input.synopsis.slice(0, 160) : `A captivating journey into the world of ${genre.toLowerCase()} that will keep you reading from beginning to end.`)
+      : (input.synopsis ? input.synopsis.slice(0, 160) : `Um mergulho profundo no universo de ${genre.toLowerCase()} que prenderá sua atenção da primeira à última página.`);
+    const heroHook = promo?.heroHook || defaultHeroHook;
 
     // 2. Sinopse Editorial
     let sinopse = promo?.synopsis || input.synopsis || '';
     if (!sinopse && input.chapters && input.chapters.length > 0) {
-      // Extrai um resumo do primeiro capítulo
       const firstCap = input.chapters[0].texto || '';
-      sinopse = firstCap.split(/\n\s*\n/)[0] || 'Uma trama envolvente e repleta de reviravoltas.';
+      sinopse = firstCap.split(/\n\s*\n/)[0] || (isEn ? 'A gripping story full of unexpected twists.' : 'Uma trama envolvente e repleta de reviravoltas.');
       if (sinopse.length > 300) sinopse = sinopse.slice(0, 300) + '...';
     }
     if (!sinopse) {
-      sinopse = `Em "${title}", o autor ${author} constrói uma narrativa densa e cinematográfica, explorando os limites das escolhas humanas e os segredos que mudam vidas para sempre.`;
+      sinopse = isEn
+        ? `In "${title}", author ${author} weaves a vivid and cinematic narrative, exploring the frontiers of human nature and choices that change lives forever.`
+        : `Em "${title}", o autor ${author} constrói uma narrativa densa e cinematográfica, explorando os limites das escolhas humanas e os segredos que mudam vidas para sempre.`;
     }
 
     // 3. Frase de Impacto
-    const impactQuote = promo?.impactQuote || `Quando a verdade finalmente vem à tona, nenhum detalhe pode ser ignorado.`;
+    const defaultQuote = isEn
+      ? 'When the truth finally surfaces, no detail can be left in the shadows.'
+      : 'Quando a verdade finalmente vem à tona, nenhum detalhe pode ser ignorado.';
+    const impactQuote = promo?.impactQuote || defaultQuote;
 
     // 4. Características e Destaques (Bullet points)
     let featureBullets: Array<{ title: string; desc: string }> = [];
@@ -60,13 +73,17 @@ export class KdpHtmlGenerator {
         desc: f.description || f.subtitle || ''
       }));
     } else if (input.chapters && input.chapters.length > 0) {
-      // Gera destaques a partir dos primeiros capítulos
       featureBullets = input.chapters.slice(0, 4).map((c, idx) => ({
-        title: c.titulo.replace(/^capítulo\s*\d+[:\-]?\s*/i, '') || `Revelação Parte ${idx + 1}`,
-        desc: `Um marco decisivo no desenvolvimento da trama e dos personagens centrais.`
+        title: c.titulo.replace(/^(capítulo|chapter)\s*\d+[:\-]?\s*/i, '') || (isEn ? `Key Reveal Part ${idx + 1}` : `Revelação Parte ${idx + 1}`),
+        desc: isEn ? 'A pivotal milestone in character and plot development.' : 'Um marco decisivo no desenvolvimento da trama e dos personagens centrais.'
       }));
     } else {
-      featureBullets = [
+      featureBullets = isEn ? [
+        { title: 'Gripping Storyline', desc: 'Expertly structured to keep readers turning pages until the end.' },
+        { title: 'Memorable Characters', desc: 'Realistic human conflicts, authentic voices, and emotional depth.' },
+        { title: 'Cinematic Pacing', desc: 'Vivid imagery, rich atmospheric detail, and rising tension.' },
+        { title: 'Polished Edition', desc: 'Refined editorial quality formatted specifically for Amazon KDP.' }
+      ] : [
         { title: 'Enredo Envolvente', desc: 'Narrativa estruturada para prender a atenção do leitor do início ao fim.' },
         { title: 'Personagens Marcantes', desc: 'Conflitos humanos realistas, diálogos dinâmicos e desenvolvimento autêntico.' },
         { title: 'Ritmo Cinematográfico', desc: 'Cenas detalhadas com ambientação rica e tensão progressiva constante.' },
@@ -75,8 +92,11 @@ export class KdpHtmlGenerator {
     }
 
     // 5. Universo e Provocação Final
-    const expTitle = promo?.experienceTitle || 'Por que este livro é uma leitura imperdível:';
-    const closingQuestion = promo?.closingQuestion || 'Até onde você iria para descobrir a verdade definitiva?';
+    const expTitle = promo?.experienceTitle || (isEn ? 'Why this book is a must-read:' : 'Por que este livro é uma leitura imperdível:');
+    const closingQuestion = promo?.closingQuestion || (isEn ? 'How far would you go to discover the ultimate truth?' : 'Até onde você iria para descobrir a verdade definitiva?');
+    const ctaText = isEn
+      ? '👉 <b>Get your copy today and experience this unforgettable journey!</b>'
+      : '👉 <b>Garanta seu exemplar hoje mesmo e descubra este desfecho extraordinário!</b>';
 
     // Monta o HTML limpo e estrito para o KDP
     const htmlLines: string[] = [
@@ -95,7 +115,7 @@ export class KdpHtmlGenerator {
       ``,
       `<p><b>${closingQuestion}</b></p>`,
       ``,
-      `<p>👉 <b>Garanta seu exemplar hoje mesmo e descubra este desfecho extraordinário!</b></p>`
+      `<p>${ctaText}</p>`
     ];
 
     return htmlLines.join('\n');

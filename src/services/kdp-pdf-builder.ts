@@ -23,6 +23,7 @@ export interface BuildPdfInput {
     titulo: string;
     subtitulo?: string;
     autor: string;
+    idioma?: string;
     capitulos: { titulo: string; texto: string; imagemDataUrl?: string | null }[];
   };
   capaDataUrl?: string | null;
@@ -277,18 +278,23 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   }
 
   // 2) PÁGINA DE ROSTO
+  const isEn = Boolean(input.livro.idioma && /ingl|en/i.test(input.livro.idioma));
+  const isEs = Boolean(input.livro.idioma && /espanh|es/i.test(input.livro.idioma));
+
   startPage('rosto');
   doc.setFont('times', 'bold').setFontSize(24).setTextColor(20);
   const tL = doc.splitTextToSize(bookTitle, textW) as string[];
   doc.text(tL, LW / 2, LH / 3, { align: 'center' });
   let ty = LH / 3 + tL.length * 0.38;
   if (input.livro.subtitulo) {
-    doc.setFont('times', 'italic').setFontSize(13).setTextColor(60);
+    // Subtítulo 10%+ maior para máxima visibilidade (de 13 para 15)
+    doc.setFont('times', 'italic').setFontSize(15).setTextColor(60);
     const sL = doc.splitTextToSize(sanitize(input.livro.subtitulo), textW) as string[];
     doc.text(sL, LW / 2, ty + 0.25, { align: 'center' });
   }
   doc.setFont('times', 'normal').setFontSize(13).setTextColor(20);
-  doc.text(sanitize(`por ${input.livro.autor}`), LW / 2, LH - 1.4, { align: 'center' });
+  const authorPrefix = isEn ? 'by' : 'por';
+  doc.text(sanitize(`${authorPrefix} ${input.livro.autor}`), LW / 2, LH - 1.4, { align: 'center' });
   doc.setTextColor(0);
 
   // 3) SUMÁRIO (páginas reais vindas do passe anterior)
@@ -297,7 +303,8 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     startPage('sumario');
     tocPages = 1;
     doc.setFont('times', 'bold').setFontSize(18).setTextColor(20);
-    doc.text('Sumário', LW / 2, y + 0.3, { align: 'center' });
+    const tocTitle = isEn ? 'Table of Contents' : isEs ? 'Índice' : 'Sumário';
+    doc.text(tocTitle, LW / 2, y + 0.3, { align: 'center' });
     doc.setTextColor(0);
     y += 0.95;
     const entryH = 0.26;

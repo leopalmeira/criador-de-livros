@@ -810,13 +810,23 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
           diretrizEstrutural = `ESTE É O CAPÍTULO ${num} DE ${total} (PROGRESSÃO & TENSÃO): Conecte diretamente com o final do capítulo anterior, mantenha os mesmos personagens, aprofunde o conflito e aumente a tensão.`;
         }
 
+        const isEnBook = Boolean(livroBase.idioma && /ingl|en/i.test(livroBase.idioma));
+        const isEsBook = Boolean(livroBase.idioma && /espanh|es/i.test(livroBase.idioma));
+
+        const regraIdioma = isEnBook
+          ? '0. MANDATORY LANGUAGE: The ENTIRE chapter (title, narrative, dialogue, descriptions and thoughts) MUST be written 100% in natural, engaging ENGLISH (US/UK). Do NOT output any words in Portuguese. Chapter title format must be in English (e.g. Chapter ' + num + ': [English Title]).'
+          : isEsBook
+          ? '0. IDIOMA OBRIGATORIO: TODO el capítulo (título, narrativa, diálogos y descripciones) DEBE estar escrito 100% en ESPAÑOL. Prohibido mezclar otros idiomas.'
+          : '0. IDIOMA OBRIGATÓRIO: PORTUGUÊS. Utilize vocabulário popular, natural e corrente da língua portuguesa.';
+
         // INSTRUÇÃO DO SISTEMA FIXA (Permite context caching no servidor do Google Gemini)
         const systemInstruction = `Você é um escritor best-seller profissional de literatura na Amazon KDP.
 REGRAS TÉCNICAS OBRIGATÓRIAS (ESTILO EDITORIAL KDP):
+${regraIdioma}
 1. Escreva em torno de ${palavrasPorCap} palavras (mínimo ${Math.round(palavrasPorCap * 0.85)} palavras ricas em detalhes).
 2. COERÊNCIA TOTAL: Mantenha rigorosamente os mesmos personagens, cenários e tom. Não invente premissas contraditórias.
 3. PROIBIÇÃO ABSOLUTA DE METÁFORAS: Seja o livro infantil, jovem ou adulto, NUNCA use metáforas, floreios poéticos abstratos, analogias figuradas ou palavras em sentido metafórico. Todas as descrições de cenários, sentimentos, ações e diálogos devem ser totalmente literais, diretas, claras e realistas.
-4. VOCABULÁRIO POPULAR E COMUM: Evite estritamente palavras difíceis, rebuscadas, arcaicas ou eruditas. Utilize palavras simples, naturais, amplamente conhecidas e populares do dia a dia da língua portuguesa.
+4. VOCABULÁRIO POPULAR E COMUM: Evite estritamente palavras difíceis, rebuscadas, arcaicas ou eruditas. Utilize palavras simples e naturais no idioma da obra (${livroBase.idioma}).
 5. Não repita expressões ou diálogos clichês dos capítulos anteriores.
 6. Use diálogos dinâmicos, ações concretas, descrições sensoriais realistas e conflito ativo.
 7. Termine com um gancho forte (cliffhanger) conectando para o próximo capítulo (a menos que seja o capítulo final).
@@ -825,7 +835,7 @@ ${num === total ? '9. DESFECHO DEFINITIVO: Este é o encerramento do livro compl
 10. Texto puro pronto para publicação. Não use asteriscos, markdown nem notas de rodapé.
 
 FORMATO ESTRITO:
-TITULO: Título Criativo e Impactante do Capítulo ${num}
+TITULO: ${isEnBook ? `Chapter ${num}: Creative Chapter Title in English` : isEsBook ? `Capítulo ${num}: Título Creativo en Español` : `Título Criativo do Capítulo ${num}`}
 TEXTO:
 (Parágrafos da história separados por linha em branco)`;
 
@@ -1124,8 +1134,27 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
         ctx.fillRect(0, 1620, canvas.width, 780);
 
         // 1. Tag de Gênero / Selo Editorial no topo (Clean e Profissional sem alegações de Best-Seller)
+        const isEnObra = Boolean((livro?.idioma || idioma) && /ingl|en/i.test(livro?.idioma || idioma));
         const getGenreTag = (gen: string, prem: string) => {
           const g = (gen + ' ' + prem).toLowerCase();
+          if (isEnObra) {
+            if (g.includes('investiga') || g.includes('crime') || g.includes('forense') || g.includes('policia') || g.includes('misterio') || g.includes('thriller')) {
+              return 'A PSYCHOLOGICAL THRILLER OF INVESTIGATION & SUSPENSE';
+            }
+            if (g.includes('terror') || g.includes('horror') || g.includes('fantasma') || g.includes('sombri')) {
+              return 'A CHILLING NOVEL OF DARK SUSPENSE & HORROR';
+            }
+            if (g.includes('psicologia') || g.includes('habito') || g.includes('produtiv') || g.includes('negocio') || g.includes('dinheiro') || g.includes('desenvolvimento')) {
+              return 'THE DEFINITIVE GUIDE • HIGH PERFORMANCE & MASTERY';
+            }
+            if (g.includes('romance') || g.includes('amor') || g.includes('paixao')) {
+              return 'A SWEEPING STORY OF LOVE, SECRETS & DESTINY';
+            }
+            if (g.includes('ficcao') || g.includes('sci-fi') || g.includes('espaco') || g.includes('futuro')) {
+              return 'AN EPIC WORK OF FICTION & MYSTERY';
+            }
+            return 'SPECIAL EDITION • KDP INDEPENDENT PUBLISHING';
+          }
           if (g.includes('investiga') || g.includes('crime') || g.includes('forense') || g.includes('policia') || g.includes('misterio')) {
             return 'UM THRILLER PSICOLÓGICO DE INVESTIGAÇÃO & SUSPENSE';
           }
@@ -1179,11 +1208,11 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
           yTit += lineHTit;
         });
 
-        // 3. Subtítulo Comercial (JÁ PERTO DA PARTE DE BAIXO DA CAPA, COM ESPAÇO PARA O NOME DO AUTOR)
+        // 3. Subtítulo Comercial (+10% MAIOR PARA VISIBILIDADE IMPECÁVEL NO KDP)
         if (obraSubtitulo) {
-          let fontSizeSub = 44;
-          if (obraSubtitulo.length > 80) fontSizeSub = 36;
-          else if (obraSubtitulo.length > 50) fontSizeSub = 40;
+          let fontSizeSub = 50; // +10% maior (antes 44)
+          if (obraSubtitulo.length > 80) fontSizeSub = 40; // +10% maior (antes 36)
+          else if (obraSubtitulo.length > 50) fontSizeSub = 45; // +10% maior (antes 40)
 
           ctx.font = `italic 600 ${fontSizeSub}px Georgia, serif`;
           ctx.fillStyle = '#f8fafc';
@@ -1558,6 +1587,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
           titulo: livro.titulo,
           subtitulo: livro.subtitulo,
           autor: livro.autor,
+          idioma: livro.idioma || idioma,
           capitulos: livro.capitulos
         },
         capaDataUrl: capaFinal,
@@ -1615,6 +1645,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
       const finalRec: FinalBookRecord = {
         id: finalId,
         bookId: projId,
+        projectId: projId,
         jobId: `job_${Date.now()}`,
         title: livro.titulo,
         subtitle: livro.subtitulo || '',
@@ -1627,6 +1658,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
         status: 'finalizado_validado',
         genre: genero,
         trimSize: formato,
+        language: livro.idioma || idioma,
         wordCount: totalWords,
         chaptersCount: livro.capitulos.length,
         chapters: livro.capitulos.map(c => ({ titulo: c.titulo, texto: c.texto })),

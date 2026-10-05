@@ -723,7 +723,7 @@ export const FinalBooksShelf: React.FC = () => {
                       {book.title}
                     </h3>
                     {book.subtitle && (
-                      <div style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic', marginBottom: 4 }}>
+                      <div style={{ fontSize: 15, color: '#334155', fontStyle: 'italic', marginBottom: 5, lineHeight: 1.4 }}>
                         {book.subtitle}
                       </div>
                     )}
@@ -1243,7 +1243,8 @@ export const FinalBooksShelf: React.FC = () => {
             genre: selectedBookForHtml.genre,
             coverDataUrl: selectedBookForHtml.coverDataUrl,
             chapters: selectedBookForHtml.chapters,
-            promoData: selectedBookForHtml.promoData
+            promoData: selectedBookForHtml.promoData,
+            language: selectedBookForHtml.language
           }}
         />
       )}

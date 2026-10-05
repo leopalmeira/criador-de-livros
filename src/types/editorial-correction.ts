@@ -249,4 +249,9 @@ export interface FinalBookRecord {
   chapters?: Array<{ titulo: string; texto: string }>;
   promoData?: any;
   descriptionHtml?: string;
+  projectId?: string;
+  language?: string;
+  tags?: string[];
+  kdpExportApproved?: boolean;
+  validationReport?: any;
 }
