@@ -191,7 +191,7 @@ export async function chamarOpenRouterTexto(
   return null;
 }
 
-// Chamada genérica de texto editorial (OpenRouter prioritário com fallback transparente para Gemini)
+// Chamada oficial de texto com Google Gemini (chaves e modelos oficiais)
 export async function chamarGeminiTexto(
   prompt: string,
   options: {
@@ -203,27 +203,13 @@ export async function chamarGeminiTexto(
     onStatusUpdate?: (status: string) => void;
   } = {}
 ): Promise<{ texto: string; modelo: string }> {
-  // 1. Tentar prioritariamente o motor OpenRouter
-  try {
-    if (options.onAttemptModel) {
-      options.onAttemptModel('Motor Editorial');
-    }
-    const resOpenRouter = await chamarOpenRouterTexto(prompt, options);
-    if (resOpenRouter && resOpenRouter.texto.trim()) {
-      return resOpenRouter;
-    }
-  } catch {
-    // Falha silenciosa: passa imediatamente para a contingência sem avisar ao usuário
-  }
-
-  // 2. Fallback de Contingência Silenciosa (Gemini) — sem avisar nem expor o provedor
   const temperature = options.temperature ?? 0.85;
   const maxTokens = options.maxTokens ?? 8192;
   const maxRetries = options.maxRetries ?? 3;
   const keys = getAvailableApiKeys();
 
   if (keys.length === 0) {
-    throw new Error('Falha no processamento editorial. Tente novamente em instantes.');
+    throw new Error('Nenhuma chave de API do Gemini configurada.');
   }
 
   let lastError = '';

@@ -17,12 +17,7 @@ function decodeKey(b64) {
 }
 
 // Configuração das Chaves de IA Oficiais
-// OpenRouter: Motor Principal de Textos Editoriais e Roteiros
-const RUNTIME_OPENROUTER_KEY = decodeKey('c2stb3ItdjEtODJkMWI1ZDMwNDdmNjhlYzMxZGE5NjdmNzMzYzhmOTQzNjgzYjU1NjliNzhlZDM5NjM4NzEyZWY0NjMzOWMyOA==');
-process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || RUNTIME_OPENROUTER_KEY;
-process.env.VITE_OPENROUTER_API_KEY = process.env.VITE_OPENROUTER_API_KEY || RUNTIME_OPENROUTER_KEY;
-
-// Gemini: Contingência Silenciosa para Geração de Textos
+// Gemini: Motor Oficial para Geração Rápida e Econômica de Textos e Roteiros
 const RUNTIME_GEMINI_KEY = decodeKey('QVEuQWI4Uk42STE0SlpvSW5sMnhiZFN5Q1NxenQ4cVFTbmpWTWpIcHpCcHJOVGZKaG9tMUE=');
 process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || RUNTIME_GEMINI_KEY;
 process.env.VITE_GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY || RUNTIME_GEMINI_KEY;
