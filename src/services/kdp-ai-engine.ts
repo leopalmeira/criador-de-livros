@@ -1,10 +1,20 @@
 // ================================================================
 // MOTOR EDITORIAL E DE IMAGEM KDP PRO & PÁGINA PROMOCIONAL
-// Suporte nativo a Replicate (FLUX.1 Schnell & LLaMA 3 70B), Gemini e Imagen 3
+// Suporte nativo a OpenRouter, Replicate (FLUX.1 Schnell), Gemini e Imagen 3
 // ================================================================
 
 import { BookPromotionalPageData, GenreVisualTheme } from '../types/promotional-page';
 import { gerarImagemReplicate, gerarTextoReplicate } from './replicate-service';
+
+export const MODELOS_OPENROUTER = [
+  "qwen/qwen3.8-27b:free",
+  "openrouter/free",
+  "meta-llama/llama-3.3-70b-instruct",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "deepseek/deepseek-chat",
+  "openai/gpt-4o-mini"
+];
 
 export const MODELOS_GEMINI = [
   "gemini-3.8-flash",
@@ -34,8 +44,44 @@ function decodeRuntimeKey(b64: string): string {
 }
 
 // Chaves padrão da plataforma garantindo que o app NUNCA fique sem conexão no cliente
+const RUNTIME_DEFAULT_OPENROUTER_KEY = decodeRuntimeKey('c2stb3ItdjEtODJkMWI1ZDMwNDdmNjhlYzMxZGE5NjdmNzMzYzhmOTQzNjgzYjU1NjliNzhlZDM5NjM4NzEyZWY0NjMzOWMyOA==');
 const RUNTIME_DEFAULT_KEY_1 = decodeRuntimeKey('QVEuQWI4Uk42STE0SlpvSW5sMnhiZFN5Q1NxenQ4cVFTbmpWTWpIcHpCcHJOVGZKaG9tMUE=');
 const RUNTIME_DEFAULT_KEY_2 = decodeRuntimeKey('QVEuQWI4Uk42S1BRTDJ6Wnc2aFZ2ei1xZ1dEa0xsbXdpUkxEMFBSdmxlczNUem5kN0NVNnc=');
+
+// Obter chaves de API disponíveis para OpenRouter (localStorage, env ou fallback nativo)
+export function getAvailableOpenRouterKeys(): string[] {
+  const keys: string[] = [];
+
+  // 1. Chave customizada pelo usuário no localStorage (se houver)
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const customKey = localStorage.getItem('kdp_openrouter_api_key') || localStorage.getItem('openrouter_api_key');
+      if (customKey && customKey.trim()) keys.push(customKey.trim());
+    }
+  } catch {}
+
+  // 2. Variáveis de ambiente Vite
+  try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+      const env = (import.meta as any).env;
+      if (env.VITE_OPENROUTER_API_KEY) keys.push(env.VITE_OPENROUTER_API_KEY);
+      if (env.OPENROUTER_API_KEY) keys.push(env.OPENROUTER_API_KEY);
+    }
+  } catch {}
+
+  // 3. Process environment (Node / Backend)
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      if (process.env.VITE_OPENROUTER_API_KEY) keys.push(process.env.VITE_OPENROUTER_API_KEY);
+      if (process.env.OPENROUTER_API_KEY) keys.push(process.env.OPENROUTER_API_KEY);
+    }
+  } catch {}
+
+  // 4. Chave runtime nativa padrão
+  if (RUNTIME_DEFAULT_OPENROUTER_KEY) keys.push(RUNTIME_DEFAULT_OPENROUTER_KEY);
+
+  return Array.from(new Set(keys.filter(k => Boolean(k && k.trim()))));
+}
 
 // Obter chaves de API disponíveis a partir do ambiente (.env), localStorage ou fallback seguro
 export function getAvailableApiKeys(): string[] {
@@ -75,7 +121,77 @@ export function getAvailableApiKeys(): string[] {
   return Array.from(new Set(keys.filter(k => Boolean(k && k.trim()))));
 }
 
-// Chamada genérica de texto aos modelos Gemini com cascata de resiliência e retry inteligente
+// Chamada de texto ao OpenRouter com cascata interna de modelos
+export async function chamarOpenRouterTexto(
+  prompt: string,
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+    systemInstruction?: string;
+    onStatusUpdate?: (status: string) => void;
+    timeoutMs?: number;
+  } = {}
+): Promise<{ texto: string; modelo: string } | null> {
+  const keys = getAvailableOpenRouterKeys();
+  if (keys.length === 0) return null;
+
+  const temperature = options.temperature ?? 0.85;
+  const maxTokens = options.maxTokens ?? 8192;
+  const timeoutMs = options.timeoutMs ?? 35000;
+
+  for (const model of MODELOS_OPENROUTER) {
+    for (const key of keys) {
+      try {
+        const messages: Array<{ role: string; content: string }> = [];
+        if (options.systemInstruction) {
+          messages.push({ role: 'system', content: options.systemInstruction });
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://criador-de-livros.local';
+
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${key}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': origin,
+            'X-Title': 'Criador de Livros KDP Pro'
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature,
+            max_tokens: maxTokens
+          }),
+          signal: AbortSignal.timeout(timeoutMs)
+        });
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const data = await response.json();
+        let content = data?.choices?.[0]?.message?.content;
+        if ((!content || typeof content !== 'string' || !content.trim()) && data?.choices?.[0]?.message?.reasoning) {
+          content = data.choices[0].message.reasoning;
+        }
+        if (typeof content === 'string' && content.trim().length > 0) {
+          return {
+            texto: content.trim(),
+            modelo: 'Motor Editorial IA'
+          };
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return null;
+}
+
+// Chamada genérica de texto editorial (OpenRouter prioritário com fallback transparente para Gemini)
 export async function chamarGeminiTexto(
   prompt: string,
   options: {
@@ -87,13 +203,27 @@ export async function chamarGeminiTexto(
     onStatusUpdate?: (status: string) => void;
   } = {}
 ): Promise<{ texto: string; modelo: string }> {
+  // 1. Tentar prioritariamente o motor OpenRouter
+  try {
+    if (options.onAttemptModel) {
+      options.onAttemptModel('Motor Editorial');
+    }
+    const resOpenRouter = await chamarOpenRouterTexto(prompt, options);
+    if (resOpenRouter && resOpenRouter.texto.trim()) {
+      return resOpenRouter;
+    }
+  } catch {
+    // Falha silenciosa: passa imediatamente para a contingência sem avisar ao usuário
+  }
+
+  // 2. Fallback de Contingência Silenciosa (Gemini) — sem avisar nem expor o provedor
   const temperature = options.temperature ?? 0.85;
   const maxTokens = options.maxTokens ?? 8192;
   const maxRetries = options.maxRetries ?? 3;
   const keys = getAvailableApiKeys();
 
   if (keys.length === 0) {
-    throw new Error('Nenhuma chave de API do Gemini configurada.');
+    throw new Error('Falha no processamento editorial. Tente novamente em instantes.');
   }
 
   let lastError = '';
@@ -101,7 +231,7 @@ export async function chamarGeminiTexto(
   for (const modelo of MODELOS_GEMINI) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       if (options.onAttemptModel) {
-        options.onAttemptModel(attempt > 1 ? `${modelo} (Tentativa ${attempt}/${maxRetries})` : modelo);
+        options.onAttemptModel('Motor Editorial');
       }
 
       for (const key of keys) {
@@ -141,21 +271,19 @@ export async function chamarGeminiTexto(
             const errData = await response.json().catch(() => ({}));
             lastError = errData?.error?.message || `HTTP ${response.status} (${response.statusText})`;
             
-            // 404: modelo não existe nesta conta/versão, pula direto para o próximo modelo
+            // 404: modelo não existe nesta versão, pula para o próximo modelo
             if (response.status === 404) break;
 
-            // 503 ou 429: alta demanda ou limite de taxa temporário da Google.
-            // Executa backoff exponencial de espera e tenta novamente
+            // 503 ou 429: alta demanda momentânea
             if (response.status === 503 || response.status === 429) {
               if (attempt < maxRetries) {
                 const waitMs = 1600 * attempt;
                 if (options.onStatusUpdate) {
-                  options.onStatusUpdate(`⏳ Google em alta demanda (${modelo}). Aguardando ${(waitMs / 1000).toFixed(1)}s para retentativa...`);
+                  options.onStatusUpdate(`⏳ Sistema com alta demanda. Aguardando ${(waitMs / 1000).toFixed(1)}s para retentativa...`);
                 }
                 await new Promise(r => setTimeout(r, waitMs));
                 continue;
               }
-              // Esgotou retries do modelo atual, passa para o próximo modelo da lista
               break;
             }
             continue;
@@ -164,16 +292,16 @@ export async function chamarGeminiTexto(
           const data = await response.json();
           const cand = data?.candidates?.[0];
           if (cand?.finishReason === 'SAFETY') {
-            lastError = 'Bloqueado por filtro de segurança';
+            lastError = 'Conteúdo bloqueado por segurança';
             continue;
           }
 
           const texto = cand?.content?.parts?.map((p: any) => p.text || '').join('') || '';
           if (texto.trim()) {
-            return { texto: texto.trim(), modelo };
+            return { texto: texto.trim(), modelo: 'Motor Editorial IA' };
           }
         } catch (err: any) {
-          lastError = err.message || 'Falha de rede ao conectar com o modelo Gemini';
+          lastError = err.message || 'Falha de conexão';
           if (attempt < maxRetries) {
             await new Promise(r => setTimeout(r, 1200));
           }
@@ -182,8 +310,10 @@ export async function chamarGeminiTexto(
     }
   }
 
-  throw new Error(`Falha na geração com Gemini: ${lastError || 'Nenhum modelo respondeu'}`);
+  throw new Error(`Falha na geração editorial: ${lastError || 'Não foi possível concluir o texto'}`);
 }
+
+export const chamarTextoEditorial = chamarGeminiTexto;
 
 // Chamada para geração de imagem com Replicate FLUX.1 Schnell, Imagen 3 e fallbacks
 export async function chamarImagen(

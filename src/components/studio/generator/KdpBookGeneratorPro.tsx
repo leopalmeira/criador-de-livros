@@ -827,8 +827,8 @@ TEXTO:
             setStatusMsg(msg);
             logDiag(msg);
           },
-          onAttemptModel: (mod) => {
-            logDiag(`Capítulo ${num}: processando com ${mod}`);
+          onAttemptModel: () => {
+            logDiag(`Capítulo ${num}: gerando narrativa com motor editorial...`);
           }
         });
 
@@ -847,13 +847,13 @@ TEXTO:
         // Se houve incidentes anteriores neste capítulo, atualizar no log como resolvido
         if (tentativasConsecutivasCapitulo > 0) {
           setErrorLogs(prev => prev.map(log => 
-            log.capitulo === num ? { ...log, resolvido: true, acao: `✓ Auto-recuperado com sucesso via ${res.modelo}` } : log
+            log.capitulo === num ? { ...log, resolvido: true, acao: `✓ Auto-recuperado com sucesso` } : log
           ));
         }
         tentativasConsecutivasCapitulo = 0;
 
-        logDiag(`✓ Capítulo ${num} concluído com sucesso via ${res.modelo} (${cap.texto.split(/\s+/).length} palavras)`);
-        setStatusMsg(`✓ Capítulo ${num}/${total} concluído com sucesso via ${res.modelo}!`);
+        logDiag(`✓ Capítulo ${num} concluído com sucesso (${cap.texto.split(/\s+/).length} palavras)`);
+        setStatusMsg(`✓ Capítulo ${num}/${total} concluído com sucesso!`);
 
         // Rolar preview para o final
         if (previewScrollRef.current) {
