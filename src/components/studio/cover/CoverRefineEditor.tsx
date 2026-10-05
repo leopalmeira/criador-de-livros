@@ -184,7 +184,7 @@ export const CoverRefineEditor: React.FC<Props> = ({
                 className="form-input"
                 value={badgeText}
                 onChange={(e) => onUpdateBadgeText(e.target.value)}
-                placeholder="Ex: BEST-SELLER AMAZON"
+                placeholder="Ex: EDIÇÃO ESPECIAL KDP"
               />
             )}
           </div>

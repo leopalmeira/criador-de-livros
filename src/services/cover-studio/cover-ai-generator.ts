@@ -71,8 +71,8 @@ export class CoverAiGeneratorService {
     else if (customOptions.palette === 'Vibrante') paletteModifier = ', vibrant saturated high contrast expressive colors';
     else if (customOptions.palette === 'Neutra') paletteModifier = ', refined neutral organic earthy tones, ivory and bronze';
 
-    // Diretiva universal para evitar textos deformados na imagem (renderizados via camada gráfica)
-    const antiTextDirective = 'empty breathing space in the upper and bottom thirds for typography placement, clean vertical background composition, no text, no letters, no words, no titles, no watermarks, 8k resolution, award-winning editorial composition';
+    // Diretiva universal para evitar textos deformados e falsos selos na imagem (renderizados via camada gráfica)
+    const antiTextDirective = 'empty breathing space in the upper and bottom thirds for typography placement, clean vertical background composition, no text, no letters, no words, no titles, no watermarks, no bestseller badge, no sticker, no awards ribbon, no fake labels, 8k resolution, prestigious editorial composition';
 
     if (isKidsOrFamily) {
       // 4 CONCEITOS PARA LIVRO INFANTIL / FAMÍLIA
@@ -80,7 +80,7 @@ export class CoverAiGeneratorService {
         {
           id: `concept_1_${baseSeed}`,
           optionNumber: 1,
-          directionName: 'Bestseller Editorial / Cozy Hygge',
+          directionName: 'Edição Editorial / Cozy Hygge',
           conceptDescription: 'Aconchego familiar atemporal com aquarela suave, iluminação de tarde dourada e conexão sensorial imediata.',
           artisticRationale: 'Inspira confiança e afeto imediato em mães, pais e avós na hora da compra para rotinas de ninar.',
           visualPrompt: `storybook cover illustration of a warm and cozy home kitchen bathed in gentle golden sunset light, a loving grandmother and young grandchild happily baking carrot cake together with flour on their aprons, steam rising from fresh cake, rustic wooden table, whimsical hygge aesthetic, soft watercolor and digital gouache textures${styleModifier}${moodModifier}${paletteModifier}, ${antiTextDirective}`,
@@ -89,7 +89,7 @@ export class CoverAiGeneratorService {
           titleColor: '#ffffff',
           subtitleColor: '#fde68a',
           authorColor: '#f1f5f9',
-          badgeText: 'BEST-SELLER INFANTIL',
+          badgeText: 'EDIÇÃO ESPECIAL ILUSTRADA',
           badgeBg: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
           scrimOpacity: 65
         },
@@ -148,7 +148,7 @@ export class CoverAiGeneratorService {
         {
           id: `concept_1_${baseSeed}`,
           optionNumber: 1,
-          directionName: 'Bestseller Editorial / BookTok Sensation',
+          directionName: 'Edição Editorial / BookTok Sensation',
           conceptDescription: 'Tipografia dominante com fotografia dramática de alto contraste e silhueta sofisticada.',
           artisticRationale: 'O padrão de maior tração orgânica no BookTok e no topo do Kindle Unlimited.',
           visualPrompt: `luxurious contemporary romance book cover background, mysterious handsome billionaire silhouette and elegant woman in a dimly lit penthouse overlooking city lights at midnight, deep chiaroscuro, subtle golden bokeh reflections${styleModifier}${moodModifier}${paletteModifier}, ${antiTextDirective}`,
@@ -157,7 +157,7 @@ export class CoverAiGeneratorService {
           titleColor: '#ffffff',
           subtitleColor: '#fbbf24',
           authorColor: '#f8fafc',
-          badgeText: '#1 MAIS VENDIDO',
+          badgeText: 'EDIÇÃO ESPECIAL ROMANCE',
           badgeBg: 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)',
           scrimOpacity: 70
         },
@@ -216,7 +216,7 @@ export class CoverAiGeneratorService {
         {
           id: `concept_1_${baseSeed}`,
           optionNumber: 1,
-          directionName: 'Bestseller Editorial / Domestic Thriller',
+          directionName: 'Edição Editorial / Domestic Thriller',
           conceptDescription: 'Fachada de casa suburbana escura à noite com apenas uma janela iluminada e cortinas misteriosas.',
           artisticRationale: 'O arquétipo clássico de suspense que lidera o ranking KDP de Freida McFadden e Shari Lapena.',
           visualPrompt: `psychological domestic thriller book cover art, eerie quiet suburban two-story house at twilight shrouded in thick fog, only one second-floor window glows with ominous warm light, mysterious dark silhouette inside${styleModifier}${moodModifier}${paletteModifier}, ${antiTextDirective}`,
@@ -225,7 +225,7 @@ export class CoverAiGeneratorService {
           titleColor: '#fef08a',
           subtitleColor: '#ef4444',
           authorColor: '#f8fafc',
-          badgeText: '#1 SUSPENSE KDP',
+          badgeText: 'SUSPENSE & MISTÉRIO KDP',
           badgeBg: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
           scrimOpacity: 75
         },
@@ -284,7 +284,7 @@ export class CoverAiGeneratorService {
         {
           id: `concept_1_${baseSeed}`,
           optionNumber: 1,
-          directionName: 'Bestseller Editorial / Gold Prestige',
+          directionName: 'Edição Editorial / Gold Prestige',
           conceptDescription: 'Design executivo imponente em azul profundo (Navy) com acentos dourados e arquitetura moderna.',
           artisticRationale: 'O padrão de ouro de livros corporativos e de alta performance de Harvard e Wall Street.',
           visualPrompt: `prestigious business and leadership book cover background, modern corporate glass skyscraper summit at dusk reflecting warm golden sunlight, sleek geometric lines, deep slate blue shadows with subtle luminous 24k gold leaf accents${styleModifier}${moodModifier}${paletteModifier}, ${antiTextDirective}`,
@@ -293,7 +293,7 @@ export class CoverAiGeneratorService {
           titleColor: '#ffffff',
           subtitleColor: '#fbbf24',
           authorColor: '#f1f5f9',
-          badgeText: 'BEST-SELLER AMAZON',
+          badgeText: 'EDIÇÃO OFICIAL KDP',
           badgeBg: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
           scrimOpacity: 70
         },
@@ -432,7 +432,10 @@ export class CoverAiGeneratorService {
    * Constrói a URL direta de renderização com o motor FLUX de alta resolução via Pollinations AI
    */
   private static buildImageUrl(basePrompt: string, seed: number): string {
-    const clean = encodeURIComponent(`${basePrompt.trim()}, 8k uhd, photorealistic, professional book cover background art, vertical composition, no text, no letters, no words`);
+    const cleanPrompt = basePrompt
+      .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
+      .trim();
+    const clean = encodeURIComponent(`${cleanPrompt}, 8k uhd, photorealistic, professional book cover background art, vertical composition, no text, no letters, no words, no bestseller badge, no sticker, no awards ribbon, no fake labels`);
     return `https://image.pollinations.ai/prompt/${clean}?width=1024&height=1536&seed=${seed}&model=flux&nologo=true`;
   }
 }

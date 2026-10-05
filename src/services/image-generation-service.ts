@@ -40,7 +40,7 @@ export const ART_STYLE_PRESETS: StylePreset[] = [
     id: 'dark-luxury',
     label: 'Minimalista Luxo & Dark Gold',
     description: 'Fundo escuro profundo com detalhes em ouro fosco, geometria refinada e sobriedade.',
-    promptSuffix: 'dark luxury aesthetic, deep slate graphite background, subtle glowing gold foil accents, sophisticated modern minimalism, hyper-detailed, premium best-seller book cover art, no text'
+    promptSuffix: 'dark luxury aesthetic, deep slate graphite background, subtle glowing gold foil accents, sophisticated modern minimalism, hyper-detailed, premium editorial book cover art, no text, no bestseller badge'
   },
   {
     id: 'epic-fantasy',

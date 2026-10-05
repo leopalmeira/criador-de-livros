@@ -111,12 +111,17 @@ export async function gerarImagemReplicate(
   const aspectRatio = normalizeAspectRatio(options.aspectRatio || '3:4');
   const model = options.model || REPLICATE_IMAGE_MODELS.FLUX_SCHNELL;
 
+  // Sanitização anti-bestseller rigorosa para geração de arte
+  const cleanPrompt = prompt
+    .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
+    .trim() + ', clean art, NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON';
+
   // 1. Tentar via backend proxy local /api/replicate/generate-image
   try {
     const backendRes = await fetch('/api/replicate/generate-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, aspectRatio, model })
+      body: JSON.stringify({ prompt: cleanPrompt, aspectRatio, model })
     });
 
     if (backendRes.ok) {
@@ -142,7 +147,7 @@ export async function gerarImagemReplicate(
     },
     body: JSON.stringify({
       input: {
-        prompt,
+        prompt: cleanPrompt,
         aspect_ratio: aspectRatio,
         num_outputs: 1,
         output_format: 'png'

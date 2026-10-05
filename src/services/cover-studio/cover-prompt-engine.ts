@@ -38,8 +38,8 @@ export class CoverPromptEngine {
 
     switch (engine) {
       case 'gemini-imagen': {
-        const positivePrompt = `A high-end award-winning professional book cover background art for a bestselling book about "${cleanTopic}". Visual description: ${baseSubject}. Photorealistic composition, cinematic depth of field, 8k resolution, volumetric atmospheric lighting, pristine studio quality, hyper-detailed textures, elegant lighting gradient leaving ample breathing space at the top and bottom for graphic title overlay, no text, no letters, no words, no watermark, perfectly composed in 2:3 vertical aspect ratio.`;
-        const negativePrompt = `text, letters, words, typography, logo, watermark, signature, distorted anatomy, blurry, oversaturated, pixelated, ugly borders`;
+        const positivePrompt = `A high-end professional book cover background art for a prestigious editorial book about "${cleanTopic}". Visual description: ${baseSubject}. Photorealistic composition, cinematic depth of field, 8k resolution, volumetric atmospheric lighting, pristine studio quality, hyper-detailed textures, elegant lighting gradient leaving ample breathing space at the top and bottom for graphic title overlay, no text, no letters, no words, no watermark, no bestseller badge, no sticker, no ribbon, perfectly composed in 2:3 vertical aspect ratio.`;
+        const negativePrompt = `text, letters, words, typography, logo, watermark, signature, bestseller badge, sticker, ribbons, distorted anatomy, blurry, oversaturated, pixelated, ugly borders`;
         const parameters = `aspect_ratio: 2:3, sample_count: 1, quality: high, guidance_scale: 7.5`;
         return {
           engine: 'gemini-imagen',
@@ -53,8 +53,8 @@ export class CoverPromptEngine {
       }
 
       case 'midjourney': {
-        const positivePrompt = `bestselling book cover art, ${baseSubject}, aesthetic mastery, editorial prestige, cinematic 35mm photography, subtle golden ratio framing, elegant negative space for typography, hyper-detailed lighting --ar 2:3 --v 6.1 --style raw --stylize 250 --no text letters typography signature watermark`;
-        const negativePrompt = `text, letters, typography, signature, watermark, amateur, low quality, blurred`;
+        const positivePrompt = `editorial book cover art, ${baseSubject}, aesthetic mastery, editorial prestige, cinematic 35mm photography, subtle golden ratio framing, elegant negative space for typography, hyper-detailed lighting --ar 2:3 --v 6.1 --style raw --stylize 250 --no text letters typography signature watermark bestseller badge sticker`;
+        const negativePrompt = `text, letters, typography, signature, watermark, bestseller badge, sticker, ribbon, amateur, low quality, blurred`;
         const parameters = `--ar 2:3 --v 6.1 --style raw --stylize 250`;
         return {
           engine: 'midjourney',
@@ -68,8 +68,8 @@ export class CoverPromptEngine {
       }
 
       case 'flux-1': {
-        const positivePrompt = `cinematic hyper-detailed book cover art representing "${cleanTopic}", ${baseSubject}, 8k UHD, award-winning photography, rich chiaroscuro contrast, clean vertical editorial framing, atmospheric haze, volumetric lighting, photorealistic textures, zero text, blank space at top`;
-        const negativePrompt = `text, watermarks, signatures, fonts, low resolution, deformed, bad composition`;
+        const positivePrompt = `cinematic hyper-detailed book cover art representing "${cleanTopic}", ${baseSubject}, 8k UHD, prestigious photography, rich chiaroscuro contrast, clean vertical editorial framing, atmospheric haze, volumetric lighting, photorealistic textures, zero text, blank space at top, no bestseller badge`;
+        const negativePrompt = `text, watermarks, signatures, fonts, bestseller badge, ribbons, low resolution, deformed, bad composition`;
         const parameters = `width: 1024, height: 1536, steps: 30, guidance: 4.5, model: flux-schnell/dev`;
         return {
           engine: 'flux-1',
@@ -83,8 +83,8 @@ export class CoverPromptEngine {
       }
 
       case 'sdxl-comfy': {
-        const positivePrompt = `masterpiece, (best quality:1.2), hyper-detailed, award-winning book cover art, ${baseSubject}, editorial style, highly detailed textures, dramatic lighting, sharp focus, 8k resolution, (empty space for title:1.1), negative space, cinematic, no text`;
-        const negativePrompt = `(worst quality, low quality:1.4), (text, font, letters, watermark, signature:1.5), deformed, bad hands, blurry, out of frame, cropped`;
+        const positivePrompt = `masterpiece, (best quality:1.2), hyper-detailed, prestigious book cover art, ${baseSubject}, editorial style, highly detailed textures, dramatic lighting, sharp focus, 8k resolution, (empty space for title:1.1), negative space, cinematic, no text, no bestseller badge`;
+        const negativePrompt = `(worst quality, low quality:1.4), (text, font, letters, watermark, signature, bestseller badge, ribbon:1.5), deformed, bad hands, blurry, out of frame, cropped`;
         const parameters = `CFG: 7.0, Sampler: DPM++ 2M Karras, Steps: 32, Resolution: 896x1344`;
         return {
           engine: 'sdxl-comfy',
@@ -99,8 +99,8 @@ export class CoverPromptEngine {
 
       case 'dalle-3':
       default: {
-        const positivePrompt = `An elegant and striking vertical book cover background for a bestselling book about "${cleanTopic}". The composition features ${baseSubject}. The artwork uses dramatic, refined lighting, pristine digital art with no text, letters, or words anywhere on the image. High contrast with intentional negative space in the upper third to allow placement of title typography.`;
-        const negativePrompt = `Do not include any text, typography, title letters, author names, or watermarks.`;
+        const positivePrompt = `An elegant and striking vertical book cover background for a prestigious book about "${cleanTopic}". The composition features ${baseSubject}. The artwork uses dramatic, refined lighting, pristine digital art with no text, letters, words, or bestseller badges anywhere on the image. High contrast with intentional negative space in the upper third to allow placement of title typography.`;
+        const negativePrompt = `Do not include any text, typography, title letters, author names, bestseller badge, ribbons, or watermarks.`;
         const parameters = `size: 1024x1792, quality: hd, style: natural`;
         return {
           engine: 'dalle-3',

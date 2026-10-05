@@ -41,7 +41,7 @@ function kdpAiBackendPlugin() {
                     `como aplicar ${topic} 2026`,
                     `guia definitivo ${topic}`,
                     `método comprovado ${topic}`,
-                    `livro de ${topic} mais vendido amazon`
+                    `livro de ${topic} referência amazon`
                   ],
                   competitorGaps: [
                     'Livros existentes são muito teóricos e prolixos.',

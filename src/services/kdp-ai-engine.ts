@@ -396,100 +396,27 @@ export async function chamarImagen(
   prompt: string,
   aspectRatio: '2:3' | '16:9' | '1:1' | '3:4' = '2:3'
 ): Promise<string> {
-  // 1. Tentar prioritariamente o motor REPLICATE (FLUX.1 Schnell) com a chave oficial do servidor
+  // Higienização rigorosa anti-bestseller: remove qualquer menção a bestseller e força diretivas negativas estritas
+  const cleanPrompt = prompt
+    .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
+    .trim() + ', clean art, NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON, NO FAKE LABELS';
+
+  // 1. Motor REPLICATE (FLUX.1 Schnell) Exclusivo para Geração de Imagens
   try {
-    const replicateImg = await gerarImagemReplicate(prompt, { aspectRatio });
+    const replicateImg = await gerarImagemReplicate(cleanPrompt, { aspectRatio });
     if (replicateImg && replicateImg.length > 50) {
-      console.log('[KDP Engine] Imagem gerada com sucesso via Replicate FLUX.1');
+      console.log('[KDP Engine] Capa/imagem gerada com sucesso via Replicate FLUX.1');
       return replicateImg;
     }
   } catch (repErr: any) {
-    console.warn('[KDP Engine] Replicate FLUX indisponível, acionando fallback Gemini/Imagen:', repErr.message);
+    console.warn('[KDP Engine] Falha na chamada Replicate direta, acionando rota alternativa FLUX:', repErr.message);
   }
 
-  const keys = getAvailableApiKeys();
-  let lastError = '';
-
-  // 2. Tentar os modelos de imagem generativa do Gemini (ex: gemini-2.5-flash-image)
-  for (const modeloImg of MODELOS_IMAGEM_GEMINI) {
-    for (const key of keys) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modeloImg}:generateContent?key=${encodeURIComponent(key)}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `${prompt}. Aspect ratio ${aspectRatio}. High quality, professional book cover, masterpiece.`
-              }]
-            }]
-          }),
-          signal: AbortSignal.timeout(15000)
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const parts = data?.candidates?.[0]?.content?.parts || [];
-          for (const part of parts) {
-            if (part?.inlineData?.data) {
-              const mime = part.inlineData.mimeType || 'image/png';
-              return `data:${mime};base64,${part.inlineData.data}`;
-            }
-          }
-        } else {
-          const errData = await response.json().catch(() => ({}));
-          lastError = errData?.error?.message || `HTTP ${response.status}`;
-          if (response.status === 404) break;
-        }
-      } catch (err: any) {
-        lastError = err.message || 'Falha ao gerar com modelo de imagem do Gemini';
-      }
-    }
-  }
-
-  // 2. Tentar predict clássico do Imagen 3 caso a conta tenha Vertex
-  for (const key of keys) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_IMAGEN}:predict?key=${encodeURIComponent(key)}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          instances: [{ prompt }],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio
-          }
-        }),
-        signal: AbortSignal.timeout(10000)
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const b64 = data?.predictions?.[0]?.bytesBase64Encoded;
-        if (b64) {
-          return `data:image/png;base64,${b64}`;
-        }
-      } else {
-        const errJson = await response.json().catch(() => ({}));
-        lastError = errJson?.error?.message || `HTTP ${response.status}`;
-      }
-    } catch (err: any) {
-      lastError = err.message || 'Erro de conexão no Imagen 3';
-    }
-  }
-
-  // Fallback para Pollinations Flux com resolução adequada caso a cota do Imagen 3 termine
-  console.warn('[Imagen 3] Tentando fallback de alta resolução Flux:', lastError);
-  const cleanPrompt = encodeURIComponent(prompt.substring(0, 400));
+  // 2. Fallback de alta resolução FLUX sem acionar API do Gemini (preservando Gemini 100% para texto)
+  const encodedPrompt = encodeURIComponent(cleanPrompt.substring(0, 400));
   const [w, h] = aspectRatio === '2:3' ? [1024, 1536] : aspectRatio === '16:9' ? [1536, 864] : [1024, 1024];
   const seed = Math.floor(Math.random() * 9999999);
-  return `https://image.pollinations.ai/prompt/${cleanPrompt}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}`;
+  return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}`;
 }
 
 // ================================================================
@@ -502,7 +429,7 @@ export async function sugerirCampo(
   const { titulo = '', subtitulo = '', genero = 'Geral', idioma = 'Português' } = dados;
 
   const prompts = {
-    titulo: `Você é o principal diretor editorial de best-sellers da Amazon KDP.
+    titulo: `Você é o principal diretor editorial de literatura da Amazon KDP.
 Gênero: ${genero}
 Idioma: ${idioma}
 Sugira 1 TÍTULO extremamente magnético, curto (máximo 6 palavras), comercial e original para este livro.
@@ -668,7 +595,7 @@ export function obterTemaPorGenero(genero: string): GenreVisualTheme {
 
   // Padrão Editorial Sofisticado
   return {
-    name: 'Editorial Best-Seller',
+    name: 'Editorial Oficial',
     bodyBg: '#0b0f19',
     cardBg: '#141a29',
     borderColor: 'rgba(96, 165, 250, 0.15)',
@@ -715,7 +642,8 @@ ${livro.chaptersSample ? `- TRECHO / REFERÊNCIA: "${livro.chaptersSample.slice(
 REGRAS RÍGIDAS DE ESTILO:
 1. NÃO seja genérico. Cada palavra deve refletir a atmosfera única do gênero "${livro.genre}".
 2. NÃO use clichês batidos de marketing de infoproduto. O tom deve ser EDITORIAL, SOFISTICADO, CINEMATOGRÁFICO e LITERÁRIO.
-3. Retorne a resposta em formato JSON estrito, sem markdown ao redor, seguindo EXATAMENTE a estrutura abaixo:
+3. PROIBIÇÃO ABSOLUTA DE ALEGAÇÕES FALSAS: NUNCA use termos como "best-seller", "bestseller", "#1 mais vendido", "campeão de vendas" ou menções de vendas fictícias. O foco promocional deve ser a qualidade da história, os personagens, a atmosfera e a experiência de leitura.
+4. Retorne a resposta em formato JSON estrito, sem markdown ao redor, seguindo EXATAMENTE a estrutura abaixo:
 
 {
   "heroHook": "Uma frase de gancho impactante (10 a 16 palavras) que resume o conflito e cria atmosfera.",
@@ -840,7 +768,7 @@ NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO WORDS, NO BOOK COVERS, NO BORDERS.
 Genre: ${livro.genre}
 Atmosphere and Concept: ${livro.topic}
 Scene: An immersive storytelling wide shot showing the key environment, moody setting or emotional world of the story "${livro.title}".
-Style: Masterpiece digital painting, dramatic cinematic volumetric lighting, depth of field, atmospheric fog, rich textures, moody color grading consistent with a prestigious bestseller editorial book.`;
+Style: Masterpiece digital painting, dramatic cinematic volumetric lighting, depth of field, atmospheric fog, rich textures, moody color grading consistent with a prestigious editorial book, NO TEXT, NO BESTSELLER BADGE.`;
 
   return await chamarImagen(prompt, '16:9');
 }

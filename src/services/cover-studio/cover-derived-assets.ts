@@ -401,7 +401,7 @@ export class CoverDerivedAssetsService {
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 24px Montserrat, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('AMAZON BEST-SELLER • EDIÇÃO 2026', w / 2, 140);
+    ctx.fillText('EDIÇÃO ESPECIAL • AMAZON KDP 2026', w / 2, 140);
 
     // Capa do Livro Centralizada
     const cvW = 540;

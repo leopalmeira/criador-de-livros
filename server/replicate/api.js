@@ -88,6 +88,11 @@ export async function handleReplicateApi(req, res, reqUrl) {
         return sendJson(res, 400, { success: false, error: 'O prompt é obrigatório.' });
       }
 
+      // Sanitização anti-bestseller rigorosa
+      const cleanPrompt = prompt
+        .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
+        .trim() + ', clean art, NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON, NO FAKE LABELS';
+
       console.log(`[Replicate Backend] Gerando imagem com modelo ${model}...`);
 
       const createRes = await fetch(`https://api.replicate.com/v1/models/${model}/predictions`, {
@@ -99,7 +104,7 @@ export async function handleReplicateApi(req, res, reqUrl) {
         },
         body: JSON.stringify({
           input: {
-            prompt,
+            prompt: cleanPrompt,
             aspect_ratio: aspectRatio,
             num_outputs: 1,
             output_format: 'png'

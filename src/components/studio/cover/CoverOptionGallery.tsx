@@ -64,7 +64,7 @@ export const CoverOptionGallery: React.FC<Props> = ({
       authorColor: '#f1f5f9',
       fontFamily: i % 2 === 0 ? "'Cinzel', Georgia, serif" : "'Montserrat', sans-serif",
       badgeBg: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-      badgeText: 'BEST-SELLER AMAZON'
+      badgeText: 'EDIÇÃO OFICIAL KDP'
     }));
   });
 
@@ -91,7 +91,7 @@ export const CoverOptionGallery: React.FC<Props> = ({
         authorColor: '#f1f5f9',
         fontFamily: i % 2 === 0 ? "'Cinzel', Georgia, serif" : "'Montserrat', sans-serif",
         badgeBg: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-        badgeText: 'BEST-SELLER AMAZON'
+        badgeText: 'EDIÇÃO OFICIAL KDP'
       }));
       setOptions(newOpts);
       setSelectedId(newOpts[0].id);

@@ -1027,12 +1027,12 @@ ${ganchoImediato}`;
     logDiag('Iniciando geração da capa com Imagen 3');
 
     try {
-      // 1. ILUSTRAÇÃO DA CAPA (IMAGEN 3)
-      const promptCapa = `Book cover background illustration, NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY.
+      // 1. ILUSTRAÇÃO DA CAPA (IMAGEN 3 / REPLICATE)
+      const promptCapa = `Book cover background illustration, clean artwork, NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON, NO FAKE LABELS.
 Genre: ${obraGenero}
 Atmosphere: ${obraPremissa}
 Key Scene Hints: ${trechoAmostra}
-Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog, mysterious, bestseller cover art, vertical 2:3 composition.`;
+Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog, mysterious, fine art editorial composition, vertical 2:3 aspect ratio.`;
 
       const capaImgUrl = await chamarImagen(promptCapa, '2:3');
       setFundoImg(capaImgUrl);
@@ -1079,7 +1079,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
         ctx.fillStyle = footerGrad;
         ctx.fillRect(0, 1620, canvas.width, 780);
 
-        // 1. Tag de Gênero / Selo Editorial no topo (Clean e Profissional de Best-Seller)
+        // 1. Tag de Gênero / Selo Editorial no topo (Clean e Profissional sem alegações de Best-Seller)
         const getGenreTag = (gen: string, prem: string) => {
           const g = (gen + ' ' + prem).toLowerCase();
           if (g.includes('investiga') || g.includes('crime') || g.includes('forense') || g.includes('policia') || g.includes('misterio')) {
@@ -1097,7 +1097,7 @@ Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog,
           if (g.includes('ficcao') || g.includes('sci-fi') || g.includes('espaco') || g.includes('futuro')) {
             return 'UMA OBRA ÉPICA DE FICÇÃO & MISTÉRIO';
           }
-          return 'BEST-SELLER EDITORIAL • EDIÇÃO OFICIAL KDP';
+          return 'EDIÇÃO ESPECIAL • PUBLICAÇÃO INDEPENDENTE KDP';
         };
 
         const tagGenero = getGenreTag(obraGenero, obraPremissa);

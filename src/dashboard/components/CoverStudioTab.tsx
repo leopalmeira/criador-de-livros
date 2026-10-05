@@ -116,7 +116,7 @@ export const CoverStudioTab: React.FC<CoverStudioProps> = ({ initialProjectId, o
     setAuthorBio(p.kdpCoverDesign?.authorBio || '');
     setIsbnCode(p.kdpCoverDesign?.isbnCode || '');
     setPublisher(p.kdpCoverDesign?.publisher || 'Publicação Independente');
-    setBadgeText(p.kdpCoverDesign?.badgeText || 'BEST-SELLER KDP');
+    setBadgeText(p.kdpCoverDesign?.badgeText || 'EDIÇÃO OFICIAL KDP');
     setShowBadge(p.kdpCoverDesign?.showBadge ?? true);
 
     const savedCoverImage = p.kdpCoverDesign?.frontImageUrl || (p.kdpCoverDesign as any)?.frontCoverUrl;

@@ -228,7 +228,7 @@ export class CoverQualityChecker {
         label: 'Selo Promocional de Destaque',
         status: 'WARN',
         detail: 'Capa sem selo promocional.',
-        recommendation: 'Um selo de autoridade ("Best-Seller" ou "Edição Revisada") eleva em média 20% a conversão orgânica.'
+        recommendation: 'Um selo editorial ("Edição Oficial" ou "Edição Especial") eleva em média 20% a conversão orgânica.'
       });
     }
 
