@@ -503,6 +503,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 5. APIs de Síntese de Voz de Audiobook (/api/tts/...)
+  // Usa o TTSEngineManager real (NeuralCloud, Kokoro, F5, XTTS)
+  // NÃO usa Google Translate TTS diretamente
   if (pathname === '/api/tts/synthesize') {
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -518,20 +520,26 @@ const server = http.createServer(async (req, res) => {
       const voiceId = payload.voiceId || 'pt_narrador';
       const speed = payload.speed || 1.0;
       const lang = payload.lang || 'pt-BR';
+      const voiceGender = payload.voiceGender || (voiceId.startsWith('pf_') || voiceId.startsWith('af_') || voiceId.startsWith('ef_') || voiceId.startsWith('ff_') || voiceId.startsWith('if_') ? 'female' : 'male');
 
       if (!text.trim()) {
         return sendJson(res, 400, { success: false, error: 'Texto não fornecido para síntese vocal' });
       }
 
       try {
-        const audioBuffer = await synthesizeNeuralVoiceMp3(text, { lang, speed });
+        // Usar o TTSEngineManager real do serviço de audiobook
+        const { getDefaultAudiobookService } = await import('./server/audiobook/service.js');
+        const service = getDefaultAudiobookService();
+        const result = await service.engines.synthesize(text, lang, voiceGender, { allowDegraded: true });
+        
         res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Content-Length', audioBuffer.length);
+        res.setHeader('Content-Length', result.audio.length);
         res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('X-TTS-Engine', result.engine);
         res.statusCode = 200;
-        return res.end(audioBuffer);
+        return res.end(result.audio);
       } catch (err) {
-        console.error('[TTS] Erro na síntese vocal neural:', err.message);
+        console.error('[TTS] Erro na síntese vocal:', err.message);
         return sendJson(res, 500, { success: false, error: err.message });
       }
     }

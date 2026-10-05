@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import JSZip from 'jszip';
 import { getDefaultAudiobookService, AudiobookError } from './service.js';
 import { listPublicLanguages } from './languages.js';
+import { getEngineStatus, getAvailableVoices } from './engine-diagnostics.js';
 
 function sendJson(res, statusCode, data) {
   const body = JSON.stringify(data);
@@ -132,6 +133,21 @@ export function createAudiobookApi(options = {}) {
       // 1. GET /languages
       if (req.method === 'GET' && (sub === '/languages' || sub === '/languages/')) {
         sendJson(res, 200, { success: true, languages: listPublicLanguages() });
+        return true;
+      }
+
+      // 1b. GET /engine-status — Diagnóstico completo dos motores TTS
+      if (req.method === 'GET' && (sub === '/engine-status' || sub === '/engine-status/')) {
+        const status = await getEngineStatus(service.engines);
+        sendJson(res, 200, { success: true, ...status });
+        return true;
+      }
+
+      // 1c. GET /voices?language=pt-BR — Vozes reais disponíveis por idioma
+      if (req.method === 'GET' && (sub === '/voices' || sub === '/voices/')) {
+        const language = reqUrl.searchParams?.get('language') || 'pt-BR';
+        const result = await getAvailableVoices(language, service.engines);
+        sendJson(res, 200, { success: true, ...result });
         return true;
       }
 

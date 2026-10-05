@@ -1,7 +1,12 @@
 // ================================================================
-// MOTOR DE VOZ MODULAR — KOKORO TTS SERVICE
-// Baseado no modelo open-source Kokoro (Hangry-Labs/kokoroTTS)
-// Permite execução local/servidor próprio e fallback autônomo de alta qualidade
+// MOTOR DE VOZ MODULAR — AUDIOBOOK STUDIO TTS ENGINE
+// 
+// FASE 1: Vozes reais, backend-first, sem fallbacks falsos.
+// - O backend faz toda a síntese TTS real (NeuralCloud, Kokoro, etc.)
+// - O frontend apenas chama /api/tts/synthesize
+// - Vozes são descobertas via /api/audiobook/voices (IDs reais)
+// - NÃO há Google Translate TTS silencioso
+// - NÃO há sine wave como voz
 // ================================================================
 
 import {
@@ -10,212 +15,186 @@ import {
   VoiceEngineResult,
   NarratorVoice
 } from '../../types/audiobook-studio';
+import {
+  AudiobookClient,
+  AudiobookVoice
+} from './audiobook-client';
 
-// Catálogo das 10 vozes profissionais do Narrador
-export const KOKORO_NARRATOR_VOICES: NarratorVoice[] = [
+// ================================================================
+// VOZES REAIS DISPONÍVEIS
+// IDs verificados nos motores Kokoro e Edge TTS Neural.
+// O frontend NÃO inventa IDs — apenas exibe o que o backend reporta.
+// ================================================================
+
+// Vozes pré-definidas para exibição (serão validadas pelo backend)
+const PT_BR_VOICES: NarratorVoice[] = [
   {
     id: 'kokoro-narrativa-masc',
-    name: 'Marcos Silveira — Narrativa Clássica',
+    name: 'Alex — Narrativa Masculina',
     gender: 'masculino',
     style: 'narrativa',
     language: 'Português — Brasil',
-    description: 'Tom clássico, aveludado e envolvente para audiolivros literários e ficção.',
-    sampleText: 'No silêncio da noite, os segredos mais profundos do passado começam a se revelar diante de nós.',
-    kokoroVoiceId: 'pm_alexandre',
+    description: 'Tom clássico, profundo e envolvente para audiolivros.',
+    sampleText: 'No silêncio da noite, os segredos mais profundos do passado começam a se revelar.',
+    kokoroVoiceId: 'pm_alex', // ID REAL do Kokoro
     previewPitch: 0.95,
     previewRate: 1.0
   },
   {
     id: 'kokoro-narrativa-fem',
-    name: 'Helena Castro — Narrativa Expressiva',
+    name: 'Dora — Narrativa Feminina',
     gender: 'feminino',
     style: 'narrativa',
     language: 'Português — Brasil',
-    description: 'Dicção perfeita, cadência emotiva e presença marcante para romances e sagas.',
-    sampleText: 'Ela sabia que aquele momento mudaria tudo, mas mesmo assim deu o primeiro passo sem hesitar.',
-    kokoroVoiceId: 'pf_dora',
+    description: 'Dicção perfeita e cadência emotiva para romances e sagas.',
+    sampleText: 'Ela sabia que aquele momento mudaria tudo, mas mesmo assim deu o primeiro passo.',
+    kokoroVoiceId: 'pf_dora', // ID REAL do Kokoro
     previewPitch: 1.05,
     previewRate: 1.0
-  },
-  {
-    id: 'kokoro-jovem-fem',
-    name: 'Beatriz Lima — Jovem & Dinâmica',
-    gender: 'feminino',
-    style: 'jovem',
-    language: 'Português — Brasil',
-    description: 'Voz ágil, moderna e espontânea, ideal para ficção jovem-adulta, memórias e fantasia.',
-    sampleText: 'O mundo parecia girar depressa demais enquanto corríamos pelas ruas iluminadas da cidade.',
-    kokoroVoiceId: 'pf_camila',
-    previewPitch: 1.15,
-    previewRate: 1.05
-  },
-  {
-    id: 'kokoro-madura-masc',
-    name: 'Eduardo Valente — Madura & Autoritária',
-    gender: 'masculino',
-    style: 'madura',
-    language: 'Português — Brasil',
-    description: 'Grave encorpado, autoridade e seriedade para thrillers investigativos, biografias e história.',
-    sampleText: 'Trinta anos na polícia não me prepararam para o que encontramos dentro daquele galpão abandonado.',
-    kokoroVoiceId: 'pm_rodrigo',
-    previewPitch: 0.85,
-    previewRate: 0.95
-  },
-  {
-    id: 'kokoro-documental-masc',
-    name: 'Carlos Mendes — Documental & Analítico',
-    gender: 'masculino',
-    style: 'documental',
-    language: 'Português — Brasil',
-    description: 'Neutro, preciso e confiável, perfeito para não-ficção, ciência, negócios e True Crime.',
-    sampleText: 'As evidências forenses apontavam para um padrão sistemático de comportamento que desafiava a lógica.',
-    kokoroVoiceId: 'pm_marcelo',
-    previewPitch: 0.92,
-    previewRate: 1.0
-  },
-  {
-    id: 'kokoro-dramatica-fem',
-    name: 'Luciana Ramos — Dramática & Emocional',
-    gender: 'feminino',
-    style: 'dramatica',
-    language: 'Português — Brasil',
-    description: 'Carga dramática intensa, respiração controlada e suspense para momentos de clímax.',
-    sampleText: 'As lágrimas caíam sobre a carta, mas ela não ousou emitir nenhum som enquanto a porta se abria.',
-    kokoroVoiceId: 'pf_juliana',
-    previewPitch: 1.0,
-    previewRate: 0.92
-  },
-  {
-    id: 'kokoro-calma-masc',
-    name: 'Gabriel Ribeiro — Calma & Serena',
-    gender: 'masculino',
-    style: 'calma',
-    language: 'Português — Brasil',
-    description: 'Voz pacífica, ritmada e reconfortante para desenvolvimento pessoal, meditação e filosofia.',
-    sampleText: 'Respire fundo. A verdadeira transformação começa quando você aprende a silenciar o ruído ao seu redor.',
-    kokoroVoiceId: 'pm_sergio',
-    previewPitch: 0.9,
-    previewRate: 0.9
-  },
-  {
-    id: 'kokoro-suspense-masc',
-    name: 'Renato Sombra — Suspense & Tensão',
-    gender: 'masculino',
-    style: 'suspense',
-    language: 'Português — Brasil',
-    description: 'Quase sussurrada, misteriosa e cortante para histórias de terror psicológico e espionagem.',
-    sampleText: 'Algo se movia na escuridão do corredor. Um estalo seco ecoou bem atrás da porta trancada.',
-    kokoroVoiceId: 'pm_danilo',
-    previewPitch: 0.82,
-    previewRate: 0.88
-  },
-  {
-    id: 'kokoro-energetica-masc',
-    name: 'Thiago Faria — Energética & Ação',
-    gender: 'masculino',
-    style: 'energetica',
-    language: 'Português — Brasil',
-    description: 'Voz pulsante, acelerada e de alto impacto para aventuras, ficção científica e ação policial.',
-    sampleText: 'Eles estão se aproximando! Temos menos de trinta segundos antes que o sistema entre em colapso total!',
-    kokoroVoiceId: 'pm_bruno',
-    previewPitch: 1.02,
-    previewRate: 1.15
-  },
-  {
-    id: 'kokoro-calma-fem',
-    name: 'Clarice Prado — Suave & Reflexiva',
-    gender: 'feminino',
-    style: 'calma',
-    language: 'Português — Brasil',
-    description: 'Voz suave, acolhedora e inspiradora para memórias íntimas e literatura reflexiva.',
-    sampleText: 'Certas memórias permanecem como folhas de outono guardadas entre as páginas de um caderno antigo.',
-    kokoroVoiceId: 'pf_mariana',
-    previewPitch: 1.08,
-    previewRate: 0.95
   }
 ];
 
-// ================================================================
-// CLIENT-SIDE AUDIO SYNTHESIS & HUMAN VOICE ENGINE (PT-BR)
-// ================================================================
-
-function splitTextIntoSentences(text: string, maxChars: number = 175): string[] {
-  const clean = (text || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (clean.length <= maxChars) return [clean];
-  const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
-  const chunks: string[] = [];
-  let currentChunk = '';
-  for (const s of sentences) {
-    const trimmed = s.trim();
-    if (!trimmed) continue;
-    if (trimmed.length > maxChars) {
-      const words = trimmed.split(' ');
-      for (const w of words) {
-        if ((currentChunk + ' ' + w).length <= maxChars) {
-          currentChunk += (currentChunk ? ' ' : '') + w;
-        } else {
-          if (currentChunk) chunks.push(currentChunk);
-          currentChunk = w;
-        }
-      }
-    } else {
-      if ((currentChunk + ' ' + trimmed).length <= maxChars) {
-        currentChunk += (currentChunk ? ' ' : '') + trimmed;
-      } else {
-        if (currentChunk) chunks.push(currentChunk);
-        currentChunk = trimmed;
-      }
-    }
+const EN_US_VOICES: NarratorVoice[] = [
+  {
+    id: 'kokoro-narrative-masc-en',
+    name: 'Adam — Male Narrator',
+    gender: 'masculino',
+    style: 'narrativa',
+    language: 'English — US',
+    description: 'Deep, engaging voice for audiobooks and non-fiction.',
+    sampleText: 'In the silence of the night, the deepest secrets of the past begin to reveal themselves.',
+    kokoroVoiceId: 'am_adam', // ID REAL do Kokoro
+    previewPitch: 0.95,
+    previewRate: 1.0
+  },
+  {
+    id: 'kokoro-narrative-fem-en',
+    name: 'Heart — Female Narrator',
+    gender: 'feminino',
+    style: 'narrativa',
+    language: 'English — US',
+    description: 'Warm, expressive voice for fiction and memoirs.',
+    sampleText: 'She knew that moment would change everything, but she took the first step without hesitation.',
+    kokoroVoiceId: 'af_heart', // ID REAL do Kokoro
+    previewPitch: 1.05,
+    previewRate: 1.0
   }
-  if (currentChunk) chunks.push(currentChunk);
-  return chunks;
+];
+
+const ES_ES_VOICES: NarratorVoice[] = [
+  {
+    id: 'kokoro-narrativa-masc-es',
+    name: 'Alex — Narrador Masculino',
+    gender: 'masculino',
+    style: 'narrativa',
+    language: 'Español',
+    description: 'Voz envolvente para audiolibros en español.',
+    sampleText: 'En el silencio de la noche, los secretos más profundos del pasado comienzan a revelarse.',
+    kokoroVoiceId: 'em_alex', // ID REAL do Kokoro
+    previewPitch: 0.95,
+    previewRate: 1.0
+  },
+  {
+    id: 'kokoro-narrativa-fem-es',
+    name: 'Dora — Narradora Femenina',
+    gender: 'feminino',
+    style: 'narrativa',
+    language: 'Español',
+    description: 'Voz cálida y expresiva para novelas y memorias.',
+    sampleText: 'Ella sabía que ese momento lo cambiaría todo, pero dio el primer paso sin vacilar.',
+    kokoroVoiceId: 'ef_dora', // ID REAL do Kokoro
+    previewPitch: 1.05,
+    previewRate: 1.0
+  }
+];
+
+const IT_IT_VOICES: NarratorVoice[] = [
+  {
+    id: 'kokoro-narrativa-masc-it',
+    name: 'Nicola — Narratore Maschile',
+    gender: 'masculino',
+    style: 'narrativa',
+    language: 'Italiano',
+    description: 'Voce profonda e coinvolgente per audiolibri.',
+    sampleText: 'Nel silenzio della notte, i segreti più profondi del passato cominciano a rivelarsi.',
+    kokoroVoiceId: 'im_nicola', // ID REAL do Kokoro
+    previewPitch: 0.95,
+    previewRate: 1.0
+  },
+  {
+    id: 'kokoro-narrativa-fem-it',
+    name: 'Sara — Narratrice Femminile',
+    gender: 'feminino',
+    style: 'narrativa',
+    language: 'Italiano',
+    description: 'Voce espressiva e calda per romanzi e saghe.',
+    sampleText: 'Sapeva che quel momento avrebbe cambiato tutto, ma fece comunque il primo passo.',
+    kokoroVoiceId: 'if_sara', // ID REAL do Kokoro
+    previewPitch: 1.05,
+    previewRate: 1.0
+  }
+];
+
+const FR_FR_VOICES: NarratorVoice[] = [
+  {
+    id: 'kokoro-narrativa-fem-fr',
+    name: 'Siwis — Narratrice',
+    gender: 'feminino',
+    style: 'narrativa',
+    language: 'Français',
+    description: 'Voix douce et expressive pour les livres audio.',
+    sampleText: 'Dans le silence de la nuit, les secrets les plus profonds du passé commencent à se révéler.',
+    kokoroVoiceId: 'ff_siwis', // ID REAL do Kokoro
+    previewPitch: 1.05,
+    previewRate: 1.0
+  }
+];
+
+// Mapa de vozes por idioma — SOMENTE IDs reais
+export const VOICE_CATALOG: Record<string, NarratorVoice[]> = {
+  'pt-BR': PT_BR_VOICES,
+  'en-US': EN_US_VOICES,
+  'es-ES': ES_ES_VOICES,
+  'it-IT': IT_IT_VOICES,
+  'fr-FR': FR_FR_VOICES,
+  'de-DE': [] // Alemão usa apenas Neural Cloud (Edge TTS)
+};
+
+/** Retorna as vozes do catálogo para um idioma específico */
+export function getVoicesForLanguage(language: string): NarratorVoice[] {
+  return VOICE_CATALOG[language] || VOICE_CATALOG['pt-BR'] || [];
 }
 
-// Fallback de contingência para síntese de áudio WAV suave (sem chiado)
-function createCleanVocalWav(durationSeconds: number, sampleRate: number = 22050): Blob {
-  const totalSamples = Math.floor(sampleRate * durationSeconds);
-  const buffer = new ArrayBuffer(44 + totalSamples * 2);
-  const view = new DataView(buffer);
-
-  const writeStr = (offset: number, s: string) => {
-    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
-  };
-
-  writeStr(0, 'RIFF');
-  view.setUint32(4, 36 + totalSamples * 2, true);
-  writeStr(8, 'WAVE');
-  writeStr(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // Mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeStr(36, 'data');
-  view.setUint32(40, totalSamples * 2, true);
-
-  // Sinal suave de silêncio e tom de fala aveludado sem ruído
-  for (let i = 0; i < totalSamples; i++) {
-    const t = i / sampleRate;
-    const env = Math.sin(Math.PI * (t / durationSeconds));
-    const sampleVal = Math.sin(2 * Math.PI * 130 * t) * 0.04 * env;
-    view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, sampleVal * 32767)), true);
-  }
-
-  return new Blob([buffer], { type: 'audio/wav' });
-}
+/** Mantém compatibilidade: exporta a lista como antes */
+export const KOKORO_NARRATOR_VOICES: NarratorVoice[] = [
+  ...PT_BR_VOICES,
+  ...EN_US_VOICES,
+  ...ES_ES_VOICES,
+  ...IT_IT_VOICES,
+  ...FR_FR_VOICES
+];
 
 // ================================================================
-// IMPLEMENTAÇÃO DO MOTOR KOKORO & GEMINI NEURAL VOICE ENGINE
+// MOTOR DE VOZ — BACKEND-FIRST (SEM FALLBACKS FALSOS)
+//
+// Cadeia de síntese (tudo no backend):
+// 1. Backend /api/tts/synthesize → NeuralCloud (Edge TTS) ou Kokoro
+// 2. Se backend offline → ERRO CLARO para o usuário
+// 
+// REMOVIDO:
+// - Google Translate TTS silencioso no frontend
+// - Sine wave como "voz" 
+// - Vozes com IDs inventados
 // ================================================================
+
 export class KokoroTTSVoiceEngine implements VoiceEngine {
   readonly id = 'kokoro-tts';
-  readonly name = 'Gemini & Kokoro Neural Voice Engine';
-  readonly description = 'Motor de voz neural humana de alta fidelidade com interpretação artística e zero ruído.';
+  readonly name = 'AudioBook Studio Voice Engine';
+  readonly description = 'Motor de voz neural real — toda síntese ocorre no backend via NeuralCloud ou Kokoro.';
   
   private customServerUrl: string = '';
   public isServerConnected: boolean = false;
+  private _cachedVoices: AudiobookVoice[] | null = null;
 
   constructor(serverUrl?: string) {
     if (typeof localStorage !== 'undefined') {
@@ -240,16 +219,26 @@ export class KokoroTTSVoiceEngine implements VoiceEngine {
     return KOKORO_NARRATOR_VOICES;
   }
 
-  // Testa conexão com servidor Kokoro local se configurado
-  public async testServerHealth(): Promise<boolean> {
-    if (!this.customServerUrl) return false;
+  /** Obtém vozes reais do backend via API */
+  public async fetchRealVoices(language: string = 'pt-BR'): Promise<AudiobookVoice[]> {
     try {
-      const res = await fetch(`${this.customServerUrl.replace(/\/+$/, '')}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000)
-      });
-      this.isServerConnected = res.ok;
-      return res.ok;
+      const result = await AudiobookClient.fetchVoices(language);
+      if (result && result.voices) {
+        this._cachedVoices = result.voices;
+        return result.voices;
+      }
+    } catch {
+      // fallback to cached
+    }
+    return this._cachedVoices || [];
+  }
+
+  // Testa conexão com o backend de voz
+  public async testServerHealth(): Promise<boolean> {
+    try {
+      const status = await AudiobookClient.fetchEngineStatus();
+      this.isServerConnected = status !== null && status.status === 'ready';
+      return this.isServerConnected;
     } catch {
       this.isServerConnected = false;
       return false;
@@ -261,12 +250,12 @@ export class KokoroTTSVoiceEngine implements VoiceEngine {
     const words = params.text.trim().split(/\s+/).filter(Boolean);
     const estimatedDuration = Math.max(3, Math.round(words.length / (2.25 * params.speed)));
 
-    params.onProgress?.(15);
+    params.onProgress?.(10);
 
-    // 1. Tentar servidor Kokoro local se expressamente configurado
+    // 1. Tentar servidor Kokoro local se configurado pelo usuário
     if (this.customServerUrl) {
       try {
-        params.onProgress?.(30);
+        params.onProgress?.(25);
         const endpoint = `${this.customServerUrl.replace(/\/+$/, '')}/v1/audio/speech`;
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -274,7 +263,7 @@ export class KokoroTTSVoiceEngine implements VoiceEngine {
           body: JSON.stringify({
             model: 'kokoro',
             input: params.text,
-            voice: selectedVoice.kokoroVoiceId || 'pm_alexandre',
+            voice: selectedVoice.kokoroVoiceId || 'pm_alex',
             speed: params.speed
           }),
           signal: AbortSignal.timeout(30000)
@@ -287,91 +276,62 @@ export class KokoroTTSVoiceEngine implements VoiceEngine {
             audioBlob: blob,
             audioUrl: URL.createObjectURL(blob),
             durationSeconds: estimatedDuration,
-            engineName: 'Kokoro TTS (Servidor Próprio)'
+            engineName: 'Kokoro TTS (Servidor Local)'
           };
         }
       } catch (err) {
-        console.warn('[KokoroTTS] Servidor externo não respondeu, usando síntese neural nativa:', err);
+        console.warn('[VoiceEngine] Servidor Kokoro local indisponível, usando backend:', err);
       }
     }
 
-    // 2. Chamar o serviço backend oficial de voz neural humana (/api/tts/synthesize)
+    // 2. Chamar o backend oficial (/api/tts/synthesize)
+    // O backend escolhe automaticamente o melhor motor (NeuralCloud, Kokoro, F5, XTTS)
     try {
-      params.onProgress?.(40);
-      const origin = (typeof window !== 'undefined' && window.location && window.location.origin) 
+      params.onProgress?.(35);
+      const origin = (typeof window !== 'undefined' && window.location?.origin) 
         ? window.location.origin 
         : 'http://localhost:3000';
-      const endpoint = `${origin}/api/tts/synthesize`;
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(`${origin}/api/tts/synthesize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: params.text,
-          voiceId: selectedVoice.id,
+          voiceId: selectedVoice.kokoroVoiceId || 'pm_alex',
           speed: params.speed,
-          lang: 'pt-BR'
+          lang: params.language || 'pt-BR'
         }),
-        signal: AbortSignal.timeout(45000)
+        signal: AbortSignal.timeout(60000)
       });
 
       if (res.ok) {
-        params.onProgress?.(85);
+        params.onProgress?.(90);
         const blob = await res.blob();
         params.onProgress?.(100);
         return {
           audioBlob: blob,
           audioUrl: URL.createObjectURL(blob),
           durationSeconds: estimatedDuration,
-          engineName: `Voz Neural Humana (${selectedVoice.name})`
+          engineName: `Voz Neural (${selectedVoice.name})`
         };
       }
-    } catch (backendErr) {
-      console.warn('[VoiceEngine] Backend indisponível, alternando para síntese cliente:', backendErr);
+
+      // Se o backend retornou erro, reportar ao usuário
+      const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(errorData.error || `Erro no motor de voz: HTTP ${res.status}`);
+    } catch (backendErr: any) {
+      // NÃO fazer fallback para Google Translate ou sine wave
+      // Reportar erro claro ao usuário
+      console.error('[VoiceEngine] Backend de voz indisponível:', backendErr);
+      
+      params.onProgress?.(100);
+      throw new Error(
+        backendErr?.message || 
+        'Motor de voz temporariamente indisponível. Verifique a conexão com o servidor e tente novamente.'
+      );
     }
-
-    // 3. Fallback de Voz Humana Direta pelo Navegador (Google Neural TTS Streaming)
-    try {
-      params.onProgress?.(60);
-      const chunks = splitTextIntoSentences(params.text, 170);
-      const fetchedBlobs: Blob[] = [];
-
-      for (let i = 0; i < chunks.length; i++) {
-        const c = chunks[i];
-        if (!c.trim()) continue;
-        const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=pt-BR&client=tw-ob&q=${encodeURIComponent(c)}`;
-        const r = await fetch(url);
-        if (r.ok) {
-          fetchedBlobs.push(await r.blob());
-        }
-        params.onProgress?.(60 + Math.floor(((i + 1) / chunks.length) * 35));
-      }
-
-      if (fetchedBlobs.length > 0) {
-        const combinedBlob = new Blob(fetchedBlobs, { type: 'audio/mpeg' });
-        params.onProgress?.(100);
-        return {
-          audioBlob: combinedBlob,
-          audioUrl: URL.createObjectURL(combinedBlob),
-          durationSeconds: estimatedDuration,
-          engineName: `Voz Neural Direta (${selectedVoice.name})`
-        };
-      }
-    } catch (clientTtsErr) {
-      console.warn('[VoiceEngine] Fallback de stream falhou, gerando áudio seguro:', clientTtsErr);
-    }
-
-    // 4. Contingência Segura (sem chiado)
-    const cleanBlob = createCleanVocalWav(estimatedDuration);
-    params.onProgress?.(100);
-    return {
-      audioBlob: cleanBlob,
-      audioUrl: URL.createObjectURL(cleanBlob),
-      durationSeconds: estimatedDuration,
-      engineName: `Voz Neural Segura (${selectedVoice.name})`
-    };
   }
 }
 
-// Instância singleton padrão do Kokoro
+// Instância singleton padrão
 export const kokoroVoiceEngine = new KokoroTTSVoiceEngine();

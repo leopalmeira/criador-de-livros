@@ -89,6 +89,42 @@ export function mapBookLanguageToAudiobook(bookLang?: string): string {
   return 'pt-BR';
 }
 
+export interface AudiobookEngineInfo {
+  name: string;
+  priority: number;
+  honorsGender: boolean;
+  consistentVoice: boolean;
+  maxChars: number;
+  available: boolean;
+}
+
+export interface AudiobookEngineStatus {
+  status: 'ready' | 'no_engines';
+  primaryEngine: string | null;
+  totalEngines: number;
+  availableEngines: number;
+  engines: AudiobookEngineInfo[];
+  ffmpegInstalled: boolean;
+  diagnosticAt: number;
+}
+
+export interface AudiobookVoice {
+  id: string;
+  name: string;
+  gender: AudiobookVoiceGender;
+  provider: string;
+  language: string;
+  available: boolean;
+}
+
+export interface AudiobookVoicesResponse {
+  language: string;
+  languageLabel: string;
+  voices: AudiobookVoice[];
+  allVoices: AudiobookVoice[];
+  checkedAt: number;
+}
+
 export class AudiobookClient {
   static getFinalAudioUrl(projectId: string, download = false): string {
     const base = `/api/audiobook/file/${encodeURIComponent(projectId)}/final`;
@@ -112,6 +148,30 @@ export class AudiobookClient {
       return Array.isArray(data.languages) && data.languages.length > 0 ? data.languages : DEFAULT_LANGUAGES;
     } catch {
       return DEFAULT_LANGUAGES;
+    }
+  }
+
+  /** Diagnóstico completo dos motores TTS disponíveis */
+  static async fetchEngineStatus(): Promise<AudiobookEngineStatus | null> {
+    try {
+      const res = await fetch('/api/audiobook/engine-status');
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data as AudiobookEngineStatus;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Vozes reais disponíveis para um idioma */
+  static async fetchVoices(language: string = 'pt-BR'): Promise<AudiobookVoicesResponse | null> {
+    try {
+      const res = await fetch(`/api/audiobook/voices?language=${encodeURIComponent(language)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data as AudiobookVoicesResponse;
+    } catch {
+      return null;
     }
   }
 
@@ -168,3 +228,4 @@ export class AudiobookClient {
     return data.status;
   }
 }
+
