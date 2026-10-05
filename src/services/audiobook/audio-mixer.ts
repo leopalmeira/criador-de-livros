@@ -91,6 +91,30 @@ function writeString(view: DataView, offset: number, string: string) {
 }
 
 /**
+ * Carrega o buffer de áudio real do cache do servidor (/api/audiobook/sfx/file/:id)
+ * ou usa síntese acústica como fallback de contingência
+ */
+async function loadRealOrProceduralBuffer(
+  audioContext: OfflineAudioContext,
+  soundId: string,
+  durationSeconds: number
+): Promise<AudioBuffer> {
+  try {
+    const res = await fetch(`/api/audiobook/sfx/file/${encodeURIComponent(soundId)}`);
+    if (res.ok) {
+      const arrayBuffer = await res.arrayBuffer();
+      if (arrayBuffer.byteLength > 200) {
+        return await audioContext.decodeAudioData(arrayBuffer.slice(0));
+      }
+    }
+  } catch {
+    // Usa fallback de contingência
+  }
+
+  return generateProceduralSoundBuffer(audioContext, soundId, durationSeconds);
+}
+
+/**
  * Mixagem profissional multi-track do capítulo:
  * - Faixa de Voz (VOICE): 100% de inteligibilidade
  * - Faixa de Ambiente: ducking inteligente para 18–22% durante narração, fade-in e fade-out graduais
@@ -154,9 +178,16 @@ export async function mixChapterAudio(
       onProgress(pct, `Mixando evento sonoro: ${event.name}...`);
     }
 
-    const sfxBuffer = generateProceduralSoundBuffer(offlineCtx, event.soundId, event.durationSeconds);
+    const sfxBuffer = await loadRealOrProceduralBuffer(offlineCtx, event.soundId, event.durationSeconds);
     const sfxSource = offlineCtx.createBufferSource();
     sfxSource.buffer = sfxBuffer;
+
+    // Se for ambient e a duração do evento for maior que o buffer original, habilita loop suave
+    if (event.trackType === 'ambient' && event.durationSeconds > sfxBuffer.duration) {
+      sfxSource.loop = true;
+      sfxSource.loopStart = 0;
+      sfxSource.loopEnd = sfxBuffer.duration;
+    }
 
     const sfxGain = offlineCtx.createGain();
     const startT = Math.max(0, event.startTimeSeconds);

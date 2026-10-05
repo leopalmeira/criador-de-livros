@@ -20,15 +20,33 @@ import {
   ArrowLeft,
   Sparkles,
   Layers,
-  FileCheck
+  FileCheck,
+  Sliders,
+  Wand2,
+  Music,
+  Activity,
+  Check,
+  Radio,
+  Volume1,
+  Loader2
 } from 'lucide-react';
 import {
   AudiobookClient,
   AudiobookLanguage,
   AudiobookVoiceGender,
   AudiobookStatusResponse,
+  AudiobookEngineStatus,
+  AudiobookVoice,
   mapBookLanguageToAudiobook
 } from '../../../services/audiobook/audiobook-client';
+import { AudioTimeline } from './AudioTimeline';
+import {
+  analyzeChapterSoundDesign,
+  SmartSoundDesignResult
+} from '../../../services/audiobook/smart-sound-design';
+import { mixChapterAudio, MixResult } from '../../../services/audiobook/audio-mixer';
+import { SoundTimelineEvent } from '../../../types/audiobook-studio';
+
 
 export interface AudiobookStudioProps {
   projectId?: string;
@@ -125,6 +143,30 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
   const [volume, setVolume] = useState<number>(1.0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [activeChapterIndex, setActiveChapterIndex] = useState<number>(0);
+
+  // 6. Abas e Fluxo Profissional: Narração -> Sonorização/Timeline -> Mixer & Masterização
+  const [activeTab, setActiveTab] = useState<'narration' | 'timeline' | 'player'>('narration');
+  const [engineStatus, setEngineStatus] = useState<AudiobookEngineStatus | null>(null);
+
+  // 7. Estado de Sonorização e Timeline Multi-track
+  const [selectedTimelineChapter, setSelectedTimelineChapter] = useState<number>(0);
+  const [chapterTimelineEvents, setChapterTimelineEvents] = useState<Record<number, SoundTimelineEvent[]>>({});
+  const [soundDesignSummary, setSoundDesignSummary] = useState<Record<number, SmartSoundDesignResult['summary']>>({});
+  const [isAnalyzingSoundDesign, setIsAnalyzingSoundDesign] = useState<boolean>(false);
+
+  // 8. Estado de Mixagem com Auto-Ducking
+  const [isMixing, setIsMixing] = useState<boolean>(false);
+  const [mixProgress, setMixProgress] = useState<{ percent: number; status: string } | null>(null);
+  const [chapterMixedAudio, setChapterMixedAudio] = useState<Record<number, { url: string; blob: Blob; duration: number }>>({});
+  const [playMixedAudio, setPlayMixedAudio] = useState<boolean>(false);
+  const mixedAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Diagnóstico de motores TTS no backend
+  useEffect(() => {
+    AudiobookClient.fetchEngineStatus().then((st) => {
+      if (st) setEngineStatus(st);
+    });
+  }, []);
 
   // Carregar idiomas disponíveis
   useEffect(() => {
@@ -232,6 +274,72 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       setStatusData(res);
     } catch (err: any) {
       setErrorMessage(err.message || 'Erro ao reiniciar o estúdio.');
+    }
+  };
+
+  // Analisar sonorização inteligente para o capítulo selecionado
+  const handleAnalyzeSoundDesign = (chapterIdx: number) => {
+    const chapter = normalizedChapters[chapterIdx];
+    if (!chapter || !chapter.text) return;
+
+    setIsAnalyzingSoundDesign(true);
+    try {
+      const result = analyzeChapterSoundDesign(chapter.text);
+      setChapterTimelineEvents(prev => ({
+        ...prev,
+        [chapterIdx]: result.detectedEvents
+      }));
+      setSoundDesignSummary(prev => ({
+        ...prev,
+        [chapterIdx]: result.summary
+      }));
+    } finally {
+      setIsAnalyzingSoundDesign(false);
+    }
+  };
+
+  // Mixar capítulo vocal com a timeline de efeitos multi-track (auto-ducking)
+  const handleMixChapter = async (chapterIdx: number) => {
+    const events = chapterTimelineEvents[chapterIdx] || [];
+    if (events.length === 0) {
+      alert('Nenhum efeito configurado na timeline para mixar. Clique em "✨ Gerar Sonorização Inteligente" ou adicione efeitos do banco.');
+      return;
+    }
+
+    const chapterMeta = statusData?.chapters?.find(c => c.index === chapterIdx);
+    if (!chapterMeta || !chapterMeta.file) {
+      alert('A narração deste capítulo ainda não foi gravada. Gere a narração primeiro na aba "Narração & Vozes".');
+      return;
+    }
+
+    setIsMixing(true);
+    setMixProgress({ percent: 10, status: 'Carregando gravação vocal do capítulo...' });
+
+    try {
+      const voiceAudioUrl = AudiobookClient.getChapterAudioUrl(resolvedProjectId, chapterMeta.file);
+      const res = await fetch(voiceAudioUrl);
+      if (!res.ok) throw new Error('Não foi possível carregar a gravação vocal.');
+      const voiceBlob = await res.blob();
+
+      const mixResult = await mixChapterAudio(voiceBlob, events, (percent, status) => {
+        setMixProgress({ percent, status });
+      });
+
+      setChapterMixedAudio(prev => ({
+        ...prev,
+        [chapterIdx]: {
+          url: mixResult.mixedUrl,
+          blob: mixResult.mixedBlob,
+          duration: mixResult.durationSeconds
+        }
+      }));
+
+      setPlayMixedAudio(true);
+    } catch (err: any) {
+      alert(`Falha na mixagem: ${err.message || 'Erro inesperado.'}`);
+    } finally {
+      setIsMixing(false);
+      setMixProgress(null);
     }
   };
 
@@ -451,6 +559,128 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
         </div>
       </div>
 
+      {/* BARRA DE STATUS DO MOTOR TTS NEURAL */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: '#f1f5f9',
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          padding: '10px 16px',
+          marginBottom: 16,
+          fontSize: 12,
+          flexWrap: 'wrap',
+          gap: 10
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <Activity size={15} color="#059669" />
+          <span style={{ fontWeight: 600, color: '#334155' }}>Motor Neural:</span>
+          <span style={{
+            backgroundColor: '#ecfdf5',
+            color: '#065f46',
+            fontWeight: 700,
+            padding: '2px 8px',
+            borderRadius: 6,
+            border: '1px solid #a7f3d0'
+          }}>
+            {engineStatus?.primaryEngine ? `✅ ${engineStatus.primaryEngine} (Pronto)` : '⚡ NeuralCloud / Kokoro TTS'}
+          </span>
+          <span style={{ color: '#64748b' }}>• FFmpeg: {engineStatus?.ffmpegInstalled ? 'Instalado' : 'Integrado (Zero dependência externa)'}</span>
+        </div>
+        <div style={{ color: '#64748b', fontSize: 11 }}>
+          Biblioteca de Efeitos: <strong>CC0 / Public Domain</strong>
+        </div>
+      </div>
+
+      {/* ABAS DO ESTÚDIO: NARRAÇÃO | SONORIZAÇÃO & TIMELINE | PLAYER & MASTER */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          borderBottom: '2px solid #e2e8f0',
+          marginBottom: 20
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('narration')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            fontSize: 14,
+            fontWeight: activeTab === 'narration' ? 700 : 500,
+            color: activeTab === 'narration' ? '#2563eb' : '#64748b',
+            borderBottom: activeTab === 'narration' ? '2px solid #2563eb' : '2px solid transparent',
+            marginBottom: -2,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Headphones size={16} /> 1. Narração & Vozes
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('timeline')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            fontSize: 14,
+            fontWeight: activeTab === 'timeline' ? 700 : 500,
+            color: activeTab === 'timeline' ? '#2563eb' : '#64748b',
+            borderBottom: activeTab === 'timeline' ? '2px solid #2563eb' : '2px solid transparent',
+            marginBottom: -2,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Music size={16} /> 2. Sonorização & Timeline
+          {Object.keys(chapterTimelineEvents).length > 0 && (
+            <span style={{ fontSize: 10, background: '#eff6ff', color: '#2563eb', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
+              {Object.values(chapterTimelineEvents).reduce((acc, curr) => acc + curr.length, 0)}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('player')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            fontSize: 14,
+            fontWeight: activeTab === 'player' ? 700 : 500,
+            color: activeTab === 'player' ? '#2563eb' : '#64748b',
+            borderBottom: activeTab === 'player' ? '2px solid #2563eb' : '2px solid transparent',
+            marginBottom: -2,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Radio size={16} /> 3. Player & Masterização
+          {isCompleted && (
+            <span style={{ fontSize: 10, background: '#ecfdf5', color: '#059669', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
+              PRONTO
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* MENSAGEM DE ERRO (CASO OCORRA) */}
       {errorMessage && (
         <div
@@ -499,12 +729,85 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       )}
 
       {/* ================================================================ */}
-      {/* ESTADO 1: IDLE / CONFIGURAÇÃO (APENAS 2 ESCOLHAS DO USUÁRIO) */}
+      {/* ABA 1: NARRAÇÃO & VOZES */}
       {/* ================================================================ */}
-      {!isGenerating && !isCompleted && !isPartial && (
-        <div
-          style={{
-            backgroundColor: '#ffffff',
+      {activeTab === 'narration' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {isCompleted && (
+            <div
+              style={{
+                backgroundColor: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                borderRadius: 14,
+                padding: '18px 24px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 14
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <CheckCircle2 size={24} color="#059669" />
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#065f46' }}>
+                    Narração concluída com sucesso!
+                  </h4>
+                  <p style={{ margin: '2px 0 0', fontSize: 13, color: '#047857' }}>
+                    {statusData?.bookChapters} capítulos gravados • Duração total: {formatTime(statusData?.durationSeconds || 0)}
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('timeline')}
+                  style={{
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '10px 18px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 6px rgba(37,99,235,0.25)'
+                  }}
+                >
+                  <Music size={15} /> 2. Sonorização & Timeline
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('player')}
+                  style={{
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '10px 18px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 6px rgba(5,150,105,0.25)'
+                  }}
+                >
+                  <Play size={15} /> 3. Ouvir no Player
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ESTADO 1: IDLE / CONFIGURAÇÃO (APENAS 2 ESCOLHAS DO USUÁRIO) */}
+          {!isGenerating && !isCompleted && !isPartial && (
+            <div
+              style={{
+                backgroundColor: '#ffffff',
             borderRadius: 14,
             border: '1px solid #e2e8f0',
             padding: 24,
@@ -829,12 +1132,336 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
           </div>
         </div>
       )}
+        </div>
+      )}
 
       {/* ================================================================ */}
-      {/* ESTADO 4: FINALIZAÇÃO (🎉 AUDIOBOOK CONCLUÍDO + PLAYER COMPLETO) */}
+      {/* ABA 2: SONORIZAÇÃO & TIMELINE MULTI-TRACK */}
       {/* ================================================================ */}
-      {isCompleted && statusData && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {activeTab === 'timeline' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Seletor de Capítulos e Ação de Sonorização */}
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 14,
+              border: '1px solid #e2e8f0',
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                  🎛️ Sonorização & Design Sonoro Multi-track
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
+                  Análise semântica inteligente de cenas literárias (chuva, passos, portas, tensão) com auto-ducking estéreo.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={isAnalyzingSoundDesign || normalizedChapters.length === 0}
+                onClick={() => handleAnalyzeSoundDesign(selectedTimelineChapter)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 18px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: isAnalyzingSoundDesign ? 'wait' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+                }}
+              >
+                {isAnalyzingSoundDesign ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Sparkles size={16} />
+                )}
+                <span>✨ Analisar Cenas & Gerar Sonorização</span>
+              </button>
+            </div>
+
+            {/* Pílulas de seleção dos capítulos */}
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6 }}>
+              {normalizedChapters.map((ch, idx) => {
+                const isSelected = selectedTimelineChapter === idx;
+                const eventsCount = chapterTimelineEvents[idx]?.length || 0;
+                const isMixed = Boolean(chapterMixedAudio[idx]);
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedTimelineChapter(idx)}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 8,
+                      border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                      backgroundColor: isSelected ? '#eff6ff' : '#ffffff',
+                      color: isSelected ? '#1d4ed8' : '#334155',
+                      fontSize: 12,
+                      fontWeight: isSelected ? 700 : 500,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <span>{ch.title || `Capítulo ${idx + 1}`}</span>
+                    {eventsCount > 0 && (
+                      <span style={{
+                        fontSize: 10,
+                        backgroundColor: isSelected ? '#2563eb' : '#e2e8f0',
+                        color: isSelected ? '#ffffff' : '#475569',
+                        padding: '1px 6px',
+                        borderRadius: 10,
+                        fontWeight: 700
+                      }}>
+                        {eventsCount}
+                      </span>
+                    )}
+                    {isMixed && <span title="Mixado com sucesso">🎵</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Resumo da Análise Semântica */}
+            {soundDesignSummary[selectedTimelineChapter] && (
+              <div
+                style={{
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  display: 'flex',
+                  gap: 16,
+                  fontSize: 12,
+                  color: '#475569',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div>
+                  <strong>Total detectado:</strong> {soundDesignSummary[selectedTimelineChapter].totalDetected} efeitos
+                </div>
+                <div>
+                  <strong>Essenciais:</strong> <span style={{ color: '#b91c1c', fontWeight: 600 }}>{soundDesignSummary[selectedTimelineChapter].essentialCount}</span>
+                </div>
+                <div>
+                  <strong>Recomendados:</strong> <span style={{ color: '#d97706', fontWeight: 600 }}>{soundDesignSummary[selectedTimelineChapter].recommendedCount}</span>
+                </div>
+                <div>
+                  <strong>Ambiente:</strong> {soundDesignSummary[selectedTimelineChapter].ambientCount}
+                </div>
+                <div>
+                  <strong>SFX:</strong> {soundDesignSummary[selectedTimelineChapter].sfxCount}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Timeline Multi-track Interativa */}
+          <AudioTimeline
+            chapterDurationSeconds={
+              statusData?.chapters?.find(c => c.index === selectedTimelineChapter)?.durationSeconds || 60
+            }
+            events={chapterTimelineEvents[selectedTimelineChapter] || []}
+            onUpdateEvent={(updated) => {
+              setChapterTimelineEvents(prev => ({
+                ...prev,
+                [selectedTimelineChapter]: (prev[selectedTimelineChapter] || []).map(e => e.id === updated.id ? updated : e)
+              }));
+            }}
+            onDeleteEvent={(id) => {
+              setChapterTimelineEvents(prev => ({
+                ...prev,
+                [selectedTimelineChapter]: (prev[selectedTimelineChapter] || []).filter(e => e.id !== id)
+              }));
+            }}
+            onDuplicateEvent={(evt) => {
+              const dup: SoundTimelineEvent = {
+                ...evt,
+                id: `${evt.id}_dup_${Date.now()}`,
+                startTimeSeconds: Math.min(60, evt.startTimeSeconds + 3)
+              };
+              setChapterTimelineEvents(prev => ({
+                ...prev,
+                [selectedTimelineChapter]: [...(prev[selectedTimelineChapter] || []), dup]
+              }));
+            }}
+            onAddEvent={(newEvent) => {
+              setChapterTimelineEvents(prev => ({
+                ...prev,
+                [selectedTimelineChapter]: [...(prev[selectedTimelineChapter] || []), newEvent]
+              }));
+            }}
+            currentTimeSeconds={currentTime}
+          />
+
+          {/* Painel de Mixagem e Masterização do Capítulo */}
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 14,
+              border: '1px solid #e2e8f0',
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                  Renderizar Mixagem do Capítulo com Auto-Ducking
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                  Gera a versão master multi-track atenuando a música e o ambiente em 80% durante as falas do narrador.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={isMixing || (chapterTimelineEvents[selectedTimelineChapter] || []).length === 0}
+                onClick={() => handleMixChapter(selectedTimelineChapter)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 24px',
+                  borderRadius: 10,
+                  border: 'none',
+                  backgroundColor: (chapterTimelineEvents[selectedTimelineChapter] || []).length === 0 ? '#cbd5e1' : '#059669',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: (chapterTimelineEvents[selectedTimelineChapter] || []).length === 0 ? 'not-allowed' : 'pointer',
+                  boxShadow: (chapterTimelineEvents[selectedTimelineChapter] || []).length === 0 ? 'none' : '0 4px 10px rgba(5, 150, 105, 0.25)'
+                }}
+              >
+                {isMixing ? <Loader2 size={18} className="animate-spin" /> : <Sliders size={18} />}
+                <span>{isMixing ? 'Mixando Master...' : '🎚️ Renderizar Mixagem do Capítulo'}</span>
+              </button>
+            </div>
+
+            {/* Barra de Progresso de Mixagem */}
+            {isMixing && mixProgress && (
+              <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                  <span style={{ color: '#166534' }}>{mixProgress.status}</span>
+                  <span style={{ color: '#15803d' }}>{mixProgress.percent}%</span>
+                </div>
+                <div style={{ width: '100%', height: 8, borderRadius: 999, backgroundColor: '#dcfce7', overflow: 'hidden' }}>
+                  <div style={{ width: `${mixProgress.percent}%`, height: '100%', backgroundColor: '#16a34a', transition: 'width 0.3s ease' }} />
+                </div>
+              </div>
+            )}
+
+            {/* Card do Master Mixado Pronto */}
+            {chapterMixedAudio[selectedTimelineChapter] && (
+              <div
+                style={{
+                  backgroundColor: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: 10,
+                  padding: 16,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 12
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 24 }}>🎵</span>
+                  <div>
+                    <h5 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#065f46' }}>
+                      Master Mixado do Capítulo Pronto!
+                    </h5>
+                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#047857' }}>
+                      Duração: {formatTime(chapterMixedAudio[selectedTimelineChapter].duration)} • Faixas: Voz + Ambiente + SFX
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <audio controls src={chapterMixedAudio[selectedTimelineChapter].url} style={{ height: 38 }} />
+                  <a
+                    href={chapterMixedAudio[selectedTimelineChapter].url}
+                    download={`master_capitulo_${selectedTimelineChapter + 1}.wav`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      backgroundColor: '#059669',
+                      color: '#ffffff',
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <Download size={14} /> Baixar Master (.WAV)
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* ABA 3: PLAYER & MASTERIZAÇÃO COMPLETA */}
+      {/* ================================================================ */}
+      {activeTab === 'player' && (
+        <div>
+          {!isCompleted ? (
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 14,
+                padding: 36,
+                textAlign: 'center'
+              }}
+            >
+              <Headphones size={40} color="#94a3b8" style={{ margin: '0 auto 12px' }} />
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#1e293b' }}>
+                O audiobook ainda não foi finalizado
+              </h3>
+              <p style={{ margin: '6px 0 20px', fontSize: 13, color: '#64748b' }}>
+                Gere a narração na aba 1 ou edite os efeitos na aba 2 para poder escutar no player.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('narration')}
+                style={{
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '10px 22px',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Ir para 1. Narração & Vozes
+              </button>
+            </div>
+          ) : (
+            statusData && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* CARD DE CONCLUSÃO */}
           <div
             style={{
@@ -999,7 +1626,11 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
             {/* ELEMENTO AUDIO OCULTO */}
             <audio
               ref={audioRef}
-              src={AudiobookClient.getFinalAudioUrl(resolvedProjectId)}
+              src={
+                playMixedAudio && chapterMixedAudio[activeChapterIndex]
+                  ? chapterMixedAudio[activeChapterIndex].url
+                  : AudiobookClient.getFinalAudioUrl(resolvedProjectId)
+              }
               preload="metadata"
               onTimeUpdate={() => {
                 if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
@@ -1026,14 +1657,67 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
                 <Headphones size={20} />
               </div>
               <div style={{ flex: 1 }}>
-                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
-                  {initialTitle || 'Audiobook Completo'}
-                </h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                    {initialTitle || 'Audiobook Completo'}
+                  </h4>
+                  {chapterMixedAudio[activeChapterIndex] && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: '#f1f5f9', padding: '2px 4px', borderRadius: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlayMixedAudio(false);
+                          if (audioRef.current) {
+                            audioRef.current.pause();
+                            setIsPlaying(false);
+                          }
+                        }}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: !playMixedAudio ? 700 : 500,
+                          backgroundColor: !playMixedAudio ? '#2563eb' : 'transparent',
+                          color: !playMixedAudio ? '#ffffff' : '#64748b',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Voz Pura
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlayMixedAudio(true);
+                          if (audioRef.current) {
+                            audioRef.current.pause();
+                            setIsPlaying(false);
+                          }
+                        }}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: playMixedAudio ? 700 : 500,
+                          backgroundColor: playMixedAudio ? '#059669' : 'transparent',
+                          color: playMixedAudio ? '#ffffff' : '#64748b',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🎵 Master Mixado
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
                   Tocando:{' '}
                   <strong>
                     {statusData.chapters.find((c) => c.index === activeChapterIndex)?.label || 'Introdução'}
                   </strong>
+                  {playMixedAudio && chapterMixedAudio[activeChapterIndex] && (
+                    <span style={{ color: '#059669', marginLeft: 6, fontWeight: 600 }}>• Trilha Mixada com Auto-Ducking</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -1178,6 +1862,9 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
               </div>
             </div>
           </div>
+        </div>
+            )
+          )}
         </div>
       )}
     </div>

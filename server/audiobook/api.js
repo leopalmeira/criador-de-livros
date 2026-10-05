@@ -15,6 +15,7 @@ import JSZip from 'jszip';
 import { getDefaultAudiobookService, AudiobookError } from './service.js';
 import { listPublicLanguages } from './languages.js';
 import { getEngineStatus, getAvailableVoices } from './engine-diagnostics.js';
+import { getDefaultSFXProvider } from './sfx-provider.js';
 
 function sendJson(res, statusCode, data) {
   const body = JSON.stringify(data);
@@ -67,7 +68,8 @@ function streamAudioFile(filePath, req, res, downloadFilename = null) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Accept-Ranges', 'bytes');
-  res.setHeader('Content-Type', 'audio/mpeg');
+  const isWav = filePath.toLowerCase().endsWith('.wav');
+  res.setHeader('Content-Type', isWav ? 'audio/wav' : 'audio/mpeg');
 
   if (downloadFilename) {
     const safeName = downloadFilename.replace(/["\r\n]/g, '').trim() || 'audiobook.mp3';
@@ -255,6 +257,50 @@ export function createAudiobookApi(options = {}) {
         res.setHeader('Content-Length', zipBuffer.length);
         res.statusCode = 200;
         res.end(zipBuffer);
+        return true;
+      }
+
+      // 9. GET /sfx/search?query=rain&maxDuration=15 — Busca efeitos sonoros reais
+      if (req.method === 'GET' && sub.startsWith('/sfx/search')) {
+        const query = reqUrl.searchParams?.get('query') || 'ambient';
+        const maxDuration = parseFloat(reqUrl.searchParams?.get('maxDuration') || '30');
+        const minDuration = parseFloat(reqUrl.searchParams?.get('minDuration') || '0.5');
+        const sfxProvider = getDefaultSFXProvider();
+        const result = await sfxProvider.search(query, { maxDuration, minDuration });
+        sendJson(res, 200, { success: true, ...result });
+        return true;
+      }
+
+      // 10. POST /sfx/download — Baixa e armazena um efeito sonoro no cache local
+      if (req.method === 'POST' && (sub === '/sfx/download' || sub === '/sfx/download/')) {
+        const body = await parseBody(req);
+        const freesoundId = parseInt(body?.freesoundId || body?.id || '0', 10);
+        if (!freesoundId) {
+          throw new AudiobookError('ID do efeito sonoro é obrigatório.', 400, 'MISSING_SFX_ID');
+        }
+        const sfxProvider = getDefaultSFXProvider();
+        const result = await sfxProvider.download(freesoundId);
+        sendJson(res, 200, { success: true, ...result, freesoundId });
+        return true;
+      }
+
+      // 11. GET /sfx/cached — Lista efeitos já baixados no cache local
+      if (req.method === 'GET' && (sub === '/sfx/cached' || sub === '/sfx/cached/')) {
+        const sfxProvider = getDefaultSFXProvider();
+        const cached = sfxProvider.listCached();
+        sendJson(res, 200, { success: true, count: cached.length, effects: cached });
+        return true;
+      }
+
+      // 12. GET /sfx/file/:id — Serve um arquivo de efeito sonoro do cache
+      if (req.method === 'GET' && sub.startsWith('/sfx/file/')) {
+        const sfxId = decodeURIComponent(sub.replace('/sfx/file/', '').split('?')[0]);
+        const sfxProvider = getDefaultSFXProvider();
+        const sfxPath = sfxProvider.getCachePath(sfxId);
+        if (!sfxProvider.isCached(sfxId)) {
+          return sendJson(res, 404, { success: false, error: 'Efeito sonoro não encontrado no cache.' });
+        }
+        streamAudioFile(sfxPath, req, res, null);
         return true;
       }
 

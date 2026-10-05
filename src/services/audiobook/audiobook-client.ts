@@ -227,5 +227,87 @@ export class AudiobookClient {
     }
     return data.status;
   }
+
+  // ================================================================
+  // MÉTODOS DE EFEITOS SONOROS (SFX) & BANCO DE ÁUDIO
+  // ================================================================
+
+  static getSFXFileUrl(sfxId: string): string {
+    return `/api/audiobook/sfx/file/${encodeURIComponent(sfxId)}`;
+  }
+
+  static async searchSFX(
+    query: string = '',
+    options?: { maxDuration?: number; minDuration?: number; maxResults?: number }
+  ): Promise<SFXSearchResponse> {
+    try {
+      const params = new URLSearchParams();
+      if (query) params.set('query', query);
+      if (options?.maxDuration) params.set('maxDuration', String(options.maxDuration));
+      if (options?.minDuration) params.set('minDuration', String(options.minDuration));
+      const res = await fetch(`/api/audiobook/sfx/search?${params.toString()}`);
+      if (!res.ok) return { results: [], total: 0, source: 'error', error: `HTTP ${res.status}` };
+      const data = await res.json();
+      return data as SFXSearchResponse;
+    } catch (err: any) {
+      return { results: [], total: 0, source: 'error', error: err.message };
+    }
+  }
+
+  static async downloadSFX(freesoundId: number | string): Promise<{ success: boolean; id: string; cached: boolean }> {
+    const res = await fetch('/api/audiobook/sfx/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ freesoundId })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Falha ao baixar efeito sonoro.');
+    }
+    return await res.json();
+  }
+
+  static async listCachedSFX(): Promise<SFXItem[]> {
+    try {
+      const res = await fetch('/api/audiobook/sfx/cached');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.effects || []).map((e: any) => ({
+        id: e.id,
+        name: e.name,
+        durationSeconds: e.duration,
+        license: e.license,
+        previewUrl: `/api/audiobook/sfx/file/${encodeURIComponent(e.id)}`,
+        category: e.category,
+        source: e.source,
+        cached: true
+      }));
+    } catch {
+      return [];
+    }
+  }
+}
+
+export interface SFXItem {
+  id: string;
+  name: string;
+  description?: string;
+  durationSeconds: number;
+  license: string;
+  previewUrl: string | null;
+  downloadUrl?: string | null;
+  category?: string;
+  tags?: string[];
+  source?: 'local' | 'freesound' | 'local_fallback';
+  cached?: boolean;
+  freesoundId?: number;
+}
+
+export interface SFXSearchResponse {
+  results: SFXItem[];
+  total: number;
+  source: string;
+  freesoundConfigured?: boolean;
+  error?: string;
 }
 
