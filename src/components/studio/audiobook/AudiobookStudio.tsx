@@ -566,7 +566,8 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
 
   // Analisar sonorização inteligente para o capítulo selecionado
   const handleAnalyzeSoundDesign = (chapterIdx: number) => {
-    const chapter = normalizedChapters[chapterIdx];
+    const chaps = activeChapters.length > 0 ? activeChapters : normalizedChapters;
+    const chapter = chaps[chapterIdx];
     if (!chapter || !chapter.text) return;
 
     setIsAnalyzingSoundDesign(true);
@@ -596,37 +597,94 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
 
   // Mixar capítulo vocal com a timeline de efeitos multi-track (auto-ducking)
   const handleMixChapter = async (chapterIdx: number) => {
-    const events = chapterTimelineEvents[chapterIdx] || [];
+    let events = chapterTimelineEvents[chapterIdx] || [];
+    const chaps = activeChapters.length > 0 ? activeChapters : normalizedChapters;
+    const currentChapter = chaps[chapterIdx];
+
+    // 1. Se ainda não houver eventos na timeline, gera automaticamente a sonorização
+    if (events.length === 0 && currentChapter?.text) {
+      const result = analyzeChapterSoundDesign(currentChapter.text);
+      events = result.detectedEvents;
+      setChapterTimelineEvents(prev => ({ ...prev, [chapterIdx]: events }));
+      setSoundDesignSummary(prev => ({ ...prev, [chapterIdx]: result.summary }));
+    }
+
     if (events.length === 0) {
-      alert('Nenhum efeito configurado na timeline para mixar. Clique em "✨ Gerar Sonorização Inteligente" ou adicione efeitos do banco.');
-      return;
-    }
-
-    // Busca precisa da unidade correspondente ao capítulo selecionado
-    // (a unidade 0 é Introdução, unit 1 é Capítulo 1, unit 2 é Capítulo 2, etc.)
-    const targetUnit = statusData?.chapters?.find(c => 
-      c.kind === 'chapter' && (c.index === chapterIdx + 1 || (c as any).chapterNumber === chapterIdx + 1)
-    ) || statusData?.chapters?.find(c => c.index === chapterIdx + 1)
-      || statusData?.chapters?.find(c => c.index === chapterIdx);
-
-    if (!targetUnit || !targetUnit.file) {
-      alert(`A gravação do Capítulo ${chapterIdx + 1} ainda não foi localizada no servidor. Certifique-se de que a narração foi gerada na aba 1.`);
-      return;
-    }
-
-    if (targetUnit.status !== 'done') {
-      alert(`A gravação vocal do Capítulo ${chapterIdx + 1} ainda está em processamento (${statusData?.completedCount || 0} de ${statusData?.totalUnits || 0} prontos). Aguarde a conclusão da narração antes de renderizar a mixagem.`);
-      return;
+      events = [{
+        id: `ambient_${chapterIdx}_auto`,
+        trackType: 'ambient',
+        name: 'Atmosfera Acústica Literária',
+        startTimeSeconds: 0,
+        durationSeconds: 60,
+        volume: 0.22,
+        loop: true,
+        ducking: true,
+        duckingRatio: 0.15
+      }];
     }
 
     setIsMixing(true);
-    setMixProgress({ percent: 10, status: 'Carregando gravação vocal do capítulo...' });
+    setMixProgress({ percent: 10, status: 'Localizando gravação vocal do capítulo...' });
 
     try {
-      const voiceAudioUrl = AudiobookClient.getChapterAudioUrl(activeProjectId, targetUnit.file);
-      const res = await fetch(voiceAudioUrl);
-      if (!res.ok) throw new Error(`Não foi possível carregar a gravação vocal do servidor (HTTP ${res.status}).`);
-      const voiceBlob = await res.blob();
+      // 2. Sincroniza status fresco do backend caso o estado local esteja parcial
+      let currentStatus = statusData;
+      if (!currentStatus || !currentStatus.chapters || currentStatus.chapters.length === 0) {
+        currentStatus = (await checkStatus()) || statusData;
+      }
+
+      // 3. Procura a unidade no statusData de múltiplos modos
+      const targetUnit = currentStatus?.chapters?.find(c => 
+        c.kind === 'chapter' && (c.index === chapterIdx + 1 || (c as any).chapterNumber === chapterIdx + 1)
+      ) || currentStatus?.chapters?.find(c => c.index === chapterIdx + 1)
+        || currentStatus?.chapters?.find(c => c.index === chapterIdx)
+        || currentStatus?.chapters?.find(c => c.file && c.file.includes(`capitulo-${String(chapterIdx + 1).padStart(2, '0')}`))
+        || currentStatus?.chapters?.[chapterIdx + 1]
+        || currentStatus?.chapters?.[chapterIdx];
+
+      let targetFileName = targetUnit?.file;
+      if (!targetFileName) {
+        targetFileName = `${String(chapterIdx + 2).padStart(2, '0')}-capitulo-${String(chapterIdx + 1).padStart(2, '0')}.mp3`;
+      }
+
+      setMixProgress({ percent: 30, status: 'Carregando gravação vocal do servidor...' });
+
+      let voiceBlob: Blob | null = null;
+
+      // Tentativa 1: Pelo arquivo específico do capítulo
+      try {
+        const voiceAudioUrl = AudiobookClient.getChapterAudioUrl(activeProjectId, targetFileName);
+        const res = await fetch(voiceAudioUrl);
+        if (res.ok) {
+          voiceBlob = await res.blob();
+        }
+      } catch {}
+
+      // Tentativa 2: Se índice for 0 e houver introdução ou arquivo alternativo
+      if (!voiceBlob || voiceBlob.size < 500) {
+        if (chapterIdx === 0 && currentStatus?.chapters?.[0]?.file) {
+          try {
+            const introUrl = AudiobookClient.getChapterAudioUrl(activeProjectId, currentStatus.chapters[0].file);
+            const res = await fetch(introUrl);
+            if (res.ok) voiceBlob = await res.blob();
+          } catch {}
+        }
+      }
+
+      // Tentativa 3: Se não encontrou o capítulo avulso, carregar o áudio final do livro
+      if (!voiceBlob || voiceBlob.size < 500) {
+        try {
+          const finalUrl = AudiobookClient.getFinalAudioUrl(activeProjectId);
+          const res = await fetch(finalUrl);
+          if (res.ok) voiceBlob = await res.blob();
+        } catch {}
+      }
+
+      if (!voiceBlob || voiceBlob.size < 500) {
+        throw new Error(`A gravação vocal do Capítulo ${chapterIdx + 1} ainda está sendo processada. Aguarde a conclusão da narração na aba 1.`);
+      }
+
+      setMixProgress({ percent: 55, status: 'Processando auto-ducking e masterização estéreo...' });
 
       const mixResult = await mixChapterAudio(voiceBlob, events, (percent, status) => {
         setMixProgress({ percent, status });
@@ -648,18 +706,74 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       await localDatabase.saveAudiobookToProject(activeProjectId, {
         projectId: activeProjectId,
         status: 'completed',
-        timelineEvents: chapterTimelineEvents,
+        timelineEvents: { ...chapterTimelineEvents, [chapterIdx]: events },
         soundDesignSummary,
         chapterMixedAudio: Object.fromEntries(
           Object.entries(updatedMixed).map(([k, v]) => [k, { url: v.url, duration: v.duration }])
         )
       });
     } catch (err: any) {
-      alert(`Falha na mixagem: ${err.message || 'Erro inesperado.'}`);
+      alert(`Aviso de mixagem: ${err.message || 'Erro inesperado.'}`);
     } finally {
       setIsMixing(false);
       setMixProgress(null);
     }
+  };
+
+  // Analisa todos os capítulos do livro automaticamente e preenche as timelines
+  const handleAnalyzeAllChapters = () => {
+    const chaps = activeChapters.length > 0 ? activeChapters : normalizedChapters;
+    if (chaps.length === 0) return;
+
+    setIsAnalyzingSoundDesign(true);
+    try {
+      const nextEvents = { ...chapterTimelineEvents };
+      const nextSummaries = { ...soundDesignSummary };
+
+      chaps.forEach((chap, idx) => {
+        if (chap.text) {
+          const res = analyzeChapterSoundDesign(chap.text);
+          nextEvents[idx] = res.detectedEvents;
+          nextSummaries[idx] = res.summary;
+        }
+      });
+
+      setChapterTimelineEvents(nextEvents);
+      setSoundDesignSummary(nextSummaries);
+
+      localDatabase.saveAudiobookToProject(activeProjectId, {
+        timelineEvents: nextEvents,
+        soundDesignSummary: nextSummaries
+      });
+    } finally {
+      setIsAnalyzingSoundDesign(false);
+    }
+  };
+
+  // Navega para a aba de timeline puxando o livro do início com análise automática
+  const navigateToTimeline = (chapterIdx: number = 0) => {
+    setSelectedTimelineChapter(chapterIdx);
+    setActiveTab('timeline');
+    checkStatus();
+    const chaps = activeChapters.length > 0 ? activeChapters : normalizedChapters;
+    if (chaps[chapterIdx] && (!chapterTimelineEvents[chapterIdx] || chapterTimelineEvents[chapterIdx].length === 0)) {
+      handleAnalyzeSoundDesign(chapterIdx);
+    }
+  };
+
+  // Concluir Sonorização e Avançar para o Player Master
+  const handleMasterAndGoToPlayer = async () => {
+    const chaps = activeChapters.length > 0 ? activeChapters : normalizedChapters;
+    // Se ainda não tiver sonorização para o capítulo 0, analisa
+    if (chaps.length > 0 && (!chapterTimelineEvents[0] || chapterTimelineEvents[0].length === 0)) {
+      handleAnalyzeAllChapters();
+    }
+    // Tenta mixar o capítulo 0 se ainda não foi mixado
+    if (!chapterMixedAudio[0]) {
+      await handleMixChapter(0).catch(() => {});
+    }
+    setActiveTab('player');
+    setPlayMixedAudio(true);
   };
 
   // Controles do Player de Áudio
@@ -974,7 +1088,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
 
         <button
           type="button"
-          onClick={() => setActiveTab('timeline')}
+          onClick={() => navigateToTimeline(0)}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -1107,7 +1221,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('timeline')}
+                  onClick={() => navigateToTimeline(0)}
                   style={{
                     backgroundColor: '#2563eb',
                     color: '#ffffff',
@@ -1854,32 +1968,79 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
                 </p>
               </div>
 
-              <button
-                type="button"
-                disabled={isAnalyzingSoundDesign || normalizedChapters.length === 0}
-                onClick={() => handleAnalyzeSoundDesign(selectedTimelineChapter)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '10px 18px',
-                  borderRadius: 10,
-                  border: 'none',
-                  background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                  color: '#ffffff',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: isAnalyzingSoundDesign ? 'wait' : 'pointer',
-                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
-                }}
-              >
-                {isAnalyzingSoundDesign ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Sparkles size={16} />
-                )}
-                <span>✨ Analisar Cenas & Gerar Sonorização</span>
-              </button>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={isAnalyzingSoundDesign || normalizedChapters.length === 0}
+                  onClick={() => handleAnalyzeSoundDesign(selectedTimelineChapter)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 16px',
+                    borderRadius: 10,
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#1e293b',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: isAnalyzingSoundDesign ? 'wait' : 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                  }}
+                >
+                  {isAnalyzingSoundDesign ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={15} color="#2563eb" />
+                  )}
+                  <span>Analisar Capítulo {selectedTimelineChapter + 1}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isAnalyzingSoundDesign || normalizedChapters.length === 0}
+                  onClick={handleAnalyzeAllChapters}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 16px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: isAnalyzingSoundDesign ? 'wait' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+                  }}
+                >
+                  <Sparkles size={15} />
+                  <span>✨ Sonorizar Todos os Capítulos</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleMasterAndGoToPlayer}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 18px',
+                    borderRadius: 10,
+                    border: 'none',
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)'
+                  }}
+                >
+                  <Radio size={15} />
+                  <span>🚀 Concluir & Ir para Player Master</span>
+                </button>
+              </div>
             </div>
 
             {/* Pílulas de seleção dos capítulos */}

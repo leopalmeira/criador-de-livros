@@ -50,7 +50,11 @@ export class NeuralCloudProvider extends TTSProvider {
       const tts = new MsEdgeTTS();
       try {
         await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-        const { audioStream } = tts.toStream(text);
+        // Cadência calibrada para audiolivros: -6% confere ritmo natural, articulação clara e respeito às pausas
+        const { audioStream } = tts.toStream(text, {
+          rate: '-6%',
+          pitch: '+0Hz'
+        });
         const chunks = [];
         await new Promise((resolve, reject) => {
           audioStream.on('data', (c) => chunks.push(c));

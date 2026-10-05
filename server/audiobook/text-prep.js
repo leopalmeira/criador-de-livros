@@ -40,7 +40,7 @@ export function prepareNarrationText(raw) {
     l = l.replace(/[*_`~]+/g, '');
     // travessão de diálogo no início da fala vira pausa natural (sem alterar palavras)
     l = l.replace(/^[—–-]\s*/, '');
-    // travessão no meio da frase vira vírgula (pausa)
+    // travessão no meio da frase vira vírgula (pausa rítmica na oração)
     l = l.replace(/\s+[—–]\s+/g, ', ');
     // emojis e símbolos que a voz leria em voz alta
     l = l.replace(/[\p{Extended_Pictographic}\u200d\ufe0f✓✔✗✘•▪■□▶►]/gu, '');
@@ -110,33 +110,74 @@ function splitLongSentence(sentence, maxChars) {
 }
 
 /**
- * Divide o texto em partes de até `maxChars`, SEMPRE em fronteiras de frase
- * (ou de cláusula/palavra apenas quando uma única frase excede o limite).
- * Garantia: unir as partes com espaço reproduz o texto original.
+ * Divide o texto em partes de até `maxChars`, preservando fronteiras de parágrafo (\n\n)
+ * e frases para garantir que os motores de voz respeitem pausas de respiração naturais.
  */
 export function splitIntoChunks(text, maxChars = 2400) {
   const limit = Math.max(120, Math.floor(maxChars));
-  const paragraphs = String(text ?? '')
-    .split(/\n{1,}/)
+  const rawText = String(text ?? '').trim();
+  if (!rawText) return [];
+
+  // Se o texto não possui quebras de parágrafo (parágrafo único)
+  const isSingleParagraph = !rawText.includes('\n');
+  if (isSingleParagraph) {
+    const sentences = [];
+    for (const s of splitSentences(rawText)) {
+      if (s.length > limit) sentences.push(...splitLongSentence(s, limit));
+      else sentences.push(s);
+    }
+    const chunks = [];
+    let current = '';
+    for (const s of sentences) {
+      if (current && current.length + 1 + s.length > limit) {
+        chunks.push(current);
+        current = s;
+      } else {
+        current = current ? `${current} ${s}` : s;
+      }
+    }
+    if (current) chunks.push(current);
+    return chunks;
+  }
+
+  // Texto com múltiplos parágrafos: divide por parágrafos e preserva \n\n
+  const paragraphs = rawText
+    .split(/\n{2,}/)
     .map((p) => p.trim())
     .filter(Boolean);
 
-  const sentences = [];
+  const processedParagraphs = [];
   for (const p of paragraphs) {
-    for (const s of splitSentences(p)) {
-      if (s.length > limit) sentences.push(...splitLongSentence(s, limit));
-      else sentences.push(s);
+    if (p.length <= limit) {
+      processedParagraphs.push(p);
+    } else {
+      // Parágrafo longo precisa ser dividido em frases
+      const sents = [];
+      for (const s of splitSentences(p)) {
+        if (s.length > limit) sents.push(...splitLongSentence(s, limit));
+        else sents.push(s);
+      }
+      let currentSentenceGroup = '';
+      for (const s of sents) {
+        if (currentSentenceGroup && currentSentenceGroup.length + 1 + s.length > limit) {
+          processedParagraphs.push(currentSentenceGroup);
+          currentSentenceGroup = s;
+        } else {
+          currentSentenceGroup = currentSentenceGroup ? `${currentSentenceGroup} ${s}` : s;
+        }
+      }
+      if (currentSentenceGroup) processedParagraphs.push(currentSentenceGroup);
     }
   }
 
   const chunks = [];
   let current = '';
-  for (const s of sentences) {
-    if (current && current.length + 1 + s.length > limit) {
+  for (const p of processedParagraphs) {
+    if (current && current.length + 2 + p.length > limit) {
       chunks.push(current);
-      current = s;
+      current = p;
     } else {
-      current = current ? `${current} ${s}` : s;
+      current = current ? `${current}\n\n${p}` : p;
     }
   }
   if (current) chunks.push(current);

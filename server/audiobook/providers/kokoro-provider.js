@@ -54,7 +54,7 @@ export class KokoroProvider extends TTSProvider {
       {
         method: 'POST',
         headers: this.headers(),
-        body: JSON.stringify({ model: 'kokoro', input: text, voice, response_format: 'mp3', speed: 1.0 })
+        body: JSON.stringify({ model: 'kokoro', input: text, voice, response_format: 'mp3', speed: 0.94 })
       },
       90000
     );
