@@ -98,6 +98,9 @@ export interface SoundTimelineEvent {
   priority: SoundEffectPriority;
   triggerPhrase?: string;
   enabled: boolean;
+  loop?: boolean;
+  ducking?: boolean;
+  duckingRatio?: number;
 }
 
 // ================================================================

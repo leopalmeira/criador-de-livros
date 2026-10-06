@@ -15,39 +15,59 @@ import { SegmentSelectorModal } from './SegmentSelectorModal';
 import { KdpBookGeneratorPro } from './generator/KdpBookGeneratorPro';
 import { MultiplatformPublishingModal } from './publishing/MultiplatformPublishingModal';
 import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
-import { PassiveIncomeSalesPage } from './landing/PassiveIncomeSalesPage';
+import { LoginPage } from './auth/LoginPage';
+import { BatchBookGeneratorModal } from './batch/BatchBookGeneratorModal';
+import { TechnicalManualsModal } from './manuals/TechnicalManualsModal';
+import { AuthorAiGuideDrawer } from './ai-guide/AuthorAiGuideDrawer';
+import { BestsellerCover10StylesModal } from './cover/BestsellerCover10StylesModal';
+import { CoverStyleDefinition } from '../../services/amazon-cover-styles';
 import '../../styles/book-intel-dashboard.css';
 
-type AppMode = 'landing' | 'project-list' | 'settings' | 'kdp-generator';
+type AppMode = 'project-list' | 'settings' | 'kdp-generator';
 
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
   const [activeProject, setActiveProject] = useState<BookProject | null>(null);
-  const [mode, setMode] = useState<AppMode>(() => {
+
+  // Autenticação direta sem landing page
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const h = (window.location.hash || '').toLowerCase();
-      if (h.includes('dashboard') || h.includes('studio') || h.includes('project')) {
-        return 'project-list';
-      }
+      const auth = localStorage.getItem('kdp_auth_user') || sessionStorage.getItem('kdp_auth_user');
+      return Boolean(auth);
     }
-    return 'landing';
+    return false;
   });
+
+  const [mode, setMode] = useState<AppMode>('project-list');
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
   const [publishingProject, setPublishingProject] = useState<BookProject | null>(null);
+
+  // Novos Modais KDP
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isManualsModalOpen, setIsManualsModalOpen] = useState(false);
+  const [isCover10StylesOpen, setIsCover10StylesOpen] = useState(false);
+  const [isAiGuideOpen, setIsAiGuideOpen] = useState(false);
 
   // Estado para Publicação Direta KDP In-App
   const [isKdpPublishOpen, setIsKdpPublishOpen] = useState(false);
   const [kdpPublishTarget, setKdpPublishTarget] = useState<BookProject | null>(null);
 
+  // Logout seguro
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('kdp_auth_user');
+      sessionStorage.removeItem('kdp_auth_user');
+    }
+    setIsAuthenticated(false);
+  };
+
   // Sincronização de rotas com URL hash (#landing, #dashboard, #studio)
   useEffect(() => {
     const handleHash = () => {
       const h = (window.location.hash || '').toLowerCase();
-      if (h.includes('dashboard')) {
+      if (h.includes('dashboard') || h.includes('landing') || h === '' || h === '#') {
         setMode('project-list');
-      } else if (h.includes('landing') || h === '' || h === '#') {
-        setMode('landing');
       }
     };
     window.addEventListener('hashchange', handleHash);
@@ -255,18 +275,15 @@ export const BookStudioApp: React.FC = () => {
   };
 
   // ============================================================
-  // TELA 0: PÁGINA DE VENDAS & RENDA PASSIVA (ANTES DA DASHBOARD)
+  // TELA 0: AUTENTICAÇÃO OBRIGATÓRIA (LOGIN DIRETO SEM LANDING PAGE)
   // ============================================================
-  if (mode === 'landing') {
+  if (!isAuthenticated) {
     return (
-      <PassiveIncomeSalesPage
-        onEnterDashboard={() => {
+      <LoginPage
+        onLoginSuccess={() => {
+          setIsAuthenticated(true);
           setMode('project-list');
-          if (typeof window !== 'undefined') window.location.hash = '#dashboard';
-        }}
-        onStartCreation={() => {
-          handleCreateNewProject();
-          if (typeof window !== 'undefined') window.location.hash = '#studio';
+          reloadProjects();
         }}
       />
     );
@@ -312,10 +329,11 @@ export const BookStudioApp: React.FC = () => {
           onSelectOpportunity={handleSelectOpportunity}
           onOpenPublishing={handleOpenPublishing}
           onOpenKdpPublish={handleOpenKdpPublish}
-          onOpenLanding={() => {
-            setMode('landing');
-            if (typeof window !== 'undefined') window.location.hash = '#landing';
-          }}
+          onOpenBatchGenerator={() => setIsBatchModalOpen(true)}
+          onOpenTechnicalManuals={() => setIsManualsModalOpen(true)}
+          onOpenCover10Styles={() => setIsCover10StylesOpen(true)}
+          onOpenAiGuide={() => setIsAiGuideOpen(true)}
+          onLogout={handleLogout}
         />
         <SegmentSelectorModal
           isOpen={isSegmentModalOpen}
@@ -359,6 +377,48 @@ export const BookStudioApp: React.FC = () => {
           }}
           onPublishSuccess={() => {
             reloadProjects();
+          }}
+        />
+
+        {/* MODAL DO GERADOR EM LOTE (1 A 20 LIVROS COM AUTO-AUDITORIA) */}
+        <BatchBookGeneratorModal
+          isOpen={isBatchModalOpen}
+          onClose={() => setIsBatchModalOpen(false)}
+          onBatchCompleted={() => reloadProjects()}
+        />
+
+        {/* MODAL DE MANUAIS TÉCNICOS COM IMAGENS E TEXTOS */}
+        <TechnicalManualsModal
+          isOpen={isManualsModalOpen}
+          onClose={() => setIsManualsModalOpen(false)}
+          onProjectCreated={(id) => {
+            reloadProjects();
+            openProject(id);
+          }}
+        />
+
+        {/* MODAL DOS 10 ESTILOS DE CAPAS COM LINKS DA AMAZON E GRAU DE ACEITAÇÃO */}
+        <BestsellerCover10StylesModal
+          isOpen={isCover10StylesOpen}
+          onClose={() => setIsCover10StylesOpen(false)}
+          project={activeProject || projects[0] || null}
+        />
+
+        {/* IA GUIA DO AUTOR NO PAINEL */}
+        <AuthorAiGuideDrawer
+          isOpen={isAiGuideOpen}
+          onClose={() => setIsAiGuideOpen(false)}
+          onOpenManuals={() => {
+            setIsAiGuideOpen(false);
+            setIsManualsModalOpen(true);
+          }}
+          onOpenBatch={() => {
+            setIsAiGuideOpen(false);
+            setIsBatchModalOpen(true);
+          }}
+          onOpenCoverStudio={() => {
+            setIsAiGuideOpen(false);
+            setIsCover10StylesOpen(true);
           }}
         />
       </>

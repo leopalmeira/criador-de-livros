@@ -3,12 +3,14 @@ import {
   BookOpen, Plus, TrendingUp, FileText,
   HelpCircle, ChevronDown, ArrowRight,
   Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play,
-  Rocket, DollarSign
+  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
 import { FinalBooksShelf } from './FinalBooksShelf';
 import { db } from '../../database/local-database';
+import { useTranslation } from '../../services/i18n-service';
+import { LanguageSelector } from './i18n/LanguageSelector';
 
 interface Props {
   projects: BookProject[];
@@ -27,6 +29,11 @@ interface Props {
   onOpenPublishing?: (projectId?: string) => void;
   onOpenKdpPublish?: (projectId?: string) => void;
   onOpenLanding?: () => void;
+  onOpenBatchGenerator?: () => void;
+  onOpenTechnicalManuals?: () => void;
+  onOpenCover10Styles?: () => void;
+  onOpenAiGuide?: () => void;
+  onLogout?: () => void;
 }
 
 export const BookIntelDashboard: React.FC<Props> = ({
@@ -39,8 +46,14 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onQuickAction,
   onOpenPublishing,
   onOpenKdpPublish,
-  onOpenLanding
+  onOpenLanding,
+  onOpenBatchGenerator,
+  onOpenTechnicalManuals,
+  onOpenCover10Styles,
+  onOpenAiGuide,
+  onLogout
 }) => {
+  const { t, currentLang } = useTranslation();
   const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
   const [finalizingProjectId, setFinalizingProjectId] = useState<string | null>(null);
 
@@ -51,14 +64,19 @@ export const BookIntelDashboard: React.FC<Props> = ({
     (p.status !== 'FINALIZADO' && p.pipelineStage !== 'final' && (p.kdpChapters?.length || 0) > 0)
   );
 
-  // Formatação de data em português: "Hoje, 4 de out. de 2026"
+  // Formatação de data no idioma nativo selecionado
   const formattedToday = (() => {
     const now = new Date();
-    const day = now.getDate();
-    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-    const month = months[now.getMonth()];
-    const year = now.getFullYear();
-    return `Hoje, ${day} de ${month}. de ${year}`;
+    try {
+      return now.toLocaleDateString(currentLang, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return now.toLocaleDateString();
+    }
   })();
 
   // Finalizar projeto rápido diretamente pela Dashboard
@@ -96,36 +114,39 @@ export const BookIntelDashboard: React.FC<Props> = ({
               <span className="intel-name-primary">BOOK INTEL</span>
               <span className="intel-badge-kdp">KDP</span>
               <span className="intel-brand-divider">|</span>
-              <span className="intel-brand-slogan">Inteligência para o seu sucesso na Amazon</span>
+              <span className="intel-brand-slogan">{t('nav.slogan')}</span>
             </div>
           </div>
 
-          {/* Ações da Direita: Página de Vendas, Ajuda e Perfil */}
+          {/* Ações da Direita: Seletor de Idiomas Nativos, IA Guia do Autor, Configurações, Perfil e Logout */}
           <div className="header-right-tools" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {onOpenLanding && (
+            {/* SELETOR DE IDIOMA COM BANDEIRAS E NOMES NATIVOS */}
+            <LanguageSelector />
+
+            {onOpenAiGuide && (
               <button
-                onClick={onOpenLanding}
+                onClick={onOpenAiGuide}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
                   padding: '7px 14px',
                   borderRadius: 8,
-                  background: 'rgba(245, 158, 11, 0.1)',
-                  color: '#d97706',
-                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
                   fontWeight: 700,
                   fontSize: 12,
                   cursor: 'pointer',
                   transition: 'all 0.2s'
                 }}
-                title="Acessar Página de Vendas e Renda Passiva (R$ 49,90/mês)"
+                title={t('aiGuide.title')}
               >
-                <DollarSign size={14} /> Página de Vendas (R$ 49,90)
+                <Bot size={15} /> {t('nav.aiGuide')}
               </button>
             )}
 
-            <button className="tool-round-btn" onClick={onOpenSettings} title="Configurações e Ajuda">
+            <button className="tool-round-btn" onClick={onOpenSettings} title={t('nav.help')}>
               <HelpCircle size={18} />
             </button>
 
@@ -135,10 +156,32 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
               <div className="user-info-text">
                 <span className="user-name-bold">Leandro Palmeira</span>
-                <span className="user-plan-label">Plano Pro</span>
+                <span className="user-plan-label">{t('nav.proPlan')}</span>
               </div>
               <ChevronDown size={14} className="user-chevron" />
             </div>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#f87171',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: 'pointer'
+                }}
+                title={t('nav.logout')}
+              >
+                <LogOut size={14} /> {t('nav.logout')}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -153,28 +196,81 @@ export const BookIntelDashboard: React.FC<Props> = ({
             {/* HERO BANNER DE BOAS-VINDAS */}
             <div className="intel-hero-card">
               <div className="hero-text-side">
-                <span className="hero-greeting">Olá, Leandro</span>
-                <h1 className="hero-main-title">Bem-vindo ao Book Intel KDP</h1>
+                <span className="hero-greeting">{t('hero.greeting')}</span>
+                <h1 className="hero-main-title">{t('hero.welcome')}</h1>
                 <p className="hero-description">
-                  Encontre nichos lucrativos, crie livros profissionais e publique diretamente na Amazon KDP sem sair da plataforma.
+                  {t('hero.description')}
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button className="btn-hero-cta" onClick={onCreateNewProject}>
-                    <Plus size={18} /> Criar Novo Projeto
+                    <Plus size={18} /> {t('hero.btnNewBook')}
                   </button>
+
+                  {/* BOTÃO DE GERAR EM LOTE (1 A 20 LIVROS) */}
+                  {onOpenBatchGenerator && (
+                    <button
+                      className="btn-hero-cta"
+                      onClick={onOpenBatchGenerator}
+                      style={{
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                      }}
+                      title={t('batch.subtitle')}
+                    >
+                      <Zap size={18} /> {t('hero.btnBatch')}
+                    </button>
+                  )}
+
+                  {/* MANUAIS TÉCNICOS COMO FAZER COM DIAGRAMAS */}
+                  {onOpenTechnicalManuals && (
+                    <button
+                      className="btn-hero-cta"
+                      onClick={onOpenTechnicalManuals}
+                      style={{
+                        background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
+                      }}
+                      title={t('manuals.subtitle')}
+                    >
+                      <Wrench size={18} /> {t('hero.btnManuals')}
+                    </button>
+                  )}
+
+                  {/* 10 ESTILOS DE CAPAS AMAZON */}
+                  {onOpenCover10Styles && (
+                    <button
+                      className="btn-hero-cta"
+                      onClick={onOpenCover10Styles}
+                      style={{
+                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                        color: '#0f172a',
+                        fontWeight: 700,
+                        boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
+                      }}
+                      title={t('covers.subtitle')}
+                    >
+                      <Palette size={18} /> {t('hero.btnCovers')}
+                    </button>
+                  )}
+
                   <button
                     className="btn-hero-cta"
                     onClick={() => onOpenKdpPublish && onOpenKdpPublish()}
                     style={{
-                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                      color: '#0f172a',
+                      background: 'linear-gradient(135deg, #334155, #1e293b)',
+                      color: '#f8fafc',
                       fontWeight: 700,
-                      boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
+                      border: '1px solid #475569'
                     }}
                     title="Publicar Livro Diretamente no Amazon KDP sem Sair da Plataforma"
                   >
-                    <Rocket size={18} /> Publicar Direto no KDP
+                    <Rocket size={18} /> {t('hero.btnKdpDirect')}
                   </button>
+
                   <button
                     className="btn-hero-cta"
                     onClick={() => onOpenPublishing && onOpenPublishing()}
@@ -182,9 +278,9 @@ export const BookIntelDashboard: React.FC<Props> = ({
                       background: 'linear-gradient(135deg, #059669, #047857)',
                       boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)'
                     }}
-                    title="Central de Publicação Multiplataforma (Kindle, Paperback, Hardcover, Spotify e Audiobook Studio)"
+                    title="Central de Publicação Multiplataforma"
                   >
-                    <Globe size={18} /> Multiplataforma
+                    <Globe size={18} /> {t('hero.btnMultiplatform')}
                   </button>
                 </div>
               </div>
@@ -232,10 +328,10 @@ export const BookIntelDashboard: React.FC<Props> = ({
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-                      Livros Criados na Plataforma ({projects.length})
+                      {t('catalog.title')} ({projects.length})
                     </h3>
                     <span style={{ fontSize: 12, color: '#64748b' }}>
-                      Catálogo completo com capas diagramadas e arquivos de publicação
+                      {t('catalog.subtitle')}
                     </span>
                   </div>
                 </div>
@@ -258,7 +354,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)'
                   }}
                 >
-                  <Plus size={14} /> Novo Livro
+                  <Plus size={14} /> {t('catalog.btnNew')}
                 </button>
               </div>
 
@@ -272,7 +368,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 }}>
                   <BookOpen size={32} color="#94a3b8" style={{ margin: '0 auto 8px' }} />
                   <p style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#475569' }}>
-                    Nenhum livro criado ainda
+                    {t('catalog.emptyTitle')}
                   </p>
                   <button
                     onClick={onCreateNewProject}
@@ -287,7 +383,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                       cursor: 'pointer'
                     }}
                   >
-                    Começar Meu Primeiro Livro
+                    {t('catalog.emptyAction')}
                   </button>
                 </div>
               ) : (
@@ -515,7 +611,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
             {/* CARD 1: VISÃO GERAL COM MÉTRICAS */}
             <div className="intel-overview-card">
               <div className="overview-header">
-                <h3 className="overview-title">Visão Geral</h3>
+                <h3 className="overview-title">{t('overview.title')}</h3>
                 <span className="overview-date">{formattedToday}</span>
               </div>
 
@@ -527,7 +623,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                       <BookOpen size={16} color="#2563eb" />
                     </div>
                   </div>
-                  <span className="stat-label">Livros no projeto</span>
+                  <span className="stat-label">{t('metric.projectsCount')}</span>
                   <div className="stat-num-row">
                     <span className="stat-number">{projects.length}</span>
                     <ArrowRight size={14} className="stat-arrow" />
@@ -541,7 +637,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                       <Search size={16} color="#059669" />
                     </div>
                   </div>
-                  <span className="stat-label">Pesquisas realizadas</span>
+                  <span className="stat-label">{t('metric.searchesCount')}</span>
                   <div className="stat-num-row">
                     <span className="stat-number">{projects.length > 0 ? projects.length * 3 : 0}</span>
                     <ArrowRight size={14} className="stat-arrow" />
@@ -555,7 +651,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                       <TrendingUp size={16} color="#0284c7" />
                     </div>
                   </div>
-                  <span className="stat-label">Nichos analisados</span>
+                  <span className="stat-label">{t('metric.nichesCount')}</span>
                   <div className="stat-num-row">
                     <span className="stat-number">{projects.length > 0 ? projects.length * 2 : 0}</span>
                     <ArrowRight size={14} className="stat-arrow" />
@@ -569,7 +665,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                       <FileText size={16} color="#d97706" />
                     </div>
                   </div>
-                  <span className="stat-label">Relatórios gerados</span>
+                  <span className="stat-label">{t('metric.reportsCount')}</span>
                   <div className="stat-num-row">
                     <span className="stat-number">{projects.length > 0 ? projects.length : 0}</span>
                     <ArrowRight size={14} className="stat-arrow" />
@@ -581,12 +677,12 @@ export const BookIntelDashboard: React.FC<Props> = ({
             {/* CARD 2: ATIVIDADE RECENTE */}
             <div className="intel-activity-card">
               <div className="activity-header">
-                <h3 className="activity-title">Atividade recente</h3>
+                <h3 className="activity-title">{t('activity.title')}</h3>
                 <button
                   className="activity-link-all"
                   onClick={() => projects.length > 0 && onOpenProject(projects[0].id)}
                 >
-                  Ver todas <ArrowRight size={12} />
+                  {t('activity.viewAll')} <ArrowRight size={12} />
                 </button>
               </div>
 
@@ -595,9 +691,9 @@ export const BookIntelDashboard: React.FC<Props> = ({
                   <div className="clock-icon-circle">
                     <Clock size={28} color="#94a3b8" />
                   </div>
-                  <h4 className="activity-empty-title">Nenhuma atividade recente</h4>
+                  <h4 className="activity-empty-title">{t('activity.emptyTitle')}</h4>
                   <p className="activity-empty-desc">
-                    Suas ações e relatórios aparecerão aqui assim que você começar a usar o sistema.
+                    {t('activity.emptyDesc')}
                   </p>
                 </div>
               ) : (
@@ -628,14 +724,14 @@ export const BookIntelDashboard: React.FC<Props> = ({
         </div>
       </main>
 
-      {/* 3. FOOTER CENTRALIZADO E VALORIZADO (SEM TOTVS E SEM KDP VERIFIED) */}
+      {/* 3. FOOTER CENTRALIZADO E VALORIZADO */}
       <footer className="book-intel-footer">
         <div className="footer-inner-centered">
           <div className="footer-brand-pill">
             <BookOpen size={16} className="footer-brand-icon" />
-            <span className="footer-copy-bold">Book Intel KDP v1.0</span>
+            <span className="footer-copy-bold">{t('footer.brand')}</span>
             <span className="footer-divider-dot">•</span>
-            <span className="footer-copy-sub">Plataforma de Inteligência para Amazon KDP</span>
+            <span className="footer-copy-sub">{t('footer.desc')}</span>
           </div>
         </div>
       </footer>

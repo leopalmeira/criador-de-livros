@@ -11,7 +11,7 @@ import {
   CheckCircle2, Download, Eye, FileText, AlertCircle, Trash2,
   BookOpen, Calendar, Clock, ShieldCheck, X, Sparkles, Layers,
   FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package,
-  Rocket, Code2, Headphones, Sliders
+  Rocket, Code2, Headphones, Sliders, Smartphone
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
@@ -19,6 +19,9 @@ import { db } from '../../database/local-database';
 import type { FinalBookRecord, PendingItem } from '../../types/editorial-correction';
 import { buildKdpPdf } from '../../services/kdp-pdf-builder';
 import { KdpHtmlGenerator } from '../../services/kdp-html-generator';
+import { EpubBuilder } from '../../services/formats/epub-builder';
+import { ManuscriptAccentRepairEngine } from '../../services/manuscript-accent-repair';
+import { useTranslation } from '../../services/i18n-service';
 import { SequenceCreationModal } from './publishing/SequenceCreationModal';
 import { SeriesBoxCreationModal } from './publishing/SeriesBoxCreationModal';
 import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
@@ -35,6 +38,7 @@ function formatAudioSeconds(totalSeconds: number): string {
 }
 
 export const FinalBooksShelf: React.FC = () => {
+  const { t, currentLang } = useTranslation();
   const [books, setBooks] = useState<FinalBookRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingBookId, setDownloadingBookId] = useState<string | null>(null);
@@ -85,8 +89,15 @@ export const FinalBooksShelf: React.FC = () => {
               trimSize: proj.trimSize || '6x9',
               wordCount: totalWords,
               chaptersCount: proj.kdpChapters.length,
-              chapters: proj.kdpChapters.map(c => ({ titulo: c.title, texto: c.prose || '' })),
-              manuscriptText: proj.kdpChapters.map((c, i) => `\n\n### Capítulo ${i + 1}: ${c.title}\n\n${c.prose || ''}`).join(''),
+              chapters: proj.kdpChapters.map((c: any) => ({
+                titulo: ManuscriptAccentRepairEngine.repairManuscript(c.title || c.titulo || 'Capítulo'),
+                texto: ManuscriptAccentRepairEngine.repairManuscript(c.content || c.prose || c.texto || '')
+              })),
+              manuscriptText: proj.kdpChapters.map((c: any, i: number) => {
+                const t = ManuscriptAccentRepairEngine.repairManuscript(c.title || c.titulo || `Capítulo ${i + 1}`);
+                const body = ManuscriptAccentRepairEngine.repairManuscript(c.content || c.prose || c.texto || '');
+                return `\n\n### Capítulo ${i + 1}: ${t}\n\n${body}`;
+              }).join(''),
               report: {
                 generatedAt: proj.updatedAt || Date.now(),
                 bookTitle: proj.title,
@@ -281,11 +292,14 @@ export const FinalBooksShelf: React.FC = () => {
         conteudo += `Capítulo 1: Fundamentos\n\nTexto do manuscrito finalizado e aprovado para publicação.`;
       }
 
-      const blob = new Blob([conteudo], { type: 'text/plain;charset=utf-8' });
+      // Reparação completa de acentuação e desmojibake
+      const repairedConteudo = ManuscriptAccentRepairEngine.repairManuscript(conteudo);
+      // Adiciona BOM UTF-8 (\uFEFF) para garantir renderização perfeita em qualquer sistema
+      const blob = new Blob(['\uFEFF' + repairedConteudo], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${book.title.replace(/\s+/g, '_')}_MANUSCRITO.txt`;
+      a.download = `${ManuscriptAccentRepairEngine.repairManuscript(book.title).replace(/\s+/g, '_')}_MANUSCRITO.txt`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -293,6 +307,53 @@ export const FinalBooksShelf: React.FC = () => {
     } catch (err) {
       console.error('Falha ao baixar manuscrito:', err);
       alert('Não foi possível gerar o download do manuscrito.');
+    }
+  };
+
+  // NOVO: BAIXAR E-BOOK (.EPUB) OFICIAL AMAZON KINDLE
+  const handleDownloadEpub = async (book: FinalBookRecord) => {
+    setDownloadingBookId(`epub_${book.id}`);
+    try {
+      const allProjects = await db.getAllBookProjects();
+      let targetProj = allProjects.find(p => p.id === book.bookId || p.title === book.title);
+
+      if (!targetProj) {
+        targetProj = {
+          id: book.bookId || book.id,
+          title: book.title,
+          subtitle: book.subtitle,
+          author: book.author,
+          language: 'Português',
+          kdpChapters: (book.chapters && book.chapters.length > 0)
+            ? book.chapters.map((c, idx) => ({
+                number: idx + 1,
+                title: c.titulo,
+                content: c.texto,
+                prose: c.texto,
+                wordCount: c.texto ? c.texto.split(/\s+/).length : 500
+              }))
+            : [{ number: 1, title: 'Capítulo 1', content: book.manuscriptText || '', prose: book.manuscriptText || '', wordCount: 1000 }],
+          coverImageUrl: book.coverDataUrl
+        } as any;
+      }
+
+      const repairedProj = ManuscriptAccentRepairEngine.repairBookProject(targetProj!);
+      const blob = await EpubBuilder.buildEpub(repairedProj);
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const cleanFileName = ManuscriptAccentRepairEngine.repairManuscript(book.title).replace(/[^a-zA-Z0-9]/g, '_');
+      a.download = `${cleanFileName}_Kindle.epub`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err: any) {
+      console.error('Falha ao compilar EPUB:', err);
+      alert(`Não foi possível gerar o arquivo EPUB: ${err?.message || ''}`);
+    } finally {
+      setDownloadingBookId(null);
     }
   };
 
@@ -673,13 +734,19 @@ export const FinalBooksShelf: React.FC = () => {
         gap: 18
       }}>
         {books.map(book => {
-          const dateStr = new Date(book.finalizedAt).toLocaleDateString('pt-BR', {
-            day: '2-digit', month: 'short', year: 'numeric'
-          });
+          let dateStr = '';
+          try {
+            dateStr = new Date(book.finalizedAt).toLocaleDateString(currentLang, {
+              day: '2-digit', month: 'short', year: 'numeric'
+            });
+          } catch {
+            dateStr = new Date(book.finalizedAt).toLocaleDateString();
+          }
           const chaptersCount = book.chaptersCount || (book.chapters ? book.chapters.length : (book.report?.chaptersIdentified || 1));
           const wordsCount = book.wordCount || (book.report?.pagesAnalyzed ? book.report.pagesAnalyzed * 250 : 8500);
           const authorPendingsCount = book.pendings ? book.pendings.filter(p => p.resolution === 'PENDENTE_VALIDACAO_AUTOR').length : 0;
           const isBusy = downloadingBookId === book.id;
+          const isEpubBusy = downloadingBookId === `epub_${book.id}`;
 
           return (
             <div
@@ -741,7 +808,7 @@ export const FinalBooksShelf: React.FC = () => {
                       alignItems: 'center',
                       gap: 4
                     }}>
-                      <CheckCircle2 size={13} /> Finalizado & Pronto para Amazon KDP
+                      <CheckCircle2 size={13} /> {t('catalog.statusDone')}
                     </span>
                     <span style={{
                       background: '#f1f5f9',
@@ -761,7 +828,7 @@ export const FinalBooksShelf: React.FC = () => {
                       padding: '3px 8px',
                       borderRadius: 6
                     }}>
-                      Corte: {book.trimSize || '6x9'}
+                      {t('shelf.trim')}: {book.trimSize || '6x9'}
                     </span>
                   </div>
 
@@ -799,23 +866,23 @@ export const FinalBooksShelf: React.FC = () => {
                     color: '#475569'
                   }}>
                     <div>
-                      📖 <strong>{book.pageCount}</strong> páginas diagramadas
+                      📖 <strong>{book.pageCount}</strong> {t('shelf.typesetPages')}
                     </div>
                     <span>•</span>
                     <div>
-                      📑 <strong>{chaptersCount}</strong> capítulos completos
+                      📑 <strong>{chaptersCount}</strong> {t('shelf.fullChapters')}
                     </div>
                     <span>•</span>
                     <div>
-                      ✍️ <strong>{wordsCount.toLocaleString('pt-BR')}</strong> palavras
+                      ✍️ <strong>{wordsCount.toLocaleString(currentLang)}</strong> {t('catalog.words')}
                     </div>
                     <span>•</span>
                     <div>
-                      📅 Finalizado em <strong>{dateStr}</strong>
+                      📅 {t('shelf.completedOn')} <strong>{dateStr}</strong>
                     </div>
                     <span>•</span>
                     <div style={{ color: '#059669', fontWeight: 700 }}>
-                      ✓ Sem páginas em branco
+                      ✓ {t('shelf.noBlankPages')}
                     </div>
                   </div>
                 </div>
@@ -853,7 +920,36 @@ export const FinalBooksShelf: React.FC = () => {
                   title="Baixar manuscrito com todos os capítulos em texto completo"
                 >
                   <FileText size={15} color="#2563eb" />
-                  <span>Baixar Manuscrito</span>
+                  <span>{t('shelf.btnManuscript')}</span>
+                </button>
+
+                {/* 1.1 BAIXAR E-BOOK KINDLE (.EPUB) COM ACENTUAÇÃO CORRIGIDA */}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadEpub(book)}
+                  disabled={isEpubBusy}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    padding: '10px 14px',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: isEpubBusy ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { if (!isEpubBusy) e.currentTarget.style.background = '#0369a1'; }}
+                  onMouseLeave={(e) => { if (!isEpubBusy) e.currentTarget.style.background = '#0284c7'; }}
+                  title="Baixar arquivo EPUB 3 pronto para Kindle com acentuação e capítulos formatados"
+                >
+                  <Smartphone size={15} />
+                  <span>{isEpubBusy ? t('shelf.btnGenerating') : t('shelf.btnEpub')}</span>
                 </button>
 
                 {/* 2. BAIXAR PDF DO LIVRO (MIOLO) */}
@@ -882,7 +978,7 @@ export const FinalBooksShelf: React.FC = () => {
                   title="Baixar arquivo PDF diagramado pronto para envio na Amazon KDP"
                 >
                   <Download size={15} />
-                  <span>{isBusy ? 'Gerando...' : 'Baixar PDF do Livro'}</span>
+                  <span>{isBusy ? t('shelf.btnGenerating') : t('shelf.btnBookPdf')}</span>
                 </button>
 
                 {/* 3. BAIXAR PDF DA CAPA */}
@@ -910,7 +1006,7 @@ export const FinalBooksShelf: React.FC = () => {
                   title="Baixar capa em PDF nas medidas oficiais KDP"
                 >
                   <ImageIcon size={15} />
-                  <span>Baixar PDF da Capa</span>
+                  <span>{t('shelf.btnCoverPdf')}</span>
                 </button>
 
                 {/* 4. BAIXAR PDF DA PÁGINA DO LIVRO */}
@@ -938,7 +1034,7 @@ export const FinalBooksShelf: React.FC = () => {
                   title="Baixar amostra da diagramação da página do livro em PDF"
                 >
                   <Layers size={15} />
-                  <span>Baixar PDF da Página</span>
+                  <span>{t('shelf.btnSamplePagePdf')}</span>
                 </button>
 
                 {/* 5. HTML DA PÁGINA & DESCRIÇÃO DO LIVRO */}
@@ -966,7 +1062,7 @@ export const FinalBooksShelf: React.FC = () => {
                   title="Abrir a página de promoção do livro e o código HTML formatado para a descrição na Amazon KDP"
                 >
                   <Code2 size={15} />
-                  <span>HTML da Página / Descrição</span>
+                  <span>{t('shelf.btnHtmlDesc')}</span>
                 </button>
               </div>
 

@@ -612,11 +612,16 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     if (events.length === 0) {
       events = [{
         id: `ambient_${chapterIdx}_auto`,
+        soundId: 'ambient_literary_room',
         trackType: 'ambient',
         name: 'Atmosfera Acústica Literária',
         startTimeSeconds: 0,
         durationSeconds: 60,
         volume: 0.22,
+        fadeInSeconds: 2,
+        fadeOutSeconds: 2,
+        priority: 'opcional',
+        enabled: true,
         loop: true,
         ducking: true,
         duckingRatio: 0.15
