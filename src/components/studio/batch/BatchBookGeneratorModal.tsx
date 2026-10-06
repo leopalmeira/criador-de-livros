@@ -1,4 +1,12 @@
-import React, { useState } from 'react';
+// ============================================================================
+// MODAL DE CONFIGURAÇÃO E EXECUÇÃO DE GERAÇÃO EM LOTE (1 A 20 LIVROS POR GÊNERO)
+// 1. Apresenta TODOS os 28+ gêneros editoriais da Amazon KDP com busca e filtros
+// 2. Permite configurar de 1 a 20 livros por gênero
+// 3. Permite configurar densidade de palavras e capítulos para atingir páginas exatas
+// 4. Executa em segundo plano via BatchBackgroundRunner
+// ============================================================================
+
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   BookOpen, 
@@ -14,15 +22,21 @@ import {
   Check, 
   ExternalLink,
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  Search,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { 
   GENRE_PRESETS, 
   BatchBookGeneratorService, 
   GenreBatchConfig, 
-  BatchGenerationSettings, 
-  BatchBookProgress 
+  BatchGenerationSettings 
 } from '../../../services/batch-book-generator-service';
+import { 
+  batchBackgroundRunner, 
+  BatchRunnerState 
+} from '../../../services/batch-background-runner';
 import { BookProject } from '../../../types/book-project';
 
 interface Props {
@@ -36,12 +50,15 @@ export const BatchBookGeneratorModal: React.FC<Props> = ({
   onClose,
   onBatchCompleted
 }) => {
-  // Estado dos gêneros selecionados e quantidades (1 a 20)
+  // Filtro de busca de gêneros
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Estado dos gêneros selecionados e quantidades (1 a 20 livros por gênero)
   const [selectedGenres, setSelectedGenres] = useState<Record<string, { selected: boolean; count: number }>>(() => {
     const initial: Record<string, { selected: boolean; count: number }> = {};
     GENRE_PRESETS.forEach((g, idx) => {
-      // Deixa os 2 primeiros selecionados por padrão com 2 livros cada
-      initial[g.genreId] = { selected: idx < 2, count: 2 };
+      // Deixa os 3 primeiros selecionados por padrão com 2 livros cada
+      initial[g.genreId] = { selected: idx < 3, count: 2 };
     });
     return initial;
   });
@@ -51,13 +68,24 @@ export const BatchBookGeneratorModal: React.FC<Props> = ({
   const [chaptersCount, setChaptersCount] = useState<number>(10);
   const [authorName, setAuthorName] = useState<string>('Leandro Palmeira');
 
-  // Estado de execução do lote
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [progress, setProgress] = useState<BatchBookProgress | null>(null);
-  const [completedBooks, setCompletedBooks] = useState<BookProject[]>([]);
-  const [isFinished, setIsFinished] = useState<boolean>(false);
+  // Estado sincronizado com o runner em segundo plano
+  const [runnerState, setRunnerState] = useState<BatchRunnerState>(batchBackgroundRunner.getState());
+
+  useEffect(() => {
+    const unsubscribe = batchBackgroundRunner.subscribe((state) => {
+      setRunnerState(state);
+    });
+    return unsubscribe;
+  }, []);
 
   if (!isOpen) return null;
+
+  // Filtra os gêneros pela busca
+  const filteredGenres = GENRE_PRESETS.filter(g => 
+    g.genreName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    g.kdpCategory.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    g.genreId.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Cálculo de livros totais do lote
   const totalBooksToGenerate = Object.entries(selectedGenres)
@@ -73,7 +101,8 @@ export const BatchBookGeneratorModal: React.FC<Props> = ({
       ...prev,
       [genreId]: {
         ...prev[genreId],
-        selected: !prev[genreId]?.selected
+        selected: !prev[genreId]?.selected,
+        count: prev[genreId]?.count || 2
       }
     }));
   };
@@ -87,6 +116,26 @@ export const BatchBookGeneratorModal: React.FC<Props> = ({
         count: validCount
       }
     }));
+  };
+
+  const handleSelectAll = () => {
+    setSelectedGenres(prev => {
+      const updated = { ...prev };
+      filteredGenres.forEach(g => {
+        updated[g.genreId] = { selected: true, count: prev[g.genreId]?.count || 2 };
+      });
+      return updated;
+    });
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedGenres(prev => {
+      const updated = { ...prev };
+      filteredGenres.forEach(g => {
+        updated[g.genreId] = { selected: false, count: prev[g.genreId]?.count || 2 };
+      });
+      return updated;
+    });
   };
 
   const handleStartBatch = async () => {
@@ -113,24 +162,15 @@ export const BatchBookGeneratorModal: React.FC<Props> = ({
       targetPrice: 39.90
     };
 
-    setIsRunning(true);
-    setIsFinished(false);
-    setProgress(null);
-
     try {
-      const results = await BatchBookGeneratorService.executeBatchGeneration(
-        settings,
-        (p) => setProgress(p)
-      );
-      setCompletedBooks(results);
-      setIsFinished(true);
-      window.dispatchEvent(new CustomEvent('kdp-final-books-updated'));
+      await batchBackgroundRunner.startBatch(settings);
+      onBatchCompleted();
     } catch (err) {
       console.error('Erro na execução do lote:', err);
-    } finally {
-      setIsRunning(false);
     }
   };
+
+  const isRunning = runnerState.isRunning;
 
   return (
     <div style={{
@@ -141,82 +181,83 @@ export const BatchBookGeneratorModal: React.FC<Props> = ({
       bottom: 0,
       background: 'rgba(15, 23, 42, 0.85)',
       backdropFilter: 'blur(8px)',
-      zIndex: 9999,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 20
+      zIndex: 99999,
+      padding: 16
     }}>
       <div style={{
+        background: '#ffffff',
         width: '100%',
-        maxWidth: 960,
+        maxWidth: 1040,
         maxHeight: '92vh',
-        background: '#0f172a',
-        border: '1px solid #334155',
-        borderRadius: 16,
+        borderRadius: 20,
+        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.35)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.75)',
-        color: '#f8fafc',
-        fontFamily: "'Inter', sans-serif"
+        border: '1px solid #e2e8f0'
       }}>
-        {/* CABEÇALHO */}
+        {/* CABEÇALHO DO MODAL */}
         <div style={{
-          padding: '18px 24px',
-          borderBottom: '1px solid #1e293b',
+          padding: '20px 28px',
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+          color: '#ffffff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: '#1e293b'
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
-              width: 40,
-              height: 40,
-              borderRadius: 10,
+              width: 44,
+              height: 44,
+              borderRadius: 12,
               background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)'
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
             }}>
-              <Zap size={22} />
+              <Zap size={24} color="#ffffff" />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#ffffff' }}>
-                  Gerador Automático de Livros em Lote
-                </h3>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5 }}>
+                  Gerador de Livros em Lote KDP Pro
+                </h2>
                 <span style={{
-                  background: 'rgba(16, 185, 129, 0.15)',
+                  background: 'rgba(16, 185, 129, 0.2)',
                   color: '#34d399',
                   fontSize: 11,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   padding: '2px 8px',
-                  borderRadius: 4,
-                  border: '1px solid rgba(16, 185, 129, 0.3)'
+                  borderRadius: 6,
+                  border: '1px solid rgba(52, 211, 153, 0.3)'
                 }}>
-                  1 a 20 Livros por Gênero • Auto-Auditoria KDP
+                  {GENRE_PRESETS.length} Gêneros Amazon KDP
                 </span>
               </div>
-              <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#94a3b8' }}>
-                Gera títulos, subtítulos, sinopses, capítulos configurados e capas de best-sellers da Amazon 100% no automático
+              <p style={{ margin: '3px 0 0', fontSize: 13, color: '#94a3b8' }}>
+                Gere de 1 a 20 livros completos por gênero com texto integral, capas em alta definição e auto-auditoria KDP.
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            disabled={isRunning}
             style={{
-              background: 'transparent',
+              background: 'rgba(255, 255, 255, 0.1)',
               border: 'none',
-              color: '#94a3b8',
-              cursor: isRunning ? 'not-allowed' : 'pointer',
-              padding: 6,
-              borderRadius: 6
+              borderRadius: 8,
+              width: 36,
+              height: 36,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              cursor: 'pointer'
             }}
           >
             <X size={20} />
@@ -224,416 +265,435 @@ export const BatchBookGeneratorModal: React.FC<Props> = ({
         </div>
 
         {/* CORPO DO MODAL */}
-        <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
-          
-          {/* SE NÃO ESTIVER RODANDO E NÃO TIVER TERMINADO: MOSTRA CONFIGURAÇÕES */}
-          {!isRunning && !isFinished && (
-            <>
-              {/* 1. SELEÇÃO DE GÊNEROS E QUANTIDADES (1 A 20) */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#ffffff' }}>
-                    1. Selecione os Gêneros e Quantidade de Livros (1 a 20 por gênero)
-                  </h4>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>
-                    Total no Lote: {totalBooksToGenerate} {totalBooksToGenerate === 1 ? 'livro' : 'livros'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                  {GENRE_PRESETS.map((preset) => {
-                    const cfg = selectedGenres[preset.genreId] || { selected: false, count: 2 };
-                    return (
-                      <div
-                        key={preset.genreId}
-                        style={{
-                          padding: 14,
-                          borderRadius: 10,
-                          background: cfg.selected ? 'rgba(56, 189, 248, 0.08)' : '#0c1322',
-                          border: cfg.selected ? '1px solid #38bdf8' : '1px solid #1e293b',
-                          transition: 'all 0.15s',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 10
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flex: 1 }}>
-                            <input
-                              type="checkbox"
-                              checked={cfg.selected}
-                              onChange={() => handleToggleGenre(preset.genreId)}
-                              style={{ width: 16, height: 16, accentColor: '#38bdf8' }}
-                            />
-                            <span style={{ fontSize: 13, fontWeight: 700, color: cfg.selected ? '#ffffff' : '#cbd5e1' }}>
-                              {preset.genreName}
-                            </span>
-                          </label>
-                        </div>
-
-                        {cfg.selected && (
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            paddingTop: 8,
-                            borderTop: '1px solid #1e293b'
-                          }}>
-                            <span style={{ fontSize: 11, color: '#94a3b8' }}>Quantidade no lote:</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <input
-                                type="number"
-                                min={1}
-                                max={20}
-                                value={cfg.count}
-                                onChange={(e) => handleCountChange(preset.genreId, parseInt(e.target.value, 10))}
-                                style={{
-                                  width: 54,
-                                  padding: '4px 8px',
-                                  borderRadius: 6,
-                                  background: '#0f172a',
-                                  border: '1px solid #334155',
-                                  color: '#ffffff',
-                                  fontSize: 13,
-                                  fontWeight: 700,
-                                  textAlign: 'center'
-                                }}
-                              />
-                              <span style={{ fontSize: 11, color: '#64748b' }}>(1-20)</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 2. CONFIGURAÇÃO DE PALAVRAS POR CAPÍTULO E PÁGINAS DESEJADAS */}
-              <div style={{ background: '#131d2e', padding: 18, borderRadius: 12, border: '1px solid #1e293b' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 700, color: '#ffffff' }}>
-                  2. Meta de Páginas & Palavras por Capítulo (Cálculo Preciso KDP)
-                </h4>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-                  {/* Palavras por Capítulo */}
+        <div style={{
+          padding: '24px 28px',
+          overflowY: 'auto',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 20
+        }}>
+          {/* SEÇÃO 1: STATUS DE EXECUÇÃO EM TEMPO REAL SE O LOTE ESTIVER RODANDO */}
+          {isRunning && (
+            <div style={{
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+              borderRadius: 14,
+              padding: '20px 24px',
+              color: '#ffffff',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #334155'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <RefreshCw size={20} color="#10b981" className="animate-spin" />
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <label style={{ fontSize: 12, color: '#cbd5e1' }}>Palavras por Capítulo:</label>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>
-                        {wordsPerChapter.toLocaleString('pt-BR')} palavras
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={800}
-                      max={4000}
-                      step={100}
-                      value={wordsPerChapter}
-                      onChange={(e) => setWordsPerChapter(parseInt(e.target.value, 10))}
-                      style={{ width: '100%', accentColor: '#38bdf8' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
-                      <span>800 (Rápido)</span>
-                      <span>1.800 (Padrão KDP)</span>
-                      <span>4.000 (Profundo)</span>
-                    </div>
-                  </div>
-
-                  {/* Quantidade de Capítulos */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <label style={{ fontSize: 12, color: '#cbd5e1' }}>Capítulos por Livro:</label>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>
-                        {chaptersCount} capítulos
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={5}
-                      max={20}
-                      step={1}
-                      value={chaptersCount}
-                      onChange={(e) => setChaptersCount(parseInt(e.target.value, 10))}
-                      style={{ width: '100%', accentColor: '#38bdf8' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
-                      <span>5 cap</span>
-                      <span>10 cap</span>
-                      <span>20 cap</span>
-                    </div>
-                  </div>
-
-                  {/* Nome do Autor */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, color: '#cbd5e1', marginBottom: 6 }}>
-                      Nome do Autor Oficial:
-                    </label>
-                    <input
-                      type="text"
-                      value={authorName}
-                      onChange={(e) => setAuthorName(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        background: '#0f172a',
-                        border: '1px solid #334155',
-                        color: '#ffffff',
-                        fontSize: 13,
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* CARD DE ESTIMATIVA DE PÁGINAS EM TEMPO REAL */}
-                <div style={{
-                  marginTop: 16,
-                  padding: 12,
-                  borderRadius: 8,
-                  background: 'rgba(16, 185, 129, 0.08)',
-                  border: '1px solid rgba(16, 185, 129, 0.25)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: 10
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <ShieldCheck size={20} color="#10b981" />
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#34d399' }}>
-                        Extensão Garantida: ~{estimatedPages} páginas por livro
-                      </span>
-                      <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
-                        {chaptersCount} capítulos x {wordsPerChapter.toLocaleString('pt-BR')} palavras = {totalWordsPerBook.toLocaleString('pt-BR')} palavras totais (padrão 250 palavras/página KDP 6x9)
-                      </p>
-                    </div>
-                  </div>
-
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    background: '#022c22',
-                    color: '#34d399',
-                    padding: '4px 10px',
-                    borderRadius: 6
-                  }}>
-                    Auto-Auditoria KDP Integrada
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ESTADO DE EXECUÇÃO EM TEMPO REAL COM PROGRESSO */}
-          {isRunning && progress && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '10px 0' }}>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase' }}>
-                  Gerando em Lote com Auto-Auditoria
-                </span>
-                <h3 style={{ margin: '4px 0', fontSize: 20, fontWeight: 800, color: '#ffffff' }}>
-                  Livro {progress.currentIndex} de {progress.totalBooks}: "{progress.currentBookTitle}"
-                </h3>
-                <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                  Gênero: {progress.currentGenre} • Etapa: {progress.currentStage.toUpperCase()}
-                </span>
-              </div>
-
-              {/* BARRA DE PROGRESSO GERAL */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#cbd5e1', marginBottom: 6 }}>
-                  <span>Progresso do Lote</span>
-                  <span style={{ fontWeight: 700, color: '#34d399' }}>{progress.percentage}%</span>
-                </div>
-                <div style={{ width: '100%', height: 10, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${progress.percentage}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #38bdf8, #10b981)',
-                    transition: 'width 0.2s'
-                  }} />
-                </div>
-              </div>
-
-              {/* CONSOLE DE LOGS EM TEMPO REAL */}
-              <div style={{
-                background: '#090d16',
-                border: '1px solid #1e293b',
-                borderRadius: 10,
-                padding: 14,
-                maxHeight: 180,
-                overflowY: 'auto',
-                fontFamily: "'Courier New', monospace",
-                fontSize: 11,
-                color: '#94a3b8',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4
-              }}>
-                {progress.log.slice(-10).map((line, idx) => (
-                  <div key={idx} style={{ color: line.startsWith('✓') ? '#34d399' : line.startsWith('⚡') ? '#38bdf8' : '#cbd5e1' }}>
-                    {line}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ESTADO FINALIZADO */}
-          {isFinished && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18, textAlign: 'center', padding: '10px 0' }}>
-              <div style={{
-                width: 60,
-                height: 60,
-                margin: '0 auto',
-                borderRadius: 16,
-                background: 'rgba(16, 185, 129, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#34d399',
-                border: '1px solid rgba(16, 185, 129, 0.4)'
-              }}>
-                <CheckCircle2 size={34} />
-              </div>
-
-              <div>
-                <h3 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#ffffff' }}>
-                  Lote Concluído com Sucesso!
-                </h3>
-                <p style={{ margin: '6px 0 0 0', fontSize: 13, color: '#94a3b8' }}>
-                  {completedBooks.length} obras geradas, auditadas e salvas na plataforma prontas para revisão e download.
-                </p>
-              </div>
-
-              {/* LISTA RÁPIDA DAS OBRAS GERADAS */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                gap: 12,
-                maxHeight: 240,
-                overflowY: 'auto',
-                textAlign: 'left'
-              }}>
-                {completedBooks.map((b) => (
-                  <div
-                    key={b.id}
-                    style={{
-                      background: '#131d2e',
-                      border: '1px solid #1e293b',
-                      borderRadius: 8,
-                      padding: 12
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#38bdf8' }}>
-                        {b.categories?.[0] || 'KDP'}
-                      </span>
-                      <span style={{ fontSize: 9, fontWeight: 700, background: '#022c22', color: '#34d399', padding: '1px 6px', borderRadius: 4 }}>
-                        ✓ Auditado
-                      </span>
-                    </div>
-                    <h5 style={{ margin: '0 0 4px 0', fontSize: 13, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {b.title}
-                    </h5>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {b.estimatedPages} páginas • {b.kdpChapters?.length || 0} capítulos
+                    <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+                      Gerando Livro {runnerState.currentIndex} de {runnerState.totalBooks} no Backend
+                    </h4>
+                    <span style={{ fontSize: 13, color: '#38bdf8' }}>
+                      {runnerState.currentBookTitle} ({runnerState.currentGenre})
                     </span>
                   </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 20, fontWeight: 900, color: '#10b981' }}>
+                    {runnerState.percentage}%
+                  </span>
+                  <button
+                    onClick={() => batchBackgroundRunner.cancelBatch()}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      color: '#f87171',
+                      padding: '6px 14px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Interromper Lote
+                  </button>
+                </div>
+              </div>
+
+              {/* Barra de Progresso */}
+              <div style={{ width: '100%', height: 10, background: '#334155', borderRadius: 999, overflow: 'hidden', marginBottom: 14 }}>
+                <div style={{
+                  width: `${runnerState.percentage}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #10b981 0%, #38bdf8 100%)',
+                  borderRadius: 999,
+                  transition: 'width 0.3s ease'
+                }} />
+              </div>
+
+              {/* Log Recente */}
+              <div style={{
+                maxHeight: 90,
+                overflowY: 'auto',
+                fontSize: 12,
+                color: '#cbd5e1',
+                background: 'rgba(0, 0, 0, 0.3)',
+                padding: '8px 12px',
+                borderRadius: 8,
+                fontFamily: 'monospace'
+              }}>
+                {runnerState.logs.slice(-4).map((log, lIdx) => (
+                  <div key={lIdx} style={{ lineHeight: 1.5 }}>{log}</div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* SEÇÃO 2: PARÂMETROS EDITORIAIS & CÁLCULO EXATO DE PÁGINAS */}
+          <div style={{
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: 14,
+            padding: '18px 22px'
+          }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Sliders size={18} color="#0284c7" />
+              Parâmetros Editoriais & Metas de Páginas por Livro
+            </h4>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+              {/* Capítulos */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                  Quantidade de Capítulos: <strong style={{ color: '#0f172a' }}>{chaptersCount}</strong>
+                </label>
+                <input
+                  type="range"
+                  min={5}
+                  max={25}
+                  value={chaptersCount}
+                  onChange={(e) => setChaptersCount(parseInt(e.target.value, 10))}
+                  disabled={isRunning}
+                  style={{ width: '100%', accentColor: '#0284c7' }}
+                />
+              </div>
+
+              {/* Palavras por Capítulo */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                  Palavras por Capítulo: <strong style={{ color: '#0f172a' }}>{wordsPerChapter.toLocaleString('pt-BR')}</strong>
+                </label>
+                <input
+                  type="range"
+                  min={800}
+                  max={3500}
+                  step={100}
+                  value={wordsPerChapter}
+                  onChange={(e) => setWordsPerChapter(parseInt(e.target.value, 10))}
+                  disabled={isRunning}
+                  style={{ width: '100%', accentColor: '#0284c7' }}
+                />
+              </div>
+
+              {/* Autor */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                  Nome do Autor(a):
+                </label>
+                <input
+                  type="text"
+                  value={authorName}
+                  onChange={(e) => setAuthorName(e.target.value)}
+                  disabled={isRunning}
+                  placeholder="Nome do autor na capa"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Resultado Matemático de Páginas */}
+              <div style={{
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: 10,
+                padding: '10px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase' }}>
+                  Resultado KDP 6x9"
+                </span>
+                <span style={{ fontSize: 18, fontWeight: 900, color: '#1e40af' }}>
+                  ~{estimatedPages} páginas por obra
+                </span>
+                <span style={{ fontSize: 11, color: '#3b82f6' }}>
+                  Total: {totalWordsPerBook.toLocaleString('pt-BR')} palavras integrais
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* SEÇÃO 3: SELEÇÃO DE GÊNEROS (TODOS OS 28 GÊNEROS DA AMAZON KDP) */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                  Escolha os Gêneros Editoriais da Amazon KDP ({filteredGenres.length} de {GENRE_PRESETS.length})
+                </h4>
+              </div>
+
+              {/* Barra de Busca de Gêneros */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 380 }}>
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <Search size={15} style={{ position: 'absolute', left: 10, color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar gênero (ex: ficção, finanças, romance, diy...)"
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px 7px 32px',
+                      borderRadius: 8,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      outline: 'none'
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      style={{ position: 'absolute', right: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Selecionar todos os gêneros visíveis"
+                >
+                  Todos
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Desmarcar todos"
+                >
+                  Nenhum
+                </button>
+              </div>
+            </div>
+
+            {/* Grid dos 28 Gêneros com Controles de Quantidade (1 a 20 Livros) */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
+              gap: 12,
+              maxHeight: 380,
+              overflowY: 'auto',
+              paddingRight: 6
+            }}>
+              {filteredGenres.map(preset => {
+                const isSelected = selectedGenres[preset.genreId]?.selected || false;
+                const bookCount = selectedGenres[preset.genreId]?.count || 2;
+
+                return (
+                  <div
+                    key={preset.genreId}
+                    style={{
+                      border: isSelected ? '2px solid #10b981' : '1px solid #e2e8f0',
+                      background: isSelected ? '#f0fdf4' : '#ffffff',
+                      borderRadius: 12,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                      <div 
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flex: 1 }}
+                        onClick={() => !isRunning && handleToggleGenre(preset.genreId)}
+                      >
+                        <div style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 6,
+                          border: isSelected ? 'none' : '2px solid #94a3b8',
+                          background: isSelected ? '#10b981' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ffffff',
+                          flexShrink: 0
+                        }}>
+                          {isSelected && <Check size={14} />}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: isSelected ? '#065f46' : '#0f172a', lineHeight: 1.2 }}>
+                            {preset.genreName}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>
+                            {preset.kdpCategory}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Controle de 1 a 20 Livros para este Gênero */}
+                      {isSelected && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#047857' }}>Qtd:</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={bookCount}
+                            onChange={(e) => handleCountChange(preset.genreId, parseInt(e.target.value, 10))}
+                            disabled={isRunning}
+                            style={{
+                              width: 52,
+                              padding: '3px 6px',
+                              borderRadius: 6,
+                              border: '1px solid #10b981',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              textAlign: 'center',
+                              background: '#ffffff',
+                              color: '#047857'
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Exemplo de título gerado */}
+                    <div style={{
+                      fontSize: 11,
+                      color: isSelected ? '#047857' : '#94a3b8',
+                      background: isSelected ? 'rgba(16, 185, 129, 0.1)' : '#f8fafc',
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      fontStyle: 'italic',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      💡 Ex: "{preset.bestsellerIdeas[0]?.title}"
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        {/* RODAPÉ COM AÇÕES */}
+        {/* RODAPÉ COM RESUMO E BOTÃO DE DISPARO */}
         <div style={{
-          padding: '16px 24px',
-          borderTop: '1px solid #1e293b',
+          padding: '16px 28px',
+          background: '#f8fafc',
+          borderTop: '1px solid #e2e8f0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: '#090d16'
+          flexWrap: 'wrap',
+          gap: 14
         }}>
-          {!isFinished ? (
-            <>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isRunning}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: 8,
-                  background: 'transparent',
-                  border: '1px solid #334155',
-                  color: '#94a3b8',
-                  fontSize: 13,
-                  cursor: isRunning ? 'not-allowed' : 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+              Total a Gerar no Lote: <strong style={{ color: '#059669', fontSize: 16 }}>{totalBooksToGenerate} livros</strong>
+            </div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              Cada livro com ~{estimatedPages} páginas, texto integral, capa vetorial e auditoria KDP.
+            </div>
+          </div>
 
-              <button
-                type="button"
-                onClick={handleStartBatch}
-                disabled={isRunning || totalBooksToGenerate === 0}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '12px 24px',
-                  borderRadius: 8,
-                  background: isRunning ? '#334155' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 14,
-                  fontWeight: 800,
-                  cursor: isRunning ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
-                }}
-              >
-                {isRunning ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" /> Gerando {totalBooksToGenerate} Obras...
-                  </>
-                ) : (
-                  <>
-                    <Zap size={16} /> Gerar {totalBooksToGenerate} Livros em Lote Agora
-                  </>
-                )}
-              </button>
-            </>
-          ) : (
+          <div style={{ display: 'flex', gap: 10 }}>
             <button
-              type="button"
-              onClick={() => {
-                onBatchCompleted();
-                onClose();
-              }}
+              onClick={onClose}
               style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                padding: '12px 24px',
+                padding: '10px 18px',
                 borderRadius: 8,
-                background: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: 14,
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+                fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer'
               }}
             >
-              <BookOpen size={16} /> Ver Todos os Livros na Dashboard <ArrowRight size={16} />
+              {isRunning ? 'Minimizar (Continuar na Dashboard)' : 'Cancelar'}
             </button>
-          )}
+
+            <button
+              onClick={handleStartBatch}
+              disabled={isRunning || totalBooksToGenerate === 0}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 24px',
+                borderRadius: 8,
+                background: isRunning 
+                  ? '#94a3b8' 
+                  : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: isRunning || totalBooksToGenerate === 0 ? 'not-allowed' : 'pointer',
+                boxShadow: isRunning ? 'none' : '0 4px 14px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {isRunning ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  Gerando Lote ({runnerState.percentage}%)...
+                </>
+              ) : (
+                <>
+                  <Zap size={16} />
+                  Iniciar Geração em Lote ({totalBooksToGenerate} Livros)
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

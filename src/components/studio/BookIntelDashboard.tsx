@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BookOpen, Plus, TrendingUp, FileText,
   HelpCircle, ChevronDown, ArrowRight,
   Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play,
-  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette
+  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -11,6 +11,7 @@ import { FinalBooksShelf } from './FinalBooksShelf';
 import { db } from '../../database/local-database';
 import { useTranslation } from '../../services/i18n-service';
 import { LanguageSelector } from './i18n/LanguageSelector';
+import { batchBackgroundRunner, BatchRunnerState } from '../../services/batch-background-runner';
 
 interface Props {
   projects: BookProject[];
@@ -56,6 +57,15 @@ export const BookIntelDashboard: React.FC<Props> = ({
   const { t, currentLang } = useTranslation();
   const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
   const [finalizingProjectId, setFinalizingProjectId] = useState<string | null>(null);
+  const [batchState, setBatchState] = useState<BatchRunnerState>(batchBackgroundRunner.getState());
+
+  // Ouve atualizações de progresso do lote em tempo real
+  useEffect(() => {
+    const unsub = batchBackgroundRunner.subscribe((state) => {
+      setBatchState(state);
+    });
+    return unsub;
+  }, []);
 
   // Identifica projeto em andamento / rascunho recente que precisa de continuação
   const projetoEmAndamento = projects.find(p => 
@@ -193,6 +203,110 @@ export const BookIntelDashboard: React.FC<Props> = ({
           {/* COLUNA ESQUERDA */}
           <div className="intel-left-column">
             
+            {/* NOVO: BANNER DE PROGRESSO DO LOTE EM EXECUÇÃO NO BACKEND */}
+            {batchState.isRunning && (
+              <div style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                borderRadius: 16,
+                padding: '18px 22px',
+                marginBottom: 20,
+                border: '1px solid #10b981',
+                boxShadow: '0 10px 30px rgba(16, 185, 129, 0.18)',
+                color: '#ffffff',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                    }}>
+                      <RefreshCw size={18} color="#ffffff" className="animate-spin" />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+                          🚀 Geração em Lote no Backend: Livro {batchState.currentIndex} de {batchState.totalBooks}
+                        </h4>
+                        <span style={{
+                          background: 'rgba(16, 185, 129, 0.2)',
+                          color: '#34d399',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '1px 6px',
+                          borderRadius: 4
+                        }}>
+                          {batchState.currentStage}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 12, color: '#38bdf8', fontWeight: 600 }}>
+                        "{batchState.currentBookTitle}" • {batchState.currentGenre}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 22, fontWeight: 900, color: '#10b981' }}>
+                      {batchState.percentage}%
+                    </span>
+
+                    {onOpenBatchGenerator && (
+                      <button
+                        onClick={onOpenBatchGenerator}
+                        style={{
+                          background: 'rgba(56, 189, 248, 0.15)',
+                          color: '#38bdf8',
+                          border: '1px solid rgba(56, 189, 248, 0.35)',
+                          borderRadius: 8,
+                          padding: '6px 12px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Ver Detalhes
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => batchBackgroundRunner.cancelBatch()}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        color: '#f87171',
+                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                        borderRadius: 8,
+                        padding: '6px 12px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Pausar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Barra de Progresso Animada */}
+                <div style={{ width: '100%', height: 8, background: '#334155', borderRadius: 999, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${batchState.percentage}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #10b981 0%, #38bdf8 100%)',
+                    borderRadius: 999,
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+              </div>
+            )}
+
             {/* HERO BANNER DE BOAS-VINDAS */}
             <div className="intel-hero-card">
               <div className="hero-text-side">
