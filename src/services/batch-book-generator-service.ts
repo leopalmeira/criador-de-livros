@@ -16,6 +16,7 @@ import {
 } from './amazon-cover-styles';
 import { CoverGraphicsEngine } from './cover-graphics-engine';
 import { ManuscriptAccentRepairEngine } from './manuscript-accent-repair';
+import { BatchTitleTextGenerator } from './batch-title-text-generator';
 
 export interface GenreBatchConfig {
   genreId: string;
@@ -702,6 +703,10 @@ export class BatchBookGeneratorService {
     let currentIndex = 0;
     const estimatedPages = this.calculateTargetPages(settings.chaptersCount, settings.wordsPerChapter);
 
+    // Conjuntos para garantir desduplicação 100% estrita de títulos e subtítulos
+    const usedTitles = new Set<string>();
+    const usedSubtitles = new Set<string>();
+
     logs.push(`⚡ Iniciando geração em lote de ${totalBooks} livros KDP em ${settings.genres.length} gênero(s)...`);
     logs.push(`📐 Configuração: ${settings.chaptersCount} capítulos x ${settings.wordsPerChapter} palavras = ~${estimatedPages} páginas estimadas por obra.`);
 
@@ -711,14 +716,21 @@ export class BatchBookGeneratorService {
       for (let bookNum = 1; bookNum <= genreConfig.count; bookNum++) {
         currentIndex++;
 
-        const ideaIndex = (bookNum - 1) % preset.bestsellerIdeas.length;
-        const baseIdea = preset.bestsellerIdeas[ideaIndex];
-        const volumeSuffix = bookNum > preset.bestsellerIdeas.length 
-          ? ` • Vol. ${Math.floor((bookNum - 1) / preset.bestsellerIdeas.length) + 1} (Edição Especial)` 
-          : '';
+        // 1. TÍTULO E SUBTÍTULO 100% EXCLUSIVOS (NUNCA REPETEM E NUNCA USAM "VOL. 1", "VOL. 2")
+        const title = BatchTitleTextGenerator.generateUniqueTitle(
+          genreConfig.genreId,
+          usedTitles,
+          currentIndex,
+          genreConfig.genreName
+        );
 
-        const title = `${baseIdea.title}${volumeSuffix}`;
-        const subtitle = baseIdea.subtitle;
+        const subtitle = BatchTitleTextGenerator.generateUniqueSubtitle(
+          genreConfig.genreId,
+          title,
+          usedSubtitles,
+          currentIndex,
+          genreConfig.genreName
+        );
 
         // 1. Etapa: Metadados
         onProgress({
@@ -733,7 +745,7 @@ export class BatchBookGeneratorService {
         });
         await new Promise(r => setTimeout(r, 80));
 
-        // 2. Etapa: Geração de Capítulos com texto real e aprofundado
+        // 2. Etapa: Geração de Capítulos com estrutura e texto 100% exclusivos
         onProgress({
           currentIndex,
           totalBooks,
@@ -745,21 +757,31 @@ export class BatchBookGeneratorService {
           log: logs
         });
 
+        const chapterOutlines = BatchTitleTextGenerator.generateUniqueChapterOutline(
+          genreConfig.genreId,
+          title,
+          settings.chaptersCount,
+          currentIndex,
+          preset.bestsellerIdeas[0]?.chapterThemes
+        );
+
         const kdpChapters: any[] = [];
         for (let capIdx = 1; capIdx <= settings.chaptersCount; capIdx++) {
-          const themeIndex = (capIdx - 1) % baseIdea.chapterThemes.length;
-          const chapterTheme = baseIdea.chapterThemes[themeIndex] || `Fundamentos da Aplicação Prática ${capIdx}`;
-          const chapterTitle = `Capítulo ${capIdx}: ${chapterTheme}`;
+          const capOutline = chapterOutlines[capIdx - 1];
+          const chapterTitle = capOutline.title;
+          const chapterTheme = capOutline.theme;
           
-          // Geração de conteúdo denso, estruturado e com a densidade real de palavras solicitada
-          const content = this.generateDetailedChapterText(
+          // Geração de conteúdo exclusivo, denso e profundo
+          const content = BatchTitleTextGenerator.generateUniqueChapterContent(
             title, 
+            subtitle,
             chapterTitle, 
             chapterTheme,
             genreConfig.genreName,
             settings.wordsPerChapter, 
             capIdx, 
-            settings.chaptersCount
+            settings.chaptersCount,
+            currentIndex
           );
 
           kdpChapters.push({
@@ -781,7 +803,7 @@ export class BatchBookGeneratorService {
           });
         }
 
-        // 3. Etapa: Capa Direcionada com 10 Estilos e Gráficos Vetoriais em Alta Definição
+        // 3. Etapa: Capa com Design e Layouts Variados (Randométrica, Multi-fontes e Multi-estilos)
         onProgress({
           currentIndex,
           totalBooks,
@@ -801,14 +823,15 @@ export class BatchBookGeneratorService {
           genre: genreConfig.genreName
         });
 
-        // Geração da Imagem Real da Capa com Arte Vetorial Contextualizada
+        // Geração da Imagem Real da Capa com Arte Vetorial, Fontes Variadas e Layout Dinâmico
         const coverDataUrl = CoverGraphicsEngine.generateHighResCoverDataUrl({
           title,
           subtitle,
           author: settings.authorName || 'Leandro Palmeira',
           genre: genreConfig.genreName,
           styleId: coverStyle.id,
-          keywords: [genreConfig.genreName, 'bestseller']
+          keywords: [genreConfig.genreName, 'bestseller'],
+          seedIndex: currentIndex
         });
 
         // 4. Etapa: Auto "Auditar a Obra" e Aprovação Automática
@@ -844,7 +867,7 @@ export class BatchBookGeneratorService {
           title,
           subtitle,
           author: settings.authorName || 'Leandro Palmeira',
-          description: `${baseIdea.hook}\n\nInspirado nos maiores best-sellers da Amazon na categoria ${genreConfig.genreName}.\nEdição completa diagramada no padrão oficial KDP.`,
+          description: `${subtitle}.\n\nInspirado nos maiores best-sellers da Amazon na categoria ${genreConfig.genreName}.\nEdição completa diagramada no padrão oficial KDP.`,
           language: 'Português',
           format: 'Capa Comum',
           trimSize: '6x9',
@@ -862,8 +885,8 @@ export class BatchBookGeneratorService {
           coverImageUrl: coverDataUrl,
           kdpChapters: kdpChapters as any,
           tasks: [],
-          notes: `Lote Automático KDP. Capa: ${coverStyle.name} (Grau de Aceitação: ${coverMetrics.score}%). Benchmark Amazon: ${coverStyle.bestsellerBenchmarks.map(b => b.title).join(', ')}.`,
-          competitorsAsins: baseIdea.referenceAsins || [],
+          notes: `Lote Automático KDP. Capa: ${coverStyle.name} (Grau de Aceitação: ${coverMetrics.score}%). Layout e tipografia randométrica exclusiva.`,
+          competitorsAsins: preset.bestsellerIdeas[0]?.referenceAsins || [],
           pipelineStage: 'final',
           pipelineProgress: 100,
           pipelineLog: [
@@ -1023,46 +1046,19 @@ export class BatchBookGeneratorService {
     genre: string,
     targetWords: number,
     capNum: number,
-    totalCaps: number
+    totalCaps: number,
+    seedIndex: number = 0
   ): string {
-    const p1 = `## ${chapterTitle}\n\n` +
-      `Ao examinarmos profundamente os fundamentos de "${bookTitle}", torna-se evidente que a compreensão rigorosa de ${chapterTheme} é um divisor de águas indispensável. No mercado contemporâneo da Amazon e na literatura de referência em ${genre}, o sucesso consistente nunca é uma questão de sorte ou acaso; ele decorre da disciplina metódica e da clareza com que princípios operacionais são articulados e colocados em prática.\n\n` +
-      `Neste capítulo, nós decompomos os conceitos centrais de ${chapterTheme}, eliminando jargões desnecessários e focando naquilo que verdadeiramente gera valor tangível para o leitor. Seja qual for o seu nível inicial de familiaridade, a estrutura apresentada a seguir fornecerá um roteiro direto e inegociável para a excelência.\n\n`;
-
-    const p2 = `### 1. O Diagnóstico Estrutural e a Lógica de Mercado\n\n` +
-      `Toda iniciativa duradoura precisa iniciar com um diagnóstico despido de ilusões. Quando avaliamos a evolução de ${chapterTheme}, constatamos que a maioria dos praticantes falha logo no início devido à pressa de executar antes de compreender as forças invisíveis que atuam nos bastidores. A complexidade desnecessária é a inimiga número um da eficiência; por isso, adotamos uma abordagem de primeiros princípios:\n\n` +
-      `- **Fundamento Essencial:** Identificar qual elemento, se ausente, faz todo o restante do sistema colapsar;\n` +
-      `- **Alavancagem Máxima:** Onde 20% do esforço concentrado é capaz de destravar 80% dos ganhos mensuráveis;\n` +
-      `- **Mitigação de Riscos Invisíveis:** Antecipar armadilhas e custos ocultos antes que se tornem crises irreversíveis;\n` +
-      `- **Consistência sobre Intensidade:** Entender que hábitos e sistemas bem desenhados superam qualquer explosão efêmera de entusiasmo.\n\n`;
-
-    const p3 = `### 2. O Método Prático Passo a Passo\n\n` +
-      `Para transpor os conceitos teóricos de ${chapterTheme} para a prática diária, siga rigorosamente a metodologia validada em 4 fases sequenciais:\n\n` +
-      `1. **Fase de Mapeamento e Parâmetros:** Estabeleça métricas objetivas de acompanhamento. Aquilo que não pode ser medido com clareza torna-se impossível de ser aprimorado com previsibilidade.\n` +
-      `2. **Fase de Execução Enxuta:** Comece com um piloto controlado. Teste as variáveis em pequena escala, observe as respostas do ambiente e corrija a rota antes de comprometer recursos vultosos.\n` +
-      `3. **Fase de Padronização e Blindagem:** Uma vez validada a eficácia, documente cada procedimento. O que é bem documentado pode ser delegado, ensinado e reproduzido em qualquer cenário.\n` +
-      `4. **Fase de Otimização e Escala:** Com a base consolidada, busque pequenos ganhos marginais diários de 1%. A longo prazo, a curva de crescimento torna-se exponencial.\n\n`;
-
-    const p4 = `### 3. Estudos de Caso, Exemplos Reais e Lições de Campo\n\n` +
-      `A história recente está repleta de exemplos em que a correta aplicação de ${chapterTheme} reverteu quadros aparentemente sem solução. Ao analisarmos a trajetória dos pioneiros que lideraram este segmento, encontramos um padrão inequívoco: eles não buscaram atalhos fáceis. Eles construíram resiliência interna, priorizaram o longo prazo e mantiveram uma postura de aprendizado contínuo.\n\n` +
-      `A armadilha mais perigosa é o excesso de confiança prematuro. Quando alguém acredita já saber tudo sobre ${chapterTheme}, fecha as portas para as nuances que separam os bons dos verdadeiramente excepcionais. Cultive a curiosidade ativa e valide suas premissas contra a realidade factual.\n\n`;
-
-    const p5 = `### Conclusão do Capítulo e Preparação para o Próximo Nível\n\n` +
-      `Chegamos ao encerramento deste capítulo com a plena certeza de que o domínio de ${chapterTheme} fornece o alicerce indispensável para os capítulos subsequentes de "${bookTitle}". No próximo estágio, nós aprofundaremos ainda mais a integração destes elementos no sistema global da obra.\n`;
-
-    let fullText = p1 + p2 + p3 + p4 + p5;
-
-    // Se o usuário selecionou uma densidade de palavras elevada (ex: 1500 a 2500 palavras/capítulo),
-    // o motor gera seções complementares analíticas aprofundadas com base no tema e gênero
-    const currentWords = fullText.split(/\s+/).length;
-    if (targetWords > currentWords) {
-      const extraParagraphsNeeded = Math.ceil((targetWords - currentWords) / 140);
-      for (let i = 1; i <= extraParagraphsNeeded; i++) {
-        fullText += `\n### Nota Analítica Complementar e Diretrizes Avançadas #${i}\n\n` +
-          `Aprofundando a dimensão prática de ${chapterTheme}, é fundamental reconhecer que a implementação sustentável em ${genre} exige atenção constante aos detalhes operacionais. Grandes resultados nunca emergem de gestos isolados, mas da repetição deliberada de rotinas rigorosas. Estabeleça padrões de qualidade inegociáveis, audite periodicamente seus processos e garanta que cada etapa execute com máxima fidelidade aos parâmetros estabelecidos.\n`;
-      }
-    }
-
-    return ManuscriptAccentRepairEngine.repairManuscript(fullText);
+    return BatchTitleTextGenerator.generateUniqueChapterContent(
+      bookTitle,
+      '',
+      chapterTitle,
+      chapterTheme,
+      genre,
+      targetWords,
+      capNum,
+      totalCaps,
+      seedIndex
+    );
   }
 }
