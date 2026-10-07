@@ -11,12 +11,13 @@ import {
   CheckCircle2, Download, Eye, FileText, AlertCircle, Trash2,
   BookOpen, Calendar, Clock, ShieldCheck, X, Sparkles, Layers,
   FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package,
-  Rocket, Code2, Headphones, Sliders, Smartphone
+  Rocket, Code2, Headphones, Sliders, Smartphone, Edit3
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { db } from '../../database/local-database';
 import type { FinalBookRecord, PendingItem } from '../../types/editorial-correction';
+import type { BookProject } from '../../types/book-project';
 import { buildKdpPdf } from '../../services/kdp-pdf-builder';
 import { KdpHtmlGenerator } from '../../services/kdp-html-generator';
 import { EpubBuilder } from '../../services/formats/epub-builder';
@@ -37,11 +38,17 @@ function formatAudioSeconds(totalSeconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-export const FinalBooksShelf: React.FC = () => {
+export interface FinalBooksShelfProps {
+  onOpenProject?: (projectId: string) => void;
+  onEditBook?: (book: FinalBookRecord) => void;
+}
+
+export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject, onEditBook }) => {
   const { t, currentLang } = useTranslation();
   const [books, setBooks] = useState<FinalBookRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingBookId, setDownloadingBookId] = useState<string | null>(null);
+  const [openingBookId, setOpeningBookId] = useState<string | null>(null);
   const [selectedBookForReport, setSelectedBookForReport] = useState<FinalBookRecord | null>(null);
   const [selectedBookForPendings, setSelectedBookForPendings] = useState<FinalBookRecord | null>(null);
   const [viewingPdfUrl, setViewingPdfUrl] = useState<{ url: string; title: string } | null>(null);
@@ -57,6 +64,105 @@ export const FinalBooksShelf: React.FC = () => {
 
   // Estado para Abrir o Audiobook Studio com os arquivos do livro para reprodução e mixagem
   const [audiobookModalBook, setAudiobookModalBook] = useState<FinalBookRecord | null>(null);
+
+  // Abrir o livro diretamente no estúdio para edição ou reconstrução
+  const handleEditBook = async (book: FinalBookRecord) => {
+    try {
+      setOpeningBookId(book.id);
+      let targetProjectId = book.bookId;
+      let existingProject: BookProject | null = targetProjectId ? await db.getBookProject(targetProjectId) : null;
+
+      if (!existingProject && book.id) {
+        const cleanId = book.id.replace('final_proj_', '');
+        existingProject = await db.getBookProject(cleanId);
+        if (existingProject) targetProjectId = cleanId;
+      }
+
+      if (!existingProject) {
+        const allProjects = await db.getAllBookProjects();
+        existingProject = allProjects.find(p => p.id === targetProjectId || p.title === book.title) || null;
+        if (existingProject) targetProjectId = existingProject.id;
+      }
+
+      // Se ainda não existir como BookProject no banco, reconstruir fielmente a partir do FinalBookRecord
+      if (!existingProject) {
+        const cleanId = book.bookId || (book.id ? book.id.replace('final_proj_', '') : `proj_${Date.now()}`);
+        const totalWords = book.wordCount || 10000;
+        const restored: BookProject = {
+          id: cleanId,
+          createdAt: book.finalizedAt || Date.now(),
+          updatedAt: Date.now(),
+          status: 'RASCUNHO',
+          priority: 'ALTA',
+          executionMode: 'assisted',
+          title: book.title || 'Livro Sem Título',
+          subtitle: book.subtitle || '',
+          author: book.author || 'Autor',
+          description: book.subtitle || book.title,
+          language: 'Português',
+          format: 'Capa Comum',
+          trimSize: (book.trimSize as any) || '6x9',
+          paperType: 'bw-white',
+          estimatedPages: book.pageCount || 100,
+          actualPages: book.pageCount || 100,
+          targetPrice: 39.90,
+          currency: 'BRL',
+          targetMarketplace: 'amazon.com.br',
+          categories: [book.genre || 'Não-Ficção'],
+          keywords: [],
+          targetAudience: 'Público Geral',
+          topic: book.genre || 'Tema Geral',
+          kdpBookType: 'business',
+          coverImageUrl: book.coverDataUrl || undefined,
+          kdpChapters: (book.chapters && book.chapters.length > 0)
+            ? book.chapters.map((c, i) => ({
+                index: i + 1,
+                title: c.titulo,
+                summary: `Capítulo ${i + 1} de ${book.title}`,
+                targetWordCount: c.texto ? c.texto.split(/\s+/).length : 2000,
+                scenes: [],
+                prose: c.texto,
+                wordCount: c.texto ? c.texto.split(/\s+/).length : 0,
+                status: 'APROVADO' as const
+              }))
+            : [
+                {
+                  index: 1,
+                  title: 'Capítulo 1',
+                  summary: 'Capítulo Geral',
+                  targetWordCount: totalWords,
+                  scenes: [],
+                  prose: book.manuscriptText || '',
+                  wordCount: totalWords,
+                  status: 'APROVADO' as const
+                }
+              ],
+          tasks: [],
+          notes: 'Livro restaurado para edição e aprimoramento.',
+          competitorsAsins: [],
+          pipelineStage: 'writing',
+          pipelineProgress: 100,
+          pipelineLog: ['Aberto para edição e revisão a partir da estante de livros finalizados.']
+        };
+
+        await db.saveBookProject(restored);
+        targetProjectId = restored.id;
+      }
+
+      if (onEditBook) {
+        onEditBook(book);
+      } else if (onOpenProject && targetProjectId) {
+        onOpenProject(targetProjectId);
+      }
+    } catch (err) {
+      console.error('[FinalBooksShelf] Erro ao abrir livro para edição:', err);
+      if (onOpenProject && book.bookId) {
+        onOpenProject(book.bookId);
+      }
+    } finally {
+      setOpeningBookId(null);
+    }
+  };
 
   // Carrega tanto livros finalizados do IndexedDB quanto projetos marcados como finalizados
   const loadBooks = useCallback(async () => {
@@ -796,40 +902,70 @@ export const FinalBooksShelf: React.FC = () => {
 
                 {/* DETALHES COMPLETOS DO LIVRO */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{
-                      background: '#10b981',
-                      color: '#ffffff',
-                      fontSize: 11,
-                      fontWeight: 800,
-                      padding: '3px 10px',
-                      borderRadius: 999,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}>
-                      <CheckCircle2 size={13} /> {t('catalog.statusDone')}
-                    </span>
-                    <span style={{
-                      background: '#f1f5f9',
-                      color: '#475569',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      padding: '3px 8px',
-                      borderRadius: 6
-                    }}>
-                      {book.genre || 'Thriller / Ficção'}
-                    </span>
-                    <span style={{
-                      background: '#eff6ff',
-                      color: '#2563eb',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      padding: '3px 8px',
-                      borderRadius: 6
-                    }}>
-                      {t('shelf.trim')}: {book.trimSize || '6x9'}
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{
+                        background: '#10b981',
+                        color: '#ffffff',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <CheckCircle2 size={13} /> {t('catalog.statusDone')}
+                      </span>
+                      <span style={{
+                        background: '#f1f5f9',
+                        color: '#475569',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '3px 8px',
+                        borderRadius: 6
+                      }}>
+                        {book.genre || 'Thriller / Ficção'}
+                      </span>
+                      <span style={{
+                        background: '#eff6ff',
+                        color: '#2563eb',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 6
+                      }}>
+                        {t('shelf.trim')}: {book.trimSize || '6x9'}
+                      </span>
+                    </div>
+
+                    {/* BOTÃO PROEMINENTE EDITAR LIVRO NO TOPO DO CARD */}
+                    <button
+                      type="button"
+                      onClick={() => handleEditBook(book)}
+                      disabled={openingBookId === book.id}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 16px',
+                        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                        color: '#ffffff',
+                        border: '1px solid #334155',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: openingBookId === book.id ? 'wait' : 'pointer',
+                        boxShadow: '0 2px 6px rgba(15, 23, 42, 0.18)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { if (openingBookId !== book.id) e.currentTarget.style.background = '#020617'; }}
+                      onMouseLeave={(e) => { if (openingBookId !== book.id) e.currentTarget.style.background = 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)'; }}
+                      title="Abrir este livro no Estúdio para editar capítulos, textos, capa e diagramação"
+                    >
+                      <Edit3 size={14} color="#38bdf8" />
+                      <span>{openingBookId === book.id ? 'Abrindo Editor...' : (t('shelf.btnEditBook') || 'Editar / Refazer Livro')}</span>
+                    </button>
                   </div>
 
                   <div>
@@ -888,7 +1024,7 @@ export const FinalBooksShelf: React.FC = () => {
                 </div>
               </div>
 
-              {/* BOTÕES DE DOWNLOAD SOLICITADOS: MANUSCRITO, PDF DO LIVRO, PDF DA CAPA, PDF DA PÁGINA */}
+              {/* BOTÕES DE AÇÃO E DOWNLOAD SOLICITADOS */}
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -896,6 +1032,35 @@ export const FinalBooksShelf: React.FC = () => {
                 paddingTop: 12,
                 borderTop: '1px solid #f1f5f9'
               }}>
+                {/* 0. EDITAR / REFAZER LIVRO NA GRADE */}
+                <button
+                  type="button"
+                  onClick={() => handleEditBook(book)}
+                  disabled={openingBookId === book.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    padding: '10px 14px',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: openingBookId === book.id ? 'wait' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { if (openingBookId !== book.id) e.currentTarget.style.background = '#020617'; }}
+                  onMouseLeave={(e) => { if (openingBookId !== book.id) e.currentTarget.style.background = 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)'; }}
+                  title="Abrir o livro para edição de texto, capítulos, capa e diagramação"
+                >
+                  <Edit3 size={15} color="#38bdf8" />
+                  <span>{openingBookId === book.id ? 'Abrindo...' : (t('shelf.btnEditBook') || 'Editar / Refazer Livro')}</span>
+                </button>
+
                 {/* 1. BAIXAR MANUSCRITO */}
                 <button
                   type="button"
@@ -1192,7 +1357,7 @@ export const FinalBooksShelf: React.FC = () => {
                 </div>
               )}
 
-              {/* AÇÕES COMPLEMENTARES: PACOTE ZIP, VISUALIZAR PDF, RELATÓRIO E EXCLUIR */}
+              {/* AÇÕES COMPLEMENTARES: PACOTE ZIP, EDITAR, VISUALIZAR PDF, RELATÓRIO E EXCLUIR */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1201,7 +1366,32 @@ export const FinalBooksShelf: React.FC = () => {
                 flexWrap: 'wrap',
                 gap: 8
               }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleEditBook(book)}
+                    disabled={openingBookId === book.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '7px 12px',
+                      background: '#0f172a',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: openingBookId === book.id ? 'wait' : 'pointer',
+                      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.2)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Editar e refazer este livro no Estúdio"
+                  >
+                    <Edit3 size={13} color="#38bdf8" />
+                    <span>{openingBookId === book.id ? 'Abrindo...' : 'Editar Livro'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => handleDownloadAllZip(book)}

@@ -99,8 +99,19 @@ export const BookStudioApp: React.FC = () => {
   }, []);
 
   // Abrir projeto existente diretamente no Gerador KDP Pro
-  const openProject = (projectId: string) => {
-    const found = projects.find(p => p.id === projectId);
+  const openProject = async (projectId: string) => {
+    let found = projects.find(p => p.id === projectId);
+    if (!found) {
+      try {
+        const fromDb = await db.getBookProject(projectId);
+        if (fromDb) {
+          found = fromDb;
+          setProjects(prev => [fromDb, ...prev.filter(p => p.id !== fromDb.id)]);
+        }
+      } catch (err) {
+        console.warn('[BookStudioApp] Falha ao recuperar projeto do banco:', err);
+      }
+    }
     if (found) {
       setActiveProject(found);
       setMode('kdp-generator');

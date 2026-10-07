@@ -88,6 +88,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'shelf.btnCoverPdf': 'Baixar PDF da Capa',
     'shelf.btnSamplePagePdf': 'Baixar PDF da Página',
     'shelf.btnHtmlDesc': 'HTML da Página / Descrição',
+    'shelf.btnEditBook': 'Editar / Refazer Livro',
     'shelf.btnGenerating': 'Gerando...',
 
     // Metrics Overview
@@ -175,6 +176,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'shelf.btnCoverPdf': 'Download Cover PDF',
     'shelf.btnSamplePagePdf': 'Download Sample Page PDF',
     'shelf.btnHtmlDesc': 'Page HTML / Description',
+    'shelf.btnEditBook': 'Edit / Remake Book',
     'shelf.btnGenerating': 'Generating...',
 
     // Metrics Overview
@@ -262,6 +264,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'shelf.btnCoverPdf': 'Descargar PDF de Portada',
     'shelf.btnSamplePagePdf': 'Descargar PDF de Muestra',
     'shelf.btnHtmlDesc': 'HTML de Página / Descripción',
+    'shelf.btnEditBook': 'Editar / Rehacer Libro',
     'shelf.btnGenerating': 'Generando...',
 
     // Metrics Overview
@@ -349,6 +352,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'shelf.btnCoverPdf': 'Télécharger le PDF de Couverture',
     'shelf.btnSamplePagePdf': 'Télécharger le PDF d’Extrait',
     'shelf.btnHtmlDesc': 'HTML de la Page / Description',
+    'shelf.btnEditBook': 'Modifier / Refaire le Livre',
     'shelf.btnGenerating': 'Génération...',
 
     // Metrics Overview
@@ -436,6 +440,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'shelf.btnCoverPdf': 'Cover-PDF herunterladen',
     'shelf.btnSamplePagePdf': 'Proben-PDF herunterladen',
     'shelf.btnHtmlDesc': 'Seiten-HTML / Beschreibung',
+    'shelf.btnEditBook': 'Buch bearbeiten / neu erstellen',
     'shelf.btnGenerating': 'Wird generiert...',
 
     // Metrics Overview
@@ -523,6 +528,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'shelf.btnCoverPdf': 'Скачать PDF обложки',
     'shelf.btnSamplePagePdf': 'Скачать PDF образца страницы',
     'shelf.btnHtmlDesc': 'HTML страницы / Описание',
+    'shelf.btnEditBook': 'Редактировать книгу',
     'shelf.btnGenerating': 'Генерация...',
 
     // Metrics Overview
