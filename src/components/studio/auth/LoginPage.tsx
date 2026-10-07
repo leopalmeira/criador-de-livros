@@ -55,7 +55,13 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      setErrorMessage(currentLang === 'pt-BR' ? 'Preencha seu e-mail e senha.' : 'Please enter your email and password.');
+      if (currentLang === 'pt-BR') {
+        setErrorMessage('Preencha seu e-mail e senha.');
+      } else if (currentLang === 'es-ES') {
+        setErrorMessage('Por favor, introduzca su correo y contraseña.');
+      } else {
+        setErrorMessage('Please enter your email and password.');
+      }
       return;
     }
 
@@ -87,7 +93,13 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      setErrorMessage(currentLang === 'pt-BR' ? 'Preencha todos os campos para cadastrar sua conta gratuita.' : 'Please fill all fields to register.');
+      if (currentLang === 'pt-BR') {
+        setErrorMessage('Preencha todos os campos para cadastrar sua conta.');
+      } else if (currentLang === 'es-ES') {
+        setErrorMessage('Por favor, complete todos los campos para registrar su cuenta.');
+      } else {
+        setErrorMessage('Please fill all fields to register your account.');
+      }
       return;
     }
 
@@ -306,7 +318,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
           {/* COLUNA 1: APRESENTAÇÃO, 6 RECURSOS & BOX DE PREÇOS             */}
           {/* -------------------------------------------------------------- */}
           <div>
-            {/* HEADLINE PRINCIPAL */}
+            {/* HEADLINE PRINCIPAL DINÂMICA POR IDIOMA */}
             <h1 style={{
               margin: '0 0 14px 0',
               fontSize: 38,
@@ -315,13 +327,13 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               color: '#ffffff',
               letterSpacing: '-0.8px'
             }}>
-              Crie Livros Incríveis{' '}
+              {t('landing.heroTitleMain')}{' '}
               <span style={{
                 background: 'linear-gradient(90deg, #38bdf8 0%, #0284c7 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent'
               }}>
-                para a Amazon KDP
+                {t('landing.heroTitleHighlight')}
               </span>
             </h1>
 
@@ -536,9 +548,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               </div>
             </div>
 
-            {/* BOX DE PREÇO & CRÉDITOS (ADAPTADO CONFORME PEDIDO DO USUÁRIO) */}
+            {/* BOX DE PREÇO: ASSINATURA MENSAL OFICIAL (49,90 R$, US$ OU EURO) */}
             <div style={{
-              background: 'linear-gradient(135deg, rgba(8, 20, 48, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%)',
+              background: 'linear-gradient(135deg, rgba(8, 20, 48, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)',
               border: '1.5px solid rgba(56, 189, 248, 0.45)',
               borderRadius: 16,
               padding: '18px 20px',
@@ -555,38 +567,38 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 paddingBottom: 14,
                 marginBottom: 12
               }}>
-                {/* PREÇO DE CRÉDITO POR LIVRO */}
+                {/* PREÇO DA ASSINATURA MENSAL (DINÂMICO R$ 49,90 / US$ 49.90 / 49,90 €) */}
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 800, color: '#38bdf8', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
                     {t('landing.pricingTag')}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: 32, fontWeight: 900, color: '#38bdf8', letterSpacing: '-0.5px' }}>
-                      US$ 3
+                      {t('landing.pricingPrice')}
                     </span>
                     <span style={{ fontSize: 13, color: '#cbd5e1', fontWeight: 600 }}>
-                      {t('landing.pricingPerBook')}
+                      {t('landing.pricingPeriod')}
                     </span>
                   </div>
                 </div>
 
-                {/* CADASTRO GRATUITO & PAGUE POR LIVRO */}
+                {/* BADGE ACESSO ILIMITADO & CANCELAMENTO FLEXÍVEL */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  background: 'rgba(14, 165, 233, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
                   padding: '8px 14px',
                   borderRadius: 10
                 }}>
-                  <Layers size={22} color="#34d399" />
+                  <Zap size={22} color="#38bdf8" />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#34d399' }}>
-                      {t('landing.pricingFreeSignup')}
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#38bdf8' }}>
+                      {t('landing.pricingBadge')}
                     </div>
                     <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {t('landing.pricingPayPerUse')}
+                      {t('landing.pricingCancelAnytime')}
                     </div>
                   </div>
                 </div>
@@ -616,7 +628,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 </div>
               </div>
 
-              {/* FRASE DE IMPACTO */}
+              {/* FRASE DE IMPACTO & CALLOUT */}
               <div style={{
                 marginTop: 14,
                 paddingTop: 12,
@@ -696,81 +708,156 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               pointerEvents: 'none'
             }} />
 
-            {/* LIVRO 1: O ÚLTIMO SEGREDO (NO TOPO, INCLINADO) */}
-            <div style={{
-              position: 'absolute',
-              top: 15,
-              right: 20,
-              width: 180,
-              height: 265,
-              borderRadius: 8,
-              boxShadow: '-18px 24px 38px rgba(0, 0, 0, 0.95), 0 0 25px rgba(14, 165, 233, 0.35)',
-              transform: 'rotate(7deg) perspective(800px) rotateY(-8deg)',
-              overflow: 'hidden',
-              border: '1.5px solid rgba(255, 255, 255, 0.25)',
-              background: '#090d16',
-              transition: 'transform 0.3s ease',
-              cursor: 'pointer'
-            }}
-            title="O Último Segredo — Thriller de Suspense (Capa Oficial Amazon KDP)"
+            {/* LIVRO 1: O ÚLTIMO SEGREDO / THE LAST SECRET (HTML DINÂMICO POR IDIOMA) */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 15,
+                right: 20,
+                width: 180,
+                height: 265,
+                borderRadius: 8,
+                boxShadow: '-18px 24px 38px rgba(0, 0, 0, 0.95), 0 0 25px rgba(14, 165, 233, 0.35)',
+                transform: 'rotate(7deg) perspective(800px) rotateY(-8deg)',
+                overflow: 'hidden',
+                border: '1.5px solid rgba(255, 255, 255, 0.25)',
+                background: '#090d16',
+                transition: 'transform 0.3s ease',
+                cursor: 'pointer'
+              }}
+              title={t('landing.cover1.title')}
             >
+              {/* Arte de fundo de alta definição sem texto */}
               <img
-                src="/covers/o-ultimo-segredo.jpg"
-                alt="O Último Segredo - Um Thriller de Suspense"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                src="/covers/bg-thriller-clean.jpg"
+                alt=""
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               />
+              {/* Overlays gradientes para contraste editorial */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 110, background: 'linear-gradient(180deg, rgba(2,6,23,0.95) 0%, rgba(2,6,23,0.65) 55%, transparent 100%)' }} />
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(0deg, rgba(2,6,23,0.95) 0%, rgba(2,6,23,0.6) 60%, transparent 100%)' }} />
+              
+              {/* Camada Editorial em Puro HTML (traduz dinamicamente com o seletor) */}
+              <div style={{ position: 'relative', zIndex: 2, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '12px 10px', boxSizing: 'border-box' }}>
+                <div>
+                  <div style={{ textAlign: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 7, fontWeight: 800, color: '#fbbf24', letterSpacing: '1.5px', textTransform: 'uppercase', border: '1px solid rgba(251, 191, 36, 0.5)', padding: '1px 6px', borderRadius: 3, background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)' }}>
+                      {t('landing.cover1.badge')}
+                    </span>
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: 13, fontWeight: 900, color: '#ffffff', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.8px', lineHeight: 1.15, fontFamily: "'Cinzel', Georgia, serif", textShadow: '0 2px 6px rgba(0,0,0,0.95), 0 0 12px rgba(14,165,233,0.6)' }}>
+                    {t('landing.cover1.title')}
+                  </h3>
+                  <p style={{ margin: '3px 0 0 0', fontSize: 7, fontWeight: 700, color: '#38bdf8', textAlign: 'center', letterSpacing: '1px', textTransform: 'uppercase', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                    {t('landing.cover1.subtitle')}
+                  </p>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontSize: 8, fontWeight: 800, color: '#f1f5f9', letterSpacing: '1.5px', textTransform: 'uppercase', textShadow: '0 1px 4px rgba(0,0,0,0.95)' }}>
+                    {t('landing.cover1.author')}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* LIVRO 2: DINOSSAUROS PARA COLORIR (CENTRO, VIBRANTE) */}
-            <div style={{
-              position: 'absolute',
-              top: 155,
-              left: 5,
-              width: 188,
-              height: 278,
-              borderRadius: 8,
-              boxShadow: '18px 26px 42px rgba(0, 0, 0, 0.9), 0 0 30px rgba(56, 189, 248, 0.4)',
-              transform: 'rotate(-6deg) perspective(800px) rotateY(8deg)',
-              overflow: 'hidden',
-              border: '1.5px solid rgba(255, 255, 255, 0.35)',
-              background: '#090d16',
-              zIndex: 3,
-              transition: 'transform 0.3s ease',
-              cursor: 'pointer'
-            }}
-            title="Dinossauros para Colorir (Capa Oficial Amazon KDP)"
+            {/* LIVRO 2: DINOSSAUROS PARA COLORIR / DINOSAURS COLORING (HTML DINÂMICO POR IDIOMA) */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 155,
+                left: 5,
+                width: 188,
+                height: 278,
+                borderRadius: 8,
+                boxShadow: '18px 26px 42px rgba(0, 0, 0, 0.9), 0 0 30px rgba(56, 189, 248, 0.4)',
+                transform: 'rotate(-6deg) perspective(800px) rotateY(8deg)',
+                overflow: 'hidden',
+                border: '1.5px solid rgba(255, 255, 255, 0.35)',
+                background: '#090d16',
+                zIndex: 3,
+                transition: 'transform 0.3s ease',
+                cursor: 'pointer'
+              }}
+              title={t('landing.cover2.title')}
             >
+              {/* Arte de fundo de alta definição sem texto */}
               <img
-                src="/covers/dinossauros-para-colorir.jpg"
-                alt="Dinossauros para Colorir"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                src="/covers/bg-dino-clean.jpg"
+                alt=""
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               />
+              {/* Overlays gradientes */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 105, background: 'linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(15,23,42,0.65) 50%, transparent 100%)' }} />
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 55, background: 'linear-gradient(0deg, rgba(15,23,42,0.9) 0%, rgba(15,23,42,0.5) 60%, transparent 100%)' }} />
+
+              {/* Camada Editorial em Puro HTML */}
+              <div style={{ position: 'relative', zIndex: 2, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '12px 10px', boxSizing: 'border-box' }}>
+                <div>
+                  <div style={{ textAlign: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 7, fontWeight: 900, color: '#ffffff', letterSpacing: '1px', textTransform: 'uppercase', background: 'linear-gradient(135deg, #10b981, #059669)', padding: '2px 8px', borderRadius: 12, boxShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>
+                      {t('landing.cover2.badge')}
+                    </span>
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: 13, fontWeight: 900, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.15, fontFamily: "'Outfit', sans-serif", color: '#fef08a', textShadow: '0 2px 6px rgba(0,0,0,0.95), 0 0 12px rgba(245,158,11,0.6)' }}>
+                    {t('landing.cover2.title')}
+                  </h3>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ display: 'inline-block', fontSize: 7, fontWeight: 800, color: '#fef08a', background: 'rgba(15, 23, 42, 0.85)', border: '1px solid rgba(254, 240, 138, 0.4)', borderRadius: 6, padding: '2px 6px', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                    {t('landing.cover2.subtitle')}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* LIVRO 3: SUDOKU DESAFIO (FRENTE / BAIXO) */}
-            <div style={{
-              position: 'absolute',
-              bottom: 10,
-              right: 12,
-              width: 172,
-              height: 256,
-              borderRadius: 8,
-              boxShadow: '0 25px 45px rgba(0, 0, 0, 0.95), 0 0 25px rgba(14, 165, 233, 0.3)',
-              transform: 'rotate(5deg) perspective(800px)',
-              overflow: 'hidden',
-              border: '1.5px solid rgba(255, 255, 255, 0.3)',
-              background: '#090d16',
-              zIndex: 4,
-              transition: 'transform 0.3s ease',
-              cursor: 'pointer'
-            }}
-            title="Sudoku Desafio (Capa Oficial Amazon KDP)"
+            {/* LIVRO 3: SUDOKU DESAFIO / SUDOKU CHALLENGE (HTML DINÂMICO POR IDIOMA) */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 10,
+                right: 12,
+                width: 172,
+                height: 256,
+                borderRadius: 8,
+                boxShadow: '0 25px 45px rgba(0, 0, 0, 0.95), 0 0 25px rgba(14, 165, 233, 0.3)',
+                transform: 'rotate(5deg) perspective(800px)',
+                overflow: 'hidden',
+                border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                background: '#090d16',
+                zIndex: 4,
+                transition: 'transform 0.3s ease',
+                cursor: 'pointer'
+              }}
+              title={t('landing.cover3.title')}
             >
+              {/* Arte de fundo de alta definição sem texto */}
               <img
-                src="/covers/sudoku-desafio.jpg"
-                alt="Sudoku Desafio"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                src="/covers/bg-sudoku-clean.jpg"
+                alt=""
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               />
+              {/* Overlays gradientes */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 95, background: 'linear-gradient(180deg, rgba(3,7,18,0.92) 0%, rgba(3,7,18,0.6) 55%, transparent 100%)' }} />
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 50, background: 'linear-gradient(0deg, rgba(3,7,18,0.95) 0%, rgba(3,7,18,0.6) 60%, transparent 100%)' }} />
+
+              {/* Camada Editorial em Puro HTML */}
+              <div style={{ position: 'relative', zIndex: 2, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '12px 10px', boxSizing: 'border-box' }}>
+                <div>
+                  <div style={{ textAlign: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 7, fontWeight: 800, color: '#38bdf8', letterSpacing: '1.2px', textTransform: 'uppercase', border: '1px solid rgba(56, 189, 248, 0.45)', padding: '1px 6px', borderRadius: 3, background: 'rgba(3, 7, 18, 0.8)' }}>
+                      {t('landing.cover3.badge')}
+                    </span>
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: 13, fontWeight: 900, color: '#facc15', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1.2px', lineHeight: 1.15, textShadow: '0 2px 6px rgba(0,0,0,0.95), 0 0 10px rgba(250,204,21,0.5)' }}>
+                    {t('landing.cover3.title')}
+                  </h3>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ display: 'inline-block', fontSize: 7, fontWeight: 700, color: '#94a3b8', background: 'rgba(3, 7, 18, 0.85)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {t('landing.cover3.subtitle')}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -894,7 +981,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="seu.email@exemplo.com"
+                      placeholder={t('landing.placeholderEmail')}
                       required
                       style={{
                         width: '100%',
@@ -924,7 +1011,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Digite sua senha"
+                      placeholder={t('landing.placeholderPassword')}
                       required
                       style={{
                         width: '100%',
@@ -996,7 +1083,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   }}
                 >
                   {isLoading ? (
-                    <span>Carregando...</span>
+                    <span>{t('landing.btnLoading')}</span>
                   ) : (
                     <>
                       {t('landing.btnEnterDashboard')} <ArrowRight size={16} />
@@ -1071,7 +1158,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       type="text"
                       value={authorName}
                       onChange={(e) => setAuthorName(e.target.value)}
-                      placeholder="Ex: Leandro Palmeira"
+                      placeholder={t('landing.placeholderName')}
                       required
                       style={{
                         width: '100%',
@@ -1101,7 +1188,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="seu.email@exemplo.com"
+                      placeholder={t('landing.placeholderEmail')}
                       required
                       style={{
                         width: '100%',
@@ -1131,7 +1218,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Crie uma senha segura"
+                      placeholder={t('landing.placeholderPasswordCreate')}
                       required
                       style={{
                         width: '100%',
@@ -1164,20 +1251,20 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   </div>
                 </div>
 
-                {/* Aviso de Cadastro 100% Gratuito */}
+                {/* Aviso da Assinatura Mensal Internacionalizada */}
                 <div style={{
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  background: 'rgba(14, 165, 233, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
                   borderRadius: 8,
                   padding: '8px 10px',
                   fontSize: 11,
-                  color: '#34d399',
+                  color: '#38bdf8',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6
                 }}>
-                  <CheckCircle2 size={14} color="#10b981" />
-                  <span>Cadastro 100% gratuito. Pague apenas US$ 3 por livro ao gerar.</span>
+                  <CheckCircle2 size={14} color="#38bdf8" />
+                  <span>{t('landing.subscriptionNotice')}</span>
                 </div>
 
                 {/* Botão de Concluir Cadastro */}
@@ -1202,7 +1289,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   }}
                 >
                   {isLoading ? (
-                    <span>Criando acesso...</span>
+                    <span>{t('landing.btnLoading')}</span>
                   ) : (
                     <>
                       {t('landing.btnSubmitRegister')} <ArrowRight size={16} />

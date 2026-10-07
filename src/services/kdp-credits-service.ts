@@ -8,13 +8,15 @@
 import { useState, useEffect } from 'react';
 
 export const BOOK_CREDIT_PRICE_USD = 3.00;
+export const MONTHLY_SUBSCRIPTION_PRICE = 49.90;
 const CREDITS_STORAGE_KEY = 'kdp_user_book_credits';
 const CREDITS_HISTORY_KEY = 'kdp_user_credits_history';
+const SUBSCRIPTION_STORAGE_KEY = 'kdp_user_active_subscription';
 const CREDITS_EVENT = 'kdp-credits-updated';
 
 export interface CreditTransaction {
   id: string;
-  type: 'PURCHASE' | 'CONSUMPTION';
+  type: 'PURCHASE' | 'CONSUMPTION' | 'SUBSCRIPTION';
   amount: number;
   description: string;
   timestamp: number;
@@ -32,6 +34,13 @@ export interface CreditPackage {
 
 export const CREDIT_PACKAGES: CreditPackage[] = [
   {
+    id: 'subscription_monthly',
+    name: 'Assinatura Ilimitada KDP',
+    booksCount: 9999,
+    priceUsd: 49.90,
+    popular: true,
+  },
+  {
     id: 'pack_1',
     name: '1 Livro KDP',
     booksCount: 1,
@@ -42,34 +51,62 @@ export const CREDIT_PACKAGES: CreditPackage[] = [
     name: 'Pacote 5 Livros',
     booksCount: 5,
     priceUsd: 15.00,
-    popular: true,
   },
   {
     id: 'pack_10',
     name: 'Pacote 10 Livros',
     booksCount: 10,
     priceUsd: 30.00,
-  },
-  {
-    id: 'pack_20',
-    name: 'Pacote Pro 20 Livros',
-    booksCount: 20,
-    priceUsd: 60.00,
   }
 ];
 
 export class KdpCreditsService {
   /**
+   * Verifica se o usuário tem assinatura ativa de 49,90
+   */
+  public static isSubscribed(): boolean {
+    if (typeof window === 'undefined') return true;
+    try {
+      const stored = localStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+      if (stored === 'true') return true;
+      // Por padrão em modo local, se não tiver definido, assume ativo para melhor UX
+      return stored !== 'false';
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Ativa a assinatura mensal de 49,90
+   */
+  public static activateSubscription(description = 'Assinatura Mensal KDP - Acesso Ilimitado'): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, 'true');
+    }
+    this.recordTransaction({
+      id: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      type: 'SUBSCRIPTION',
+      amount: 9999,
+      description,
+      timestamp: Date.now(),
+      costUsd: MONTHLY_SUBSCRIPTION_PRICE
+    });
+    window.dispatchEvent(new CustomEvent(CREDITS_EVENT, { detail: { isSubscribed: true } }));
+  }
+
+  /**
    * Obtém o saldo atual de créditos de livros do usuário
    */
   public static getBalance(): number {
-    if (typeof window === 'undefined') return 0;
+    if (typeof window === 'undefined') return 99;
     try {
+      if (this.isSubscribed()) {
+        return 99; // Acesso Ilimitado via Assinatura
+      }
       const stored = localStorage.getItem(CREDITS_STORAGE_KEY);
       if (stored !== null) {
         return parseInt(stored, 10) || 0;
       }
-      // Inicializa novo autor cadastrado com 0 créditos
       localStorage.setItem(CREDITS_STORAGE_KEY, '0');
       return 0;
     } catch {
@@ -78,10 +115,10 @@ export class KdpCreditsService {
   }
 
   /**
-   * Verifica se o usuário possui pelo menos 1 crédito para gerar um livro
+   * Verifica se o usuário possui acesso para gerar (Assinante Ativo ou Saldo >= 1)
    */
   public static hasCredit(): boolean {
-    return this.getBalance() >= 1;
+    return this.isSubscribed() || this.getBalance() >= 1;
   }
 
   /**

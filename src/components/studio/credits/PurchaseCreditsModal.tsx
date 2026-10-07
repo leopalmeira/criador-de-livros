@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { X, Sparkles, CreditCard, ShieldCheck, CheckCircle2, Zap, BookOpen } from 'lucide-react';
-import { useBookCredits, CREDIT_PACKAGES, CreditPackage, BOOK_CREDIT_PRICE_USD } from '../../../services/kdp-credits-service';
+import { useBookCredits, CREDIT_PACKAGES, CreditPackage, BOOK_CREDIT_PRICE_USD, KdpCreditsService } from '../../../services/kdp-credits-service';
 import { useTranslation } from '../../../services/i18n-service';
 
 interface Props {
@@ -16,8 +16,8 @@ interface Props {
 
 export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, motivo }) => {
   const { balance, purchaseCredits } = useBookCredits();
-  const { t } = useTranslation();
-  const [pacoteSelecionado, setPacoteSelecionado] = useState<CreditPackage>(CREDIT_PACKAGES[1]); // Default 5 livros
+  const { t, currentLang } = useTranslation();
+  const [pacoteSelecionado, setPacoteSelecionado] = useState<CreditPackage>(CREDIT_PACKAGES[0]); // Default Assinatura 49.90
   const [processando, setProcessando] = useState(false);
   const [sucessoMsg, setSucessoMsg] = useState(false);
 
@@ -26,7 +26,12 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
   const handleComprar = () => {
     setProcessando(true);
     setTimeout(() => {
-      purchaseCredits(pacoteSelecionado.booksCount, `Compra de pacote: ${pacoteSelecionado.name}`);
+      if (pacoteSelecionado.id === 'subscription_monthly') {
+        KdpCreditsService.activateSubscription('Assinatura Mensal KDP - Acesso Ilimitado');
+        purchaseCredits(99, 'Ativação de Assinatura Mensal 49,90');
+      } else {
+        purchaseCredits(pacoteSelecionado.booksCount, `Compra de pacote: ${pacoteSelecionado.name}`);
+      }
       setProcessando(false);
       setSucessoMsg(true);
       setTimeout(() => {
@@ -87,10 +92,10 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#ffffff' }}>
-                Créditos de Produção Editorial
+                Assinatura Editorial & Créditos KDP
               </h3>
               <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#94a3b8' }}>
-                Cadastre gratuitamente • Pague apenas US$ 3 por livro gerado
+                Assinatura completa por apenas 49,90 (R$, US$ ou €) • Acesso Ilimitado
               </p>
             </div>
           </div>
@@ -203,11 +208,22 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                   </div>
 
                   <div style={{ fontSize: 20, fontWeight: 900, color: '#38bdf8' }}>
-                    US$ {pkg.priceUsd.toFixed(2)}
+                    {pkg.id === 'subscription_monthly' ? (
+                      <>
+                        {currentLang === 'pt-BR' ? 'R$ 49,90' : currentLang === 'es-ES' ? '49,90 €' : 'US$ 49.90'}
+                        <span style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600, marginLeft: 4 }}>
+                          {currentLang === 'pt-BR' ? '/ mês' : currentLang === 'es-ES' ? '/ mes' : '/ mo'}
+                        </span>
+                      </>
+                    ) : (
+                      `US$ ${pkg.priceUsd.toFixed(2)}`
+                    )}
                   </div>
 
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
-                    Equivalente a US$ {BOOK_CREDIT_PRICE_USD.toFixed(2)} / livro
+                  <div style={{ fontSize: 11, color: pkg.id === 'subscription_monthly' ? '#34d399' : '#94a3b8', marginTop: 4, fontWeight: pkg.id === 'subscription_monthly' ? 700 : 400 }}>
+                    {pkg.id === 'subscription_monthly'
+                      ? (currentLang === 'pt-BR' ? 'Acesso Ilimitado • Cancele quando quiser' : currentLang === 'es-ES' ? 'Acceso Ilimitado • Cancela cuando quieras' : 'Unlimited Access • Cancel anytime')
+                      : `Equivalente a US$ ${BOOK_CREDIT_PRICE_USD.toFixed(2)} / livro`}
                   </div>
                 </div>
               );
@@ -231,7 +247,7 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               gap: 8
             }}>
               <CheckCircle2 size={18} />
-              Créditos adicionados com sucesso! Liberando geração...
+              Assinatura ativada com sucesso! Liberando acesso ilimitado...
             </div>
           ) : (
             <button
@@ -256,7 +272,7 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               }}
             >
               <CreditCard size={18} />
-              {processando ? 'Processando Recarga...' : `Adicionar ${pacoteSelecionado.booksCount} Livros por US$ ${pacoteSelecionado.priceUsd.toFixed(2)}`}
+              {processando ? 'Processando...' : pacoteSelecionado.id === 'subscription_monthly' ? `Ativar Assinatura Ilimitada (${currentLang === 'pt-BR' ? 'R$ 49,90/mês' : currentLang === 'es-ES' ? '49,90 €/mes' : 'US$ 49.90/mo'})` : `Adicionar ${pacoteSelecionado.booksCount} Livros por US$ ${pacoteSelecionado.priceUsd.toFixed(2)}`}
             </button>
           )}
 
