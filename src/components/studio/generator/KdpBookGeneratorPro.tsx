@@ -49,6 +49,9 @@ import {
   gerarSilhuetaPersonagem,
   gerarIlustracaoCapitulo
 } from '../../../services/kdp-silhouette-service';
+import { sanitizarOrtografiaEditorialCapa, sanitizarPromptArteSemTexto } from '../../../services/kdp-orthography-engine';
+import { useBookCredits } from '../../../services/kdp-credits-service';
+import { PurchaseCreditsModal } from '../credits/PurchaseCreditsModal';
 
 const newProjectId = () => newId('prj_');
 
@@ -179,6 +182,11 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
 
   // Modal de Tour Guiado de Cada Função
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
+
+  // Sistema de Créditos Editoriais KDP (US$ 3 por livro gerado)
+  const { balance: creditosLivros, useCredit: debitarCreditoLivro } = useBookCredits();
+  const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
+  const [creditModalMotivo, setCreditModalMotivo] = useState('');
 
   // Modal do Revisor Editorial Página por Página (Folhear & Validar Finais de Frase)
   const [isPageReviewerOpen, setIsPageReviewerOpen] = useState(false);
@@ -741,6 +749,13 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       return;
     }
 
+    // REGRA DE NEGÓCIO: Cadastro gratuito, mas geração de livro requer crédito (US$ 3 por livro)
+    if (creditosLivros < 1) {
+      setCreditModalMotivo('Para gerar este livro completo com IA é necessário 1 crédito (US$ 3 por livro). Seu cadastro é 100% gratuito, basta adquirir seus créditos conforme sua produção.');
+      setIsCreditModalOpen(true);
+      return;
+    }
+
     const palavrasAlvo = paginasAlvo * 300;
     const capsCalc = Math.max(3, Math.min(maxCapitulos, Math.round(palavrasAlvo / 900)));
     const palavrasPorCap = Math.round(palavrasAlvo / capsCalc);
@@ -757,6 +772,9 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       capitulos: [],
       meta: { palavrasPorCap, paginasAlvo }
     };
+
+    // Consome 1 crédito editorial para a produção do livro
+    debitarCreditoLivro(novoLivro.titulo);
 
     setLivro(novoLivro);
     setCapaFinal(null);
@@ -1116,31 +1134,17 @@ ${ganchoImediato}`;
       .trim();
   };
 
-  // CONSTRUTOR DE PROMPT VISUAL DE ARTE EDITORIAL LIMPA (ANTI-SELO & ESPAÇO NEGATIVO ABERTO)
+  // CONSTRUTOR DE PROMPT VISUAL DE ARTE EDITORIAL LIMPA (ANTI-SELO & ZERO TEXTO NA IMAGEM)
   const construirPromptArteCapa = (
     genero: string,
     premissa: string,
-    amostra: string,
-    estiloVisual: 'minimalist' | 'cinematic' | 'concept' | 'abstract',
+    _amostra: string,
+    _estiloVisual: 'minimalist' | 'cinematic' | 'concept' | 'abstract',
     customPrompt?: string
   ): string => {
-    if (customPrompt && customPrompt.trim().length > 5) {
-      return `${customPrompt.trim()}, minimalist editorial fine art background, spacious negative space in upper-center, vertical 2:3 aspect ratio, ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO NUMBERS, NO BOOK COVERS, NO CIRCULAR SEALS, NO STAMPS, NO BADGES, NO MEDALS, NO RIBBONS, NO EMBLEMS, NO LABELS, clean visual art only`;
-    }
-
-    let estiloDesc = 'minimalist editorial art, spacious uncluttered negative space in upper-center, dramatic cinematic volumetric lighting, fine art photography aesthetic';
-    if (estiloVisual === 'cinematic') {
-      estiloDesc = 'dark moody cinematic scene, atmospheric volumetric fog, high-contrast chiaroscuro lighting, wide negative space in center, uncluttered fine art';
-    } else if (estiloVisual === 'concept') {
-      estiloDesc = 'high-end conceptual magazine cover photography, sleek luxury aesthetic, clean deep solid tones with subtle atmospheric glow, uncluttered space';
-    } else if (estiloVisual === 'abstract') {
-      estiloDesc = 'sophisticated geometric abstract composition, modern architectural shapes, wealth and security concept, deep midnight navy and subtle gold lighting, clean minimalist canvas';
-    }
-
-    return `Clean editorial visual artwork, vertical 2:3 aspect ratio.
-Theme & Subject: ${genero} - ${premissa.slice(0, 150)}.
-Style: ${estiloDesc}.
-CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO NUMBERS, NO BOOK COVERS, NO CIRCULAR SEALS, NO BADGES, NO STAMPS, NO MEDALS, NO RIBBONS, NO EMBLEMS, NO LOGOS, NO STICKERS, NO AWARDS, NO FAKE LABELS. Pure clean visual artwork with open central negative space for title placement.`;
+    // Sanitização rigorosa: transforma o gênero e premissa em arte cênica pura sem letras
+    // PROÍBE estritamente qualquer tentativa da IA desenhar "FINANCAS", palavras ou títulos na imagem
+    return sanitizarPromptArteSemTexto(genero, customPrompt || premissa);
   };
 
   // DIAGRAMAÇÃO TIPOGRÁFICA EDITORIAL DA CAPA VIA CANVAS (1600x2400)
@@ -1148,6 +1152,7 @@ CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO
   // 1. Zero selos / Zero medalhas kitsch
   // 2. Clean Zone (Área Limpa) exclusiva atrás do título com alto contraste garantido
   // 3. Tipografia moderna com proporções refinadas e letter-spacing elegante
+  // 4. REGRA DE OURO ORTOGRÁFICA: 100% de precisão em acentuação e cedilhas ("Finanças", "Gestão", etc.)
   const diagramarCapaCanvas = async (
     capaImgUrl: string,
     obraTituloRaw: string,
@@ -1164,7 +1169,10 @@ CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Não foi possível obter contexto 2D do canvas da capa');
 
-    const obraTitulo = higienizarTituloEditorial(obraTituloRaw);
+    // Sanitização ortográfica editorial estrita (impede 'financas' e força 'Finanças' com acentos corretos)
+    const obraTitulo = sanitizarOrtografiaEditorialCapa(higienizarTituloEditorial(obraTituloRaw));
+    const obraSubtituloLimpo = sanitizarOrtografiaEditorialCapa(obraSubtitulo);
+    const obraAutorLimpo = sanitizarOrtografiaEditorialCapa(obraAutor);
 
     const img = await carregarElementoImagem(capaImgUrl);
     // Corta os 8% inferiores da imagem para eliminar 100% de qualquer marca d'água residual
@@ -1228,7 +1236,7 @@ CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO
       return 'LITERATURA & ENSAIO CONTEMPORÂNEO';
     };
 
-    const headerText = getCleanMagazineHeader(obraGenero, obraPremissa);
+    const headerText = sanitizarOrtografiaEditorialCapa(getCleanMagazineHeader(obraGenero, obraPremissa));
     ctx.textAlign = 'center';
     ctx.shadowBlur = 12;
     ctx.shadowColor = 'rgba(0,0,0,0.95)';
@@ -1280,18 +1288,18 @@ CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO
     ctx.fillStyle = '#fde68a';
     ctx.fillRect((canvas.width / 2) - 45, yTit + 10, 90, 2);
 
-    // 6. SUBTÍTULO COMERCIAL MODERNO (Limpo, sem itálicos desajeitados)
-    if (obraSubtitulo) {
+    // 6. SUBTÍTULO COMERCIAL MODERNO (Limpo, sem itálicos desajeitados e com ortografia corrigida)
+    if (obraSubtituloLimpo) {
       let fontSizeSub = 46;
-      if (obraSubtitulo.length > 90) fontSizeSub = 38;
-      else if (obraSubtitulo.length > 55) fontSizeSub = 42;
+      if (obraSubtituloLimpo.length > 90) fontSizeSub = 38;
+      else if (obraSubtituloLimpo.length > 55) fontSizeSub = 42;
 
       ctx.font = `500 ${fontSizeSub}px "Inter", "Montserrat", -apple-system, sans-serif`;
       ctx.fillStyle = '#f8fafc';
       ctx.shadowColor = 'rgba(0,0,0,0.95)';
       ctx.shadowBlur = 18;
 
-      const linhasSub = quebrarLinhas(ctx, obraSubtitulo, canvas.width - 280);
+      const linhasSub = quebrarLinhas(ctx, obraSubtituloLimpo, canvas.width - 280);
       const lineHSub = Math.round(fontSizeSub * 1.35);
       const alturaTotalSub = linhasSub.length * lineHSub;
 
@@ -1307,12 +1315,12 @@ CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO
       });
     }
 
-    // 7. NOME DO AUTOR NO RODAPÉ (Caixa alta com letter-spacing de revista)
+    // 7. NOME DO AUTOR NO RODAPÉ (Caixa alta com letter-spacing de revista e ortografia precisa)
     ctx.shadowBlur = 24;
     ctx.shadowColor = 'rgba(0,0,0,0.98)';
     ctx.font = '700 46px "Montserrat", "Inter", -apple-system, sans-serif';
     ctx.fillStyle = '#ffffff';
-    const spacedAutor = obraAutor.toUpperCase().split('').join(' ');
+    const spacedAutor = obraAutorLimpo.toUpperCase().split('').join(' ');
     ctx.fillText(spacedAutor, canvas.width / 2, canvas.height - 140);
 
     return canvas.toDataURL('image/png');
@@ -3208,7 +3216,41 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </label>
             </div>
 
-            {/* Modo econômico ativo silenciosamente — UI removida conforme solicitação */}
+            {/* INFORMAÇÃO DE CRÉDITOS DO LIVRO (US$ 3 POR LIVRO GERADO) */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(15, 23, 42, 0.04)',
+              border: '1px solid rgba(14, 165, 233, 0.25)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              marginBottom: 10
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#334155' }}>
+                <span style={{ fontSize: 14 }}>💳</span>
+                <span>Créditos: <strong>{creditosLivros} {creditosLivros === 1 ? 'livro' : 'livros'}</strong> (US$ 3/livro)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreditModalMotivo('Recarregue seus créditos para produzir livros completos na plataforma.');
+                  setIsCreditModalOpen(true);
+                }}
+                style={{
+                  background: 'rgba(14, 165, 233, 0.1)',
+                  color: '#0284c7',
+                  border: '1px solid rgba(14, 165, 233, 0.3)',
+                  borderRadius: 6,
+                  padding: '3px 8px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                + Adicionar Créditos
+              </button>
+            </div>
 
             {/* BOTÕES DE CONTROLE DA PRODUÇÃO */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -5981,6 +6023,13 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         onSelectBookReference={(book: any) => {
           logDiag(`Livro de referência selecionado dos Top 50: ${book.title}`);
         }}
+      />
+
+      {/* MODAL DE COMPRA / RECARGA DE CRÉDITOS EDITORIAIS (US$ 3 POR LIVRO) */}
+      <PurchaseCreditsModal
+        isOpen={isCreditModalOpen}
+        onClose={() => setIsCreditModalOpen(false)}
+        motivo={creditModalMotivo}
       />
     </div>
   );

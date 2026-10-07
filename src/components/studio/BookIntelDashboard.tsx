@@ -12,6 +12,8 @@ import { db } from '../../database/local-database';
 import { useTranslation } from '../../services/i18n-service';
 import { LanguageSelector } from './i18n/LanguageSelector';
 import { batchBackgroundRunner, BatchRunnerState } from '../../services/batch-background-runner';
+import { useBookCredits } from '../../services/kdp-credits-service';
+import { PurchaseCreditsModal } from './credits/PurchaseCreditsModal';
 
 interface Props {
   projects: BookProject[];
@@ -55,6 +57,8 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onLogout
 }) => {
   const { t, currentLang } = useTranslation();
+  const { balance: bookCredits } = useBookCredits();
+  const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
   const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
   const [finalizingProjectId, setFinalizingProjectId] = useState<string | null>(null);
   const [batchState, setBatchState] = useState<BatchRunnerState>(batchBackgroundRunner.getState());
@@ -136,6 +140,30 @@ export const BookIntelDashboard: React.FC<Props> = ({
           <div className="header-right-tools" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* SELETOR DE IDIOMA COM BANDEIRAS E NOMES NATIVOS */}
             <LanguageSelector />
+
+            {/* WIDGET DE CRÉDITOS DO AUTOR (US$ 3 POR LIVRO GERADO) */}
+            <button
+              onClick={() => setIsCreditsModalOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 8,
+                background: 'rgba(16, 185, 129, 0.12)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              title="Saldo de créditos para gerar livros ($3 por livro)"
+            >
+              <span>💳</span>
+              <span>{bookCredits} {bookCredits === 1 ? 'Crédito' : 'Créditos'}</span>
+              <span style={{ fontSize: 10, color: '#94a3b8' }}>($3/livro)</span>
+            </button>
 
             {onOpenAiGuide && (
               <button
@@ -876,6 +904,12 @@ export const BookIntelDashboard: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL DE COMPRA / RECARGA DE CRÉDITOS EDITORIAIS (US$ 3 POR LIVRO) */}
+      <PurchaseCreditsModal
+        isOpen={isCreditsModalOpen}
+        onClose={() => setIsCreditsModalOpen(false)}
+      />
     </div>
   );
 };

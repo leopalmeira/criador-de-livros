@@ -429,10 +429,13 @@ export async function chamarImagen(
   prompt: string,
   aspectRatio: '2:3' | '16:9' | '1:1' | '3:4' = '2:3'
 ): Promise<string> {
-  // Higienização rigorosa anti-selo e anti-marca: proíbe estritamente selos circulares, medalhas, medalhões, adesivos e ribbons
+  // Higienização rigorosa anti-texto, anti-letras e anti-selos:
+  // Proíbe estritamente a IA de desenhar palavras como "FINANCAS", textos deformados ou letras no fundo
   const cleanPrompt = prompt
     .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
-    .trim() + ', clean artwork, ABSOLUTELY NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO WORDS, NO FAKE LABELS, NO CIRCULAR SEALS, NO STAMPS, NO BADGES, NO MEDALS, NO RIBBONS, NO EMBLEMS, NO STICKERS, NO AWARDS, NO LOGOS, clean uncluttered visual art only';
+    .replace(/\b(finan[cç]as?|gest[aã]o|patrim[oô]nio|riqueza|dinheiro)\b/gi, 'wealth asset concept')
+    .replace(/\b(t[ií]tulo|autor|subt[ií]tulo)\b/gi, '')
+    .trim() + ', pure visual photography or illustration background, ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO LETTERING, NO FAKE WORDS, NO "FINANCAS", NO "FINANCES", NO NUMBERS, NO BOOK COVERS, NO FAKE LABELS, NO CIRCULAR SEALS, NO STAMPS, NO BADGES, NO MEDALS, NO RIBBONS, NO EMBLEMS, NO STICKERS, NO AWARDS, NO LOGOS, clean uncluttered visual art only';
 
   // 1. Motor REPLICATE (FLUX.1 Schnell) Exclusivo para Geração de Imagens
   try {
