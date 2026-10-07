@@ -391,15 +391,48 @@ export async function chamarGeminiTexto(
 
 export const chamarTextoEditorial = chamarGeminiTexto;
 
+// Higienizador universal de imagens para eliminar qualquer marca d'água (incluindo pollinations.ai)
+export async function sanitizarImagemSemMarcaDagua(url: string, cropBottomPct = 0.08): Promise<string> {
+  if (!url) return '';
+  if (typeof window === 'undefined') return url;
+
+  return new Promise<string>((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const srcW = img.naturalWidth || img.width || 1200;
+        const srcH = img.naturalHeight || img.height || 800;
+        const cropH = Math.max(10, Math.floor(srcH * (1 - cropBottomPct)));
+        canvas.width = srcW;
+        canvas.height = cropH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(url);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, srcW, cropH);
+        resolve(canvas.toDataURL('image/jpeg', 0.94));
+      } catch (e) {
+        console.warn('[SanitizeImage] Fallback direto de imagem:', e);
+        resolve(url);
+      }
+    };
+    img.onerror = () => resolve(url);
+    img.src = url;
+  });
+}
+
 // Chamada para geração de imagem com Replicate FLUX.1 Schnell, Imagen 3 e fallbacks
 export async function chamarImagen(
   prompt: string,
   aspectRatio: '2:3' | '16:9' | '1:1' | '3:4' = '2:3'
 ): Promise<string> {
-  // Higienização rigorosa anti-bestseller: remove qualquer menção a bestseller e força diretivas negativas estritas
+  // Higienização rigorosa anti-selo e anti-marca: proíbe estritamente selos circulares, medalhas, medalhões, adesivos e ribbons
   const cleanPrompt = prompt
     .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
-    .trim() + ', clean art, NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON, NO FAKE LABELS';
+    .trim() + ', clean artwork, ABSOLUTELY NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO WORDS, NO FAKE LABELS, NO CIRCULAR SEALS, NO STAMPS, NO BADGES, NO MEDALS, NO RIBBONS, NO EMBLEMS, NO STICKERS, NO AWARDS, NO LOGOS, clean uncluttered visual art only';
 
   // 1. Motor REPLICATE (FLUX.1 Schnell) Exclusivo para Geração de Imagens
   try {
@@ -413,7 +446,7 @@ export async function chamarImagen(
   }
 
   // 2. Fallback de alta resolução FLUX sem acionar API do Gemini (preservando Gemini 100% para texto)
-  const encodedPrompt = encodeURIComponent(cleanPrompt.substring(0, 400));
+  const encodedPrompt = encodeURIComponent(cleanPrompt.substring(0, 420));
   const [w, h] = aspectRatio === '2:3' ? [1024, 1536] : aspectRatio === '16:9' ? [1536, 864] : [1024, 1024];
   const seed = Math.floor(Math.random() * 9999999);
   return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}`;
@@ -764,11 +797,12 @@ export async function gerarImagemPromocionalNarrativa(
   }
 ): Promise<string> {
   const prompt = `Cinematic wide promotional environment scene illustration, ultra high definition, 16:9 aspect ratio.
-NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO WORDS, NO BOOK COVERS, NO BORDERS.
+ABSOLUTELY NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO WORDS, NO BOOK COVERS, NO BORDERS, NO WATERMARK, NO POLLINATIONS LOGO, NO BADGES, NO SEALS.
 Genre: ${livro.genre}
 Atmosphere and Concept: ${livro.topic}
 Scene: An immersive storytelling wide shot showing the key environment, moody setting or emotional world of the story "${livro.title}".
-Style: Masterpiece digital painting, dramatic cinematic volumetric lighting, depth of field, atmospheric fog, rich textures, moody color grading consistent with a prestigious editorial book, NO TEXT, NO BESTSELLER BADGE.`;
+Style: Masterpiece digital painting, dramatic cinematic volumetric lighting, depth of field, atmospheric fog, rich textures, moody color grading consistent with a prestigious editorial book, clean art only.`;
 
-  return await chamarImagen(prompt, '16:9');
+  const rawUrl = await chamarImagen(prompt, '16:9');
+  return await sanitizarImagemSemMarcaDagua(rawUrl, 0.08);
 }

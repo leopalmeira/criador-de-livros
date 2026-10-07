@@ -133,6 +133,14 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [isTop50ModalOpen, setIsTop50ModalOpen] = useState(false);
   const [isEditingManuscriptInline, setIsEditingManuscriptInline] = useState(false);
 
+  // Estados do Estúdio de Capa & Direção de Arte de Revista (Anti-Slop Web UI)
+  const [estiloCapaTipo, setEstiloCapaTipo] = useState<'modern-magazine' | 'luxury-serif' | 'bold-impact'>('modern-magazine');
+  const [estiloArteVisual, setEstiloArteVisual] = useState<'minimalist' | 'cinematic' | 'concept' | 'abstract'>('minimalist');
+  const [intensidadeZonaLimpa, setIntensidadeZonaLimpa] = useState<'suave' | 'media' | 'forte'>('media');
+  const [customCoverPrompt, setCustomCoverPrompt] = useState('');
+  const [isRegeneratingCoverOnly, setIsRegeneratingCoverOnly] = useState(false);
+  const [isReapplyingTypography, setIsReapplyingTypography] = useState(false);
+
   // Status e controle do pipeline
   const [gerando, setGerando] = useState(false);
   const [pararFlag, setPararFlag] = useState(false);
@@ -1066,6 +1074,305 @@ ${ganchoImediato}`;
     };
   };
 
+  // HIGIENIZAÇÃO DE CONCORDÂNCIA E GRAMÁTICA DE TÍTULO
+  const higienizarTituloEditorial = (t: string): string => {
+    return t
+      .replace(/\bO Mapa dos Liberdade\b/gi, 'O Mapa da Liberdade')
+      .replace(/\bO Guia dos Liberdade\b/gi, 'O Guia da Liberdade')
+      .replace(/\bO Manual dos Liberdade\b/gi, 'O Manual da Liberdade')
+      .replace(/\bO Segredo dos Liberdade\b/gi, 'O Segredo da Liberdade')
+      .replace(/\bO Caminho dos Liberdade\b/gi, 'O Caminho da Liberdade')
+      .trim();
+  };
+
+  // CONSTRUTOR DE PROMPT VISUAL DE ARTE EDITORIAL LIMPA (ANTI-SELO & ESPAÇO NEGATIVO ABERTO)
+  const construirPromptArteCapa = (
+    genero: string,
+    premissa: string,
+    amostra: string,
+    estiloVisual: 'minimalist' | 'cinematic' | 'concept' | 'abstract',
+    customPrompt?: string
+  ): string => {
+    if (customPrompt && customPrompt.trim().length > 5) {
+      return `${customPrompt.trim()}, minimalist editorial fine art background, spacious negative space in upper-center, vertical 2:3 aspect ratio, ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO NUMBERS, NO BOOK COVERS, NO CIRCULAR SEALS, NO STAMPS, NO BADGES, NO MEDALS, NO RIBBONS, NO EMBLEMS, NO LABELS, clean visual art only`;
+    }
+
+    let estiloDesc = 'minimalist editorial art, spacious uncluttered negative space in upper-center, dramatic cinematic volumetric lighting, fine art photography aesthetic';
+    if (estiloVisual === 'cinematic') {
+      estiloDesc = 'dark moody cinematic scene, atmospheric volumetric fog, high-contrast chiaroscuro lighting, wide negative space in center, uncluttered fine art';
+    } else if (estiloVisual === 'concept') {
+      estiloDesc = 'high-end conceptual magazine cover photography, sleek luxury aesthetic, clean deep solid tones with subtle atmospheric glow, uncluttered space';
+    } else if (estiloVisual === 'abstract') {
+      estiloDesc = 'sophisticated geometric abstract composition, modern architectural shapes, wealth and security concept, deep midnight navy and subtle gold lighting, clean minimalist canvas';
+    }
+
+    return `Clean editorial visual artwork, vertical 2:3 aspect ratio.
+Theme & Subject: ${genero} - ${premissa.slice(0, 150)}.
+Style: ${estiloDesc}.
+CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO NUMBERS, NO BOOK COVERS, NO CIRCULAR SEALS, NO BADGES, NO STAMPS, NO MEDALS, NO RIBBONS, NO EMBLEMS, NO LOGOS, NO STICKERS, NO AWARDS, NO FAKE LABELS. Pure clean visual artwork with open central negative space for title placement.`;
+  };
+
+  // DIAGRAMAÇÃO TIPOGRÁFICA EDITORIAL DA CAPA VIA CANVAS (1600x2400)
+  // Padrão visual de diretor de arte de revista internacional:
+  // 1. Zero selos / Zero medalhas kitsch
+  // 2. Clean Zone (Área Limpa) exclusiva atrás do título com alto contraste garantido
+  // 3. Tipografia moderna com proporções refinadas e letter-spacing elegante
+  const diagramarCapaCanvas = async (
+    capaImgUrl: string,
+    obraTituloRaw: string,
+    obraSubtitulo: string,
+    obraAutor: string,
+    obraGenero: string,
+    obraPremissa: string,
+    tipoEstilo: 'modern-magazine' | 'luxury-serif' | 'bold-impact' = estiloCapaTipo,
+    zonaLimpa: 'suave' | 'media' | 'forte' = intensidadeZonaLimpa
+  ): Promise<string> => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1600;
+    canvas.height = 2400;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Não foi possível obter contexto 2D do canvas da capa');
+
+    const obraTitulo = higienizarTituloEditorial(obraTituloRaw);
+
+    const img = await carregarElementoImagem(capaImgUrl);
+    // Corta os 8% inferiores da imagem para eliminar 100% de qualquer marca d'água residual
+    const srcW = img.naturalWidth || img.width || canvas.width;
+    const srcH = img.naturalHeight || img.height || canvas.height;
+    const cropH = Math.floor(srcH * 0.92);
+    ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
+
+    // 1. Vinheta Superior Suave para o Cabeçalho de Revista (0 a 380px)
+    const topGrad = ctx.createLinearGradient(0, 0, 0, 380);
+    topGrad.addColorStop(0, 'rgba(4, 6, 12, 0.88)');
+    topGrad.addColorStop(0.65, 'rgba(4, 6, 12, 0.40)');
+    topGrad.addColorStop(1, 'rgba(4, 6, 12, 0)');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, canvas.width, 380);
+
+    // 2. REGRA DA ÁREA LIMPA DO TÍTULO (CLEAN CONTRAST ZONE: 640px a 1500px)
+    // Garante que o título fique sobre uma área desobstruída e de alto contraste,
+    // sem objetos, detalhes ou textos de fundo competindo com as letras.
+    const alphaCentro = zonaLimpa === 'forte' ? 0.92 : zonaLimpa === 'suave' ? 0.60 : 0.80;
+    const midGrad = ctx.createLinearGradient(0, 640, 0, 1500);
+    midGrad.addColorStop(0, 'rgba(5, 7, 14, 0)');
+    midGrad.addColorStop(0.20, `rgba(5, 7, 14, ${alphaCentro * 0.75})`);
+    midGrad.addColorStop(0.40, `rgba(5, 7, 14, ${alphaCentro})`);
+    midGrad.addColorStop(0.60, `rgba(5, 7, 14, ${alphaCentro})`);
+    midGrad.addColorStop(0.85, `rgba(5, 7, 14, ${alphaCentro * 0.70})`);
+    midGrad.addColorStop(1, 'rgba(5, 7, 14, 0)');
+    ctx.fillStyle = midGrad;
+    ctx.fillRect(0, 640, canvas.width, 860);
+
+    // 3. Vinheta Profunda no Rodapé (1600px até o fim) para Subtítulo e Autor
+    const footerGrad = ctx.createLinearGradient(0, 1600, 0, canvas.height);
+    footerGrad.addColorStop(0, 'rgba(4, 6, 12, 0)');
+    footerGrad.addColorStop(0.25, 'rgba(4, 6, 12, 0.75)');
+    footerGrad.addColorStop(0.65, 'rgba(4, 6, 12, 0.94)');
+    footerGrad.addColorStop(1, '#04060c');
+    ctx.fillStyle = footerGrad;
+    ctx.fillRect(0, 1600, canvas.width, 800);
+
+    // 4. CABEÇALHO EDITORIAL DE REVISTA (Clean Magazine Header - ZERO SELOS OU MEDALHAS)
+    const getCleanMagazineHeader = (gen: string, prem: string) => {
+      const g = (gen + ' ' + prem).toLowerCase();
+      if (g.includes('investiga') || g.includes('crime') || g.includes('forense') || g.includes('misterio') || g.includes('thriller')) {
+        return 'THRILLER PSICOLÓGICO & SUSPENSE';
+      }
+      if (g.includes('terror') || g.includes('horror') || g.includes('fantasma') || g.includes('sombri')) {
+        return 'NARRATIVA OBSCURA DE SUSPENSE & TERROR';
+      }
+      if (g.includes('dinheiro') || g.includes('finan') || g.includes('patrimon') || g.includes('invest')) {
+        return 'FINANÇAS PESSOAIS & GESTÃO PATRIMONIAL';
+      }
+      if (g.includes('psicologia') || g.includes('habito') || g.includes('produtiv') || g.includes('desenvolvimento') || g.includes('alta performance')) {
+        return 'DESENVOLVIMENTO PESSOAL & ALTA PERFORMANCE';
+      }
+      if (g.includes('romance') || g.includes('amor') || g.includes('paixao')) {
+        return 'LITERATURA & FICÇÃO CONTEMPORÂNEA';
+      }
+      if (g.includes('ficcao') || g.includes('sci-fi') || g.includes('espaco')) {
+        return 'FICÇÃO CIENTÍFICA & NARRATIVA ESPECULATIVA';
+      }
+      return 'LITERATURA & ENSAIO CONTEMPORÂNEO';
+    };
+
+    const headerText = getCleanMagazineHeader(obraGenero, obraPremissa);
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = 'rgba(0,0,0,0.95)';
+    ctx.font = '600 24px "Montserrat", "Inter", -apple-system, sans-serif';
+    ctx.fillStyle = '#fde68a'; // Dourado suave editorial
+
+    // Espaçamento de caracteres elegante de revista
+    const spacedHeader = headerText.split('').join(' ');
+    ctx.fillText(spacedHeader, canvas.width / 2, 170);
+
+    // 5. TÍTULO DA OBRA COM DESIGN MODERNO DE REVISTA
+    let fontSizeTit = 106;
+    if (obraTitulo.length > 50) fontSizeTit = 74;
+    else if (obraTitulo.length > 32) fontSizeTit = 86;
+    else if (obraTitulo.length > 20) fontSizeTit = 96;
+
+    let fontFamilia = '"Montserrat", "Inter", -apple-system, sans-serif';
+    let fontPeso = '900';
+    if (tipoEstilo === 'luxury-serif') {
+      fontFamilia = '"Playfair Display", "Cinzel", Georgia, serif';
+      fontPeso = '800';
+    } else if (tipoEstilo === 'bold-impact') {
+      fontFamilia = '"Oswald", "Impact", "Arial Black", sans-serif';
+      fontPeso = '800';
+    }
+
+    ctx.font = `${fontPeso} ${fontSizeTit}px ${fontFamilia}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0,0,0,0.98)';
+    ctx.shadowBlur = 30;
+
+    const linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), canvas.width - 240);
+    const lineHTit = Math.round(fontSizeTit * 1.16);
+    const alturaTotalTit = linhasTitulo.length * lineHTit;
+
+    // Posiciona o centro do título perfeitamente dentro da Área Limpa (Y ≈ 1040)
+    let yTit = Math.round(1040 - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
+
+    linhasTitulo.forEach(l => {
+      ctx.strokeStyle = 'rgba(0,0,0,0.90)';
+      ctx.lineWidth = 8;
+      ctx.strokeText(l, canvas.width / 2, yTit);
+      ctx.fillText(l, canvas.width / 2, yTit);
+      yTit += lineHTit;
+    });
+
+    // Detalhe de acabamento: linha horizontal sutil minimalista abaixo do título
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fde68a';
+    ctx.fillRect((canvas.width / 2) - 45, yTit + 10, 90, 2);
+
+    // 6. SUBTÍTULO COMERCIAL MODERNO (Limpo, sem itálicos desajeitados)
+    if (obraSubtitulo) {
+      let fontSizeSub = 46;
+      if (obraSubtitulo.length > 90) fontSizeSub = 38;
+      else if (obraSubtitulo.length > 55) fontSizeSub = 42;
+
+      ctx.font = `500 ${fontSizeSub}px "Inter", "Montserrat", -apple-system, sans-serif`;
+      ctx.fillStyle = '#f8fafc';
+      ctx.shadowColor = 'rgba(0,0,0,0.95)';
+      ctx.shadowBlur = 18;
+
+      const linhasSub = quebrarLinhas(ctx, obraSubtitulo, canvas.width - 280);
+      const lineHSub = Math.round(fontSizeSub * 1.35);
+      const alturaTotalSub = linhasSub.length * lineHSub;
+
+      const yBaseSub = 2100;
+      let ySub = Math.max(1760, yBaseSub - alturaTotalSub + fontSizeSub);
+
+      linhasSub.forEach(l => {
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx.lineWidth = 5;
+        ctx.strokeText(l, canvas.width / 2, ySub);
+        ctx.fillText(l, canvas.width / 2, ySub);
+        ySub += lineHSub;
+      });
+    }
+
+    // 7. NOME DO AUTOR NO RODAPÉ (Caixa alta com letter-spacing de revista)
+    ctx.shadowBlur = 24;
+    ctx.shadowColor = 'rgba(0,0,0,0.98)';
+    ctx.font = '700 46px "Montserrat", "Inter", -apple-system, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    const spacedAutor = obraAutor.toUpperCase().split('').join(' ');
+    ctx.fillText(spacedAutor, canvas.width / 2, canvas.height - 140);
+
+    return canvas.toDataURL('image/png');
+  };
+
+  // REGENERAÇÃO DE CAPA DIRETO AO LADO DA CAPA (COM IA E NOVO CONCEITO VISUAL)
+  const handleGerarOutraCapa = async () => {
+    setIsRegeneratingCoverOnly(true);
+    setStatusMsg('🎨 Criando novo conceito de arte editorial para a capa...');
+    setStatusType('normal');
+    logDiag('Gerando novo conceito de capa diretamente pelo estúdio lateral');
+
+    try {
+      const obraTitulo = livro ? livro.titulo : titulo.trim() || 'Obra Editorial';
+      const obraSubtitulo = livro ? livro.subtitulo : subtitulo.trim();
+      const obraAutor = livro ? livro.autor : autor.trim() || 'Autor';
+      const obraGenero = livro ? livro.genero : genero || 'Geral';
+      const obraPremissa = topico.trim() || uniqueAngle || obraTitulo;
+      const trechoAmostra = livro?.capitulos?.slice(0, 3).map(c => c.texto).join(' ').slice(0, 1000) || obraPremissa;
+
+      // Monta o prompt cirúrgico anti-selo e de espaço negativo
+      const promptCapa = construirPromptArteCapa(obraGenero, obraPremissa, trechoAmostra, estiloArteVisual, customCoverPrompt);
+      const novaCapaUrl = await chamarImagen(promptCapa, '2:3');
+      setFundoImg(novaCapaUrl);
+
+      // Diagrama no canvas com a tipografia moderna e área limpa
+      const novaCapaFinal = await diagramarCapaCanvas(
+        novaCapaUrl,
+        obraTitulo,
+        obraSubtitulo,
+        obraAutor,
+        obraGenero,
+        obraPremissa,
+        estiloCapaTipo,
+        intensidadeZonaLimpa
+      );
+
+      setCapaFinal(novaCapaFinal);
+      if (livro) salvarProgressoLocal(livro, novaCapaFinal, novaCapaUrl, promoData || undefined);
+
+      setStatusMsg('✓ Nova capa diagramada com sucesso! Padrão revista internacional ativo.');
+      setStatusType('ok');
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg(`Erro ao gerar nova capa: ${err.message}`);
+      setStatusType('error');
+    } finally {
+      setIsRegeneratingCoverOnly(false);
+    }
+  };
+
+  // REAPLICAR TIPOGRAFIA & ÁREA LIMPA NA ARTE ATUAL (SEM GASTAR RECURSOS DE IA)
+  const handleReaplicarTipografia = async () => {
+    if (!fundoImg && !capaFinal) {
+      setStatusMsg('Gere uma capa primeiro antes de reaplicar o design.');
+      setStatusType('error');
+      return;
+    }
+    setIsReapplyingTypography(true);
+    try {
+      const obraTitulo = livro ? livro.titulo : titulo.trim() || 'Obra Editorial';
+      const obraSubtitulo = livro ? livro.subtitulo : subtitulo.trim();
+      const obraAutor = livro ? livro.autor : autor.trim() || 'Autor';
+      const obraGenero = livro ? livro.genero : genero || 'Geral';
+      const obraPremissa = topico.trim() || uniqueAngle || obraTitulo;
+
+      const imgFonte = fundoImg || capaFinal!;
+      const novaCapaFinal = await diagramarCapaCanvas(
+        imgFonte,
+        obraTitulo,
+        obraSubtitulo,
+        obraAutor,
+        obraGenero,
+        obraPremissa,
+        estiloCapaTipo,
+        intensidadeZonaLimpa
+      );
+
+      setCapaFinal(novaCapaFinal);
+      if (livro) salvarProgressoLocal(livro, novaCapaFinal, fundoImg || undefined, promoData || undefined);
+      setStatusMsg('✓ Estilo tipográfico e área limpa reaplicados com sucesso!');
+      setStatusType('ok');
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg(`Erro ao atualizar tipografia: ${err.message}`);
+      setStatusType('error');
+    } finally {
+      setIsReapplyingTypography(false);
+    }
+  };
+
   // GERAÇÃO AUTOMÁTICA DE: 1. CAPA + 2. IMAGEM PROMOCIONAL + 3. PÁGINA PROMOCIONAL
   const gerarCapaEPaginaPromocional = async () => {
     if (!livro && !titulo.trim()) {
@@ -1086,204 +1393,59 @@ ${ganchoImediato}`;
     logDiag('Iniciando geração da capa com motor FLUX (Replicate)');
 
     try {
-      // 1. ILUSTRAÇÃO DA CAPA (MOTOR EXCLUSIVO FLUX / REPLICATE)
-      const promptCapa = `Book cover background illustration, clean artwork, NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON, NO FAKE LABELS.
-Genre: ${obraGenero}
-Atmosphere: ${obraPremissa}
-Key Scene Hints: ${trechoAmostra}
-Style: cinematic, dramatic lighting, dark moody, high contrast, atmospheric fog, mysterious, fine art editorial composition, vertical 2:3 aspect ratio.`;
-
+      // 1. ILUSTRAÇÃO DA CAPA (MOTOR EXCLUSIVO FLUX / REPLICATE SEM SELOS)
+      const promptCapa = construirPromptArteCapa(obraGenero, obraPremissa, trechoAmostra, estiloArteVisual, customCoverPrompt);
       const capaImgUrl = await chamarImagen(promptCapa, '2:3');
       setFundoImg(capaImgUrl);
       logDiag('Ilustração de fundo da capa obtida com sucesso.');
 
-      // 2. DIAGRAMAÇÃO TIPOGRÁFICA DA CAPA VIA CANVAS (1600x2400)
-      setStatusMsg('🎨 2/3 Diagramando tipografia da capa em alta resolução...');
-      const canvas = document.createElement('canvas');
-      canvas.width = 1600;
-      canvas.height = 2400;
-      const ctx = canvas.getContext('2d');
+      // 2. DIAGRAMAÇÃO TIPOGRÁFICA DA CAPA VIA CANVAS (1600x2400) COM ÁREA LIMPA
+      setStatusMsg('🎨 2/3 Diagramando tipografia da capa em alta resolução (Clean Zone)...');
+      const capaFinalBase64 = await diagramarCapaCanvas(
+        capaImgUrl,
+        obraTitulo,
+        obraSubtitulo,
+        obraAutor,
+        obraGenero,
+        obraPremissa,
+        estiloCapaTipo,
+        intensidadeZonaLimpa
+      );
 
-      if (ctx) {
-        const img = await carregarElementoImagem(capaImgUrl);
-        // Corta os últimos 7% da base da imagem de fundo para eliminar 100% de marcas d'água ou logotipos externos
-        const srcW = img.naturalWidth || img.width || canvas.width;
-        const srcH = img.naturalHeight || img.height || canvas.height;
-        const cropH = Math.floor(srcH * 0.93);
-        ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
+      setCapaFinal(capaFinalBase64);
+      logDiag('Capa diagramada em 1600x2400 finalizada com design editorial limpo de revista.');
 
-        // Vinheta de gradiente superior suave para o selo/tag de gênero
-        const topGrad = ctx.createLinearGradient(0, 0, 0, 360);
-        topGrad.addColorStop(0, 'rgba(0,0,0,0.85)');
-        topGrad.addColorStop(0.7, 'rgba(0,0,0,0.4)');
-        topGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = topGrad;
-        ctx.fillRect(0, 0, canvas.width, 360);
+      // 3. GERAÇÃO AUTOMÁTICA DA IMAGEM PROMOCIONAL NARRATIVA + PÁGINA PROMOCIONAL
+      setStatusMsg('✨ 3/3 Gerando Imagem Narrativa e Página Promocional Automática...');
+      logDiag('Gerando imagem promocional narrativa e página promocional');
 
-        // Vinheta de gradiente central balanceada (garante contraste impecável do Título acima do meio sem escurecer toda a arte)
-        const midGrad = ctx.createLinearGradient(0, 720, 0, 1420);
-        midGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        midGrad.addColorStop(0.3, 'rgba(0,0,0,0.65)');
-        midGrad.addColorStop(0.7, 'rgba(0,0,0,0.65)');
-        midGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = midGrad;
-        ctx.fillRect(0, 720, canvas.width, 700);
+      const promoImg = await gerarImagemPromocionalNarrativa({
+        title: obraTitulo,
+        genre: obraGenero,
+        topic: obraPremissa,
+        chaptersSample: trechoAmostra
+      });
 
-        // Vinheta profunda sólida no rodapé (para o Subtítulo perto da base e o Nome do Autor)
-        const footerGrad = ctx.createLinearGradient(0, 1620, 0, canvas.height);
-        footerGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        footerGrad.addColorStop(0.28, 'rgba(0,0,0,0.78)');
-        footerGrad.addColorStop(0.75, 'rgba(5,7,10,0.92)');
-        footerGrad.addColorStop(1, '#05070a');
-        ctx.fillStyle = footerGrad;
-        ctx.fillRect(0, 1620, canvas.width, 780);
-
-        // 1. Tag de Gênero / Selo Editorial no topo (Clean e Profissional sem alegações de Best-Seller)
-        const isEnObra = Boolean((livro?.idioma || idioma) && /ingl|en/i.test(livro?.idioma || idioma));
-        const getGenreTag = (gen: string, prem: string) => {
-          const g = (gen + ' ' + prem).toLowerCase();
-          if (isEnObra) {
-            if (g.includes('investiga') || g.includes('crime') || g.includes('forense') || g.includes('policia') || g.includes('misterio') || g.includes('thriller')) {
-              return 'A PSYCHOLOGICAL THRILLER OF INVESTIGATION & SUSPENSE';
-            }
-            if (g.includes('terror') || g.includes('horror') || g.includes('fantasma') || g.includes('sombri')) {
-              return 'A CHILLING NOVEL OF DARK SUSPENSE & HORROR';
-            }
-            if (g.includes('psicologia') || g.includes('habito') || g.includes('produtiv') || g.includes('negocio') || g.includes('dinheiro') || g.includes('desenvolvimento')) {
-              return 'THE DEFINITIVE GUIDE • HIGH PERFORMANCE & MASTERY';
-            }
-            if (g.includes('romance') || g.includes('amor') || g.includes('paixao')) {
-              return 'A SWEEPING STORY OF LOVE, SECRETS & DESTINY';
-            }
-            if (g.includes('ficcao') || g.includes('sci-fi') || g.includes('espaco') || g.includes('futuro')) {
-              return 'AN EPIC WORK OF FICTION & MYSTERY';
-            }
-            return 'SPECIAL EDITION • KDP INDEPENDENT PUBLISHING';
-          }
-          if (g.includes('investiga') || g.includes('crime') || g.includes('forense') || g.includes('policia') || g.includes('misterio')) {
-            return 'UM THRILLER PSICOLÓGICO DE INVESTIGAÇÃO & SUSPENSE';
-          }
-          if (g.includes('terror') || g.includes('horror') || g.includes('fantasma') || g.includes('sombri')) {
-            return 'UMA NARRATIVA OBSCURA DE SUSPENSE & TERROR';
-          }
-          if (g.includes('psicologia') || g.includes('habito') || g.includes('produtiv') || g.includes('negocio') || g.includes('dinheiro') || g.includes('desenvolvimento')) {
-            return 'O GUIA DEFINITIVO • TRANSFORMAÇÃO & ALTA PERFORMANCE';
-          }
-          if (g.includes('romance') || g.includes('amor') || g.includes('paixao')) {
-            return 'UMA HISTÓRIA ARREBATADORA DE AMOR, SEGREDO & DESTINO';
-          }
-          if (g.includes('ficcao') || g.includes('sci-fi') || g.includes('espaco') || g.includes('futuro')) {
-            return 'UMA OBRA ÉPICA DE FICÇÃO & MISTÉRIO';
-          }
-          return 'EDIÇÃO ESPECIAL • PUBLICAÇÃO INDEPENDENTE KDP';
-        };
-
-        const tagGenero = getGenreTag(obraGenero, obraPremissa);
-        ctx.textAlign = 'center';
-        ctx.shadowBlur = 14;
-        ctx.shadowColor = 'rgba(0,0,0,0.95)';
-        ctx.font = 'bold 28px Georgia, serif';
-        ctx.fillStyle = '#fde68a'; // Dourado editorial suave
-        ctx.fillText(tagGenero, canvas.width / 2, 160);
-
-        // 2. Título da Obra (LIGEIRAMENTE UM POUCO ACIMA DO MEIO DA CAPA)
-        // Meio da capa: 1200px. Alvo do centro do título: Y ≈ 1040px.
-        let fontSizeTit = 104;
-        if (obraTitulo.length > 50) fontSizeTit = 72;
-        else if (obraTitulo.length > 30) fontSizeTit = 84;
-        else if (obraTitulo.length > 18) fontSizeTit = 94;
-
-        ctx.font = `bold ${fontSizeTit}px Georgia, serif`;
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = 'rgba(0,0,0,0.98)';
-        ctx.shadowBlur = 32;
-
-        const linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), canvas.width - 240);
-        const lineHTit = Math.round(fontSizeTit * 1.18);
-        const alturaTotalTit = linhasTitulo.length * lineHTit;
-
-        // Posiciona o bloco verticalmente para ficar ligeiramente um pouco acima do meio
-        let yTit = Math.round(1040 - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
-
-        linhasTitulo.forEach(l => {
-          ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-          ctx.lineWidth = 6;
-          ctx.strokeText(l, canvas.width / 2, yTit);
-          ctx.fillText(l, canvas.width / 2, yTit);
-          yTit += lineHTit;
-        });
-
-        // 3. Subtítulo Comercial (+10% MAIOR PARA VISIBILIDADE IMPECÁVEL NO KDP)
-        if (obraSubtitulo) {
-          let fontSizeSub = 50; // +10% maior (antes 44)
-          if (obraSubtitulo.length > 80) fontSizeSub = 40; // +10% maior (antes 36)
-          else if (obraSubtitulo.length > 50) fontSizeSub = 45; // +10% maior (antes 40)
-
-          ctx.font = `italic 600 ${fontSizeSub}px Georgia, serif`;
-          ctx.fillStyle = '#f8fafc';
-          ctx.shadowColor = 'rgba(0,0,0,0.95)';
-          ctx.shadowBlur = 18;
-
-          const linhasSub = quebrarLinhas(ctx, obraSubtitulo, canvas.width - 260);
-          const lineHSub = Math.round(fontSizeSub * 1.25);
-          const alturaTotalSub = linhasSub.length * lineHSub;
-
-          // Ancorado na parte de baixo da capa, terminando logo acima do autor (autor em 2250)
-          const yBaseSub = 2120;
-          let ySub = Math.max(1780, yBaseSub - alturaTotalSub + fontSizeSub);
-
-          linhasSub.forEach(l => {
-            ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-            ctx.lineWidth = 4;
-            ctx.strokeText(l, canvas.width / 2, ySub);
-            ctx.fillText(l, canvas.width / 2, ySub);
-            ySub += lineHSub;
-          });
-        }
-
-        // 4. Nome do Autor no Rodapé (Espaço reservado exclusivo com destaque)
-        ctx.shadowBlur = 24;
-        ctx.shadowColor = 'rgba(0,0,0,0.98)';
-        ctx.font = 'bold 56px Georgia, serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(obraAutor.toUpperCase(), canvas.width / 2, canvas.height - 150);
-
-        const capaFinalBase64 = canvas.toDataURL('image/png');
-        setCapaFinal(capaFinalBase64);
-        logDiag('Capa diagramada em 1600x2400 finalizada com design editorial limpo.');
-
-        // 3. GERAÇÃO AUTOMÁTICA DA IMAGEM PROMOCIONAL NARRATIVA + PÁGINA PROMOCIONAL
-        setStatusMsg('✨ 3/3 Gerando Imagem Narrativa e Página Promocional Automática...');
-        logDiag('Gerando imagem promocional narrativa e página promocional');
-
-        const promoImg = await gerarImagemPromocionalNarrativa({
+      const paginaPromocional = await gerarConteudoPaginaPromocional(
+        {
           title: obraTitulo,
+          subtitle: obraSubtitulo,
+          author: obraAutor,
           genre: obraGenero,
           topic: obraPremissa,
           chaptersSample: trechoAmostra
-        });
+        },
+        capaFinalBase64,
+        promoImg
+      );
 
-        const paginaPromocional = await gerarConteudoPaginaPromocional(
-          {
-            title: obraTitulo,
-            subtitle: obraSubtitulo,
-            author: obraAutor,
-            genre: obraGenero,
-            topic: obraPremissa,
-            chaptersSample: trechoAmostra
-          },
-          capaFinalBase64,
-          promoImg
-        );
+      setPromoData(paginaPromocional);
+      if (livro) salvarProgressoLocal(livro, capaFinalBase64, capaImgUrl, paginaPromocional);
 
-        setPromoData(paginaPromocional);
-        if (livro) salvarProgressoLocal(livro, capaFinalBase64, capaImgUrl, paginaPromocional);
-
-        setStatusMsg('✓ Capa e Página Promocional geradas com sucesso!');
-        setStatusType('ok');
-        setActiveTab('promo');
-        logDiag('Pipeline completo finalizado: Capa + Imagem Promocional + Página Promocional prontas!');
-      }
+      setStatusMsg('✓ Capa e Página Promocional geradas com sucesso!');
+      setStatusType('ok');
+      setActiveTab('capa');
+      logDiag('Pipeline completo finalizado: Capa + Imagem Promocional + Página Promocional prontas!');
     } catch (err: any) {
       console.error(err);
       setStatusMsg(`Erro na geração: ${err.message}`);
@@ -4272,45 +4434,343 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
 
-              {/* ABA 2: CAPA DO LIVRO */}
+              {/* ABA 2: CAPA DO LIVRO (ESTÚDIO PROFISSIONAL DE DIREÇÃO DE ARTE LADO A LADO) */}
               {activeTab === 'capa' && (
                 <div
                   style={{
-                    height: 540,
+                    height: 580,
                     overflowY: 'auto',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     background: '#f8fafc',
                     borderRadius: 8,
                     border: '1px solid #e2e8f0',
                     padding: 20
                   }}
                 >
-                  {capaFinal ? (
-                    <div style={{ textAlign: 'center' }}>
-                      <img
-                        src={capaFinal}
-                        alt="Capa do Livro"
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, alignItems: 'start' }}>
+                    {/* COLUNA ESQUERDA: VISUALIZAÇÃO REALISTA DA CAPA */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#ffffff', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                      {capaFinal ? (
+                        <div style={{ textAlign: 'center', width: '100%' }}>
+                          <div style={{ display: 'inline-block', position: 'relative' }}>
+                            <img
+                              src={capaFinal}
+                              alt="Capa do Livro"
+                              style={{
+                                maxHeight: 420,
+                                maxWidth: '100%',
+                                borderRadius: 6,
+                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.08)',
+                                display: 'block',
+                                margin: '0 auto'
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 4, border: '1px solid #a7f3d0' }}>
+                              ✓ 1600x2400 (300 DPI)
+                            </span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
+                              ✓ Sem Selos Artificiais
+                            </span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd6fe' }}>
+                              ✓ Área Limpa Ativa
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 16 }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = capaFinal;
+                                link.download = `${(titulo || 'capa-livro').toLowerCase().replace(/\s+/g, '-')}-capa-kdp.png`;
+                                link.click();
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '8px 14px',
+                                borderRadius: 6,
+                                background: '#0f172a',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                              }}
+                            >
+                              <Download size={14} /> Baixar PNG KDP
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const blob = await (await fetch(capaFinal)).blob();
+                                  await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                                  setStatusMsg('✓ Imagem da capa copiada para a área de transferência!');
+                                  setStatusType('ok');
+                                } catch (e) {
+                                  setStatusMsg('Não foi possível copiar automaticamente para a área de transferência.');
+                                }
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '8px 14px',
+                                borderRadius: 6,
+                                background: '#ffffff',
+                                color: '#334155',
+                                border: '1px solid #cbd5e1',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Copy size={14} /> Copiar Imagem
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '80px 20px', color: '#94a3b8' }}>
+                          <ImageIcon size={54} style={{ opacity: 0.3, marginBottom: 12 }} />
+                          <div style={{ fontWeight: 600, fontSize: 14, color: '#475569', marginBottom: 4 }}>
+                            Nenhuma capa gerada ainda
+                          </div>
+                          <p style={{ fontStyle: 'italic', fontSize: 12, maxWidth: 280, margin: '0 auto' }}>
+                            Utilize o painel ao lado para gerar sua primeira capa com estilo editorial moderno.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* COLUNA DIREITA: ESTÚDIO DE GERAÇÃO & DIREÇÃO DE ARTE AO LADO DA CAPA */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: '#ffffff', padding: 20, borderRadius: 8, border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <Palette size={18} color="#2563eb" />
+                          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                            Estúdio de Capa & Direção de Arte
+                          </h3>
+                        </div>
+                        <p style={{ fontSize: 12, color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+                          Gere novas variações de capa diretamente aqui com layout profissional de revistas internacionais, tipografia moderna e zero selos artificiais.
+                        </p>
+                      </div>
+
+                      {/* BOTÃO PRINCIPAL DE GERAÇÃO DIRETA */}
+                      <button
+                        type="button"
+                        onClick={handleGerarOutraCapa}
+                        disabled={isRegeneratingCoverOnly || isGeneratingSilhueta}
                         style={{
-                          maxHeight: 460,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          padding: '12px 18px',
                           borderRadius: 8,
-                          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
-                          border: '1px solid rgba(0,0,0,0.1)'
+                          background: isRegeneratingCoverOnly
+                            ? '#94a3b8'
+                            : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: isRegeneratingCoverOnly ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+                          transition: 'all 0.15s ease'
                         }}
-                      />
-                      <div style={{ marginTop: 12, fontSize: 13, color: '#64748b' }}>
-                        Capa 1600x2400 (Padrão Oficial Amazon KDP)
+                      >
+                        {isRegeneratingCoverOnly ? (
+                          <>
+                            <RefreshCw size={15} className="animate-spin" /> Gerando Novo Conceito com IA...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={15} /> ✨ Gerar Outra Capa com IA (Novo Conceito)
+                          </>
+                        )}
+                      </button>
+
+                      {/* SELEÇÃO DO ESTILO TIPOGRÁFICO MODERNO */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                          Estilo da Tipografia (Design de Revista):
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                          {[
+                            { id: 'modern-magazine', label: 'Moderno Revista', desc: 'Montserrat / Sans', sub: 'Clean & Equilibrado' },
+                            { id: 'luxury-serif', label: 'Luxo Editorial', desc: 'Playfair / Cinzel', sub: 'Clássico Premiado' },
+                            { id: 'bold-impact', label: 'Impacto Bold', desc: 'Oswald / Suíço', sub: 'Forte & Autoritário' }
+                          ].map((tipo) => {
+                            const isSelected = estiloCapaTipo === tipo.id;
+                            return (
+                              <button
+                                key={tipo.id}
+                                type="button"
+                                onClick={() => setEstiloCapaTipo(tipo.id as any)}
+                                style={{
+                                  padding: '8px 10px',
+                                  borderRadius: 6,
+                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  background: isSelected ? '#eff6ff' : '#ffffff',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#1d4ed8' : '#0f172a' }}>
+                                  {tipo.label}
+                                </div>
+                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                                  {tipo.desc}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* SELEÇÃO DO ESTILO VISUAL DA ARTE DE FUNDO */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                          Conceito Visual da Ilustração (IA):
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                          {[
+                            { id: 'minimalist', label: 'Minimalista & Espaço Aberto', desc: 'Ideal para destacar o título' },
+                            { id: 'cinematic', label: 'Cinematográfico Dramático', desc: 'Iluminação volumétrica e clima' },
+                            { id: 'concept', label: 'Fotografia Conceitual', desc: 'Estética de revista internacional' },
+                            { id: 'abstract', label: 'Abstrato Geométrico', desc: 'Formas arquitetônicas de prestígio' }
+                          ].map((estilo) => {
+                            const isSelected = estiloArteVisual === estilo.id;
+                            return (
+                              <button
+                                key={estilo.id}
+                                type="button"
+                                onClick={() => setEstiloArteVisual(estilo.id as any)}
+                                style={{
+                                  padding: '8px 10px',
+                                  borderRadius: 6,
+                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  background: isSelected ? '#eff6ff' : '#ffffff',
+                                  textAlign: 'left',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#1d4ed8' : '#0f172a' }}>
+                                  {estilo.label}
+                                </div>
+                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
+                                  {estilo.desc}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* CONTROLE DA ÁREA LIMPA DO TÍTULO (CLEAN CONTRAST ZONE) */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>
+                            Regra da Área Limpa do Título (Clean Zone):
+                          </label>
+                          <span style={{ fontSize: 10, color: '#059669', fontWeight: 600 }}>
+                            Contraste anti-ruído ativo
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                          {[
+                            { id: 'suave', label: 'Suave (60%)' },
+                            { id: 'media', label: 'Média (80%) ★' },
+                            { id: 'forte', label: 'Forte (92%)' }
+                          ].map((z) => {
+                            const isSelected = intensidadeZonaLimpa === z.id;
+                            return (
+                              <button
+                                key={z.id}
+                                type="button"
+                                onClick={() => setIntensidadeZonaLimpa(z.id as any)}
+                                style={{
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: isSelected ? '2px solid #059669' : '1px solid #cbd5e1',
+                                  background: isSelected ? '#ecfdf5' : '#ffffff',
+                                  fontSize: 11,
+                                  fontWeight: isSelected ? 700 : 500,
+                                  color: isSelected ? '#065f46' : '#334155',
+                                  cursor: 'pointer',
+                                  textAlign: 'center'
+                                }}
+                              >
+                                {z.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
+                          Garante que o título fique isolado sobre fundo escuro limpo, sem elementos da arte atrapalhando a leitura.
+                        </div>
+                      </div>
+
+                      {/* CAMPO DE DIRECIONAMENTO PERSONALIZADO DA ARTE */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                          Direcionamento Opcional da Arte (Palavras-chave):
+                        </label>
+                        <input
+                          type="text"
+                          value={customCoverPrompt}
+                          onChange={(e) => setCustomCoverPrompt(e.target.value)}
+                          placeholder="Ex: Tons esmeralda e dourado, arquitetura minimalista moderna..."
+                          style={{
+                            width: '100%',
+                            padding: '7px 10px',
+                            borderRadius: 6,
+                            border: '1px solid #cbd5e1',
+                            fontSize: 12
+                          }}
+                        />
+                      </div>
+
+                      {/* BOTÃO PARA REAPLICAR TIPOGRAFIA IMEDIATAMENTE NA IMAGEM ATUAL */}
+                      <div style={{ display: 'flex', gap: 10, paddingTop: 4, borderTop: '1px dashed #e2e8f0' }}>
+                        <button
+                          type="button"
+                          onClick={handleReaplicarTipografia}
+                          disabled={isReapplyingTypography || (!fundoImg && !capaFinal)}
+                          style={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            background: '#f1f5f9',
+                            color: '#1e293b',
+                            border: '1px solid #cbd5e1',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: (!fundoImg && !capaFinal) || isReapplyingTypography ? 'not-allowed' : 'pointer'
+                          }}
+                          title="Troca o estilo da fonte ou ajusta a área limpa na imagem existente instantaneamente"
+                        >
+                          <Palette size={13} /> {isReapplyingTypography ? 'Reaplicando...' : 'Reaplicar Tipografia & Área Limpa'}
+                        </button>
+                      </div>
+
+                      {/* DIRETRIZES ATIVAS */}
+                      <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', lineHeight: 1.4 }}>
+                        🛡️ <strong>Diretriz de Design:</strong> Todas as capas são geradas sem medalhas ou carimbos para máxima autoridade comercial, com área desobstruída dedicada ao título.
                       </div>
                     </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', color: '#94a3b8' }}>
-                      <ImageIcon size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-                      <p style={{ fontStyle: 'italic', fontSize: '0.95rem' }}>
-                        Clique em "🎨 Gerar Capa & Página Promocional" para gerar a arte de alta resolução.
-                      </p>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
 

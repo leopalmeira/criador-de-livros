@@ -288,6 +288,9 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
+  object-position: top center;
+  /* Elimina 100% de marcas d'água residuais de provedores externos no rodapé */
+  clip-path: inset(0 0 5% 0);
   display: block;
   transition: transform 0.6s ease;
 }
