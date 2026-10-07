@@ -306,26 +306,6 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
           {/* COLUNA 1: APRESENTAÇÃO, 6 RECURSOS & BOX DE PREÇOS             */}
           {/* -------------------------------------------------------------- */}
           <div>
-            {/* BADGE PLATAFORMA COMPLETA */}
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(2, 132, 199, 0.15)',
-              border: '1px solid rgba(56, 189, 248, 0.4)',
-              borderRadius: 20,
-              padding: '6px 14px',
-              fontSize: 11,
-              fontWeight: 800,
-              color: '#38bdf8',
-              letterSpacing: '0.8px',
-              marginBottom: 16,
-              textTransform: 'uppercase'
-            }}>
-              <Zap size={14} color="#facc15" fill="#facc15" />
-              <span>{t('landing.badgePlatform')}</span>
-            </div>
-
             {/* HEADLINE PRINCIPAL */}
             <h1 style={{
               margin: '0 0 14px 0',
@@ -720,167 +700,77 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             <div style={{
               position: 'absolute',
               top: 15,
-              right: 25,
-              width: 175,
-              height: 250,
-              borderRadius: 6,
-              background: 'linear-gradient(135deg, #1c1917, #0c0a09)',
-              border: '1.5px solid rgba(255, 255, 255, 0.2)',
-              boxShadow: '-15px 20px 35px rgba(0, 0, 0, 0.9), 0 0 20px rgba(14, 165, 233, 0.3)',
-              transform: 'rotate(8deg) perspective(600px) rotateY(-10deg)',
+              right: 20,
+              width: 180,
+              height: 265,
+              borderRadius: 8,
+              boxShadow: '-18px 24px 38px rgba(0, 0, 0, 0.95), 0 0 25px rgba(14, 165, 233, 0.35)',
+              transform: 'rotate(7deg) perspective(800px) rotateY(-8deg)',
               overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              padding: '16px 12px',
-              textAlign: 'center'
-            }}>
-              <div style={{
-                fontSize: 16,
-                fontWeight: 900,
-                color: '#ffffff',
-                letterSpacing: '1px',
-                lineHeight: 1.15,
-                textTransform: 'uppercase'
-              }}>
-                O ÚLTIMO<br />SEGREDO
-              </div>
-              <div style={{ fontSize: 9, color: '#f59e0b', letterSpacing: '1.2px', textTransform: 'uppercase', fontWeight: 700 }}>
-                UM THRILLER DE SUSPENSE
-              </div>
-              {/* Ilustração silhueta floresta com cabana */}
-              <div style={{
-                height: 110,
-                background: 'radial-gradient(circle at 50% 80%, #78350f 0%, #1c1917 70%)',
-                borderRadius: 4,
-                display: 'flex',
-                alignItems: 'flex-end',
-                justifyContent: 'center',
-                paddingBottom: 6,
-                boxShadow: 'inset 0 0 10px rgba(0,0,0,0.8)'
-              }}>
-                <div style={{ fontSize: 24 }}>🏚️🌲</div>
-              </div>
-              <div style={{ fontSize: 8, color: '#78716c', letterSpacing: '1px' }}>
-                EDIÇÃO AMAZON KDP
-              </div>
+              border: '1.5px solid rgba(255, 255, 255, 0.25)',
+              background: '#090d16',
+              transition: 'transform 0.3s ease',
+              cursor: 'pointer'
+            }}
+            title="O Último Segredo — Thriller de Suspense (Capa Oficial Amazon KDP)"
+            >
+              <img
+                src="/covers/o-ultimo-segredo.jpg"
+                alt="O Último Segredo - Um Thriller de Suspense"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
             </div>
 
             {/* LIVRO 2: DINOSSAUROS PARA COLORIR (CENTRO, VIBRANTE) */}
             <div style={{
               position: 'absolute',
-              top: 160,
-              left: 10,
-              width: 180,
-              height: 250,
-              borderRadius: 6,
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-              border: '1.5px solid rgba(255, 255, 255, 0.3)',
-              boxShadow: '15px 25px 40px rgba(0, 0, 0, 0.85), 0 0 25px rgba(56, 189, 248, 0.35)',
-              transform: 'rotate(-6deg) perspective(600px) rotateY(8deg)',
+              top: 155,
+              left: 5,
+              width: 188,
+              height: 278,
+              borderRadius: 8,
+              boxShadow: '18px 26px 42px rgba(0, 0, 0, 0.9), 0 0 30px rgba(56, 189, 248, 0.4)',
+              transform: 'rotate(-6deg) perspective(800px) rotateY(8deg)',
               overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              padding: '14px 10px',
-              textAlign: 'center',
-              zIndex: 3
-            }}>
-              <div style={{
-                fontSize: 15,
-                fontWeight: 900,
-                color: '#facc15',
-                textShadow: '0 2px 4px rgba(0,0,0,0.6)',
-                letterSpacing: '0.5px',
-                lineHeight: 1.15
-              }}>
-                DINOSSAUROS<br />
-                <span style={{ color: '#ffffff' }}>PARA COLORIR</span>
-              </div>
-              <div style={{
-                height: 125,
-                background: 'linear-gradient(180deg, #38bdf8 0%, #16a34a 100%)',
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: 'inset 0 0 8px rgba(0,0,0,0.3)'
-              }}>
-                <div style={{ fontSize: 50, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.4))' }}>
-                  🦖
-                </div>
-              </div>
-              <div style={{ fontSize: 8, color: '#e0f2fe', fontWeight: 700, letterSpacing: '0.5px' }}>
-                50 ILUSTRAÇÕES EXCLUSIVAS
-              </div>
+              border: '1.5px solid rgba(255, 255, 255, 0.35)',
+              background: '#090d16',
+              zIndex: 3,
+              transition: 'transform 0.3s ease',
+              cursor: 'pointer'
+            }}
+            title="Dinossauros para Colorir (Capa Oficial Amazon KDP)"
+            >
+              <img
+                src="/covers/dinossauros-para-colorir.jpg"
+                alt="Dinossauros para Colorir"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
             </div>
 
             {/* LIVRO 3: SUDOKU DESAFIO (FRENTE / BAIXO) */}
             <div style={{
               position: 'absolute',
               bottom: 10,
-              right: 15,
-              width: 165,
-              height: 235,
-              borderRadius: 6,
-              background: '#09090b',
-              border: '1.5px solid rgba(255, 255, 255, 0.25)',
-              boxShadow: '0 25px 45px rgba(0, 0, 0, 0.9), 0 0 20px rgba(14, 165, 233, 0.25)',
-              transform: 'rotate(5deg) perspective(600px)',
+              right: 12,
+              width: 172,
+              height: 256,
+              borderRadius: 8,
+              boxShadow: '0 25px 45px rgba(0, 0, 0, 0.95), 0 0 25px rgba(14, 165, 233, 0.3)',
+              transform: 'rotate(5deg) perspective(800px)',
               overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              padding: '14px 10px',
-              textAlign: 'center',
-              zIndex: 4
-            }}>
-              <div style={{
-                fontSize: 16,
-                fontWeight: 900,
-                color: '#facc15',
-                letterSpacing: '1px',
-                lineHeight: 1.1
-              }}>
-                SUDOKU<br />
-                <span style={{ color: '#ffffff' }}>DESAFIO</span>
-              </div>
-
-              {/* Grid 4x4 ilustrativo do Sudoku */}
-              <div style={{
-                margin: '6px auto',
-                width: 110,
-                height: 110,
-                background: '#ffffff',
-                borderRadius: 4,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                border: '1.5px solid #000000',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
-              }}>
-                {[
-                  '1', '7', '3', '2',
-                  '2', '8', '5', '3',
-                  '4', '2', '2', '5',
-                  '6', '0', '8', '4'
-                ].map((n, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color: '#000000',
-                    border: '0.5px solid #cbd5e1'
-                  }}>
-                    {n}
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ fontSize: 8, color: '#a1a1aa', fontWeight: 600 }}>
-                200 ENIGMAS COM RESPOSTAS
-              </div>
+              border: '1.5px solid rgba(255, 255, 255, 0.3)',
+              background: '#090d16',
+              zIndex: 4,
+              transition: 'transform 0.3s ease',
+              cursor: 'pointer'
+            }}
+            title="Sudoku Desafio (Capa Oficial Amazon KDP)"
+            >
+              <img
+                src="/covers/sudoku-desafio.jpg"
+                alt="Sudoku Desafio"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
             </div>
           </div>
 
