@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   BookOpen, Sparkles, Plus, Download, Copy, Save, Eye,
   Play, Square, RefreshCw, Trash2, ArrowLeft, Check, Layers,
-  Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight,
+  Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight, ChevronLeft,
   ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2,
-  Award, Palette, Edit3
+  Award, Palette, Edit3, Star
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -70,6 +70,15 @@ interface LivroGerado {
     palavrasPorCap: number;
     paginasAlvo: number;
   };
+}
+
+export interface ItemHistoricoCapa {
+  id: string;
+  dataUrl: string;
+  fundoUrl?: string;
+  timestamp: number;
+  estilo?: 'modern-magazine' | 'luxury-serif' | 'bold-impact';
+  conceito?: string;
 }
 
 interface Props {
@@ -140,6 +149,10 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [customCoverPrompt, setCustomCoverPrompt] = useState('');
   const [isRegeneratingCoverOnly, setIsRegeneratingCoverOnly] = useState(false);
   const [isReapplyingTypography, setIsReapplyingTypography] = useState(false);
+
+  // Histórico de Capas Geradas para o Carrossel e Escolha Visual
+  const [historicoCapas, setHistoricoCapas] = useState<ItemHistoricoCapa[]>([]);
+  const [indiceCapaCarrossel, setIndiceCapaCarrossel] = useState<number>(0);
 
   // Status e controle do pipeline
   const [gerando, setGerando] = useState(false);
@@ -245,6 +258,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setCapaFinal(null);
       setFundoImg(null);
       setPromoData(null);
+      setHistoricoCapas([]);
+      setIndiceCapaCarrossel(0);
       setCapAtual(0);
       setTotalCaps(0);
       setStatusMsg('Pronto para iniciar novo livro em branco.');
@@ -264,6 +279,15 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setFormato(initialProject.trimSize || '6x9');
       setCapaFinal(initialProject.coverImageUrl || null);
       setPromoData(initialProject.promotionalPage || null);
+      if (initialProject.coverImageUrl) {
+        setHistoricoCapas([{
+          id: 'capa_inicial_proj',
+          dataUrl: initialProject.coverImageUrl,
+          timestamp: Date.now(),
+          estilo: 'modern-magazine'
+        }]);
+        setIndiceCapaCarrossel(0);
+      }
 
       if (initialProject.kdpChapters && initialProject.kdpChapters.length > 0) {
         const caps: Capitulo[] = initialProject.kdpChapters.map(c => ({
@@ -301,6 +325,11 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       const salvo = initialProject ? localStorage.getItem(storageKeyFor(initialProject.id)) : null;
       if (salvo) {
         const p = JSON.parse(salvo);
+        if (p?.historicoCapas && Array.isArray(p.historicoCapas) && p.historicoCapas.length > 0) {
+          setHistoricoCapas(p.historicoCapas);
+          const idx = p.historicoCapas.findIndex((c: any) => c.dataUrl === p.capaFinal);
+          setIndiceCapaCarrossel(idx >= 0 ? idx : 0);
+        }
         if (p?.livro?.capitulos?.length > 0) {
           setLivro(p.livro);
           setCapaFinal(p.capaFinal || null);
@@ -338,12 +367,14 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   }, [initialProject, isNewProject]);
 
   // Salvar no localStorage e sincronizar automaticamente no IndexedDB
-  const salvarProgressoLocal = async (novoLivro: LivroGerado, capa?: string, fundo?: string, promo?: BookPromotionalPageData) => {
+  const salvarProgressoLocal = async (novoLivro: LivroGerado, capa?: string, fundo?: string, promo?: BookPromotionalPageData, novoHistorico?: ItemHistoricoCapa[]) => {
+    const historicoParaSalvar = novoHistorico !== undefined ? novoHistorico : historicoCapas;
     const payload = {
       livro: novoLivro,
       capaFinal: capa !== undefined ? capa : capaFinal,
       fundoImg: fundo !== undefined ? fundo : fundoImg,
       promoData: promo !== undefined ? promo : promoData,
+      historicoCapas: historicoParaSalvar.slice(0, 20),
       totalCaps,
       capAtual: novoLivro.capitulos.length,
       config: {
@@ -1287,6 +1318,73 @@ CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO
     return canvas.toDataURL('image/png');
   };
 
+  // SINCRONIZAÇÃO: Garante que a capa ativa atual esteja sempre presente no histórico do carrossel
+  useEffect(() => {
+    if (capaFinal) {
+      setHistoricoCapas(prev => {
+        const jaExiste = prev.some(c => c.dataUrl === capaFinal);
+        if (!jaExiste) {
+          return [{
+            id: `capa_sync_${Date.now()}`,
+            dataUrl: capaFinal,
+            fundoUrl: fundoImg || undefined,
+            timestamp: Date.now(),
+            estilo: estiloCapaTipo,
+            conceito: estiloArteVisual
+          }, ...prev];
+        }
+        return prev;
+      });
+    }
+  }, [capaFinal]);
+
+  // CONTROLES DO CARROSSEL DE CAPAS
+  const handleCapaAnterior = () => {
+    if (historicoCapas.length <= 1) return;
+    setIndiceCapaCarrossel(prev => (prev > 0 ? prev - 1 : historicoCapas.length - 1));
+  };
+
+  const handleCapaProxima = () => {
+    if (historicoCapas.length <= 1) return;
+    setIndiceCapaCarrossel(prev => (prev < historicoCapas.length - 1 ? prev + 1 : 0));
+  };
+
+  const handleSelecionarCapaCarrossel = (index: number) => {
+    setIndiceCapaCarrossel(index);
+  };
+
+  const handleDefinirComoCapaAtiva = (item: ItemHistoricoCapa) => {
+    setCapaFinal(item.dataUrl);
+    if (item.fundoUrl) setFundoImg(item.fundoUrl);
+    if (livro) {
+      salvarProgressoLocal(livro, item.dataUrl, item.fundoUrl, promoData || undefined);
+    }
+    setStatusMsg('✓ Esta variação foi selecionada e ativada como a capa oficial do livro!');
+    setStatusType('ok');
+  };
+
+  const handleExcluirCapaDoHistorico = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (historicoCapas.length <= 1) {
+      setStatusMsg('O livro precisa manter ao menos 1 capa.');
+      setStatusType('normal');
+      return;
+    }
+    const itemExcluido = historicoCapas.find(c => c.id === id);
+    const novaLista = historicoCapas.filter(c => c.id !== id);
+    setHistoricoCapas(novaLista);
+    setIndiceCapaCarrossel(prev => Math.min(prev, Math.max(0, novaLista.length - 1)));
+    if (itemExcluido && itemExcluido.dataUrl === capaFinal && novaLista.length > 0) {
+      setCapaFinal(novaLista[0].dataUrl);
+      if (novaLista[0].fundoUrl) setFundoImg(novaLista[0].fundoUrl);
+      if (livro) salvarProgressoLocal(livro, novaLista[0].dataUrl, novaLista[0].fundoUrl, promoData || undefined, novaLista);
+    } else if (livro) {
+      salvarProgressoLocal(livro, capaFinal || undefined, fundoImg || undefined, promoData || undefined, novaLista);
+    }
+    setStatusMsg('Variação de capa descartada do carrossel.');
+    setStatusType('normal');
+  };
+
   // REGENERAÇÃO DE CAPA DIRETO AO LADO DA CAPA (COM IA E NOVO CONCEITO VISUAL)
   const handleGerarOutraCapa = async () => {
     setIsRegeneratingCoverOnly(true);
@@ -1319,10 +1417,22 @@ CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO
         intensidadeZonaLimpa
       );
 
+      const novoItem: ItemHistoricoCapa = {
+        id: `capa_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        dataUrl: novaCapaFinal,
+        fundoUrl: novaCapaUrl,
+        timestamp: Date.now(),
+        estilo: estiloCapaTipo,
+        conceito: estiloArteVisual
+      };
+      const novoHistorico = [novoItem, ...historicoCapas.filter(c => c.dataUrl !== novaCapaFinal)];
+      setHistoricoCapas(novoHistorico);
+      setIndiceCapaCarrossel(0);
       setCapaFinal(novaCapaFinal);
-      if (livro) salvarProgressoLocal(livro, novaCapaFinal, novaCapaUrl, promoData || undefined);
 
-      setStatusMsg('✓ Nova capa diagramada com sucesso! Padrão revista internacional ativo.');
+      if (livro) salvarProgressoLocal(livro, novaCapaFinal, novaCapaUrl, promoData || undefined, novoHistorico);
+
+      setStatusMsg('✓ Nova capa diagramada com sucesso! Adicionada ao seu carrossel de capas.');
       setStatusType('ok');
     } catch (err: any) {
       console.error(err);
@@ -1360,9 +1470,21 @@ CRITICAL DIRECTIVES: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, NO
         intensidadeZonaLimpa
       );
 
+      const novoItem: ItemHistoricoCapa = {
+        id: `capa_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        dataUrl: novaCapaFinal,
+        fundoUrl: fundoImg || undefined,
+        timestamp: Date.now(),
+        estilo: estiloCapaTipo,
+        conceito: estiloArteVisual
+      };
+      const novoHistorico = [novoItem, ...historicoCapas.filter(c => c.dataUrl !== novaCapaFinal)];
+      setHistoricoCapas(novoHistorico);
+      setIndiceCapaCarrossel(0);
       setCapaFinal(novaCapaFinal);
-      if (livro) salvarProgressoLocal(livro, novaCapaFinal, fundoImg || undefined, promoData || undefined);
-      setStatusMsg('✓ Estilo tipográfico e área limpa reaplicados com sucesso!');
+
+      if (livro) salvarProgressoLocal(livro, novaCapaFinal, fundoImg || undefined, promoData || undefined, novoHistorico);
+      setStatusMsg('✓ Estilo tipográfico e área limpa reaplicados! Nova variação adicionada ao carrossel.');
       setStatusType('ok');
     } catch (err: any) {
       console.error(err);
@@ -4447,105 +4569,385 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   }}
                 >
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, alignItems: 'start' }}>
-                    {/* COLUNA ESQUERDA: VISUALIZAÇÃO REALISTA DA CAPA */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#ffffff', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                      {capaFinal ? (
-                        <div style={{ textAlign: 'center', width: '100%' }}>
-                          <div style={{ display: 'inline-block', position: 'relative' }}>
-                            <img
-                              src={capaFinal}
-                              alt="Capa do Livro"
-                              style={{
-                                maxHeight: 420,
-                                maxWidth: '100%',
-                                borderRadius: 6,
-                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.08)',
-                                display: 'block',
-                                margin: '0 auto'
-                              }}
-                            />
-                          </div>
+                    {/* COLUNA ESQUERDA: CARROSSEL DE CAPAS GERADAS COM NAVEGAÇÃO LATERAL E SELETOR */}
+                    {(() => {
+                      const capaEmExibicao = historicoCapas[indiceCapaCarrossel] || (capaFinal ? { id: 'ativa_fallback', dataUrl: capaFinal, timestamp: Date.now() } : null);
+                      const isCapaAtiva = capaEmExibicao ? capaEmExibicao.dataUrl === capaFinal : false;
 
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 4, border: '1px solid #a7f3d0' }}>
-                              ✓ 1600x2400 (300 DPI)
-                            </span>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
-                              ✓ Sem Selos Artificiais
-                            </span>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd6fe' }}>
-                              ✓ Área Limpa Ativa
-                            </span>
-                          </div>
-
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 16 }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = capaFinal;
-                                link.download = `${(titulo || 'capa-livro').toLowerCase().replace(/\s+/g, '-')}-capa-kdp.png`;
-                                link.click();
-                              }}
-                              style={{
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#ffffff', padding: 20, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', position: 'relative' }}>
+                          {capaEmExibicao ? (
+                            <div style={{ textAlign: 'center', width: '100%' }}>
+                              {/* CABEÇALHO DO CARROSSEL: CONTADOR E STATUS DA CAPA */}
+                              <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 6,
-                                padding: '8px 14px',
-                                borderRadius: 6,
-                                background: '#0f172a',
-                                color: '#ffffff',
-                                border: 'none',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                              }}
-                            >
-                              <Download size={14} /> Baixar PNG KDP
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  const blob = await (await fetch(capaFinal)).blob();
-                                  await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-                                  setStatusMsg('✓ Imagem da capa copiada para a área de transferência!');
-                                  setStatusType('ok');
-                                } catch (e) {
-                                  setStatusMsg('Não foi possível copiar automaticamente para a área de transferência.');
-                                }
-                              }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                padding: '8px 14px',
-                                borderRadius: 6,
-                                background: '#ffffff',
-                                color: '#334155',
-                                border: '1px solid #cbd5e1',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <Copy size={14} /> Copiar Imagem
-                            </button>
-                          </div>
+                                justifyContent: 'space-between',
+                                marginBottom: 12,
+                                paddingBottom: 10,
+                                borderBottom: '1px solid #f1f5f9',
+                                gap: 8,
+                                flexWrap: 'wrap'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <Palette size={15} color="#2563eb" />
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                                    Galeria de Capas
+                                  </span>
+                                  <span style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: '#2563eb',
+                                    background: '#eff6ff',
+                                    padding: '2px 8px',
+                                    borderRadius: 12,
+                                    border: '1px solid #bfdbfe'
+                                  }}>
+                                    {indiceCapaCarrossel + 1} de {Math.max(1, historicoCapas.length)}
+                                  </span>
+                                </div>
+
+                                {/* STATUS / BOTÃO PARA ESCOLHER CAPA */}
+                                {isCapaAtiva ? (
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    color: '#059669',
+                                    background: '#ecfdf5',
+                                    padding: '3px 10px',
+                                    borderRadius: 999,
+                                    border: '1px solid #a7f3d0'
+                                  }}>
+                                    <Check size={12} /> Capa Ativa do Livro
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDefinirComoCapaAtiva(capaEmExibicao)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      color: '#ffffff',
+                                      background: '#2563eb',
+                                      padding: '4px 12px',
+                                      borderRadius: 6,
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                    title="Definir esta variação como a capa oficial do livro"
+                                  >
+                                    <Star size={12} /> Escolher Esta Capa
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* ÁREA DA CAPA GRANDE COM OS BOTÕES DE NAVEGAÇÃO LATERAL (SETAS / PLAY DE CADA LADO) */}
+                              <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+                                <img
+                                  src={capaEmExibicao.dataUrl}
+                                  alt={`Capa variação ${indiceCapaCarrossel + 1}`}
+                                  style={{
+                                    maxHeight: 410,
+                                    maxWidth: '100%',
+                                    borderRadius: 8,
+                                    boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.08)',
+                                    display: 'block',
+                                    margin: '0 auto',
+                                    transition: 'all 0.2s ease'
+                                  }}
+                                />
+
+                                {/* BOTÃO NAVEGAÇÃO ESQUERDA (SETA / "PLAY" ESQUERDO) */}
+                                {historicoCapas.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={handleCapaAnterior}
+                                    style={{
+                                      position: 'absolute',
+                                      left: -16,
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      width: 38,
+                                      height: 38,
+                                      borderRadius: '50%',
+                                      background: 'rgba(15, 23, 42, 0.88)',
+                                      color: '#ffffff',
+                                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                                      backdropFilter: 'blur(8px)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
+                                      transition: 'all 0.15s ease',
+                                      zIndex: 10
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(15, 23, 42, 0.88)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
+                                    title="Ver capa anterior (◀)"
+                                  >
+                                    <ChevronLeft size={20} />
+                                  </button>
+                                )}
+
+                                {/* BOTÃO NAVEGAÇÃO DIREITA (SETA / "PLAY" DIREITO) */}
+                                {historicoCapas.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={handleCapaProxima}
+                                    style={{
+                                      position: 'absolute',
+                                      right: -16,
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      width: 38,
+                                      height: 38,
+                                      borderRadius: '50%',
+                                      background: 'rgba(15, 23, 42, 0.88)',
+                                      color: '#ffffff',
+                                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                                      backdropFilter: 'blur(8px)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
+                                      transition: 'all 0.15s ease',
+                                      zIndex: 10
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(15, 23, 42, 0.88)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
+                                    title="Ver próxima capa (▶)"
+                                  >
+                                    <ChevronRight size={20} />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* CARROSSEL HORIZONTAL DE MINIATURAS (THUMBNAILS STRIP) */}
+                              {historicoCapas.length > 1 && (
+                                <div style={{ marginTop: 14 }}>
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 10,
+                                    overflowX: 'auto',
+                                    padding: '6px 4px',
+                                    maxWidth: '100%'
+                                  }}>
+                                    {historicoCapas.map((item, idx) => {
+                                      const isSelected = idx === indiceCapaCarrossel;
+                                      const isAtiva = item.dataUrl === capaFinal;
+                                      return (
+                                        <div
+                                          key={item.id}
+                                          onClick={() => handleSelecionarCapaCarrossel(idx)}
+                                          style={{
+                                            position: 'relative',
+                                            cursor: 'pointer',
+                                            borderRadius: 6,
+                                            padding: 2,
+                                            border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                            background: isSelected ? '#eff6ff' : '#ffffff',
+                                            boxShadow: isSelected ? '0 0 0 2px rgba(37, 99, 235, 0.25)' : 'none',
+                                            transition: 'all 0.15s ease',
+                                            flexShrink: 0
+                                          }}
+                                          title={`Capa ${idx + 1}${isAtiva ? ' (Ativa)' : ''}`}
+                                        >
+                                          <img
+                                            src={item.dataUrl}
+                                            alt={`Miniatura ${idx + 1}`}
+                                            style={{
+                                              width: 48,
+                                              height: 72,
+                                              objectFit: 'cover',
+                                              borderRadius: 4,
+                                              display: 'block'
+                                            }}
+                                          />
+                                          {isAtiva && (
+                                            <span style={{
+                                              position: 'absolute',
+                                              top: 4,
+                                              right: 4,
+                                              background: '#10b981',
+                                              color: '#ffffff',
+                                              borderRadius: '50%',
+                                              width: 14,
+                                              height: 14,
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              fontSize: 9,
+                                              fontWeight: 800,
+                                              boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                                            }}>
+                                              ✓
+                                            </span>
+                                          )}
+                                          <span style={{
+                                            position: 'absolute',
+                                            bottom: 3,
+                                            left: '50%',
+                                            transform: 'translateX(-50%)',
+                                            background: isSelected ? '#2563eb' : 'rgba(15, 23, 42, 0.75)',
+                                            color: '#ffffff',
+                                            fontSize: 9,
+                                            fontWeight: 700,
+                                            padding: '1px 5px',
+                                            borderRadius: 4,
+                                            whiteSpace: 'nowrap'
+                                          }}>
+                                            #{idx + 1}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* BADGES TÉCNICOS KDP */}
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 4, border: '1px solid #a7f3d0' }}>
+                                  ✓ 1600x2400 (300 DPI)
+                                </span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
+                                  ✓ Sem Selos Artificiais
+                                </span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd6fe' }}>
+                                  ✓ Área Limpa Ativa
+                                </span>
+                              </div>
+
+                              {/* BOTÕES DE AÇÃO: DEFINIR COMO ATIVA, BAIXAR PNG, COPIAR E EXCLUIR */}
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+                                {!isCapaAtiva && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDefinirComoCapaAtiva(capaEmExibicao)}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      padding: '8px 14px',
+                                      borderRadius: 6,
+                                      background: '#059669',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)'
+                                    }}
+                                  >
+                                    <Check size={14} /> Ativar Esta Capa no Livro
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const link = document.createElement('a');
+                                    link.href = capaEmExibicao.dataUrl;
+                                    link.download = `${(titulo || 'capa-livro').toLowerCase().replace(/\s+/g, '-')}-var${indiceCapaCarrossel + 1}.png`;
+                                    link.click();
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '8px 14px',
+                                    borderRadius: 6,
+                                    background: '#0f172a',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                  }}
+                                >
+                                  <Download size={14} /> Baixar PNG KDP
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const blob = await (await fetch(capaEmExibicao.dataUrl)).blob();
+                                      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                                      setStatusMsg('✓ Imagem copiada para a área de transferência!');
+                                      setStatusType('ok');
+                                    } catch (e) {
+                                      setStatusMsg('Não foi possível copiar automaticamente para a área de transferência.');
+                                    }
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '8px 14px',
+                                    borderRadius: 6,
+                                    background: '#ffffff',
+                                    color: '#334155',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Copy size={14} /> Copiar Imagem
+                                </button>
+
+                                {historicoCapas.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleExcluirCapaDoHistorico(capaEmExibicao.id, e)}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                      padding: '8px 12px',
+                                      borderRadius: 6,
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      border: '1px solid #fecaca',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer'
+                                    }}
+                                    title="Descartar esta variação de capa do carrossel"
+                                  >
+                                    <Trash2 size={13} /> Descartar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', padding: '80px 20px', color: '#94a3b8' }}>
+                              <ImageIcon size={54} style={{ opacity: 0.3, marginBottom: 12 }} />
+                              <div style={{ fontWeight: 600, fontSize: 14, color: '#475569', marginBottom: 4 }}>
+                                Nenhuma capa gerada ainda
+                              </div>
+                              <p style={{ fontStyle: 'italic', fontSize: 12, maxWidth: 280, margin: '0 auto' }}>
+                                Utilize o painel ao lado para gerar sua primeira capa com estilo editorial moderno.
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div style={{ textAlign: 'center', padding: '80px 20px', color: '#94a3b8' }}>
-                          <ImageIcon size={54} style={{ opacity: 0.3, marginBottom: 12 }} />
-                          <div style={{ fontWeight: 600, fontSize: 14, color: '#475569', marginBottom: 4 }}>
-                            Nenhuma capa gerada ainda
-                          </div>
-                          <p style={{ fontStyle: 'italic', fontSize: 12, maxWidth: 280, margin: '0 auto' }}>
-                            Utilize o painel ao lado para gerar sua primeira capa com estilo editorial moderno.
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                      );
+                    })()}
 
                     {/* COLUNA DIREITA: ESTÚDIO DE GERAÇÃO & DIREÇÃO DE ARTE AO LADO DA CAPA */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: '#ffffff', padding: 20, borderRadius: 8, border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
