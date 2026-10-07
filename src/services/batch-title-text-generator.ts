@@ -100,8 +100,8 @@ export const GENRE_TITLE_POOLS: Record<string, GenreVocabularyPool> = {
   // 3. Finanças Pessoais, Investimentos & Liberdade
   finance: {
     prefixes: [
-      'A Geometria da', 'O Código do', 'A Arte de', 'A Psicologia do', 'O Mapa dos', 
-      'Arquitetura de', 'O Manual dos', 'Segredos do', 'A Ciência do', 'O Poder dos', 
+      'A Geometria da', 'O Código do', 'A Arte de', 'A Psicologia do', 'O Mapa da', 
+      'Arquitetura de', 'O Manual de', 'Segredos do', 'A Ciência do', 'O Poder dos', 
       'Além dos', 'A Trilha da', 'A Estrutura da', 'O Salto do', 'Engenharia do', 
       'O Protocolo de', 'A Revolução da', 'Mestria em', 'O Caminho da', 'Princípios de'
     ],
@@ -1162,21 +1162,34 @@ export class BatchTitleTextGenerator {
 
     let fullText = `## ${chapterTitle}\n\n${selectedIntro}${sec1}${sec2}${sec3}${sec4}`;
 
-    // Densidade de palavras configurável (expansão proporcional ao pedido do autor)
+    // Densidade de palavras configurável (expansão proporcional ao pedido do autor com prosa editorial fluida)
     const currentWords = fullText.split(/\s+/).length;
     if (targetWords > currentWords) {
       const extraNeeded = Math.ceil((targetWords - currentWords) / 140);
+      const editorialSubtitles = [
+        'Diretrizes de Validação e Monitoramento Contínuo',
+        'Gestão de Consistência e Padrões de Alto Desempenho',
+        'Resiliência Estratégica Frente a Cenários Imprevistos',
+        'Otimização Contínua e Consolidação de Hábitos',
+        'Refinamento Tático e Prevenção de Desvios',
+        'Princípios de Sustentação no Longo Prazo'
+      ];
+      
       for (let i = 1; i <= extraNeeded; i++) {
+        const subTitleChosen = editorialSubtitles[(i + bookSeedIndex + capNum) % editorialSubtitles.length];
         const moduleType = (i + bookSeedIndex) % 3;
         if (moduleType === 0) {
-          fullText += `\n### Nota Tática #${i}: Protocolo de Validação de Campo\n\n` +
-            `Reforçando a aplicação de ${chapterTheme.toLowerCase()} em "${cleanTitle}", recomenda-se estabelecer uma rotina de verificação semanal. Ao analisar os dados gerados pelas suas ações em ${genreName}, certifique-se de que os desvios sejam identificados e corrigidos antes que acumulem atrito. A disciplina metódica supera qualquer lampejo isolado de genialidade.\n`;
+          fullText += `\n### ${subTitleChosen}\n\n` +
+            `Reforçando a aplicação de ${chapterTheme.toLowerCase()} no contexto amplo de "${cleanTitle}", recomenda-se estabelecer uma rotina de verificação periódica. Ao analisar os dados gerados pelas suas ações em ${genreName}, certifique-se de que os desvios sejam identificados e corrigidos antes que acumulem atrito. A disciplina metódica supera qualquer lampejo isolado de genialidade.\n\n` +
+            `Dedique momentos de revisão consciente para calibrar sua bússola diária. Quando as metas estão alinhadas com princípios sólidos, o esforço diário deixa de ser um peso desgastante e torna-se um motor de realização contínua.\n`;
         } else if (moduleType === 1) {
-          fullText += `\n### Checklist Operacional #${i}: Diretrizes de Conformidade\n\n` +
-            `Para assegurar que o impacto de ${chapterTheme.toLowerCase()} permaneça ativo na sua rotina, revise periodicamente os seguintes pontos críticos: consistência de execução, aderência aos padrões estabelecidos e transparência na medição dos resultados. Pequenos ajustes executados no momento certo impedem retrabalhos desgastantes no futuro.\n`;
+          fullText += `\n### ${subTitleChosen}\n\n` +
+            `Para assegurar que o impacto de ${chapterTheme.toLowerCase()} permaneça ativo na sua rotina, revise com frequência os seguintes pontos críticos: consistência de execução, aderência aos padrões de excelência e transparência na medição dos resultados. Pequenos ajustes executados no momento certo impedem retrabalhos e protegem sua energia vital.\n\n` +
+            `Em ${genreName}, os resultados duradouros raramente decorrem de saltos heroicos; eles nascem da lealdade aos detalhes que a maioria prefere ignorar por pressa ou conveniência.\n`;
         } else {
-          fullText += `\n### Análise de Borda #${i}: Resiliência Frente a Cenários Imprevistos\n\n` +
-            `Mesmo os melhores planejamentos encontram volatilidade. No escopo de "${cleanTitle}", a resposta madura diante de imprevistos não é o abandono do plano, mas a adaptação inteligente dentro dos limites estabelecidos por este método. Mantenha os olhos fixos nos fundamentos de longo prazo e preserve a serenidade estratégica.\n`;
+          fullText += `\n### ${subTitleChosen}\n\n` +
+            `Mesmo os melhores planejamentos encontram volatilidade no mundo real. No escopo de "${cleanTitle}", a resposta madura diante de imprevistos não é o abandono do plano, mas a adaptação inteligente dentro dos limites estabelecidos por este método. Mantenha os olhos fixos nos fundamentos de longo prazo e preserve a serenidade estratégica.\n\n` +
+            `A maturidade operacional reside em transformar cada surpresa em oportunidade de aprendizado, fortalecendo as defesas de toda a estrutura contra crises futuras.\n`;
         }
       }
     }

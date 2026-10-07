@@ -3,7 +3,8 @@ import {
   BookOpen, Sparkles, Plus, Download, Copy, Save, Eye,
   Play, Square, RefreshCw, Trash2, ArrowLeft, Check, Layers,
   Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight,
-  ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2
+  ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2,
+  Award, Palette, Edit3
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -38,10 +39,12 @@ import { AudiobookStudio } from '../audiobook/AudiobookStudio';
 import { MultiplatformPublishingModal } from '../publishing/MultiplatformPublishingModal';
 import { KdpTourGuideModal } from './KdpTourGuideModal';
 import { KdpPageReviewerModal } from './KdpPageReviewerModal';
+import { Top50BestsellersModal } from './Top50BestsellersModal';
 import { ErrorBoundary } from '../../common/ErrorBoundary';
 import {
   SilhuetaMarginalConfig,
   SILHUETA_CONFIG_PADRAO,
+  GALERIA_SILHUETAS_PB,
   calcularPaginasSilhueta,
   gerarSilhuetaPersonagem,
   gerarIlustracaoCapitulo
@@ -127,6 +130,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [personagemSilhuetaFoco, setPersonagemSilhuetaFoco] = useState('');
   const [generatingCapImgIndex, setGeneratingCapImgIndex] = useState<number | null>(null);
   const [showSilhuetaPanel, setShowSilhuetaPanel] = useState(false);
+  const [isTop50ModalOpen, setIsTop50ModalOpen] = useState(false);
+  const [isEditingManuscriptInline, setIsEditingManuscriptInline] = useState(false);
 
   // Status e controle do pipeline
   const [gerando, setGerando] = useState(false);
@@ -2108,7 +2113,28 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
                   2. Inteligência de Mercado Amazon KDP
                 </label>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsTop50ModalOpen(true)}
+                    title="Explorar os 50 livros mais vendidos no segmento (#1 ao #200) e gerar sugestões com IA"
+                    style={{
+                      padding: '4px 10px',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      boxShadow: '0 2px 6px rgba(245, 158, 11, 0.25)'
+                    }}
+                  >
+                    <Award size={12} /> Top 50 Bestsellers (#1-#200)
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleAnalisarMercado(true)}
@@ -2129,7 +2155,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     }}
                   >
                     <RefreshCw size={11} className={isAnalyzingMarket ? 'spin' : ''} />
-                    {isAnalyzingMarket ? 'Sorteando...' : '🔄 Sortear Outros (#1-#200)'}
+                    {isAnalyzingMarket ? 'Sorteando...' : '🔄 Sortear Outros'}
                   </button>
                   <button
                     type="button"
@@ -2233,26 +2259,48 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
                   3. Título do Livro (Original)
                 </label>
-                <button
-                  type="button"
-                  onClick={handleGerarTitulosOriginais}
-                  disabled={isGeneratingTitulos}
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 6,
-                    padding: '3px 8px',
-                    color: '#334155',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4
-                  }}
-                >
-                  <Wand2 size={11} color="#475569" /> {isGeneratingTitulos ? 'Gerando...' : '5 Sugestões Originais'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsTop50ModalOpen(true)}
+                    title="Inspirar com base nos 50 livros mais vendidos no segmento (#1 ao #200)"
+                    style={{
+                      background: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: 6,
+                      padding: '3px 8px',
+                      color: '#1d4ed8',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Award size={11} color="#d97706" /> Top 50 (#1-#200)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGerarTitulosOriginais}
+                    disabled={isGeneratingTitulos}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 6,
+                      padding: '3px 8px',
+                      color: '#334155',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Wand2 size={11} color="#475569" /> {isGeneratingTitulos ? 'Gerando...' : '5 Sugestões Originais'}
+                  </button>
+                </div>
               </div>
 
               {/* Pílulas de opções de títulos gerados */}
@@ -2422,6 +2470,40 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   <Wand2 size={12} color="#475569" /> IA
                 </button>
               </div>
+
+              {livro && (
+                <div style={{ marginTop: 6, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLivro(prev => {
+                        if (!prev) return null;
+                        const atualizado = { ...prev, titulo: titulo.trim(), subtitulo: subtitulo.trim(), autor: autor.trim() };
+                        salvarProgressoLocal(atualizado);
+                        return atualizado;
+                      });
+                      setStatusMsg('✓ Título e Subtítulo atualizados diretamente no livro gerado!');
+                      setStatusType('ok');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      background: '#ecfdf5',
+                      color: '#059669',
+                      border: '1px solid #a7f3d0',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    title="Aplica o título e subtítulo digitados diretamente ao livro já gerado"
+                  >
+                    <Check size={12} /> Salvar no Livro Gerado
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* ETAPA 4 — DIFERENCIAL EDITORIAL & ESTRATÉGIA KDP (COM SUGESTÕES DE IA) */}
@@ -3350,6 +3432,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {activeTab === 'preview' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {/* PAINEL DO MOTOR DE SILHUETAS MARGINAIS COM 3% DE SANGRIA EXTERNA */}
+                  {/* PAINEL DO MOTOR DE SILHUETAS ARTÍSTICAS & MARCAS D'ÁGUA P&B */}
                   <div
                     style={{
                       background: '#ffffff',
@@ -3361,13 +3444,13 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 16 }}>👤</span>
+                        <span style={{ fontSize: 18 }}>🎨</span>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-                            Motor de Silhuetas Marginais & Vinhetas (3% Sangria Externa)
+                            Silhueta Artística & Marca d'Água de Fundo P&B (Página Inteira / Marginal)
                           </div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>
-                            Insere a silhueta artística do personagem projetada 3% para fora da borda física da página
+                            Posicionada atrás do texto ocupando todo o livro (vertical e horizontal) com transparência P&B para miolo KDP
                           </div>
                         </div>
                       </div>
@@ -3380,93 +3463,182 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, ativado: e.target.checked }))}
                             style={{ width: 16, height: 16, cursor: 'pointer' }}
                           />
-                          Ativar no Miolo KDP
+                          Ativar Silhueta no Livro
                         </label>
                         <button
                           type="button"
                           onClick={() => setShowSilhuetaPanel(!showSilhuetaPanel)}
                           style={{
-                            background: '#f1f5f9',
+                            background: showSilhuetaPanel ? '#e2e8f0' : '#f1f5f9',
                             border: '1px solid #cbd5e1',
                             borderRadius: 6,
-                            padding: '4px 8px',
+                            padding: '4px 10px',
                             fontSize: 11,
-                            fontWeight: 600,
-                            color: '#334155',
+                            fontWeight: 700,
+                            color: '#1e293b',
                             cursor: 'pointer'
                           }}
                         >
-                          {showSilhuetaPanel ? 'Recolher Opções' : 'Configurar Silhueta'}
+                          {showSilhuetaPanel ? 'Recolher Opções' : '⚙️ Configurar Silhueta P&B'}
                         </button>
                       </div>
                     </div>
 
                     {showSilhuetaPanel && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+                      <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {/* SELEÇÃO RÁPIDA: GALERIA EDITORIAL P&B PRONTA PARA KDP */}
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Galeria Rápida de Silhuetas P&B (Miolo KDP Monocromático):</span>
+                            {silhuetaConfig.imagemDataUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setSilhuetaConfig(prev => ({ ...prev, imagemDataUrl: undefined }))}
+                                style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 10, cursor: 'pointer', fontWeight: 600 }}
+                              >
+                                Limpar Silhueta
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+                            {GALERIA_SILHUETAS_PB.map((item) => {
+                              const isSelected = silhuetaConfig.imagemDataUrl === item.svgDataUrl;
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSilhuetaConfig(prev => ({
+                                      ...prev,
+                                      ativado: true,
+                                      imagemDataUrl: item.svgDataUrl,
+                                      monocromatico: true
+                                    }));
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    padding: '8px',
+                                    borderRadius: 6,
+                                    border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                    background: isSelected ? '#eff6ff' : '#ffffff',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  title={item.descricao}
+                                >
+                                  <img
+                                    src={item.svgDataUrl}
+                                    alt={item.nome}
+                                    style={{
+                                      width: 44,
+                                      height: 44,
+                                      objectFit: 'contain',
+                                      marginBottom: 4,
+                                      filter: 'grayscale(100%)'
+                                    }}
+                                  />
+                                  <span style={{ fontSize: 10, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#1d4ed8' : '#334155', textAlign: 'center' }}>
+                                    {item.nome}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* CONFIGURAÇÕES FINAS: COBERTURA, TRANSPARÊNCIA E DISTRIBUIÇÃO */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+                          {/* MODO DE COBERTURA */}
                           <div>
-                            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                              Modo de Distribuição
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                              Posicionamento da Silhueta
                             </label>
                             <select
-                              value={silhuetaConfig.modo}
-                              onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, modo: e.target.value as any }))}
+                              value={silhuetaConfig.modoCobertura || 'full-page'}
+                              onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, modoCobertura: e.target.value as any }))}
                               style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
                             >
-                              <option value="aleatorio">Aleatório Inteligente (ex: 10 páginas)</option>
-                              <option value="intervalo">Intervalo Fixo (a cada X páginas)</option>
-                              <option value="capitulos">Início de Cada Capítulo</option>
+                              <option value="full-page">Página Inteira (100% Vertical & Horizontal)</option>
+                              <option value="marginal">Marginal (Sangria Externa 3%)</option>
                             </select>
+                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
+                              Fica por trás do texto ocupando a folha inteira.
+                            </div>
                           </div>
 
-                          {silhuetaConfig.modo === 'aleatorio' && (
-                            <div>
-                              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                                Quantidade de Páginas
-                              </label>
-                              <input
-                                type="number"
-                                min={2}
-                                max={30}
-                                value={silhuetaConfig.totalAleatorio}
-                                onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, totalAleatorio: Number(e.target.value) || 10 }))}
-                                style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
-                              />
-                            </div>
-                          )}
-
-                          {silhuetaConfig.modo === 'intervalo' && (
-                            <div>
-                              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                                A cada quantas páginas?
-                              </label>
-                              <input
-                                type="number"
-                                min={3}
-                                max={20}
-                                value={silhuetaConfig.intervalo}
-                                onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, intervalo: Number(e.target.value) || 10 }))}
-                                style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
-                              />
-                            </div>
-                          )}
-
+                          {/* SLIDER DE TRANSPARÊNCIA / OPACIDADE */}
                           <div>
-                            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                              Foco do Personagem (Opcional)
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <label style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>
+                                Transparência P&B
+                              </label>
+                              <span style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: '#1d4ed8',
+                                background: '#eff6ff',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                border: '1px solid #bfdbfe'
+                              }}>
+                                {silhuetaConfig.opacidade || 10}%
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={2}
+                              max={40}
+                              step={1}
+                              value={silhuetaConfig.opacidade || 10}
+                              onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, opacidade: Number(e.target.value) }))}
+                              style={{ width: '100%', cursor: 'pointer', accentColor: '#2563eb' }}
+                            />
+                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                              Recomendado: 8% a 15% para não ofuscar o texto no KDP.
+                            </div>
+                          </div>
+
+                          {/* REGRAS DE APLICAÇÃO POR PÁGINAS */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                              Aplicação nas Páginas
                             </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1e293b', marginBottom: 6, cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={silhuetaConfig.aplicarTodas !== false}
+                                onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, aplicarTodas: e.target.checked }))}
+                                style={{ width: 14, height: 14 }}
+                              />
+                              Aplicar em todas as páginas do livro
+                            </label>
+
+                            {!silhuetaConfig.aplicarTodas && (
+                              <select
+                                value={silhuetaConfig.modo}
+                                onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, modo: e.target.value as any }))}
+                                style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11 }}
+                              >
+                                <option value="aleatorio">Aleatório Inteligente (ex: 10 págs)</option>
+                                <option value="intervalo">Intervalo Fixo (a cada X págs)</option>
+                                <option value="capitulos">Apenas Início de Cada Capítulo</option>
+                              </select>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* GERADOR REPLICATE FLUX (PERSONALIZADO VIA IA) */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, paddingTop: 10, borderTop: '1px dashed #e2e8f0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 260 }}>
                             <input
                               type="text"
                               value={personagemSilhuetaFoco}
                               onChange={(e) => setPersonagemSilhuetaFoco(e.target.value)}
-                              placeholder="Ex: Protagonista de sobretudo..."
-                              style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                              placeholder="Ou crie com IA: ex: Detetive sob poste de luz, bússola antiga..."
+                              style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11 }}
                             />
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <button
                               type="button"
                               onClick={handleGerarSilhueta}
@@ -3475,40 +3647,48 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
-                                padding: '7px 14px',
+                                padding: '6px 12px',
                                 borderRadius: 6,
-                                background: '#4f46e5',
+                                background: '#3b82f6',
                                 color: '#ffffff',
                                 border: 'none',
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: 700,
-                                cursor: isGeneratingSilhueta ? 'not-allowed' : 'pointer'
+                                cursor: isGeneratingSilhueta ? 'not-allowed' : 'pointer',
+                                whiteSpace: 'nowrap'
                               }}
                             >
                               {isGeneratingSilhueta ? (
                                 <>
-                                  <RefreshCw size={13} className="animate-spin" /> Gerando Silhueta FLUX...
+                                  <RefreshCw size={11} className="animate-spin" /> Gerando Silhueta...
                                 </>
                               ) : (
                                 <>
-                                  <Sparkles size={13} /> ✨ Gerar Silhueta com Replicate FLUX
+                                  <Sparkles size={11} /> Gerar com IA
                                 </>
                               )}
                             </button>
-
-                            {silhuetaConfig.imagemDataUrl && (
-                              <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <CheckCircle2 size={13} /> Silhueta pronta e vinculada ao PDF (Sangria 3% ativa)
-                              </span>
-                            )}
                           </div>
 
                           {silhuetaConfig.imagemDataUrl && (
-                            <img
-                              src={silhuetaConfig.imagemDataUrl}
-                              alt="Silhueta"
-                              style={{ height: 48, width: 36, objectFit: 'cover', borderRadius: 4, border: '1px solid #cbd5e1' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <img
+                                src={silhuetaConfig.imagemDataUrl}
+                                alt="Silhueta Ativa"
+                                style={{
+                                  height: 38,
+                                  width: 38,
+                                  objectFit: 'contain',
+                                  borderRadius: 4,
+                                  border: '1px solid #cbd5e1',
+                                  background: '#f8fafc',
+                                  filter: 'grayscale(100%)'
+                                }}
+                              />
+                              <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <CheckCircle2 size={13} /> Silhueta Ativa ({silhuetaConfig.opacidade || 10}%)
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -3532,47 +3712,88 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         <CheckCircle2 size={16} color="#16a34a" />
                         <span>Manuscrito: {livro.capitulos.length} capítulos ({livro.capitulos.reduce((acc, c) => acc + (c.texto?.split(/\s+/).filter(Boolean).length || 0), 0)} palavras)</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsPageReviewerOpen(true)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: '7px 16px',
-                          borderRadius: 6,
-                          background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
-                        }}
-                        title="Abrir revisor interativo para folhear e validar cada página antes de gerar o PDF"
-                      >
-                        <BookOpen size={14} /> 📖 Folhear Página por Página
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingManuscriptInline(!isEditingManuscriptInline)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 14px',
+                            borderRadius: 6,
+                            background: isEditingManuscriptInline ? '#0f172a' : '#ffffff',
+                            color: isEditingManuscriptInline ? '#ffffff' : '#0f172a',
+                            border: '1px solid #0f172a',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                          title="Alternar entre o modo de edição direta e o modo de visualização diagramada"
+                        >
+                          <Edit3 size={14} /> {isEditingManuscriptInline ? '👁️ Ver Diagramação' : '✏️ Editar Manuscrito'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsPageReviewerOpen(true)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 16px',
+                            borderRadius: 6,
+                            background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
+                          }}
+                          title="Abrir revisor interativo para folhear e validar cada página antes de gerar o PDF"
+                        >
+                          <BookOpen size={14} /> 📖 Folhear Página por Página
+                        </button>
+                      </div>
                     </div>
                   )}
 
                   <div
                     ref={previewScrollRef}
                     style={{
-                      height: capaFinal ? 420 : 540,
+                      height: capaFinal ? 460 : 560,
                       overflowY: 'auto',
                       background: '#ffffff',
                       border: '1px solid #e2e8f0',
                       borderRadius: 8,
-                      padding: '36px 48px',
-                      fontFamily: 'Georgia, serif',
+                      padding: isEditingManuscriptInline ? '24px 28px' : '36px 48px',
+                      fontFamily: isEditingManuscriptInline ? 'system-ui, -apple-system, sans-serif' : 'Georgia, serif',
                       color: '#1e293b',
                       position: 'relative',
                       boxShadow: 'inset 0 0 10px rgba(0, 0, 0, 0.02)'
                     }}
                   >
-                    {/* Imagem de fundo sutil da capa */}
-                    {fundoImg && (
+                    {/* SILHUETA DE FUNDO EM PRETO E BRANCO OCUPANDO TODO O LIVRO (HORIZONTAL E VERTICAL) ATRÁS DO TEXTO */}
+                    {silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl && !isEditingManuscriptInline && (
+                      <img
+                        src={silhuetaConfig.imagemDataUrl}
+                        alt=""
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          opacity: (silhuetaConfig.opacidade || 10) / 100,
+                          filter: 'grayscale(100%) contrast(115%)',
+                          pointerEvents: 'none',
+                          zIndex: 0
+                        }}
+                      />
+                    )}
+
+                    {/* IMAGEM DE FUNDO DA CAPA SE APLICÁVEL */}
+                    {fundoImg && !silhuetaConfig.imagemDataUrl && !isEditingManuscriptInline && (
                       <img
                         src={fundoImg}
                         alt=""
@@ -3582,7 +3803,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           width: '100%',
                           height: '100%',
                           objectFit: 'cover',
-                          opacity: 0.12,
+                          opacity: 0.10,
                           pointerEvents: 'none',
                           zIndex: 0
                         }}
@@ -3591,114 +3812,419 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
                     <div style={{ position: 'relative', zIndex: 1 }}>
                       {livro && livro.capitulos.length > 0 ? (
-                        <div>
-                          <h1 style={{ textAlign: 'center', fontSize: '2rem', marginBottom: 6 }}>
-                            {livro.titulo}
-                          </h1>
-                          {livro.subtitulo && (
-                            <div style={{ textAlign: 'center', fontStyle: 'italic', color: '#64748b', marginBottom: 18, fontSize: '1.1rem' }}>
-                              {livro.subtitulo}
-                            </div>
-                          )}
-                          <div style={{ textAlign: 'center', fontSize: '0.95rem', color: '#475569', marginBottom: 32 }}>
-                            por <strong>{livro.autor}</strong>
-                          </div>
-
-                          {optSumario && (
-                            <div style={{ marginBottom: 36, padding: '16px 20px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                              <h3 style={{ fontSize: '1.1rem', marginBottom: 10, textAlign: 'center', color: '#0f172a' }}>
-                                Sumário
-                              </h3>
-                              {livro.capitulos.map((c, idx) => (
-                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4, color: '#334155' }}>
-                                  <span><strong>{idx + 1}.</strong> {c.titulo}</span>
-                                  <span style={{ color: '#94a3b8' }}>Cap. {idx + 1}</span>
+                        isEditingManuscriptInline ? (
+                          /* MODO 1: EDITOR DE TEXTO DIRETO DO LIVRO NA TELA */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '12px 16px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>
+                                  ✏️ Editor de Textos do Livro em Tempo Real
                                 </div>
-                              ))}
+                                <div style={{ fontSize: 12, color: '#64748b' }}>
+                                  Edite os títulos, subtítulo, autor e os textos de cada capítulo diretamente aqui.
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (livro) {
+                                    salvarProgressoLocal(livro);
+                                    setStatusMsg('✓ Todas as alterações do manuscrito foram salvas com sucesso!');
+                                    setStatusType('ok');
+                                  }
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: '8px 16px',
+                                  borderRadius: 6,
+                                  background: '#059669',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontWeight: 700,
+                                  fontSize: 12,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Save size={14} /> Salvar Alterações
+                              </button>
                             </div>
-                          )}
 
-                          {livro.capitulos.map((c, idx) => (
-                            <div key={idx} style={{ marginBottom: 32 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: 6, marginBottom: 12 }}>
-                                <h2
-                                  style={{
-                                    color: corCapitulo,
-                                    fontSize: `${tamCapitulo + 3}pt`,
-                                    margin: 0
+                            {/* DADOS GERAIS DO LIVRO */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                                  Título Principal
+                                </label>
+                                <input
+                                  type="text"
+                                  value={livro.titulo}
+                                  onChange={(e) => {
+                                    const novoT = e.target.value;
+                                    setTitulo(novoT);
+                                    setLivro(prev => prev ? { ...prev, titulo: novoT } : null);
                                   }}
-                                >
-                                  {c.titulo}
-                                </h2>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleGerarIlustracaoCapitulo(idx)}
-                                  disabled={generatingCapImgIndex !== null}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    padding: '5px 12px',
-                                    borderRadius: 6,
-                                    background: c.imagemDataUrl ? '#ecfdf5' : '#eff6ff',
-                                    color: c.imagemDataUrl ? '#059669' : '#2563eb',
-                                    border: `1px solid ${c.imagemDataUrl ? '#a7f3d0' : '#bfdbfe'}`,
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    cursor: generatingCapImgIndex !== null ? 'not-allowed' : 'pointer'
-                                  }}
-                                >
-                                  {generatingCapImgIndex === idx ? (
-                                    <>
-                                      <RefreshCw size={12} className="animate-spin" /> Gerando Ilustração...
-                                    </>
-                                  ) : c.imagemDataUrl ? (
-                                    <>
-                                      <CheckCircle2 size={12} /> Ilustrado (Regenerar)
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ImageIcon size={12} /> 🖼️ Ilustrar Capítulo
-                                    </>
-                                  )}
-                                </button>
+                                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 600 }}
+                                />
                               </div>
 
-                              {/* Imagem Ilustrada do Capítulo */}
-                              {c.imagemDataUrl && (
-                                <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                                  <img
-                                    src={c.imagemDataUrl}
-                                    alt={c.titulo}
+                              <div>
+                                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                                  Autor
+                                </label>
+                                <input
+                                  type="text"
+                                  value={livro.autor}
+                                  onChange={(e) => {
+                                    const novoA = e.target.value;
+                                    setAutor(novoA);
+                                    setLivro(prev => prev ? { ...prev, autor: novoA } : null);
+                                  }}
+                                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+                                />
+                              </div>
+
+                              <div style={{ gridColumn: '1 / -1' }}>
+                                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                                  Subtítulo Comercial
+                                </label>
+                                <textarea
+                                  rows={2}
+                                  value={livro.subtitulo}
+                                  onChange={(e) => {
+                                    const novoS = e.target.value;
+                                    setSubtitulo(novoS);
+                                    setLivro(prev => prev ? { ...prev, subtitulo: novoS } : null);
+                                  }}
+                                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* LISTA DOS CAPÍTULOS EDITÁVEIS */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                                Capítulos do Livro ({livro.capitulos.length})
+                              </div>
+                              {livro.capitulos.map((c, idx) => (
+                                <div key={idx} style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 8, padding: 14 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>
+                                      Cap. {idx + 1}
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={c.titulo}
+                                      onChange={(e) => {
+                                        const novoTitulo = e.target.value;
+                                        setLivro(prev => {
+                                          if (!prev) return null;
+                                          const novos = [...prev.capitulos];
+                                          novos[idx] = { ...novos[idx], titulo: novoTitulo };
+                                          return { ...prev, capitulos: novos };
+                                        });
+                                      }}
+                                      style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+                                    />
+                                    <span style={{ fontSize: 11, color: '#64748b' }}>
+                                      {c.texto.split(/\s+/).filter(Boolean).length} palavras
+                                    </span>
+                                  </div>
+
+                                  <textarea
+                                    rows={9}
+                                    value={c.texto}
+                                    onChange={(e) => {
+                                      const novoTexto = e.target.value;
+                                      setLivro(prev => {
+                                        if (!prev) return null;
+                                        const novos = [...prev.capitulos];
+                                        novos[idx] = { ...novos[idx], texto: novoTexto };
+                                        return { ...prev, capitulos: novos };
+                                      });
+                                    }}
                                     style={{
-                                      maxWidth: '100%',
-                                      maxHeight: 280,
+                                      width: '100%',
+                                      padding: '10px 12px',
                                       borderRadius: 6,
-                                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                      border: '1px solid #e2e8f0',
+                                      fontSize: 13,
+                                      lineHeight: 1.6,
+                                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                                      color: '#1e293b'
                                     }}
                                   />
                                 </div>
-                              )}
-
-                              {c.texto.split(/\n\s*\n/).map((p, pIdx) => (
-                                <p
-                                  key={pIdx}
-                                  style={{
-                                    textIndent: '1.8em',
-                                    marginBottom: 10,
-                                    textAlign: 'justify',
-                                    lineHeight: 1.65,
-                                    fontSize: '0.92rem',
-                                    color: '#1e293b'
-                                  }}
-                                >
-                                  {p.trim()}
-                                </p>
                               ))}
                             </div>
-                          ))}
-                        </div>
+
+                            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (livro) {
+                                    salvarProgressoLocal(livro);
+                                    setStatusMsg('✓ Todas as alterações do manuscrito foram salvas com sucesso!');
+                                    setStatusType('ok');
+                                  }
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: '10px 24px',
+                                  borderRadius: 6,
+                                  background: '#059669',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Save size={16} /> Salvar Todas as Alterações do Livro
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* MODO 2: VISUALIZADOR DIAGRAMADO DE LUXO COM SUMÁRIO PROFISSIONAL */
+                          <div>
+                            {/* PÁGINA DE ROSTO EDITORIAL */}
+                            <div style={{ textAlign: 'center', paddingBottom: 40, borderBottom: '1px solid #e2e8f0', marginBottom: 40 }}>
+                              <h1 style={{ fontSize: '2.2rem', marginBottom: 8, letterSpacing: '-0.5px', color: '#0f172a' }}>
+                                {livro.titulo}
+                              </h1>
+                              {livro.subtitulo && (
+                                <div style={{ fontStyle: 'italic', color: '#475569', marginBottom: 24, fontSize: '1.15rem', maxWidth: 650, margin: '0 auto 24px auto', lineHeight: 1.5 }}>
+                                  {livro.subtitulo}
+                                </div>
+                              )}
+                              <div style={{ fontSize: '0.95rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                                {livro.autor}
+                              </div>
+                            </div>
+
+                            {/* SUMÁRIO EDITORIAL DE LUXO */}
+                            {optSumario && (
+                              <div
+                                style={{
+                                  marginBottom: 48,
+                                  padding: '24px 28px',
+                                  background: '#fcfcfc',
+                                  borderRadius: 8,
+                                  border: '1px solid #e2e8f0',
+                                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                                }}
+                              >
+                                <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                                  <span style={{
+                                    fontSize: 12,
+                                    letterSpacing: '3px',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    color: '#0f172a',
+                                    display: 'inline-block',
+                                    paddingBottom: 4,
+                                    borderBottom: '2px solid #0f172a'
+                                  }}>
+                                    Sumário Geral
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                  {(() => {
+                                    let runningPage = 5;
+                                    return livro.capitulos.map((c, idx) => {
+                                      const words = c.texto?.split(/\s+/).filter(Boolean).length || 0;
+                                      const estPages = Math.max(2, Math.ceil(words / 280));
+                                      const startPage = runningPage;
+                                      runningPage += estPages;
+                                      return (
+                                        <div
+                                          key={idx}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'baseline',
+                                            fontSize: 13,
+                                            color: '#1e293b'
+                                          }}
+                                        >
+                                          <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                                            {idx + 1}. {c.titulo}
+                                          </span>
+                                          <span
+                                            style={{
+                                              flex: 1,
+                                              margin: '0 8px',
+                                              borderBottom: '1px dotted #94a3b8',
+                                              minWidth: 20
+                                            }}
+                                          />
+                                          <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                                            pág. {startPage}
+                                          </span>
+                                        </div>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* CAPÍTULOS COM DIAGRAMAÇÃO REFINADA (DROP CAP & CABEÇALHO CLÁSSICO) */}
+                            {livro.capitulos.map((c, idx) => {
+                              const paragrafos = c.texto.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+                              const primeiroParagrafo = paragrafos[0] || '';
+                              const primeiraLetra = primeiroParagrafo.charAt(0);
+                              const restoPrimeiroParagrafo = primeiroParagrafo.slice(1);
+
+                              return (
+                                <div key={idx} style={{ marginBottom: 48 }}>
+                                  <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                                    <div style={{ fontSize: 11, letterSpacing: '3px', textTransform: 'uppercase', color: '#64748b', fontWeight: 700, marginBottom: 4 }}>
+                                      Capítulo {idx + 1}
+                                    </div>
+                                    <h2
+                                      style={{
+                                        color: corCapitulo,
+                                        fontSize: `${tamCapitulo + 4}pt`,
+                                        margin: '0 0 10px 0',
+                                        fontWeight: 700,
+                                        letterSpacing: '-0.3px'
+                                      }}
+                                    >
+                                      {c.titulo}
+                                    </h2>
+                                    <div style={{ width: 40, height: 1, background: '#cbd5e1', margin: '0 auto 12px auto' }} />
+
+                                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleGerarIlustracaoCapitulo(idx)}
+                                        disabled={generatingCapImgIndex !== null}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 6,
+                                          padding: '4px 10px',
+                                          borderRadius: 6,
+                                          background: c.imagemDataUrl ? '#ecfdf5' : '#f8fafc',
+                                          color: c.imagemDataUrl ? '#059669' : '#334155',
+                                          border: `1px solid ${c.imagemDataUrl ? '#a7f3d0' : '#cbd5e1'}`,
+                                          fontSize: 11,
+                                          fontWeight: 600,
+                                          cursor: generatingCapImgIndex !== null ? 'not-allowed' : 'pointer'
+                                        }}
+                                      >
+                                        {generatingCapImgIndex === idx ? (
+                                          <>
+                                            <RefreshCw size={11} className="animate-spin" /> Gerando Ilustração...
+                                          </>
+                                        ) : c.imagemDataUrl ? (
+                                          <>
+                                            <CheckCircle2 size={11} /> Ilustrado (Regenerar)
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ImageIcon size={11} /> Ilustrar Capítulo
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Imagem Ilustrada do Capítulo */}
+                                  {c.imagemDataUrl && (
+                                    <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                                      <img
+                                        src={c.imagemDataUrl}
+                                        alt={c.titulo}
+                                        style={{
+                                          maxWidth: '100%',
+                                          maxHeight: 280,
+                                          borderRadius: 6,
+                                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* PARÁGRAFOS COM CAPITULAR (DROP CAP) E TRATAMENTO DE SUBSEÇÕES */}
+                                  {paragrafos.map((p, pIdx) => {
+                                    // Se for cabeçalho ### de seção
+                                    if (p.startsWith('###')) {
+                                      const tituloSecao = p.replace(/^###\s*/, '').trim();
+                                      return (
+                                        <div
+                                          key={pIdx}
+                                          style={{
+                                            fontWeight: 700,
+                                            fontSize: '1.05rem',
+                                            margin: '20px 0 8px 0',
+                                            color: '#0f172a',
+                                            borderLeft: '3px solid #2563eb',
+                                            paddingLeft: 10
+                                          }}
+                                        >
+                                          {tituloSecao}
+                                        </div>
+                                      );
+                                    }
+
+                                    // Primeiro parágrafo com Drop Cap clássico
+                                    if (pIdx === 0 && primeiraLetra) {
+                                      return (
+                                        <p
+                                          key={pIdx}
+                                          style={{
+                                            marginBottom: 12,
+                                            textAlign: 'justify',
+                                            lineHeight: 1.75,
+                                            fontSize: '0.96rem',
+                                            color: '#1e293b'
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              float: 'left',
+                                              fontSize: '3.4rem',
+                                              lineHeight: '0.78',
+                                              paddingRight: 8,
+                                              paddingTop: 4,
+                                              fontWeight: 700,
+                                              fontFamily: 'Georgia, serif',
+                                              color: corCapitulo
+                                            }}
+                                          >
+                                            {primeiraLetra}
+                                          </span>
+                                          {restoPrimeiroParagrafo}
+                                        </p>
+                                      );
+                                    }
+
+                                    return (
+                                      <p
+                                        key={pIdx}
+                                        style={{
+                                          textIndent: '1.8em',
+                                          marginBottom: 10,
+                                          textAlign: 'justify',
+                                          lineHeight: 1.75,
+                                          fontSize: '0.94rem',
+                                          color: '#1e293b'
+                                        }}
+                                      >
+                                        {p}
+                                      </p>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )
                       ) : (
                         <div style={{ textAlign: 'center', padding: '120px 20px', color: '#94a3b8' }}>
                           <BookOpen size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
@@ -4505,16 +5031,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           silhuetaConfig={silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl ? {
             ativado: true,
             imagemDataUrl: silhuetaConfig.imagemDataUrl,
-            paginasSelecionadas: calcularPaginasSilhueta(
-              livro.capitulos.length * 8,
-              silhuetaConfig.modo,
-              {
-                intervalo: silhuetaConfig.intervalo,
-                totalAleatorio: silhuetaConfig.totalAleatorio
-              }
-            ),
-            opacidade: silhuetaConfig.opacidade,
-            sangriaPct: silhuetaConfig.sangriaPct
+            paginasSelecionadas: silhuetaConfig.aplicarTodas !== false
+              ? undefined
+              : calcularPaginasSilhueta(
+                  livro.capitulos.length * 8,
+                  silhuetaConfig.modo,
+                  {
+                    intervalo: silhuetaConfig.intervalo,
+                    totalAleatorio: silhuetaConfig.totalAleatorio
+                  }
+                ),
+            opacidade: silhuetaConfig.opacidade || 10,
+            sangriaPct: silhuetaConfig.sangriaPct,
+            modoCobertura: silhuetaConfig.modoCobertura || 'full-page',
+            monocromatico: silhuetaConfig.monocromatico !== false,
+            aplicarTodas: silhuetaConfig.aplicarTodas !== false
           } : undefined}
           onUpdateCapitulo={(cIdx, novoTexto, novoTitulo) => {
             setLivro(prev => {
@@ -4532,9 +5063,63 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               return atualizado;
             });
           }}
+          onUpdateLivroMetadata={(novoTitulo, novoSubtitulo, novoAutor) => {
+            setTitulo(novoTitulo);
+            if (novoSubtitulo !== undefined) setSubtitulo(novoSubtitulo);
+            if (novoAutor !== undefined) setAutor(novoAutor);
+            setLivro(prev => {
+              if (!prev) return prev;
+              const atualizado = {
+                ...prev,
+                titulo: novoTitulo,
+                subtitulo: novoSubtitulo !== undefined ? novoSubtitulo : prev.subtitulo,
+                autor: novoAutor !== undefined ? novoAutor : prev.autor
+              };
+              salvarProgressoLocal(atualizado);
+              return atualizado;
+            });
+            setStatusMsg('✓ Título, Subtítulo e Autor salvos no livro!');
+            setStatusType('ok');
+          }}
+          onUpdateSilhuetaConfig={(novaConfig) => {
+            setSilhuetaConfig(prev => ({
+              ...prev,
+              ...novaConfig
+            }));
+          }}
           onDownloadPdf={baixarPDF}
         />
       )}
+
+      {/* MODAL DOS TOP 50 BESTSELLERS DA AMAZON KDP (#1 AO #200) */}
+      <Top50BestsellersModal
+        isOpen={isTop50ModalOpen}
+        onClose={() => setIsTop50ModalOpen(false)}
+        segmento={genero || temaSelecionado || 'Finanças'}
+        currentTitle={titulo}
+        currentSubtitle={subtitulo}
+        onSelectTitleProposal={(propTitulo: string, propSubtitulo: string) => {
+          setTitulo(propTitulo);
+          setSubtitulo(propSubtitulo);
+          if (livro) {
+            setLivro(prev => {
+              if (!prev) return prev;
+              const atualizado = {
+                ...prev,
+                titulo: propTitulo,
+                subtitulo: propSubtitulo
+              };
+              salvarProgressoLocal(atualizado);
+              return atualizado;
+            });
+          }
+          setStatusMsg(`✓ Título e Subtítulo definidos com base nos Top 50 Bestsellers!`);
+          setStatusType('ok');
+        }}
+        onSelectBookReference={(book: any) => {
+          logDiag(`Livro de referência selecionado dos Top 50: ${book.title}`);
+        }}
+      />
     </div>
   );
 };

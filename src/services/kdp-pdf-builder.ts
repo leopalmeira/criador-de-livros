@@ -34,9 +34,12 @@ export interface BuildPdfInput {
   silhuetaConfig?: {
     ativado: boolean;
     imagemDataUrl?: string | null;
-    paginasSelecionadas: number[];
+    paginasSelecionadas?: number[];
     opacidade?: number;
     sangriaPct?: number;
+    modoCobertura?: 'full-page' | 'marginal';
+    monocromatico?: boolean;
+    aplicarTodas?: boolean;
   };
 }
 
@@ -201,37 +204,6 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     const meta = pageMeta[page - 1];
     if (meta.kind === 'capa' || meta.kind === 'rosto') return;
 
-    // Renderização de Silhueta Marginal (Marca d'água com sangria de 3% da metade da página para fora)
-    if (input.silhuetaConfig?.ativado && input.silhuetaConfig.imagemDataUrl) {
-      const paginas = input.silhuetaConfig.paginasSelecionadas || [];
-      if (paginas.includes(page)) {
-        try {
-          const halfW = LW / 2;
-          const sangria = halfW * (input.silhuetaConfig.sangriaPct ?? 0.03); // 3% da metade da página para fora
-          const silW = LW * 0.36;
-          const silH = silW * 1.33; // proporção 3:4
-          const isRight = isRecto(page);
-          const silX = isRight ? (LW - silW + sangria) : -sangria;
-          const silY = LH - silH - 0.6;
-
-          const opacidade = input.silhuetaConfig.opacidade ?? 0.18;
-          if ((doc as any).GState) {
-            try {
-              (doc as any).setGState(new (doc as any).GState({ opacity: opacidade }));
-            } catch {}
-          }
-          doc.addImage(input.silhuetaConfig.imagemDataUrl, 'PNG', silX, silY, silW, silH, undefined, 'FAST');
-          if ((doc as any).GState) {
-            try {
-              (doc as any).setGState(new (doc as any).GState({ opacity: 1.0 }));
-            } catch {}
-          }
-        } catch {
-          // Continua normalmente se a imagem falhar
-        }
-      }
-    }
-
     if (meta.kind === 'capitulo' && !meta.firstOfChapter) {
       const header = isRecto(page) ? cleanTitles[meta.chapterIndex!] : bookTitle;
       doc.setFont('times', 'italic').setFontSize(9).setTextColor(120);
@@ -251,6 +223,42 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     page++;
     pageMeta.push({ page, kind, chapterIndex, firstOfChapter });
     y = mT;
+
+    // Renderização de Silhueta de Fundo (DESENHADA ANTES DO TEXTO PARA FICAR POR TRÁS)
+    if (input.silhuetaConfig?.ativado && input.silhuetaConfig.imagemDataUrl && kind !== 'capa' && kind !== 'rosto') {
+      const paginas = input.silhuetaConfig.paginasSelecionadas || [];
+      const deveRenderizar = Boolean(input.silhuetaConfig.aplicarTodas || paginas.includes(page));
+      if (deveRenderizar) {
+        try {
+          const opacidade = input.silhuetaConfig.opacidade ?? 0.10;
+          if ((doc as any).GState) {
+            try {
+              (doc as any).setGState(new (doc as any).GState({ opacity: opacidade }));
+            } catch {}
+          }
+          if (input.silhuetaConfig.modoCobertura === 'marginal') {
+            const halfW = LW / 2;
+            const sangria = halfW * (input.silhuetaConfig.sangriaPct ?? 0.03); // 3% da metade para fora
+            const silW = LW * 0.36;
+            const silH = silW * 1.33; // proporção 3:4
+            const isRight = isRecto(page);
+            const silX = isRight ? (LW - silW + sangria) : -sangria;
+            const silY = LH - silH - 0.6;
+            doc.addImage(input.silhuetaConfig.imagemDataUrl, 'PNG', silX, silY, silW, silH, undefined, 'FAST');
+          } else {
+            // Full-Page Bleed: Ocupa toda a página na vertical e na horizontal por trás de todo o texto
+            doc.addImage(input.silhuetaConfig.imagemDataUrl, 'PNG', 0, 0, LW, LH, undefined, 'FAST');
+          }
+          if ((doc as any).GState) {
+            try {
+              (doc as any).setGState(new (doc as any).GState({ opacity: 1.0 }));
+            } catch {}
+          }
+        } catch {
+          // Continua normalmente se a imagem falhar
+        }
+      }
+    }
   };
 
   // 1) CAPA
