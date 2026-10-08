@@ -12,7 +12,6 @@
 
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
-import { Transform } from 'node:stream';
 import JSZip from 'jszip';
 import { getDefaultAudiobookService, AudiobookError } from './service.js';
 import { listPublicLanguages } from './languages.js';
@@ -74,83 +73,114 @@ function parseBody(req, maxBytes = 35 * 1024 * 1024) {
 }
 
 function streamFinalMp3(req, res) {
-  const ffmpeg = spawn(getFfmpegPath(), [
-    '-hide_banner', '-loglevel', 'error',
-    '-i', 'pipe:0',
-    '-ac', '2', '-ar', '44100', '-b:a', '128k',
-    '-f', 'mp3', 'pipe:1'
-  ]);
   const errors = [];
   let receivedBytes = 0;
   let header = Buffer.alloc(0);
-  let streamError = null;
+  let pendingChunks = [];
+  let ffmpeg = null;
   let outputStarted = false;
-  const inputGuard = new Transform({
-    transform(chunk, _encoding, callback) {
-      receivedBytes += chunk.length;
-      if (receivedBytes > MAX_FINAL_WAV_BYTES) {
-        streamError = new AudiobookError('O WAV final excede o limite de 1 GB.', 413, 'FINAL_AUDIO_TOO_LARGE');
-        callback(streamError);
-        return;
-      }
-      if (header.length < 12) {
-        header = Buffer.concat([header, chunk.subarray(0, 12 - header.length)]);
-        if (header.length >= 12 &&
-            (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WAVE')) {
-          streamError = new AudiobookError('O arquivo enviado não é um WAV válido.', 400, 'INVALID_FINAL_AUDIO');
-          callback(streamError);
-          return;
-        }
-      }
-      callback(null, chunk);
-    },
-    flush(callback) {
-      if (header.length < 12) {
-        streamError = new AudiobookError('O arquivo WAV está vazio ou incompleto.', 400, 'INVALID_FINAL_AUDIO');
-        callback(streamError);
-        return;
-      }
-      callback();
-    }
-  });
+  let responseFinished = false;
 
-  ffmpeg.stderr.on('data', (chunk) => errors.push(chunk));
-  ffmpeg.stdout.on('data', (chunk) => {
-    if (!outputStarted) {
-      outputStarted = true;
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Content-Disposition', 'attachment; filename="audiobook-final.mp3"');
-      res.setHeader('Cache-Control', 'no-store');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-    res.write(chunk);
-  });
-  inputGuard.on('error', () => ffmpeg.kill());
-  ffmpeg.stdin.on('error', () => {});
-  ffmpeg.on('error', (error) => {
+  const fail = (error) => {
+    if (responseFinished) return;
+    responseFinished = true;
+    if (ffmpeg && ffmpeg.exitCode === null && ffmpeg.signalCode === null) ffmpeg.kill();
     if (!res.headersSent) {
-      sendJson(res, 500, { success: false, error: error.message, code: 'MP3_RENDER_FAILED' });
+      sendJson(res, error.status || 500, {
+        success: false,
+        error: error.message || 'Falha ao gerar o MP3 final.',
+        code: error.code || 'MP3_RENDER_FAILED'
+      });
     } else {
       res.destroy(error);
     }
-  });
-  ffmpeg.on('close', (code) => {
-    if (code === 0 && outputStarted) {
-      res.end();
-    } else if (!res.headersSent) {
-      const error = streamError || new AudiobookError(
+    req.resume();
+  };
+
+  const forwardAudio = (chunk) => {
+    if (!ffmpeg || responseFinished) return;
+    if (!ffmpeg.stdin.write(chunk)) {
+      req.pause();
+      ffmpeg.stdin.once('drain', () => {
+        if (!responseFinished) req.resume();
+      });
+    }
+  };
+
+  const startFfmpeg = () => {
+    ffmpeg = spawn(getFfmpegPath(), [
+      '-hide_banner', '-loglevel', 'error',
+      '-i', 'pipe:0',
+      '-ac', '2', '-ar', '44100', '-b:a', '128k',
+      '-f', 'mp3', 'pipe:1'
+    ]);
+    ffmpeg.stderr.on('data', (chunk) => errors.push(chunk));
+    ffmpeg.stdout.on('data', (chunk) => {
+      if (!outputStarted) {
+        outputStarted = true;
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Disposition', 'attachment; filename="audiobook-final.mp3"');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.write(chunk);
+    });
+    ffmpeg.stdin.on('error', () => {});
+    ffmpeg.on('error', (error) => fail(error));
+    ffmpeg.on('close', (code) => {
+      if (responseFinished) return;
+      if (code === 0 && outputStarted) {
+        responseFinished = true;
+        res.end();
+        return;
+      }
+      fail(new AudiobookError(
         `Falha ao gerar o MP3 final${errors.length ? `: ${Buffer.concat(errors).toString().slice(0, 200)}` : '.'}`,
         500,
         'MP3_RENDER_FAILED'
-      );
-      sendJson(res, error.status, { success: false, error: error.message, code: error.code });
-    } else {
-      res.destroy();
+      ));
+    });
+  };
+
+  req.on('data', (chunk) => {
+    if (responseFinished) return;
+    receivedBytes += chunk.length;
+    if (receivedBytes > MAX_FINAL_WAV_BYTES) {
+      fail(new AudiobookError('O WAV final excede o limite de 1 GB.', 413, 'FINAL_AUDIO_TOO_LARGE'));
+      return;
     }
+    if (!ffmpeg) {
+      pendingChunks.push(chunk);
+      if (header.length < 12) {
+        header = Buffer.concat([header, chunk.subarray(0, 12 - header.length)]);
+      }
+      if (header.length < 12) return;
+      if (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WAVE') {
+        fail(new AudiobookError('O arquivo enviado não é um WAV válido.', 400, 'INVALID_FINAL_AUDIO'));
+        return;
+      }
+      startFfmpeg();
+      for (const pendingChunk of pendingChunks) forwardAudio(pendingChunk);
+      pendingChunks = [];
+      return;
+    }
+    forwardAudio(chunk);
   });
-  req.on('aborted', () => ffmpeg.kill());
-  req.pipe(inputGuard).pipe(ffmpeg.stdin);
+
+  req.on('end', () => {
+    if (responseFinished) return;
+    if (header.length < 12) {
+      fail(new AudiobookError('O arquivo WAV está vazio ou incompleto.', 400, 'INVALID_FINAL_AUDIO'));
+      return;
+    }
+    ffmpeg?.stdin.end();
+  });
+  req.on('error', (error) => fail(error));
+  req.on('aborted', () => {
+    responseFinished = true;
+    ffmpeg?.kill();
+  });
 }
 
 function parseCastAnalysisOutput(raw) {
