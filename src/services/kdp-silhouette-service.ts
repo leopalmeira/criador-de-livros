@@ -239,13 +239,21 @@ export async function gerarSilhuetaPersonagem(
 export async function gerarIlustracaoCapitulo(
   tituloCapitulo: string,
   resumoCapitulo: string,
-  estilo: 'realista' | 'arte_editorial' | 'aquarela' | 'nanquim' = 'arte_editorial'
+  estilo: 'realista' | 'arte_editorial' | 'aquarela' | 'nanquim' = 'arte_editorial',
+  aspectRatio: '16:9' | '1:1' = '16:9'
 ): Promise<string> {
+  const styleDirection = {
+    realista: 'naturalistic editorial photograph, believable available light, authentic skin and material texture, realistic anatomy, subtle lens characteristics and restrained color grading',
+    arte_editorial: 'considered fine-art editorial illustration, tactile textures, expressive but controlled brushwork, sophisticated composition and intentional color palette',
+    aquarela: 'traditional watercolor illustration on textured paper, transparent layered pigments, soft natural edges and restrained color mixing',
+    nanquim: 'crisp black ink etching with confident hand-drawn contours, deliberate crosshatching and clear print-friendly contrast'
+  }[estilo];
   const promptCena = `Masterpiece book chapter illustration for: "${tituloCapitulo}". Scene: ${resumoCapitulo.substring(0, 300)}. ` +
-    `Style: ${estilo === 'nanquim' ? 'crisp black ink etching, woodcut style' : 'fine artistic storybook editorial illustration'}, ` +
-    `award-winning book art, cinematic lighting, captivating depth of field, 8k resolution, no text, no captions.`;
+    `Style: ${styleDirection}. Preserve the people, objects, setting, time of day, and actions described in the scene; do not add unrelated props. ` +
+    `Avoid waxy skin, plastic surfaces, uncanny faces, distorted hands, extra limbs, generic 3D rendering, excessive sharpening, and stock-image composition. ` +
+    `Natural perspective, coherent light direction, nuanced shadows, believable proportions, no text, no captions, no watermark.`;
 
   return await gerarImagemReplicate(promptCena, {
-    aspectRatio: '16:9'
+    aspectRatio
   });
 }

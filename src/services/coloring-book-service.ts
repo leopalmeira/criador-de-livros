@@ -39,13 +39,11 @@ export function buildCharacterVisualGuide(tema: string, subtema: string, publico
   const cleanTema = String(tema || 'personagem amigável').trim();
   const cleanSub = String(subtema || 'aventura').trim();
 
-  return `Consistent main character design sheet for ${cleanTema} (${cleanSub}). ` +
-    `Exact visual appearance to maintain across all scenes: charismatic, expressive protagonist with clear defining silhouettes. ` +
-    `Facial features: big warm joyful circular eyes with bright highlight pupils, friendly gentle smile, rounded soft facial contours, ` +
-    `delicate expressive eyebrows that show genuine emotions, adorably proportioned ears with smooth outlines, soft clean snout and cheeks. ` +
-    `Anatomy & Proportions: ${isInfantil ? 'chubby cute proportions, rounded paws, soft fluffy textures indicated strictly by clean outer contours without interior shading, comforting and lovable storybook anatomy' : 'refined anatomical lines, graceful aesthetic posture, delicate outline shading, highly harmonious body geometry'}. ` +
-    `Signature outfit and accessories: wearable iconic storybook clothing including a cozy tailored adventurer vest with tiny rounded wooden buttons, a stitched pocket on the chest, a soft rolled explorer neckerchief, and a small sturdy satchel slung across one shoulder. ` +
-    `Visual style continuity: identical physical features, identical clothing textures, identical facial proportions, identical distinctive personality traits across every single illustration in the book.`;
+  return `Consistent main character design sheet for ${cleanTema} (${cleanSub}), or a recurring visual motif when the subject is not a character. ` +
+    `Choose a protagonist, object, or recurring motif that genuinely belongs to this exact theme; do not default to an animal, explorer costume, or unrelated setting. ` +
+    `Define distinctive silhouette, proportions, materials, colors for the cover, and a small number of recognizable details that can be reproduced across every scene. ` +
+    `Use ${isInfantil ? 'friendly, clear shapes suited to the selected subject' : 'mature, precise forms and subject-appropriate detail'}; never impose generic facial features or clothing on an inanimate motif. ` +
+    `Keep the same defining visual traits, materials, scale, and palette throughout the book while allowing natural changes of pose and expression when appropriate.`;
 }
 
 /**
@@ -62,7 +60,8 @@ export function formatDenseColoringPrompt(
   targetAudience: 'infantil' | 'adultos' | 'todos' = 'infantil',
   characterGuide: string = '',
   isCover: boolean = false,
-  pageNumber: number = 1
+  pageNumber: number = 1,
+  themeContext = ''
 ): string {
   const isAdults = targetAudience === 'adultos';
 
@@ -80,14 +79,13 @@ export function formatDenseColoringPrompt(
 
   // 3. Bloco da Cena Específica
   const sceneBlock = isCover
-    ? `Hero cover composition: The main character is positioned proudly in the center, greeting the viewer with an inviting warm smile and a welcoming wave, surrounded by an enchanting lush forest blooming with wonder. Scene narrative: ${description}.`
-    : `Interior story coloring page ${pageNumber}: The main character is actively engaged in the scene. Action and pose: ${description}. Clear dynamic posture, animated body language, joyful storytelling emotion, full body visible in the frame with natural interactive placement.`;
+    ? `Hero cover composition: Feature the subject or recurring motif that best represents ${themeContext || 'the specified theme'} in a clear, memorable composition. Scene narrative: ${description}.`
+    : `Interior coloring page ${pageNumber}: Follow the supplied scene faithfully. Subject, action, and setting: ${description}. Keep important forms clearly separated and recognizable.`;
 
-  // 4. Detalhes Ricos do Cenário em Camadas (Foreground, Midground, Background)
+  // 4. Completa a cena sem substituir o tema por um cenário genérico.
   const environmentBlock = `Intricate multilayered environment and setting: ` +
-    `Foreground details: delicate wild forest flora, detailed daisy petals, curling fern fronds, smooth river pebbles with clean contour markings, charming mushrooms with spotted caps, tiny ladybugs on leaves, and decorative ornamental border elements inviting creative coloring. ` +
-    `Midground details: rustic hollow wooden tree trunk with textured bark rings, hand-carved wooden footbridge over a meandering clear stream, flowering berry bushes, miniature woven basket overflowing with gathered woodland treasures, and winding cobblestone pathways. ` +
-    `Background details: rolling whimsical grassy hills, magnificent ancient oak trees with expansive sprawling canopies of individual leaves, distant storybook cottage with a cobblestone chimney puffing soft spiral smoke, gentle puffy cotton clouds in the sky, a warm radiant sun with stylized rays, and playful birds in joyful flight.`;
+    `The established visual world is ${themeContext || 'the setting explicitly described in the scene'}. Add foreground, middle-ground, and background detail only when it belongs naturally to that world and the supplied scene. ` +
+    `Vary scale and depth with a few theme-consistent objects and clear negative space; do not introduce forests, cottages, wildlife, costumes, borders, or props unless the scene itself calls for them.`;
 
   // 5. Bloco Técnico e Regras de Qualidade KDP
   const technicalBlock = isCover
@@ -100,13 +98,10 @@ export function formatDenseColoringPrompt(
   // 7. GARANTIA INEGOCIÁVEL: MÍNIMO DE 1500 CARACTERES DE CENA
   if (prompt.length < 1500) {
     const fillerNeeded = 1500 - prompt.length + 50;
-    const enrichment = ` Additional rich scenic textures and detailed elements: ` +
-      `Intricate botanical patterns, ornate leafy flourishes, detailed mossy stone walls, decorative butterfly wings with stained-glass patterns, ` +
-      `acorns and pinecones scattered across the ground, water ripples expanding in concentric rings across the creek, ` +
-      `curved wooden grain textures on fences, tiny lanterns hanging from tree branches with delicate wire frames, ` +
-      `soft morning dew drops rendered in distinct clean contour lines, and charming garden fencing with climbing ivy vines. ` +
-      `Every single element is thoughtfully structured to provide hours of engaging and relaxing coloring experience with flawless line continuity, ` +
-      `artistic elegance, and absolute character recognition throughout the entire book collection.`;
+    const enrichment = ` Additional theme-faithful scene direction: ${themeContext || 'the exact subject named in the scene'}. ` +
+      `Keep the principal subject prominent and preserve the composition, setting, and materials described above. Add only small supporting details that are already plausible within that subject and setting; leave generous uncluttered areas around important shapes. ` +
+      `Use consistent line weight, smooth closed contours, clean intersections, deliberate spacing, balanced visual hierarchy, and print-safe margins. ` +
+      `The cover palette and all recurring materials should agree with the selected theme. Every page should feel like part of this specific book, not a reusable stock scene, while maintaining clear silhouettes and recognizable subject details.`;
 
     prompt += `\n\n${enrichment.slice(0, Math.max(fillerNeeded, enrichment.length))}`;
   }
@@ -142,9 +137,9 @@ Sua missão é criar o roteiro completo de ilustrações para um livro com tema 
 Público-alvo: ${publico}.
 
 REGRAS OBRIGATÓRIAS DE CONTINUIDADE E PERSONAGEM:
-1. DEFINA UM PERSONAGEM PRINCIPAL CENTRAL ÚNICO (ex: um urso específico, raposa, dragão ou protagonista com características físicas, roupas e acessórios inconfundíveis).
-2. TODAS AS PÁGINAS DO LIVRO DEVEM MOSTRAR EXATAMENTE ESSE MESMO PERSONAGEM VIVENDO UMA JORNADA RICA EM DETALHES.
-3. A PRIMEIRA PÁGINA (Página 0) DEVE SER SEMPRE A CAPA COLORIDA VIBRANTE DO LIVRO COM O PERSONAGEM PRINCIPAL EM DESTAQUE.
+1. DEFINA UM FOCO VISUAL RECORRENTE que pertença ao tema; use um personagem apenas quando fizer sentido para o assunto.
+2. TODAS AS PÁGINAS DEVEM PRESERVAR ESSE FOCO VISUAL, SEUS MATERIAIS E SUA IDENTIDADE, SEM INTRODUZIR TEMAS OU CENÁRIOS DESCONEXOS.
+3. A PRIMEIRA PÁGINA (Página 0) DEVE SER SEMPRE A CAPA COLORIDA DO LIVRO, COERENTE COM O TEMA E A PALETA QUE SE REPETE NAS PÁGINAS INTERNAS.
 4. AS PÁGINAS SEGUINTES (1 a ${qtdPaginas}) SÃO AS PÁGINAS DE COLORIR INTERNAS EM PRETO E BRANCO.
 5. CADA PÁGINA DEVE TER UMA DESCRIÇÃO CÊNICA DENSÍSSIMA COM PRIMEIRO PLANO, PLANO MÉDIO E FUNDO CHEIOS DE DETALHES PARA COLORIR.
 
@@ -154,8 +149,8 @@ Responda APENAS com um array JSON válido contendo a Capa (pageNumber: 0) e as $
     "pageNumber": 0,
     "isCover": true,
     "title": "Capa Colorida: Título da Obra",
-    "description": "Descrição exuberante da capa colorida com o personagem principal em pose de boas-vindas",
-    "promptEnglish": "Detailed English scene description for image generation of the colorful cover"
+    "description": "Descrição detalhada da capa, fiel ao tema e ao foco visual escolhido",
+    "promptEnglish": "Detailed English scene description for a colorful cover that matches the selected theme"
   },
   {
     "pageNumber": 1,
@@ -168,7 +163,7 @@ Responda APENAS com um array JSON válido contendo a Capa (pageNumber: 0) e as $
 
   try {
     const res = await aiCaller(
-      `Crie o plano de ${qtdPaginas} páginas de colorir sobre "${tema} - ${subtema}" para público ${publico}. Lembre-se: o item 0 é a CAPA COLORIDA e todos os itens retratam rigorosamente o MESMO personagem central. Retorne APENAS o JSON puro.`,
+      `Crie o plano de ${qtdPaginas} páginas de colorir sobre "${tema} - ${subtema}" para público ${publico}. A capa e todas as páginas devem permanecer no mesmo universo visual e retratar fielmente o tema; não adicione florestas, animais, personagens ou objetos que não combinem com ele. Retorne APENAS o JSON puro.`,
       { systemInstruction: promptSistema, temperature: 0.7 }
     );
 
@@ -188,8 +183,8 @@ Responda APENAS com um array JSON válido contendo a Capa (pageNumber: 0) e as $
         pageNumber: 0,
         isCover: true,
         title: `Capa Colorida: ${tema}`,
-        description: `Capa oficial colorida de alto padrão com o protagonista em pose acolhedora em meio à floresta mágica de ${subtema || tema}.`,
-        promptEnglish: `Vibrant magnificent book cover of ${tema} with the central hero character smiling warmly in a magical detailed forest`
+        description: `Capa colorida de ${tema}, coerente com o subtema ${subtema || tema}.`,
+        promptEnglish: `Vibrant, polished coloring-book cover faithfully representing ${tema} and ${subtema || tema}, with a clear central focal subject and no unrelated scenery`
       });
     }
 
@@ -204,7 +199,8 @@ Responda APENAS com um array JSON válido contendo a Capa (pageNumber: 0) e as $
         publico,
         characterGuide,
         isCoverItem,
-        pageNum
+        pageNum,
+        `${tema} — ${subtema || tema}`
       );
 
       return {
@@ -224,11 +220,12 @@ Responda APENAS com um array JSON válido contendo a Capa (pageNumber: 0) e as $
 
     // 1. Sempre a Capa Colorida primeiro
     const coverPrompt = formatDenseColoringPrompt(
-      `Magnificent colorful book cover featuring the central hero character smiling proudly on a mossy hill surrounded by blooming wild blossoms and friendly woodland creatures.`,
+      `A colorful book cover faithfully representing ${tema} and ${subtema || tema}, with one clear central subject and no unrelated scenery.`,
       publico,
       characterGuide,
       true,
-      0
+      0,
+      `${tema} — ${subtema || tema}`
     );
 
     fallbackList.push({
@@ -236,7 +233,7 @@ Responda APENAS com um array JSON válido contendo a Capa (pageNumber: 0) e as $
       pageNumber: 0,
       isCover: true,
       title: `Capa Colorida: ${tema}`,
-      description: `Capa frontal oficial colorida com o protagonista em destaque e cenário encantado.`,
+      description: `Capa frontal colorida de ${tema}, alinhada ao subtema ${subtema || tema}.`,
       prompt: coverPrompt,
       characterVisualGuide: characterGuide,
       status: 'pendente'
@@ -244,13 +241,14 @@ Responda APENAS com um array JSON válido contendo a Capa (pageNumber: 0) e as $
 
     // 2. Páginas de colorir internas do mesmo personagem
     for (let i = 1; i <= qtdPaginas; i++) {
-      const desc = `O mesmo personagem principal explorando uma nova clareira com riacho cristalino, pedras ornamentais e árvores antigas (Cena ${i} da jornada).`;
+      const desc = `O mesmo foco visual recorrente em uma cena ${i} diretamente relacionada a ${subtema || tema}, mantendo o cenário e os elementos coerentes com o tema.`;
       const pagePrompt = formatDenseColoringPrompt(
-        `The same main character in scene ${i}: happily discovering a new peaceful corner of the woods with playful butterflies, winding river stones, and hollow tree bridges.`,
+        `Scene ${i}, faithfully depicting ${subtema || tema} with the same recurring subject and only setting details appropriate to this theme.`,
         publico,
         characterGuide,
         false,
-        i
+        i,
+        `${tema} — ${subtema || tema}`
       );
 
       fallbackList.push({

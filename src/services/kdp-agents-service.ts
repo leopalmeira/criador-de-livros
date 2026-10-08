@@ -1,4 +1,104 @@
 import { BookProject, IBookChapter } from '../types/book-project';
+import { chamarGeminiTexto } from './kdp-ai-engine';
+
+export interface KdpEditorialChapterPlan {
+  title: string;
+  objective: string;
+  keyPoints: string[];
+  transition: string;
+}
+
+export interface KdpEditorialPlan {
+  editorialVision: string;
+  readerPromise: string;
+  continuityBible: string;
+  chapters: KdpEditorialChapterPlan[];
+}
+
+type EditorialPlanAiCaller = (
+  prompt: string,
+  options: { systemInstruction: string; temperature: number; maxTokens: number }
+) => Promise<{ texto: string }>;
+
+export async function orchestrateEditorialPlan(
+  book: {
+    title: string;
+    subtitle: string;
+    genre: string;
+    language: string;
+    topic: string;
+    theme?: string;
+    subtheme?: string;
+    targetReader?: string;
+    promise?: string;
+    differentiator?: string;
+  },
+  chapterCount: number,
+  customAiCall: EditorialPlanAiCaller = chamarGeminiTexto
+): Promise<KdpEditorialPlan> {
+  const systemInstruction = `Você é um orquestrador editorial KDP que combina três funções antes da redação: arquiteto editorial, estrategista de leitor/mercado e editor de continuidade. Produza um plano original, útil e específico para o livro informado.
+Use o idioma da obra. Em não ficção, prefira orientações acionáveis, separe fatos de opinião, não invente estudos, estatísticas, citações ou promessas garantidas; respeite os limites profissionais de saúde e finanças. Em ficção, mantenha causalidade, personagens e progressão dramática coerentes.
+Retorne somente JSON válido, sem markdown, com esta estrutura exata:
+{"editorialVision":"...","readerPromise":"...","continuityBible":"...","chapters":[{"title":"...","objective":"...","keyPoints":["..."],"transition":"..."}]}
+Inclua exatamente ${chapterCount} capítulos. Todo capítulo deve ter título, objetivo específico, 3 a 5 pontos-chave concretos e uma transição coerente para o próximo capítulo ou desfecho. Não use títulos genéricos repetidos.`;
+
+  const prompt = `Planeje a arquitetura editorial completa desta obra:
+Título: ${book.title}
+Subtítulo: ${book.subtitle || 'Não definido'}
+Gênero: ${book.genre}
+Tema: ${book.theme || book.genre}
+Subtema: ${book.subtheme || 'Não definido'}
+Premissa/assunto central: ${book.topic}
+Leitor-alvo: ${book.targetReader || 'Leitor interessado no tema'}
+Promessa ao leitor: ${book.promise || 'Aprendizado claro e aplicável'}
+Diferencial: ${book.differentiator || 'Abordagem original e prática'}
+Idioma: ${book.language}
+Quantidade de capítulos: ${chapterCount}`;
+
+  const response = await customAiCall(prompt, {
+    systemInstruction,
+    temperature: 0.55,
+    maxTokens: Math.min(5000, 700 + chapterCount * 220)
+  });
+  const jsonText = response.texto
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    throw new Error('O orquestrador editorial retornou um plano inválido. Tente gerar novamente.');
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('O orquestrador editorial não retornou a estrutura do plano.');
+  }
+
+  const plan = parsed as Partial<KdpEditorialPlan>;
+  const validChapters = Array.isArray(plan.chapters)
+    && plan.chapters.length === chapterCount
+    && plan.chapters.every(chapter =>
+      typeof chapter?.title === 'string'
+      && typeof chapter?.objective === 'string'
+      && Array.isArray(chapter?.keyPoints)
+      && chapter.keyPoints.length >= 3
+      && chapter.keyPoints.every(point => typeof point === 'string')
+      && typeof chapter?.transition === 'string'
+    );
+
+  if (
+    typeof plan.editorialVision !== 'string'
+    || typeof plan.readerPromise !== 'string'
+    || typeof plan.continuityBible !== 'string'
+    || !validChapters
+  ) {
+    throw new Error(`O orquestrador editorial não entregou um plano completo com ${chapterCount} capítulos.`);
+  }
+
+  return plan as KdpEditorialPlan;
+}
 
 export interface AgentResponse<T = any> {
   success: boolean;

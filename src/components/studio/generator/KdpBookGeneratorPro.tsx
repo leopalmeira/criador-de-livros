@@ -19,6 +19,7 @@ import { BookPromotionalPageData } from '../../../types/promotional-page';
 import { BookPromotionalPage } from '../promotional/BookPromotionalPage';
 import { BookPromotionalPageModal } from '../promotional/BookPromotionalPageModal';
 import { BookProject } from '../../../types/book-project';
+import { BOOK_TYPE_CONFIGS, type BookType } from '../../../types/book-project';
 import { db } from '../../../database/local-database';
 import {
   KdpBookVerifier,
@@ -41,6 +42,8 @@ import { KdpTourGuideModal } from './KdpTourGuideModal';
 import { KdpPageReviewerModal } from './KdpPageReviewerModal';
 import { Top50BestsellersModal } from './Top50BestsellersModal';
 import { ErrorBoundary } from '../../common/ErrorBoundary';
+import { orchestrateEditorialPlan, type KdpEditorialPlan } from '../../../services/kdp-agents-service';
+import { buildCoverArtPrompt, type CoverTitleLayout, type CoverVisualStyle } from '../../../services/kdp-cover-art-direction';
 import {
   SilhuetaMarginalConfig,
   SILHUETA_CONFIG_PADRAO,
@@ -49,9 +52,10 @@ import {
   gerarSilhuetaPersonagem,
   gerarIlustracaoCapitulo
 } from '../../../services/kdp-silhouette-service';
-import { sanitizarOrtografiaEditorialCapa, sanitizarPromptArteSemTexto } from '../../../services/kdp-orthography-engine';
+import { sanitizarOrtografiaEditorialCapa } from '../../../services/kdp-orthography-engine';
 import { useBookCredits } from '../../../services/kdp-credits-service';
 import { PurchaseCreditsModal } from '../credits/PurchaseCreditsModal';
+import { PlannerBookStudio } from '../planner/PlannerBookStudio';
 
 const newProjectId = () => newId('prj_');
 
@@ -131,6 +135,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
 
   // Estados de execução
   const [livro, setLivro] = useState<LivroGerado | null>(null);
+  const [planoEditorial, setPlanoEditorial] = useState<KdpEditorialPlan | null>(null);
   const [capaFinal, setCapaFinal] = useState<string | null>(null);
   const [fundoImg, setFundoImg] = useState<string | null>(null);
   const [promoData, setPromoData] = useState<BookPromotionalPageData | null>(null);
@@ -147,7 +152,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
 
   // Estados do Estúdio de Capa & Direção de Arte de Revista (Anti-Slop Web UI)
   const [estiloCapaTipo, setEstiloCapaTipo] = useState<'modern-magazine' | 'luxury-serif' | 'bold-impact'>('modern-magazine');
-  const [estiloArteVisual, setEstiloArteVisual] = useState<'minimalist' | 'cinematic' | 'concept' | 'abstract'>('minimalist');
+  const [estiloArteVisual, setEstiloArteVisual] = useState<CoverVisualStyle>('minimalist');
+  const [posicaoTituloCapa, setPosicaoTituloCapa] = useState<CoverTitleLayout>('centro');
   const [intensidadeZonaLimpa, setIntensidadeZonaLimpa] = useState<'suave' | 'media' | 'forte'>('media');
   const [customCoverPrompt, setCustomCoverPrompt] = useState('');
   const [isRegeneratingCoverOnly, setIsRegeneratingCoverOnly] = useState(false);
@@ -159,6 +165,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
 
   // Status e controle do pipeline
   const [gerando, setGerando] = useState(false);
+  const [isPlanningEditorial, setIsPlanningEditorial] = useState(false);
+  const [estiloIlustracaoCapitulo, setEstiloIlustracaoCapitulo] = useState<'realista' | 'arte_editorial' | 'aquarela' | 'nanquim'>('aquarela');
   const [pararFlag, setPararFlag] = useState(false);
   const pararFlagRef = useRef(false);
   const [capAtual, setCapAtual] = useState(0);
@@ -167,7 +175,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [statusType, setStatusType] = useState<'normal' | 'ok' | 'error'>('normal');
   const [progressPercent, setProgressPercent] = useState(0);
   const [diagnostico, setDiagnostico] = useState('Sistema pronto.');
-  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'colorir' | 'audiobook'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'colorir' | 'planner' | 'audiobook'>('preview');
+  const [bookType, setBookType] = useState<BookType>('fiction-novel');
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
 
   // Sistema de Eficiência Máxima de API (Modo Ultra Econômico Google Gemini)
@@ -246,6 +255,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setSubtitulo('');
       setAutor('');
       setGenero('');
+      setBookType('fiction-novel');
       setTopico('');
       setTemaSelecionado('');
       setSubtemaSelecionado('');
@@ -279,6 +289,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     // 2. Quando o usuário seleciona um projeto existente na Dashboard
     if (initialProject) {
       projectIdRef.current = initialProject.id;
+      setBookType(initialProject.kdpBookType && BOOK_TYPE_CONFIGS[initialProject.kdpBookType]
+        ? initialProject.kdpBookType
+        : 'fiction-novel');
       setTitulo(initialProject.title || '');
       setSubtitulo(initialProject.subtitle || '');
       setAutor(initialProject.author || 'Leandro Palmeira');
@@ -300,7 +313,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       if (initialProject.kdpChapters && initialProject.kdpChapters.length > 0) {
         const caps: Capitulo[] = initialProject.kdpChapters.map(c => ({
           titulo: c.title,
-          texto: c.prose || c.summary || ''
+          texto: c.prose || c.summary || '',
+          imagemDataUrl: c.illustrations?.[0] || null
         }));
         
         const totalEstimado = initialProject.estimatedPages
@@ -355,6 +369,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
             setMaxCapitulos(p.config.maxCapitulos || 15);
             setFormato(p.config.formato || '6x9');
             setIdioma(p.config.idioma || 'português');
+            setBookType(p.config.bookType && BOOK_TYPE_CONFIGS[p.config.bookType as BookType]
+              ? p.config.bookType as BookType
+              : 'fiction-novel');
           }
           setStatusMsg(`Projeto salvo carregado: ${p.livro.capitulos.length} capítulos.`);
           setStatusType('ok');
@@ -386,7 +403,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       totalCaps,
       capAtual: novoLivro.capitulos.length,
       config: {
-        titulo, subtitulo, autor, genero, topico, paginasAlvo, maxCapitulos, formato, idioma
+        titulo, subtitulo, autor, genero, topico, paginasAlvo, maxCapitulos, formato, idioma, bookType
       },
       ts: Date.now()
     };
@@ -425,7 +442,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
         keywords: [],
         targetAudience: targetReader || 'Público Geral',
         topic: topico,
-        kdpBookType: 'fiction-novel',
+        kdpBookType: bookType,
         coverImageUrl: capa !== undefined ? capa : (capaFinal || undefined),
         promotionalPage: promo !== undefined ? promo : (promoData || undefined),
         promotionalImageUrl: (promo !== undefined ? promo?.promotionalImageUrl : promoData?.promotionalImageUrl) || undefined,
@@ -437,6 +454,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
           prose: c.texto,
           wordCount: c.texto.split(/\s+/).length,
           status: 'APROVADO' as const,
+          illustrations: c.imagemDataUrl ? [c.imagemDataUrl] : [],
           scenes: []
         })),
         tasks: [],
@@ -738,6 +756,13 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
 
   // INICIAR GERAÇÃO DO LIVRO
   const iniciarGeracao = async () => {
+    if (bookType === 'planner' || bookType === 'diary') {
+      setActiveTab('planner');
+      setStatusMsg('Este formato gera páginas preenchíveis, sem capítulos narrativos. Use o Criador de planners e diários.');
+      setStatusType('normal');
+      return;
+    }
+
     if (!titulo.trim()) {
       setStatusMsg('Preencha o título da obra.');
       setStatusType('error');
@@ -756,9 +781,16 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       return;
     }
 
-    const palavrasAlvo = paginasAlvo * 300;
-    const capsCalc = Math.max(3, Math.min(maxCapitulos, Math.round(palavrasAlvo / 900)));
-    const palavrasPorCap = Math.round(palavrasAlvo / capsCalc);
+    const selectedConfig = BOOK_TYPE_CONFIGS[bookType];
+    const isIllustratedStory = bookType === 'children-picture-book';
+    const palavrasAlvo = isIllustratedStory ? paginasAlvo * 45 : paginasAlvo * 300;
+    const estimatedChapters = isIllustratedStory ? Math.ceil(paginasAlvo / 2) : Math.round(palavrasAlvo / 900);
+    const capsCalc = isIllustratedStory
+      ? Math.max(selectedConfig.chapterCount[0], Math.min(selectedConfig.chapterCount[1], maxCapitulos, estimatedChapters))
+      : Math.max(3, Math.min(maxCapitulos, estimatedChapters));
+    const palavrasPorCap = isIllustratedStory
+      ? 90
+      : Math.round(palavrasAlvo / capsCalc);
 
     setTotalCaps(capsCalc);
     setCapAtual(0);
@@ -773,6 +805,35 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       meta: { palavrasPorCap, paginasAlvo }
     };
 
+    let plano: KdpEditorialPlan;
+    setIsPlanningEditorial(true);
+    try {
+      setStatusMsg('Orquestrando arquitetura editorial, estratégia de leitor e continuidade...');
+      setStatusType('normal');
+      plano = await orchestrateEditorialPlan({
+        title: novoLivro.titulo,
+        subtitle: novoLivro.subtitulo,
+        genre: novoLivro.genero,
+        language: novoLivro.idioma,
+        topic: topico,
+        theme: temaSelecionado,
+        subtheme: subtemaSelecionado,
+        targetReader,
+        promise: bookPromise,
+        differentiator: uniqueAngle
+      }, capsCalc);
+      setPlanoEditorial(plano);
+      logDiag(`Plano editorial criado com ${plano.chapters.length} capítulos e guia de continuidade.`);
+    } catch (err: any) {
+      const mensagem = err instanceof Error ? err.message : 'Não foi possível criar o plano editorial.';
+      setStatusMsg(`Falha ao planejar a obra: ${mensagem}`);
+      setStatusType('error');
+      logDiag(`Falha no orquestrador editorial: ${mensagem}`);
+      return;
+    } finally {
+      setIsPlanningEditorial(false);
+    }
+
     // Consome 1 crédito editorial para a produção do livro
     debitarCreditoLivro(novoLivro.titulo);
 
@@ -784,7 +845,7 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
 
     pararFlagRef.current = false;
     setPararFlag(false);
-    await executarLoopGeracao(novoLivro, 0, capsCalc, palavrasPorCap);
+    await executarLoopGeracao(novoLivro, 0, capsCalc, palavrasPorCap, plano);
   };
 
   // CONTINUAR GERAÇÃO INTERROMPIDA
@@ -794,7 +855,39 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
     setPararFlag(false);
     const palavrasPorCap = livro.meta?.palavrasPorCap || 900;
     const startFrom = livro.capitulos.length;
-    await executarLoopGeracao(livro, startFrom, totalCaps, palavrasPorCap);
+    const total = totalCaps || Math.max(3, Math.min(maxCapitulos, Math.round((livro.meta?.paginasAlvo || paginasAlvo) * 300 / palavrasPorCap)));
+
+    let plano = planoEditorial;
+    if (!plano || plano.chapters.length !== total) {
+      setIsPlanningEditorial(true);
+      try {
+        setStatusMsg('Reconstruindo o plano editorial para continuar a obra...');
+        setStatusType('normal');
+        plano = await orchestrateEditorialPlan({
+          title: livro.titulo,
+          subtitle: livro.subtitulo,
+          genre: livro.genero,
+          language: livro.idioma,
+          topic: topico,
+          theme: temaSelecionado || livro.genero,
+          subtheme: subtemaSelecionado,
+          targetReader,
+          promise: bookPromise,
+          differentiator: uniqueAngle
+        }, total);
+        setPlanoEditorial(plano);
+      } catch (err: any) {
+        const mensagem = err instanceof Error ? err.message : 'Não foi possível reconstruir o plano editorial.';
+        setStatusMsg(`Falha ao preparar a continuação: ${mensagem}`);
+        setStatusType('error');
+        logDiag(`Falha ao reconstruir o plano editorial: ${mensagem}`);
+        return;
+      } finally {
+        setIsPlanningEditorial(false);
+      }
+    }
+
+    await executarLoopGeracao(livro, startFrom, total, palavrasPorCap, plano);
   };
 
   // LOOP DE GERAÇÃO CAPÍTULO A CAPÍTULO COM AUTO-RECUPERAÇÃO CONTÍNUA (SELF-HEALING)
@@ -802,7 +895,8 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
     livroBase: LivroGerado,
     inicio: number,
     total: number,
-    palavrasPorCap: number
+    palavrasPorCap: number,
+    plano: KdpEditorialPlan
   ) => {
     if (gerando) return;
     setGerando(true);
@@ -830,8 +924,8 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       }
 
       const num = i + 1;
-      const modeloLabel = modoEconomico ? 'Gemini Flash Lite (Ultra Econômico)' : 'Gemini Flash';
-      setStatusMsg(`⏳ Escrevendo Capítulo ${num} de ${total} com ${modeloLabel}...`);
+      const diretrizArquitetura = plano.chapters[num - 1];
+      setStatusMsg(`⏳ Escrevendo Capítulo ${num} de ${total}...`);
       setStatusType('normal');
       setProgressPercent(Math.round((i / total) * 100));
       logDiag(`Iniciando capítulo ${num}/${total} [Modo Econômico: ${modoEconomico ? 'SIM' : 'NÃO'}]`);
@@ -886,6 +980,7 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
 REGRAS TÉCNICAS OBRIGATÓRIAS (ESTILO EDITORIAL KDP):
 ${regraIdioma}
 1. Escreva em torno de ${palavrasPorCap} palavras (mínimo ${Math.round(palavrasPorCap * 0.85)} palavras ricas em detalhes).
+${isIllustratedStory ? `1A. HISTÓRIA INFANTIL ILUSTRADA: Escreva uma cena curta e completa para crianças de ${faixaEtaria || '6 a 8'} anos, com vocabulário simples, ação visual clara e continuidade do mesmo protagonista. Descreva uma única cena que possa ser ilustrada; mantenha entre 60 e 110 palavras e não inclua instruções de imagem no texto.` : ''}
 2. COERÊNCIA TOTAL: Mantenha rigorosamente os mesmos personagens, cenários e tom. Não invente premissas contraditórias.
 3. PROIBIÇÃO ABSOLUTA DE METÁFORAS: Seja o livro infantil, jovem ou adulto, NUNCA use metáforas, floreios poéticos abstratos, analogias figuradas ou palavras em sentido metafórico. Todas as descrições de cenários, sentimentos, ações e diálogos devem ser totalmente literais, diretas, claras e realistas.
 4. VOCABULÁRIO POPULAR E COMUM: Evite estritamente palavras difíceis, rebuscadas, arcaicas ou eruditas. Utilize palavras simples e naturais no idioma da obra (${livroBase.idioma}).
@@ -895,6 +990,9 @@ ${regraIdioma}
 8. REGRA INEGOCIÁVEL DE FECHAMENTO COMPLETO: NUNCA pare no meio de uma frase, nunca corte palavras e nunca deixe reticências abertas. O último parágrafo DEVE obrigatoriamente terminar com uma frase 100% finalizada com ponto final (.), exclamação (!) ou interrogação (?).
 ${num === total ? '9. DESFECHO DEFINITIVO: Este é o encerramento do livro completo. A obra DEVE ter conclusão definitiva, com último parágrafo finalizado perfeitamente com ponto final (.), sem deixar nenhuma frase cortada ou em aberto.' : ''}
 10. Texto puro pronto para publicação. Não use asteriscos, markdown nem notas de rodapé.
+11. VISÃO EDITORIAL ORQUESTRADA: ${plano.editorialVision}
+12. PROMESSA AO LEITOR: ${plano.readerPromise}
+13. BÍBLIA DE CONTINUIDADE: ${plano.continuityBible}
 
 FORMATO ESTRITO:
 TITULO: ${isEnBook ? `Chapter ${num}: Creative Chapter Title in English` : isEsBook ? `Capítulo ${num}: Título Creativo en Español` : `Título Criativo do Capítulo ${num}`}
@@ -909,6 +1007,10 @@ Premissa Central: ${topico}
 
 ━━━ DIRETRIZ DO CAPÍTULO ${num} DE ${total} ━━━
 ${diretrizEstrutural}
+Título planejado: ${diretrizArquitetura.title}
+Objetivo do capítulo: ${diretrizArquitetura.objective}
+Pontos-chave: ${diretrizArquitetura.keyPoints.map(point => `- ${point}`).join('\n')}
+Transição planejada: ${diretrizArquitetura.transition}
 
 ━━━ GANCHO DE TRANSIÇÃO DIRETA ━━━
 ${ganchoImediato}`;
@@ -946,6 +1048,23 @@ ${ganchoImediato}`;
         }
 
         const cap = parseCapitulo(res.texto, num, total);
+
+        if (isIllustratedStory) {
+          setStatusMsg(`🎨 Ilustrando a página ${num} de ${total} da história infantil...`);
+          try {
+            cap.imagemDataUrl = await gerarIlustracaoCapitulo(
+              cap.titulo,
+              `Livro infantil "${livroBase.titulo}". Tema: ${temaSelecionado || livroBase.genero}; subtema: ${subtemaSelecionado || topico}. Manter o mesmo protagonista e estilo de aquarela das outras páginas. Cena desta página: ${cap.texto.slice(0, 350)}`,
+              estiloIlustracaoCapitulo,
+              '1:1'
+            );
+          } catch (imageError) {
+            const message = imageError instanceof Error ? imageError.message : 'Falha ao gerar ilustração desta página.';
+            logDiag(`⚠️ Ilustração pendente na página ${num}: ${message}`);
+            setStatusMsg(`⚠️ Página ${num}: a história foi escrita, mas a ilustração falhou. Você pode tentar novamente no preview.`);
+            setStatusType('error');
+          }
+        }
 
         // Extrair frases para evitar repetições nos próximos capítulos
         cap.texto.split(/[.!?]\s+/).forEach(f => {
@@ -1065,8 +1184,13 @@ ${ganchoImediato}`;
 
     if (!pararFlagRef.current) {
       setProgressPercent(100);
-      setStatusMsg('✓ Livro completo com sucesso! Agora você pode gerar a capa e a página promocional.');
-      setStatusType('ok');
+      const missingStoryArt = bookType === 'children-picture-book'
+        ? livroBase.capitulos.filter(chapter => !chapter.imagemDataUrl).length
+        : 0;
+      setStatusMsg(missingStoryArt > 0
+        ? `✓ História concluída. ${missingStoryArt} ilustração(ões) ainda precisam ser geradas no preview antes de exportar.`
+        : '✓ Livro completo com sucesso! Agora você pode gerar a capa e a página promocional.');
+      setStatusType(missingStoryArt > 0 ? 'error' : 'ok');
       logDiag('✓ Todos os capítulos foram gerados.');
     }
 
@@ -1138,13 +1262,11 @@ ${ganchoImediato}`;
   const construirPromptArteCapa = (
     genero: string,
     premissa: string,
-    _amostra: string,
-    _estiloVisual: 'minimalist' | 'cinematic' | 'concept' | 'abstract',
+    amostra: string,
+    estiloVisual: CoverVisualStyle,
     customPrompt?: string
   ): string => {
-    // Sanitização rigorosa: transforma o gênero e premissa em arte cênica pura sem letras
-    // PROÍBE estritamente qualquer tentativa da IA desenhar "FINANCAS", palavras ou títulos na imagem
-    return sanitizarPromptArteSemTexto(genero, customPrompt || premissa);
+    return buildCoverArtPrompt(genero, premissa, amostra, estiloVisual, customPrompt);
   };
 
   // DIAGRAMAÇÃO TIPOGRÁFICA EDITORIAL DA CAPA VIA CANVAS (1600x2400)
@@ -1161,7 +1283,8 @@ ${ganchoImediato}`;
     obraGenero: string,
     obraPremissa: string,
     tipoEstilo: 'modern-magazine' | 'luxury-serif' | 'bold-impact' = estiloCapaTipo,
-    zonaLimpa: 'suave' | 'media' | 'forte' = intensidadeZonaLimpa
+    zonaLimpa: 'suave' | 'media' | 'forte' = intensidadeZonaLimpa,
+    layoutTitulo: CoverTitleLayout = posicaoTituloCapa
   ): Promise<string> => {
     const canvas = document.createElement('canvas');
     canvas.width = 1600;
@@ -1181,19 +1304,20 @@ ${ganchoImediato}`;
     const cropH = Math.floor(srcH * 0.92);
     ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
 
-    // 1. Vinheta Superior Suave para o Cabeçalho de Revista (0 a 380px)
-    const topGrad = ctx.createLinearGradient(0, 0, 0, 380);
-    topGrad.addColorStop(0, 'rgba(4, 6, 12, 0.88)');
-    topGrad.addColorStop(0.65, 'rgba(4, 6, 12, 0.40)');
+    // 1. Vinheta Superior Suave para o Cabeçalho de Revista
+    const topGrad = ctx.createLinearGradient(0, 0, 0, 520);
+    topGrad.addColorStop(0, 'rgba(4, 6, 12, 0.82)');
+    topGrad.addColorStop(0.6, 'rgba(4, 6, 12, 0.28)');
     topGrad.addColorStop(1, 'rgba(4, 6, 12, 0)');
     ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, canvas.width, 380);
+    ctx.fillRect(0, 0, canvas.width, 520);
 
-    // 2. REGRA DA ÁREA LIMPA DO TÍTULO (CLEAN CONTRAST ZONE: 640px a 1500px)
-    // Garante que o título fique sobre uma área desobstruída e de alto contraste,
-    // sem objetos, detalhes ou textos de fundo competindo com as letras.
+    // 2. Área de contraste acompanha a posição tipográfica selecionada.
     const alphaCentro = zonaLimpa === 'forte' ? 0.92 : zonaLimpa === 'suave' ? 0.60 : 0.80;
-    const midGrad = ctx.createLinearGradient(0, 640, 0, 1500);
+    const centroTitulo = layoutTitulo === 'topo' ? 500 : 1040;
+    const zonaTituloInicio = centroTitulo - 400;
+    const zonaTituloFim = centroTitulo + 400;
+    const midGrad = ctx.createLinearGradient(0, zonaTituloInicio, 0, zonaTituloFim);
     midGrad.addColorStop(0, 'rgba(5, 7, 14, 0)');
     midGrad.addColorStop(0.20, `rgba(5, 7, 14, ${alphaCentro * 0.75})`);
     midGrad.addColorStop(0.40, `rgba(5, 7, 14, ${alphaCentro})`);
@@ -1201,7 +1325,7 @@ ${ganchoImediato}`;
     midGrad.addColorStop(0.85, `rgba(5, 7, 14, ${alphaCentro * 0.70})`);
     midGrad.addColorStop(1, 'rgba(5, 7, 14, 0)');
     ctx.fillStyle = midGrad;
-    ctx.fillRect(0, 640, canvas.width, 860);
+    ctx.fillRect(0, zonaTituloInicio, canvas.width, zonaTituloFim - zonaTituloInicio);
 
     // 3. Vinheta Profunda no Rodapé (1600px até o fim) para Subtítulo e Autor
     const footerGrad = ctx.createLinearGradient(0, 1600, 0, canvas.height);
@@ -1268,28 +1392,32 @@ ${ganchoImediato}`;
     ctx.shadowColor = 'rgba(0,0,0,0.98)';
     ctx.shadowBlur = 30;
 
-    const linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), canvas.width - 240);
+    const tituloAlinhadoEsquerda = layoutTitulo === 'esquerda';
+    ctx.textAlign = tituloAlinhadoEsquerda ? 'left' : 'center';
+    const larguraMaxTitulo = tituloAlinhadoEsquerda ? canvas.width - 420 : canvas.width - 240;
+    const linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), larguraMaxTitulo);
     const lineHTit = Math.round(fontSizeTit * 1.16);
     const alturaTotalTit = linhasTitulo.length * lineHTit;
 
-    // Posiciona o centro do título perfeitamente dentro da Área Limpa (Y ≈ 1040)
-    let yTit = Math.round(1040 - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
+    let yTit = Math.round(centroTitulo - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
+    const xTitulo = tituloAlinhadoEsquerda ? 150 : canvas.width / 2;
 
     linhasTitulo.forEach(l => {
       ctx.strokeStyle = 'rgba(0,0,0,0.90)';
       ctx.lineWidth = 8;
-      ctx.strokeText(l, canvas.width / 2, yTit);
-      ctx.fillText(l, canvas.width / 2, yTit);
+      ctx.strokeText(l, xTitulo, yTit);
+      ctx.fillText(l, xTitulo, yTit);
       yTit += lineHTit;
     });
 
     // Detalhe de acabamento: linha horizontal sutil minimalista abaixo do título
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#fde68a';
-    ctx.fillRect((canvas.width / 2) - 45, yTit + 10, 90, 2);
+    ctx.fillRect(tituloAlinhadoEsquerda ? xTitulo : (canvas.width / 2) - 45, yTit + 10, 90, 2);
 
     // 6. SUBTÍTULO COMERCIAL MODERNO (Limpo, sem itálicos desajeitados e com ortografia corrigida)
     if (obraSubtituloLimpo) {
+      ctx.textAlign = 'center';
       let fontSizeSub = 46;
       if (obraSubtituloLimpo.length > 90) fontSizeSub = 38;
       else if (obraSubtituloLimpo.length > 55) fontSizeSub = 42;
@@ -1320,6 +1448,7 @@ ${ganchoImediato}`;
     ctx.shadowColor = 'rgba(0,0,0,0.98)';
     ctx.font = '700 46px "Montserrat", "Inter", -apple-system, sans-serif';
     ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
     const spacedAutor = obraAutorLimpo.toUpperCase().split('').join(' ');
     ctx.fillText(spacedAutor, canvas.width / 2, canvas.height - 140);
 
@@ -1422,7 +1551,8 @@ ${ganchoImediato}`;
         obraGenero,
         obraPremissa,
         estiloCapaTipo,
-        intensidadeZonaLimpa
+        intensidadeZonaLimpa,
+        posicaoTituloCapa
       );
 
       const novoItem: ItemHistoricoCapa = {
@@ -1475,7 +1605,8 @@ ${ganchoImediato}`;
         obraGenero,
         obraPremissa,
         estiloCapaTipo,
-        intensidadeZonaLimpa
+        intensidadeZonaLimpa,
+        posicaoTituloCapa
       );
 
       const novoItem: ItemHistoricoCapa = {
@@ -1518,9 +1649,9 @@ ${ganchoImediato}`;
     const obraPremissa = topico.trim();
     const trechoAmostra = livro?.capitulos?.slice(0, 3).map(c => c.texto).join(' ').slice(0, 1000) || obraPremissa;
 
-    setStatusMsg('🎨 1/3 Gerando ilustração da Capa com motor FLUX (Replicate)...');
+    setStatusMsg('🎨 1/3 Criando a arte da capa...');
     setStatusType('normal');
-    logDiag('Iniciando geração da capa com motor FLUX (Replicate)');
+    logDiag('Iniciando a geração da arte da capa');
 
     try {
       // 1. ILUSTRAÇÃO DA CAPA (MOTOR EXCLUSIVO FLUX / REPLICATE SEM SELOS)
@@ -1539,7 +1670,8 @@ ${ganchoImediato}`;
         obraGenero,
         obraPremissa,
         estiloCapaTipo,
-        intensidadeZonaLimpa
+        intensidadeZonaLimpa,
+        posicaoTituloCapa
       );
 
       setCapaFinal(capaFinalBase64);
@@ -1614,7 +1746,7 @@ ${ganchoImediato}`;
   // GERAR SILHUETA MARGINAL ARTÍSTICA DO PROTAGONISTA (REPLICATE FLUX)
   const handleGerarSilhueta = async () => {
     setIsGeneratingSilhueta(true);
-    setStatusMsg('✨ Gerando silhueta artística do personagem no Replicate FLUX.1 Schnell...');
+    setStatusMsg('✨ Gerando silhueta artística do personagem...');
     logDiag('Solicitando silhueta marginal com sangria externa de 3%...');
 
     try {
@@ -1645,14 +1777,15 @@ ${ganchoImediato}`;
     if (!livro || !livro.capitulos[idx]) return;
     const target = livro.capitulos[idx];
     setGeneratingCapImgIndex(idx);
-    setStatusMsg(`🎨 Gerando ilustração do Capítulo ${idx + 1} ("${target.titulo}") via Replicate FLUX...`);
+    setStatusMsg(`🎨 Criando ilustração ${estiloIlustracaoCapitulo} do Capítulo ${idx + 1} ("${target.titulo}")...`);
     logDiag(`Gerando imagem de abertura para Capítulo ${idx + 1}`);
 
     try {
       const dataUrl = await gerarIlustracaoCapitulo(
         target.titulo,
-        target.texto.substring(0, 350),
-        'arte_editorial'
+        `Livro: ${livro.titulo}. Tema: ${temaSelecionado || livro.genero}; subtema: ${subtemaSelecionado || topico}. ${bookType === 'children-picture-book' ? 'Ilustração de livro infantil, manter os mesmos personagens, roupas, cores e estilo artístico das outras páginas. ' : ''}Cena: ${target.texto.substring(0, 350)}`,
+        estiloIlustracaoCapitulo,
+        bookType === 'children-picture-book' ? '1:1' : '16:9'
       );
 
       setLivro(prev => {
@@ -1682,12 +1815,23 @@ ${ganchoImediato}`;
       return;
     }
 
+    if (bookType === 'children-picture-book') {
+      const missingIllustrations = livro.capitulos
+        .map((chapter, index) => chapter.imagemDataUrl ? null : index + 1)
+        .filter((chapterNumber): chapterNumber is number => chapterNumber !== null);
+      if (missingIllustrations.length > 0) {
+        setStatusMsg(`Gere as ilustrações pendentes das páginas ${missingIllustrations.join(', ')} antes de exportar a história infantil.`);
+        setStatusType('error');
+        return;
+      }
+    }
+
     setStatusMsg('📄 Diagramando PDF oficial para Amazon KDP...');
     setStatusType('normal');
     logDiag('Iniciando construção de PDF com margens espelhadas KDP, sumário e silhuetas marginais...');
 
     try {
-      const validTrimSizes = ['6x9', '5x8', '5.5x8.5', '8.5x11'] as const;
+      const validTrimSizes = ['6x9', '5x8', '5.5x8.5', '8.5x11', '8.5x8.5'] as const;
       const trimSize = validTrimSizes.includes(formato as any) ? (formato as any) : '6x9';
 
       const result = await buildKdpPdf({
@@ -1698,6 +1842,7 @@ ${ganchoImediato}`;
           capitulos: livro.capitulos
         },
         capaDataUrl: capaFinal,
+        bookType,
         formato,
         optSumario,
         tamCapitulo,
@@ -2225,19 +2370,6 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <h1 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>
               Gerador de Livros KDP Pro
             </h1>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                background: '#eff6ff',
-                color: '#2563eb',
-                padding: '2px 8px',
-                borderRadius: 4,
-                border: '1px solid #bfdbfe'
-              }}
-            >
-              GEMINI 3.8 FLASH & MOTOR FLUX (REPLICATE)
-            </span>
           </div>
         </div>
 
@@ -2298,7 +2430,50 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <span>✍️</span> Parâmetros da Obra KDP
             </h2>
 
-            {/* ETAPA 1 — ESCOLHA DO TEMA DO LIVRO (60 TEMAS) */}
+            <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 5 }}>
+                Tipo de livro / formato de criação
+              </label>
+              <select
+                value={bookType}
+                onChange={event => {
+                  const selectedType = event.target.value as BookType;
+                  const config = BOOK_TYPE_CONFIGS[selectedType];
+                  setBookType(selectedType);
+                  setFormato(config.trimSize);
+                  setPaginasAlvo(config.targetPages);
+                  if (config.chapterCount[1] > 0) setMaxCapitulos(config.chapterCount[1]);
+                  setGenero(config.label);
+
+                  if (selectedType === 'children-picture-book') {
+                    const childrenTheme = getTheme('historias-infantis-ilustradas')
+                      || getTheme('literatura-infantil');
+                    setTemaSelecionado(childrenTheme?.label || 'Histórias infantis ilustradas');
+                    setSubtemaSelecionado(childrenTheme?.subthemes[0] || 'Aventuras com animais');
+                    setFaixaEtaria('6-8');
+                    setActiveTab('preview');
+                  } else if (selectedType === 'planner' || selectedType === 'diary') {
+                    setActiveTab('planner');
+                  } else if (selectedType === 'coloring-book') {
+                    setActiveTab('colorir');
+                  } else {
+                    setActiveTab('preview');
+                  }
+                }}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #c7d2fe', fontSize: 12, background: '#ffffff', color: '#0f172a' }}
+              >
+                {Object.values(BOOK_TYPE_CONFIGS).map(config => (
+                  <option key={config.id} value={config.id}>
+                    [{config.category}] {config.label}
+                  </option>
+                ))}
+              </select>
+              <div style={{ marginTop: 5, fontSize: 10, color: '#475569' }}>
+                {BOOK_TYPE_CONFIGS[bookType].description}
+              </div>
+            </div>
+
+            {/* ETAPA 1 — ESCOLHA DO TEMA DO LIVRO */}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
                 1. Tema Central do Livro (Obrigatório antes do Título)
@@ -2334,7 +2509,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   marginBottom: 8
                 }}
               >
-                <option value="">-- Selecione o Tema da Obra (60 Opções) --</option>
+                <option value="">-- Selecione o Tema da Obra ({BOOK_THEMES.length} opções) --</option>
                 {BOOK_THEMES.map(t => (
                   <option key={t.id} value={t.label}>
                     {t.label} {t.childrenBook ? '👶 (Infantil)' : ''}
@@ -3256,8 +3431,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button
                 type="button"
-                onClick={iniciarGeracao}
-                disabled={gerando}
+                onClick={() => bookType === 'planner' || bookType === 'diary' ? setActiveTab('planner') : iniciarGeracao()}
+                disabled={gerando || isPlanningEditorial}
                 style={{
                   flex: 1,
                   display: 'flex',
@@ -3275,7 +3450,9 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
                 }}
               >
-                <Play size={16} /> {gerando ? 'Gerando...' : '🚀 Gerar Livro'}
+                <Play size={16} /> {bookType === 'planner' || bookType === 'diary'
+                  ? '🚀 Gerar Páginas'
+                  : isPlanningEditorial ? 'Planejando...' : gerando ? 'Gerando...' : '🚀 Gerar Livro'}
               </button>
 
               <button
@@ -3332,7 +3509,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <button
                   type="button"
                   onClick={continuarGeracao}
-                  disabled={gerando && autoClickCountdown === null}
+                  disabled={isPlanningEditorial || (gerando && autoClickCountdown === null)}
                   style={{
                     flex: 1,
                     display: 'flex',
@@ -3683,6 +3860,27 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   }}
                 >
                   <span>🎨</span> Livro de Colorir KDP
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('planner')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    borderColor: activeTab === 'planner' ? '#7c3aed' : '#e2e8f0',
+                    background: activeTab === 'planner' ? '#f5f3ff' : '#ffffff',
+                    color: activeTab === 'planner' ? '#7c3aed' : '#64748b',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <FileText size={15} /> Planner & Diário
                 </button>
 
                 <button
@@ -4424,7 +4622,19 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                     </h2>
                                     <div style={{ width: 40, height: 1, background: '#cbd5e1', margin: '0 auto 12px auto' }} />
 
-                                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                      <select
+                                        aria-label="Estilo da ilustração do capítulo"
+                                        value={estiloIlustracaoCapitulo}
+                                        onChange={e => setEstiloIlustracaoCapitulo(e.target.value as typeof estiloIlustracaoCapitulo)}
+                                        disabled={generatingCapImgIndex !== null}
+                                        style={{ padding: '4px 8px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 11, color: '#334155' }}
+                                      >
+                                        <option value="realista">Fotografia realista</option>
+                                        <option value="arte_editorial">Ilustração fine art</option>
+                                        <option value="aquarela">Aquarela</option>
+                                        <option value="nanquim">Nanquim</option>
+                                      </select>
                                       <button
                                         type="button"
                                         onClick={() => handleGerarIlustracaoCapitulo(idx)}
@@ -5079,6 +5289,43 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         </div>
                       </div>
 
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                          Composição do título:
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                          {([
+                            { id: 'topo', label: 'Topo editorial', detail: 'Abertura clássica' },
+                            { id: 'centro', label: 'Centro clássico', detail: 'Foco equilibrado' },
+                            { id: 'esquerda', label: 'Alinhado à esquerda', detail: 'Composição assimétrica' }
+                          ] satisfies { id: CoverTitleLayout; label: string; detail: string }[]).map(layout => {
+                            const isSelected = posicaoTituloCapa === layout.id;
+                            return (
+                              <button
+                                key={layout.id}
+                                type="button"
+                                onClick={() => setPosicaoTituloCapa(layout.id)}
+                                style={{
+                                  padding: '8px 10px',
+                                  borderRadius: 6,
+                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  background: isSelected ? '#eff6ff' : '#ffffff',
+                                  textAlign: 'left',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#1d4ed8' : '#0f172a' }}>
+                                  {layout.label}
+                                </div>
+                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                                  {layout.detail}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       {/* SELEÇÃO DO ESTILO VISUAL DA ARTE DE FUNDO */}
                       <div>
                         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
@@ -5086,10 +5333,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         </label>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                           {[
-                            { id: 'minimalist', label: 'Minimalista & Espaço Aberto', desc: 'Ideal para destacar o título' },
-                            { id: 'cinematic', label: 'Cinematográfico Dramático', desc: 'Iluminação volumétrica e clima' },
-                            { id: 'concept', label: 'Fotografia Conceitual', desc: 'Estética de revista internacional' },
-                            { id: 'abstract', label: 'Abstrato Geométrico', desc: 'Formas arquitetônicas de prestígio' }
+                            { id: 'minimalist', label: 'Fotografia Editorial', desc: 'Natural e com espaço negativo' },
+                            { id: 'cinematic', label: 'Fotografia Cinematográfica', desc: 'Luz e textura naturais' },
+                            { id: 'concept', label: 'Ilustração Fine Art', desc: 'Pinceladas e materiais táteis' },
+                            { id: 'abstract', label: 'Arte Geométrica', desc: 'Formas autorais e assimétricas' }
                           ].map((estilo) => {
                             const isSelected = estiloArteVisual === estilo.id;
                             return (
@@ -5615,6 +5862,19 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     onCapaGerada={setCapaFinal}
                   />
                 </div>
+              )}
+
+              {activeTab === 'planner' && (
+                <PlannerBookStudio
+                  title={titulo}
+                  author={autor}
+                  hasCredit={creditosLivros > 0}
+                  onConsumeCredit={debitarCreditoLivro}
+                  onRequireCredit={() => {
+                    setCreditModalMotivo('A geração de um planner ou diário completo requer 1 crédito editorial.');
+                    setIsCreditModalOpen(true);
+                  }}
+                />
               )}
 
               {/* ABA 6: AUDIOBOOK STUDIO (LIVRO -> AUDIOBOOK) */}

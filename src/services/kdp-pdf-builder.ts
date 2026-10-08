@@ -8,6 +8,7 @@
 // - páginas só são criadas quando há conteúdo para elas (sem brancas)
 // ================================================================
 import { jsPDF } from 'jspdf';
+import type { BookType } from '../types/book-project';
 import type { CoverStatus } from '../types/editorial-correction';
 import { cleanChapterTitle } from './kdp-editorial-review';
 
@@ -16,6 +17,7 @@ export const TRIM_SIZES: Record<string, [number, number]> = {
   '5x8': [5, 8],
   '5.5x8.5': [5.5, 8.5],
   '8.5x11': [8.5, 11],
+  '8.5x8.5': [8.5, 8.5],
 };
 
 export interface BuildPdfInput {
@@ -27,6 +29,7 @@ export interface BuildPdfInput {
     capitulos: { titulo: string; texto: string; imagemDataUrl?: string | null }[];
   };
   capaDataUrl?: string | null;
+  bookType?: BookType;
   formato: string;
   optSumario: boolean;
   tamCapitulo: number;
@@ -389,6 +392,68 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   chapters.forEach((cap, ci) => {
     startPage('capitulo', ci, true);
     starts[ci] = page;
+
+    if (input.bookType === 'children-picture-book') {
+      const imageMaxWidth = Math.min(textW, LW - 1.3);
+      const imageMaxHeight = LH * 0.49;
+      let imageTop = 0.72;
+      let imageHeight = imageMaxHeight;
+      let imageWidth = imageMaxWidth;
+
+      doc.setFont('times', 'bold').setFontSize(20).setTextColor(rgb[0], rgb[1], rgb[2]);
+      const storyTitleLines = doc.splitTextToSize(cleanTitles[ci], textW) as string[];
+      const visibleTitleLines = storyTitleLines.slice(0, 2);
+      doc.text(visibleTitleLines, LW / 2, 0.52, { align: 'center' });
+      imageTop = 0.55 + visibleTitleLines.length * 0.3;
+
+      if (cap.imagemDataUrl) {
+        try {
+          const imageProperties = doc.getImageProperties(cap.imagemDataUrl);
+          const ratio = imageProperties.width / imageProperties.height;
+          imageWidth = Math.min(imageMaxWidth, imageMaxHeight * ratio);
+          imageHeight = imageWidth / ratio;
+          doc.addImage(
+            cap.imagemDataUrl,
+            'PNG',
+            (LW - imageWidth) / 2,
+            imageTop,
+            imageWidth,
+            imageHeight,
+            undefined,
+            'FAST'
+          );
+        } catch {
+          warnings.push(`Capítulo ${ci + 1}: Imagem infantil não pôde ser renderizada.`);
+        }
+      } else {
+        warnings.push(`Capítulo ${ci + 1}: Falta a ilustração obrigatória desta página infantil.`);
+      }
+
+      const storyText = sanitize(cap.texto || '');
+      sanitized.push(storyText);
+      const storyY = imageTop + imageHeight + 0.24;
+      const storyBottom = LH - 0.48;
+      const storyFontSize = storyText.length > 650 ? 10 : 11;
+      const storyLineHeight = storyFontSize / 72 * 1.35;
+      doc.setFont('times', 'normal').setFontSize(storyFontSize).setTextColor(30, 41, 59);
+
+      const paragraphs = storyText.split(/\n+/).map(value => value.trim()).filter(Boolean);
+      let currentY = storyY;
+      for (const paragraph of paragraphs) {
+        const lines = doc.splitTextToSize(paragraph, textW) as string[];
+        for (const line of lines) {
+          if (currentY + storyLineHeight > storyBottom) {
+            warnings.push(`Capítulo ${ci + 1}: O texto ultrapassa o espaço disponível na página ilustrada.`);
+            break;
+          }
+          doc.text(line, leftOf(page) + (textW - doc.getTextWidth(line)) / 2, currentY);
+          currentY += storyLineHeight;
+        }
+        currentY += storyLineHeight * 0.45;
+      }
+      return;
+    }
+
     y = mT + 1.1;
     doc.setFont('times', 'bold').setFontSize(10).setTextColor(130);
     doc.text(`CAPÍTULO ${ci + 1}`, LW / 2, y, { align: 'center' });

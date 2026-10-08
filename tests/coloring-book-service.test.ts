@@ -86,6 +86,8 @@ describe('Motor de Livros de Colorir KDP (Coloring Book Engine)', () => {
       expect(paginas[i].status).toBe('pendente');
       expect(paginas[i].prompt.length).toBeGreaterThanOrEqual(1500);
       expect(paginas[i].prompt).toContain('zero grayscale');
+      expect(paginas[i].prompt).toContain('The established visual world is Urso Pardo — Aventuras na Montanha');
+      expect(paginas[i].prompt).not.toContain('magical forest');
       expect(paginas[i].characterVisualGuide).toContain('Urso Pardo');
     }
   });

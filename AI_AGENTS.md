@@ -2,6 +2,10 @@
 
 O sistema utiliza **10 agentes especializados** organizados em uma esteira sequencial e retroalimentada. Cada agente possui uma responsabilidade editorial única, garantindo profundidade e rigor técnico.
 
+### Gerador KDP Pro
+
+No fluxo direto do Gerador KDP Pro, `orchestrateEditorialPlan` prepara a visão editorial, a promessa ao leitor, a bíblia de continuidade e um objetivo com pontos-chave para cada capítulo antes do início da redação. O escritor recebe as diretrizes do capítulo correspondente; ao retomar um projeto sem plano em memória, o plano é reconstruído antes de continuar. Um plano inválido interrompe o início da escrita com uma mensagem explícita.
+
 ---
 
 ## 1. Visão Geral dos Agentes

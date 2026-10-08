@@ -148,4 +148,28 @@ describe('kdp-pdf-builder + kdp-pdf-validator (PDF real aberto com pdf.js)', () 
     expect(build.coverIncluded).toBe(true);
     expect(build.bytes.length).toBeGreaterThan(1000);
   });
+
+  it('gera uma página quadrada com história e ilustração em conjunto para cada capítulo infantil', () => {
+    const image = makePng(200, 200);
+    const illustratedBook = {
+      titulo: 'Aventura na floresta',
+      subtitulo: '',
+      autor: 'Autora',
+      capitulos: [{ titulo: 'O mapa escondido', texto: para(0, 2), imagemDataUrl: image }]
+    };
+    const build = buildKdpPdf({
+      livro: illustratedBook,
+      bookType: 'children-picture-book',
+      capaDataUrl: image,
+      formato: '8.5x8.5',
+      optSumario: false,
+      tamCapitulo: 11,
+      corCapitulo: '#1e293b'
+    });
+
+    expect(build.pageSize).toEqual([8.5, 8.5]);
+    expect(build.chapterStartPages).toHaveLength(1);
+    expect(build.warnings).toEqual([]);
+    expect(build.bytes.length).toBeGreaterThan(1000);
+  });
 });

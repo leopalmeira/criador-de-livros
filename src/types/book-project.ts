@@ -33,6 +33,8 @@ export type BookType =
   | 'activity-book'
   | 'coloring-book'
   | 'journal'
+  | 'planner'
+  | 'diary'
   | 'puzzle-book'
   | 'other';
 
@@ -553,6 +555,48 @@ export const BOOK_TYPE_CONFIGS: Record<BookType, IBookTypeConfig> = {
     hasFactCheck: false,
     description: 'Diário com prompts de escrita, espaços para reflexão, gratidão ou planejamento.',
     editorialRules: ['Prompts inspiradores', 'Layout limpo', 'Espaços generosos para escrita']
+  },
+  'planner': {
+    id: 'planner',
+    label: 'Planner / Agenda',
+    category: 'Técnico & Guias',
+    trimSize: '8.5x11',
+    paperType: 'bw-white',
+    targetPages: 120,
+    chapterCount: [0, 0],
+    wordsPerChapter: [0, 0],
+    scenesPerChapter: [1, 1],
+    illustrationsPerChapter: 0,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: false,
+    hasFactCheck: false,
+    description: 'Agenda ou planner organizado por páginas diárias, semanais, mensais ou por projeto.',
+    editorialRules: ['Gerar páginas prontas para preencher', 'Não criar capítulos narrativos', 'Manter espaço amplo para escrita']
+  },
+  'diary': {
+    id: 'diary',
+    label: 'Diário Guiado / Reflexão',
+    category: 'Técnico & Guias',
+    trimSize: '6x9',
+    paperType: 'bw-white',
+    targetPages: 120,
+    chapterCount: [0, 0],
+    wordsPerChapter: [0, 0],
+    scenesPerChapter: [1, 1],
+    illustrationsPerChapter: 0,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: false,
+    hasFactCheck: false,
+    description: 'Diário guiado com perguntas, reflexões e páginas pautadas; sem capítulos de prosa.',
+    editorialRules: ['Gerar páginas individuais', 'Perguntas claras e variadas', 'Reservar espaço amplo para respostas']
   },
   'mystery': {
     id: 'mystery',

@@ -17,7 +17,7 @@ import {
   Search,
   BookMarked
 } from 'lucide-react';
-import { BookProject, ProjectStatus } from '../../types/book-project';
+import { BookProject, BOOK_TYPE_CONFIGS, BookType, ProjectStatus } from '../../types/book-project';
 
 interface DashboardViewProps {
   projects: BookProject[];
@@ -304,34 +304,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="mb-4">
             <h3 className="text-lg font-bold">Templates Prontos para Produção</h3>
             <p className="text-xs text-muted">
-              Modelos estruturados com margens KDP calibradas, tipografia pré-definida e esqueleto de capítulos.
+              Escolha entre modelos de ficção, não ficção, livros infantis ilustrados, atividades, planners e diários.
             </p>
           </div>
 
           <div className="templates-grid">
-            {[
-              { id: 'romance', title: 'Romance & Drama Amoroso', desc: 'Arco emocional, encontros, conflitos e final marcante.', trim: '5x8', pages: 250, badge: 'Mais Vendido' },
-              { id: 'self-help', title: 'Desenvolvimento Pessoal / Hábitos', desc: 'Estrutura didática, passos práticos e estudos de caso.', trim: '6x9', pages: 160, badge: 'Popular' },
-              { id: 'mystery', title: 'Mistério & Investigação Policial', desc: 'Pistas, reviravoltas e capítulos curtos com ganchos.', trim: '5.5x8.5', pages: 260, badge: 'Ficção' },
-              { id: 'practical-guide', title: 'Guia Prático Passo a Passo', desc: 'Checklists, tutoriais rápidos e instruções objetivas.', trim: '6x9', pages: 140, badge: 'Não Ficção' },
-              { id: 'children-picture-book', title: 'Livro Infantil Ilustrado', desc: 'Formato quadrado colorido 8.5"x8.5" com ritmo musical.', trim: '8.5x8.5', pages: 32, badge: 'Colorido' },
-              { id: 'workbook', title: 'Workbook / Livro de Exercícios', desc: 'Páginas amplas para preenchimento e reflexão.', trim: '8.5x11', pages: 100, badge: 'Didático' }
-            ].map((tmpl) => (
-              <div key={tmpl.id} className="template-card-item">
+            {([
+              'romance', 'fiction-novel', 'mystery', 'thriller', 'fantasy', 'sci-fi',
+              'self-help', 'business', 'finance', 'practical-guide', 'children-picture-book',
+              'illustrated-book', 'workbook', 'activity-book', 'coloring-book', 'planner',
+              'diary', 'puzzle-book', 'biography'
+            ] as BookType[]).map((id) => {
+              const config = BOOK_TYPE_CONFIGS[id];
+              return (
+              <div key={id} className="template-card-item">
                 <div className="flex justify-between items-start mb-2">
-                  <span className="badge-tmpl-pill">{tmpl.badge}</span>
-                  <span className="text-xs text-muted">{tmpl.trim}</span>
+                  <span className="badge-tmpl-pill">{config.category}</span>
+                  <span className="text-xs text-muted">{config.trimSize}</span>
                 </div>
-                <h4 className="font-semibold text-base mb-1">{tmpl.title}</h4>
-                <p className="text-xs text-muted mb-4">{tmpl.desc}</p>
+                <h4 className="font-semibold text-base mb-1">{config.label}</h4>
+                <p className="text-xs text-muted mb-4">{config.description}</p>
                 <button 
                   className="btn-use-template-full"
-                  onClick={() => onSelectTemplate(tmpl.id)}
+                  onClick={() => onSelectTemplate(id)}
                 >
                   Usar Este Template →
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

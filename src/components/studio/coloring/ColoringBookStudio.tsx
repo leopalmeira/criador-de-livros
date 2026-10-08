@@ -81,7 +81,7 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
   // 2. Planejamento das páginas com Personagem Central Consistente e Capa Colorida no topo
   const handlePlanejar = async () => {
     setIsPlanning(true);
-    setStatusMsg('Estruturando personagem central e roteiro denso com Gemini 3.8/3.5...');
+    setStatusMsg('Planejando personagem, tema visual e sequência de páginas...');
     try {
       const plano = await planejarPaginasColorir(
         tema || 'Livros para colorir',
@@ -113,7 +113,7 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
 
     const targetPage = pages[pageIndex];
     setGeneratingPageId(pageId);
-    setStatusMsg(`Gerando ${targetPage.isCover ? 'a Capa Colorida' : `os traços da Página ${targetPage.pageNumber}`} com motor FLUX (Replicate)...`);
+    setStatusMsg(`Criando ${targetPage.isCover ? 'a capa colorida' : `a ilustração da Página ${targetPage.pageNumber}`}...`);
 
     try {
       const dataUrl = await gerarIlustracaoPaginaColorir(
