@@ -7,6 +7,7 @@ import { execSync } from 'child_process';
 import * as cheerio from 'cheerio';
 import { handleAudiobookApi } from './server/audiobook/api.js';
 import { handleReplicateApi } from './server/replicate/api.js';
+import { handleAuthApi } from './server/auth/api.js';
 
 function decodeKey(b64) {
   try {
@@ -302,6 +303,11 @@ async function handleAmazonSuggestions(prefix) {
 const server = http.createServer(async (req, res) => {
   const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = reqUrl.pathname;
+
+  if (pathname.startsWith('/api/auth/') || pathname === '/api/projects' || pathname.startsWith('/api/projects/') || pathname === '/api/user-data' || pathname.startsWith('/api/user-data/')) {
+    const handled = await handleAuthApi(req, res, reqUrl);
+    if (handled) return;
+  }
 
   // Headers CORS para APIs
   res.setHeader('Access-Control-Allow-Origin', '*');

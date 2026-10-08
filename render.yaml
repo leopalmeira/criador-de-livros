@@ -12,3 +12,5 @@ services:
         value: 22.14.0
       - key: FISH_API_KEY
         sync: false
+      - key: DATABASE_URL
+        sync: false

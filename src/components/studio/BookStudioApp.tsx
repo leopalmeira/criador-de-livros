@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { db } from '../../database/local-database';
 import { BookProject } from '../../types/book-project';
@@ -21,6 +21,7 @@ import { TechnicalManualsModal } from './manuals/TechnicalManualsModal';
 import { AuthorAiGuideDrawer } from './ai-guide/AuthorAiGuideDrawer';
 import { BestsellerCover10StylesModal } from './cover/BestsellerCover10StylesModal';
 import { CoverStyleDefinition } from '../../services/amazon-cover-styles';
+import { AuthenticatedUser, authClient } from '../../services/auth-client';
 import '../../styles/book-intel-dashboard.css';
 
 type AppMode = 'project-list' | 'settings' | 'kdp-generator';
@@ -28,15 +29,11 @@ type AppMode = 'project-list' | 'settings' | 'kdp-generator';
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
   const [activeProject, setActiveProject] = useState<BookProject | null>(null);
+  const authenticatedUserIdRef = useRef<string | null>(null);
 
-  // Autenticação direta sem landing page
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const auth = localStorage.getItem('kdp_auth_user') || sessionStorage.getItem('kdp_auth_user');
-      return Boolean(auth);
-    }
-    return false;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
 
   const [mode, setMode] = useState<AppMode>('project-list');
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
@@ -53,13 +50,42 @@ export const BookStudioApp: React.FC = () => {
   const [isKdpPublishOpen, setIsKdpPublishOpen] = useState(false);
   const [kdpPublishTarget, setKdpPublishTarget] = useState<BookProject | null>(null);
 
-  // Logout seguro
-  const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('kdp_auth_user');
-      sessionStorage.removeItem('kdp_auth_user');
+  useEffect(() => {
+    let isMounted = true;
+    authClient.getSession()
+      .then(user => {
+        if (!isMounted) return;
+        authenticatedUserIdRef.current = user?.id || null;
+        db.setAuthenticatedUser(user?.id || null);
+        setIsAuthenticated(Boolean(user));
+      })
+      .catch(error => {
+        console.error('Não foi possível validar a sessão no servidor:', error);
+        if (!isMounted) return;
+        authenticatedUserIdRef.current = null;
+        db.setAuthenticatedUser(null);
+        setIsAuthenticated(false);
+      })
+      .finally(() => {
+        if (isMounted) setIsAuthChecking(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authClient.logout();
+    } catch (error) {
+      console.error('Não foi possível encerrar a sessão no servidor:', error);
     }
+    authenticatedUserIdRef.current = null;
+    db.setAuthenticatedUser(null);
     setIsAuthenticated(false);
+    setProjects([]);
+    setActiveProject(null);
+    setProjectLoadError(null);
   };
 
   // Sincronização de rotas com URL hash (#landing, #dashboard, #studio)
@@ -76,16 +102,27 @@ export const BookStudioApp: React.FC = () => {
 
   // Carregar projetos do IndexedDB
   const reloadProjects = useCallback(async () => {
+    if (!isAuthenticated) {
+      setProjects([]);
+      return;
+    }
+    const requestedUserId = authenticatedUserIdRef.current;
     try {
       const all = await db.getAllBookProjects();
-      setProjects(all);
+      if (requestedUserId === authenticatedUserIdRef.current) {
+        setProjects(all);
+        setProjectLoadError(null);
+      }
     } catch (err) {
       console.error('Erro ao carregar projetos:', err);
+      if (requestedUserId === authenticatedUserIdRef.current) {
+        setProjectLoadError(err instanceof Error ? err.message : 'Não foi possível carregar seus projetos.');
+      }
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    reloadProjects();
+    if (isAuthenticated) reloadProjects();
   }, [reloadProjects]);
 
   // Keep-Alive Ping no Render enquanto a aba estiver aberta (a cada 5 min)
@@ -100,6 +137,7 @@ export const BookStudioApp: React.FC = () => {
 
   // Abrir projeto existente diretamente no Gerador KDP Pro
   const openProject = async (projectId: string) => {
+    const requestedUserId = authenticatedUserIdRef.current;
     let found = projects.find(p => p.id === projectId);
     if (!found) {
       try {
@@ -112,6 +150,7 @@ export const BookStudioApp: React.FC = () => {
         console.warn('[BookStudioApp] Falha ao recuperar projeto do banco:', err);
       }
     }
+    if (requestedUserId !== authenticatedUserIdRef.current) return;
     if (found) {
       setActiveProject(found);
       setMode('kdp-generator');
@@ -288,15 +327,40 @@ export const BookStudioApp: React.FC = () => {
   // ============================================================
   // TELA 0: AUTENTICAÇÃO OBRIGATÓRIA (LOGIN DIRETO SEM LANDING PAGE)
   // ============================================================
+  if (isAuthChecking) {
+    return (
+      <div className="auth-loading" role="status" aria-live="polite">
+        <span className="auth-loading-spinner" />
+        <span>Verificando sua sessão segura…</span>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <LoginPage
-        onLoginSuccess={() => {
+        onLoginSuccess={(user: AuthenticatedUser) => {
+          authenticatedUserIdRef.current = user.id;
+          db.setAuthenticatedUser(user.id);
+          setProjects([]);
+          setActiveProject(null);
+          setProjectLoadError(null);
           setIsAuthenticated(true);
           setMode('project-list');
-          reloadProjects();
         }}
       />
+    );
+  }
+
+  if (projectLoadError) {
+    return (
+      <div className="auth-loading" role="alert">
+        <div>
+          <p>Não foi possível carregar os projetos da sua conta.</p>
+          <p>{projectLoadError}</p>
+          <button type="button" onClick={() => void reloadProjects()}>Tentar novamente</button>
+        </div>
+      </div>
     );
   }
 

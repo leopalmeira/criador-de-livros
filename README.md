@@ -1,8 +1,12 @@
 # BookIntel & KDP Studio • Plataforma Profissional de Inteligência e Criação de Livros KDP
 
-O **BookIntel & KDP Studio** é uma extensão Chromium (Manifest V3) para pesquisa de livros na Amazon e organização de projetos editoriais voltados ao **Kindle Direct Publishing (KDP)**. Os dados do usuário são armazenados no navegador; provedores de IA e serviços de imagem podem receber solicitações quando usados.
+O **BookIntel & KDP Studio** é uma extensão Chromium (Manifest V3) e uma plataforma web para pesquisa de livros na Amazon e organização de projetos editoriais voltados ao **Kindle Direct Publishing (KDP)**. Na plataforma web, cada cliente usa uma conta individual; projetos, livros finalizados, arquivos PDF e revisões editoriais são associados à conta no PostgreSQL. A extensão Chromium continua usando os dados locais do navegador.
 
 O aplicativo reúne estimativas de mercado, projetos editoriais, ferramentas de capa e exportação. Estimativas não são dados oficiais da Amazon, conteúdo gerado por IA requer revisão e os arquivos exportados devem ser conferidos no Previewer do KDP antes de qualquer publicação.
+
+### Contas individuais da plataforma web
+
+O servidor usa PostgreSQL por meio de `DATABASE_URL`. Para implantação no Render, crie ou selecione um banco PostgreSQL e configure `DATABASE_URL` no serviço web com a URL interna do banco. O Blueprint não provisiona um banco automaticamente nem escolhe um plano com custo. As tabelas de contas, sessões, projetos, livros finalizados e trabalhos editoriais são criadas pelo servidor quando usadas. Senhas são armazenadas com hash scrypt; sessões usam cookie `HttpOnly`, e os registros editoriais são isolados pelo identificador da conta autenticada. Chaves de provedores de IA permanecem nas configurações locais do navegador, separadas por conta. Projetos antigos que ainda não tinham proprietário não são atribuídos automaticamente a uma conta; continuam preservados no armazenamento local até serem importados explicitamente.
 
 ---
 
@@ -22,7 +26,7 @@ O aplicativo reúne estimativas de mercado, projetos editoriais, ferramentas de 
   9. *Metadata & SEO*: Descrição comercial persuasiva em HTML e 7 palavras-chave oficiais.
   10. *Quality Gate*: Checklist editorial básico; não substitui os validadores oficiais nem garante aprovação do KDP.
 - **Editor de 3 Colunas**: Navegação estrutural à esquerda, editor Markdown no centro e assistente de IA com versionamento e restauração à direita.
-- **Retomada de Projetos**: Estado 100% persistente no IndexedDB; projetos interrompidos podem ser continuados a qualquer momento.
+- **Retomada de Projetos**: Projetos da plataforma web são sincronizados com a conta no PostgreSQL e mantidos também no IndexedDB como cache local; projetos interrompidos podem ser continuados em outros dispositivos.
 - **Controle de Custos e Tokens**: Exibição transparente de tokens consumidos, chamadas realizadas e custo estimado em R$ (BRL) e $ (USD).
 - **Provedores de IA Desacoplados**: Suporte para Ollama (100% local, offline e gratuito), OpenAI (GPT-4o/mini), Anthropic (Claude 3.5 Sonnet) e OpenRouter.
 

@@ -12,6 +12,27 @@ function kdpAiBackendPlugin() {
     name: 'kdp-ai-backend-middleware',
     apply: 'serve' as const,
     configureServer(server: any) {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
+        const requestUrl = new URL(req.url || '/', 'http://localhost');
+        if (
+          !requestUrl.pathname.startsWith('/api/auth/') &&
+          requestUrl.pathname !== '/api/projects' &&
+          !requestUrl.pathname.startsWith('/api/projects/') &&
+          requestUrl.pathname !== '/api/user-data' &&
+          !requestUrl.pathname.startsWith('/api/user-data/')
+        ) {
+          next();
+          return;
+        }
+        try {
+          const { handleAuthApi } = await import('./server/auth/api.js');
+          const handled = await handleAuthApi(req, res, requestUrl);
+          if (!handled) next();
+        } catch (error) {
+          next(error);
+        }
+      });
+
       server.middlewares.use('/api/kdp-agents', async (req: any, res: any) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;

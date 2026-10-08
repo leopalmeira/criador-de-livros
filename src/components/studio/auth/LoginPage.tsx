@@ -33,9 +33,11 @@ import {
   Layers
 } from 'lucide-react';
 import { useTranslation, SupportedLanguage } from '../../../services/i18n-service';
+import { AuthApiError, authClient } from '../../../services/auth-client';
+import './login-page.css';
 
 interface Props {
-  onLoginSuccess: (user: { name: string; email: string }) => void;
+  onLoginSuccess: (user: { id: string; name: string; email: string }) => void;
 }
 
 export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
@@ -43,16 +45,54 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
   // Estados de formulário
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('leandro.palmeira@kdpintel.com');
-  const [password, setPassword] = useState('••••••••••••');
-  const [authorName, setAuthorName] = useState('Leandro Palmeira');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authorName, setAuthorName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Manipulador de Login
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const localizedAuthError = (error: unknown): string => {
+    const code = error instanceof AuthApiError ? error.code : null;
+    const messages: Record<string, Record<string, string>> = {
+      INVALID_CREDENTIALS: {
+        'pt-BR': 'E-mail ou senha incorretos. Se ainda não tem cadastro, crie sua conta para entrar.',
+        'en-US': 'Email or password is incorrect. Create an account if you are new here.',
+        'es-ES': 'El correo o la contraseña son incorrectos. Cree una cuenta si es nuevo.'
+      },
+      ACCOUNT_EXISTS: {
+        'pt-BR': 'Este e-mail já possui cadastro. Entre com sua senha.',
+        'en-US': 'This email is already registered. Sign in with your password.',
+        'es-ES': 'Este correo ya está registrado. Inicie sesión con su contraseña.'
+      },
+      AUTH_NOT_CONFIGURED: {
+        'pt-BR': 'O serviço de contas ainda não foi configurado no servidor. Tente novamente mais tarde.',
+        'en-US': 'The account service is not configured on the server yet. Please try again later.',
+        'es-ES': 'El servicio de cuentas aún no está configurado en el servidor. Inténtelo más tarde.'
+      },
+      INVALID_PASSWORD: {
+        'pt-BR': 'E-mail ou senha incorretos. Confira os dados e tente novamente.',
+        'en-US': 'Email or password is incorrect. Check your details and try again.',
+        'es-ES': 'El correo o la contraseña son incorrectos. Revise los datos e inténtelo de nuevo.'
+      },
+      WEAK_PASSWORD: {
+        'pt-BR': 'A senha precisa ter pelo menos 8 caracteres.',
+        'en-US': 'Your password must contain at least 8 characters.',
+        'es-ES': 'La contraseña debe tener al menos 8 caracteres.'
+      }
+    };
+    if (code && messages[code]) return messages[code][currentLang] || messages[code]['pt-BR'];
+    if (error instanceof Error) return error.message;
+    return currentLang === 'pt-BR'
+      ? 'Não foi possível concluir a operação. Tente novamente.'
+      : currentLang === 'es-ES'
+        ? 'No se pudo completar la operación. Inténtelo de nuevo.'
+        : 'The operation could not be completed. Please try again.';
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       if (currentLang === 'pt-BR') {
@@ -68,29 +108,18 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
     setIsLoading(true);
     setErrorMessage(null);
 
-    setTimeout(() => {
+    try {
+      const user = await authClient.login(email, password, rememberMe);
+      onLoginSuccess(user);
+    } catch (error) {
+      setErrorMessage(localizedAuthError(error));
+    } finally {
       setIsLoading(false);
-      const name = authorName.trim() || (email.includes('leandro') ? 'Leandro Palmeira' : 'Autor KDP Pro');
-      const authData = {
-        name,
-        email,
-        token: `kdp_token_${Date.now()}`
-      };
-
-      if (typeof window !== 'undefined') {
-        if (rememberMe) {
-          localStorage.setItem('kdp_auth_user', JSON.stringify(authData));
-        } else {
-          sessionStorage.setItem('kdp_auth_user', JSON.stringify(authData));
-        }
-      }
-
-      onLoginSuccess(authData);
-    }, 400);
+    }
   };
 
   // Manipulador de Cadastro Gratuito
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       if (currentLang === 'pt-BR') {
@@ -105,22 +134,14 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
     setIsLoading(true);
     setErrorMessage(null);
-
-    setTimeout(() => {
+    try {
+      const user = await authClient.register(email, authorName, password, rememberMe);
+      onLoginSuccess(user);
+    } catch (error) {
+      setErrorMessage(localizedAuthError(error));
+    } finally {
       setIsLoading(false);
-      const name = authorName.trim() || 'Novo Autor KDP';
-      const authData = {
-        name,
-        email,
-        token: `kdp_token_${Date.now()}`
-      };
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('kdp_auth_user', JSON.stringify(authData));
-      }
-
-      onLoginSuccess(authData);
-    }, 450);
+    }
   };
 
   return (
@@ -133,7 +154,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       position: 'relative',
       overflowX: 'hidden',
       paddingBottom: 40
-    }}>
+    }} className="login-page">
       {/* GLOW DE FUNDO NEON */}
       <div style={{
         position: 'absolute',
@@ -167,7 +188,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: 16
-        }}>
+        }} className="login-page__header-inner">
           {/* LOGO BOOK INTEL KDP */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
@@ -207,7 +228,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             borderRadius: 30,
             padding: '4px 10px',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-          }}>
+          }} className="login-page__language-selector">
             <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginRight: 2 }}>
               {t('nav.language')}:
             </span>
@@ -307,13 +328,13 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
         padding: '36px 24px',
         position: 'relative',
         zIndex: 1
-      }}>
+      }} className="login-page__main">
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 340px 420px',
           gap: 28,
           alignItems: 'start'
-        }}>
+        }} className="login-page__layout">
           {/* -------------------------------------------------------------- */}
           {/* COLUNA 1: APRESENTAÇÃO, 6 RECURSOS & BOX DE PREÇOS             */}
           {/* -------------------------------------------------------------- */}
@@ -354,7 +375,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               gridTemplateColumns: '1fr 1fr',
               gap: 12,
               marginBottom: 24
-            }}>
+            }} className="login-page__feature-grid">
               {/* 1. Pesquisa Inteligente */}
               <div style={{
                 background: 'rgba(15, 23, 42, 0.65)',
@@ -613,7 +634,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 gap: 10,
                 fontSize: 12,
                 color: '#cbd5e1'
-              }}>
+              }} className="login-page__pricing-benefits">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <CheckCircle2 size={15} color="#10b981" />
                   <span>{t('landing.pricingBenefit1')}</span>
@@ -653,7 +674,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               background: 'rgba(15, 23, 42, 0.4)',
               borderRadius: 12,
               border: '1px solid rgba(255, 255, 255, 0.06)'
-            }}>
+            }} className="login-page__pillars">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ShieldCheck size={16} color="#38bdf8" />
@@ -871,7 +892,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             borderRadius: 20,
             padding: '30px 26px',
             boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 25px rgba(14, 165, 233, 0.15)'
-          }}>
+          }} className="login-page__auth-card">
             {/* TOPO DO CARD COM LOGO */}
             <div style={{ textAlign: 'center', marginBottom: 22 }}>
               <div style={{
@@ -907,7 +928,11 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             }}>
               <button
                 type="button"
-                onClick={() => setActiveTab('login')}
+                onClick={() => {
+                  setActiveTab('login');
+                  setPassword('');
+                  setErrorMessage(null);
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -929,7 +954,11 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
               <button
                 type="button"
-                onClick={() => setActiveTab('register')}
+                onClick={() => {
+                  setActiveTab('register');
+                  setPassword('');
+                  setErrorMessage(null);
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -982,6 +1011,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={t('landing.placeholderEmail')}
+                      autoComplete="username"
                       required
                       style={{
                         width: '100%',
@@ -1012,6 +1042,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={t('landing.placeholderPassword')}
+                      autoComplete="current-password"
                       required
                       style={{
                         width: '100%',
@@ -1121,7 +1152,11 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   </p>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('register')}
+                    onClick={() => {
+                      setActiveTab('register');
+                      setPassword('');
+                      setErrorMessage(null);
+                    }}
                     style={{
                       width: '100%',
                       padding: '9px 14px',
@@ -1159,6 +1194,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       value={authorName}
                       onChange={(e) => setAuthorName(e.target.value)}
                       placeholder={t('landing.placeholderName')}
+                      autoComplete="name"
                       required
                       style={{
                         width: '100%',
@@ -1189,6 +1225,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={t('landing.placeholderEmail')}
+                      autoComplete="email"
                       required
                       style={{
                         width: '100%',
@@ -1219,6 +1256,8 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={t('landing.placeholderPasswordCreate')}
+                      autoComplete="new-password"
+                      minLength={8}
                       required
                       style={{
                         width: '100%',

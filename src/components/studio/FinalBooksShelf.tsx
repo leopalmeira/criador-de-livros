@@ -515,6 +515,10 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
     if (book.pdf && book.pdf.byteLength > 100) {
       return book.pdf;
     }
+    const storedBook = await db.getFinalBook(book.id);
+    if (storedBook?.pdf && storedBook.pdf.byteLength > 100) {
+      return storedBook.pdf;
+    }
 
     const capitulos = (book.chapters && book.chapters.length > 0)
       ? book.chapters

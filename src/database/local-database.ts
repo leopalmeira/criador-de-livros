@@ -21,10 +21,151 @@ import { DEFAULT_SETTINGS, DEFAULT_SALES_MODELS } from './defaults';
 const DB_NAME = 'BookIntelDB';
 const DB_VERSION = 4; // v4: editorialJobs + finalBooks (correção editorial e PDFs finais)
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(value: string): ArrayBuffer {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return bytes.buffer;
+}
+
 class LocalDatabase {
   private dbPromise: Promise<IDBDatabase> | null = null;
 
   private inMemoryCategoryMetrics: CategoryMarketMetrics[] = [];
+  private activeUserId: string | null = null;
+
+  setAuthenticatedUser(userId: string | null): void {
+    this.activeUserId = userId;
+  }
+
+  private async cloudRequest<T>(path: string, method = 'GET', payload?: unknown): Promise<T> {
+    const response = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      headers: payload === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: payload === undefined ? undefined : JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      throw new Error(result.error || `Falha ao sincronizar os dados da conta (${response.status}).`);
+    }
+    return result as T;
+  }
+
+  private async saveOwnedRecord<T extends object>(
+    storeName: string,
+    record: T,
+    ownerId = this.activeUserId
+  ): Promise<void> {
+    const db = await this.getDB();
+    const scopedRecord = { ...record, ownerId };
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).put(scopedRecord);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  private async getOwnedRecord<T extends { ownerId?: string }>(
+    storeName: string,
+    id: string,
+    ownerId = this.activeUserId
+  ): Promise<T | null> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(storeName, 'readonly').objectStore(storeName).get(id);
+      req.onsuccess = () => {
+        const record = req.result as T | undefined;
+        const ownedByCurrentUser = ownerId
+          ? record?.ownerId === ownerId
+          : !record?.ownerId;
+        resolve(record && ownedByCurrentUser ? record : null);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  private async replaceOwnedRecords<T extends { ownerId?: string }>(
+    storeName: string,
+    records: T[],
+    getId: (record: T) => IDBValidKey,
+    ownerId = this.activeUserId
+  ): Promise<void> {
+    if (!ownerId) throw new Error('É necessário autenticar uma conta para sincronizar os dados.');
+    const db = await this.getDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      const getAll = store.getAll();
+      getAll.onsuccess = () => {
+        for (const record of getAll.result as Array<T & { ownerId?: string }>) {
+          if (record.ownerId === ownerId) store.delete(getId(record));
+        }
+        for (const record of records) store.put({ ...record, ownerId });
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  private async deleteOwnedRecord(storeName: string, id: string, ownerId = this.activeUserId): Promise<void> {
+    const record = await this.getOwnedRecord<{ ownerId?: string }>(storeName, id, ownerId);
+    if (!record) return;
+    const db = await this.getDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  private async getAllOwnedRecords<T extends { ownerId?: string }>(
+    storeName: string,
+    ownerId = this.activeUserId
+  ): Promise<T[]> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+      req.onsuccess = () => {
+        const records = (req.result as T[]).filter(record => ownerId
+          ? record.ownerId === ownerId
+          : !record.ownerId);
+        resolve(records);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  private async saveCloudRecord(collection: string, recordId: string, record: object): Promise<void> {
+    await this.cloudRequest(`/api/user-data/${collection}/${encodeURIComponent(recordId)}`, 'PUT', { record });
+  }
+
+  private async getCloudRecord<T>(collection: string, recordId: string): Promise<T | null> {
+    const response = await this.cloudRequest<{ record: T | null }>(
+      `/api/user-data/${collection}/${encodeURIComponent(recordId)}`
+    );
+    return response.record;
+  }
+
+  private async getAllCloudRecords<T>(collection: string): Promise<T[]> {
+    const response = await this.cloudRequest<{ records: T[] }>(`/api/user-data/${collection}`);
+    return response.records;
+  }
 
   private getDB(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
@@ -296,11 +437,12 @@ class LocalDatabase {
 
   // --- CONFIGURAÇÕES ---
   async getSettings(): Promise<AppSettings> {
+    const settingsKey = this.activeUserId ? `bookintel_settings_${this.activeUserId}` : 'bookintel_settings';
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       return new Promise((resolve) => {
-        chrome.storage.local.get(['bookintel_settings'], (result) => {
-          if (result && result.bookintel_settings) {
-            const merged = { ...DEFAULT_SETTINGS, ...result.bookintel_settings };
+        chrome.storage.local.get([settingsKey], (result) => {
+          if (result && result[settingsKey]) {
+            const merged = { ...DEFAULT_SETTINGS, ...result[settingsKey] };
             if (merged.aiSettings) {
               if (merged.aiSettings.provider === 'ollama' && (merged.aiSettings.model === 'gpt-4o-mini' || merged.aiSettings.model === 'gpt-4o')) {
                 merged.aiSettings.model = 'llama3.1';
@@ -313,7 +455,7 @@ class LocalDatabase {
         });
       });
     } else {
-      const local = localStorage.getItem('bookintel_settings');
+      const local = localStorage.getItem(settingsKey);
       if (local) {
         try {
           const merged = { ...DEFAULT_SETTINGS, ...JSON.parse(local) };
@@ -334,13 +476,14 @@ class LocalDatabase {
   async saveSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
     const current = await this.getSettings();
     const updated = { ...current, ...settings };
+    const settingsKey = this.activeUserId ? `bookintel_settings_${this.activeUserId}` : 'bookintel_settings';
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       await new Promise<void>((resolve) => {
-        chrome.storage.local.set({ bookintel_settings: updated }, () => resolve());
+        chrome.storage.local.set({ [settingsKey]: updated }, () => resolve());
       });
     } else {
-      localStorage.setItem('bookintel_settings', JSON.stringify(updated));
+      localStorage.setItem(settingsKey, JSON.stringify(updated));
     }
     return updated;
   }
@@ -406,52 +549,50 @@ class LocalDatabase {
 
   // --- PROJETOS DE LIVROS (BOOK CREATOR) ---
   async saveBookProject(project: BookProject): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('bookProjects', 'readwrite');
-      const store = tx.objectStore('bookProjects');
-      project.updatedAt = Date.now();
-      const req = store.put(project);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+    const ownerId = this.activeUserId;
+    project.updatedAt = Date.now();
+    if (ownerId) {
+      await this.cloudRequest(`/api/projects/${encodeURIComponent(project.id)}`, 'PUT', { project });
+    }
+    await this.saveOwnedRecord('bookProjects', project, ownerId);
   }
 
   async getBookProject(id: string): Promise<BookProject | null> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('bookProjects', 'readonly');
-      const store = tx.objectStore('bookProjects');
-      const req = store.get(id);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      const response = await this.cloudRequest<{ project: BookProject | null }>(
+        `/api/projects/${encodeURIComponent(id)}`
+      );
+      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento do projeto.');
+      if (response.project) await this.saveOwnedRecord('bookProjects', response.project, ownerId);
+      return response.project;
+    }
+    return this.getOwnedRecord<BookProject & { ownerId?: string }>('bookProjects', id);
   }
 
   async getAllBookProjects(): Promise<BookProject[]> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('bookProjects', 'readonly');
-      const store = tx.objectStore('bookProjects');
-      const req = store.getAll();
-      req.onsuccess = () => {
-        const list: BookProject[] = req.result || [];
-        list.sort((a, b) => b.updatedAt - a.updatedAt);
-        resolve(list);
-      };
-      req.onerror = () => reject(req.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      const response = await this.cloudRequest<{ projects: BookProject[] }>('/api/projects');
+      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante a sincronização dos projetos.');
+      await this.replaceOwnedRecords(
+        'bookProjects',
+        response.projects,
+        project => project.id,
+        ownerId
+      );
+      return response.projects.sort((a, b) => b.updatedAt - a.updatedAt);
+    }
+    const list = await this.getAllOwnedRecords<BookProject & { ownerId?: string }>('bookProjects');
+    return list.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   async deleteBookProject(id: string): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('bookProjects', 'readwrite');
-      const store = tx.objectStore('bookProjects');
-      const req = store.delete(id);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      await this.cloudRequest(`/api/projects/${encodeURIComponent(id)}`, 'DELETE');
+    }
+    await this.deleteOwnedRecord('bookProjects', id, ownerId);
   }
 
   // --- AUDIOBOOK ATIVOS E METADADOS DO LIVRO ---
@@ -506,7 +647,7 @@ class LocalDatabase {
         window.dispatchEvent(new CustomEvent('kdp-audiobook-updated', { detail: { projectId, audiobook: mergedAudiobook } }));
       }
     } catch (err) {
-      console.warn('[LocalDatabase] Erro ao salvar audiobook no projeto:', err);
+      console.error('[LocalDatabase] Erro ao salvar audiobook no projeto:', err);
     }
   }
 
@@ -520,84 +661,92 @@ class LocalDatabase {
       if (finalBook?.audiobook) return finalBook.audiobook;
 
       return null;
-    } catch {
+    } catch (error) {
+      console.error('[LocalDatabase] Erro ao carregar audiobook do projeto:', error);
       return null;
     }
   }
 
   // --- CORREÇÃO EDITORIAL: JOBS ---
   async saveEditorialJob(job: EditorialJob): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('editorialJobs', 'readwrite');
-      tx.objectStore('editorialJobs').put(job);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) await this.saveCloudRecord('editorial-jobs', job.bookId, job);
+    await this.saveOwnedRecord('editorialJobs', job, ownerId);
   }
 
   async getEditorialJob(bookId: string): Promise<EditorialJob | null> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const req = db.transaction('editorialJobs', 'readonly').objectStore('editorialJobs').get(bookId);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      const job = await this.getCloudRecord<EditorialJob>('editorial-jobs', bookId);
+      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento da revisão editorial.');
+      if (job) await this.saveOwnedRecord('editorialJobs', job, ownerId);
+      return job;
+    }
+    return this.getOwnedRecord<EditorialJob & { ownerId?: string }>('editorialJobs', bookId);
   }
 
   async deleteEditorialJob(bookId: string): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('editorialJobs', 'readwrite');
-      tx.objectStore('editorialJobs').delete(bookId);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      await this.cloudRequest(`/api/user-data/editorial-jobs/${encodeURIComponent(bookId)}`, 'DELETE');
+    }
+    await this.deleteOwnedRecord('editorialJobs', bookId, ownerId);
   }
 
   // --- LIVROS FINAIS (PDF VALIDADO) ---
   async saveFinalBook(rec: FinalBookRecord): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('finalBooks', 'readwrite');
-      tx.objectStore('finalBooks').put(rec);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      const cloudRecord = { ...rec, pdf: undefined, pdfBase64: arrayBufferToBase64(rec.pdf) };
+      await this.saveCloudRecord('final-books', rec.id, cloudRecord);
+    }
+    await this.saveOwnedRecord('finalBooks', rec, ownerId);
   }
 
   async getFinalBook(id: string): Promise<FinalBookRecord | null> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const req = db.transaction('finalBooks', 'readonly').objectStore('finalBooks').get(id);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      const cloudRecord = await this.getCloudRecord<FinalBookRecord & { pdfBase64?: string }>('final-books', id);
+      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento do livro final.');
+      if (!cloudRecord) return null;
+      const record = { ...cloudRecord, pdf: base64ToArrayBuffer(cloudRecord.pdfBase64 || '') };
+      delete (record as FinalBookRecord & { pdfBase64?: string }).pdfBase64;
+      await this.saveOwnedRecord('finalBooks', record, ownerId);
+      return record;
+    }
+    return this.getOwnedRecord<FinalBookRecord & { ownerId?: string }>('finalBooks', id);
   }
 
   async getAllFinalBooks(): Promise<FinalBookRecord[]> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const req = db.transaction('finalBooks', 'readonly').objectStore('finalBooks').getAll();
-      req.onsuccess = () => {
-        const list: FinalBookRecord[] = req.result || [];
-        list.sort((a, b) => b.finalizedAt - a.finalizedAt);
-        resolve(list);
-      };
-      req.onerror = () => reject(req.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      const cloudRecords = await this.getAllCloudRecords<FinalBookRecord & { pdfBase64?: string }>('final-books');
+      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante a sincronização dos livros finais.');
+      const localRecords = await this.getAllOwnedRecords<FinalBookRecord & { ownerId?: string }>('finalBooks', ownerId);
+      const localById = new Map(localRecords.map(record => [record.id, record]));
+      const records = cloudRecords.map(cloudRecord => {
+        const record = {
+          ...cloudRecord,
+          pdf: cloudRecord.pdfBase64
+            ? base64ToArrayBuffer(cloudRecord.pdfBase64)
+            : localById.get(cloudRecord.id)?.pdf || new ArrayBuffer(0)
+        };
+        delete (record as FinalBookRecord & { pdfBase64?: string }).pdfBase64;
+        return record;
+      });
+      await this.replaceOwnedRecords('finalBooks', records, record => record.id, ownerId);
+      return records.sort((a, b) => b.finalizedAt - a.finalizedAt);
+    }
+    const list = await this.getAllOwnedRecords<FinalBookRecord & { ownerId?: string }>('finalBooks');
+    return list.sort((a, b) => b.finalizedAt - a.finalizedAt);
   }
 
   async deleteFinalBook(id: string): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('finalBooks', 'readwrite');
-      tx.objectStore('finalBooks').delete(id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    const ownerId = this.activeUserId;
+    if (ownerId) {
+      await this.cloudRequest(`/api/user-data/final-books/${encodeURIComponent(id)}`, 'DELETE');
+    }
+    await this.deleteOwnedRecord('finalBooks', id, ownerId);
   }
 
   async getProjectSummaries(): Promise<ProjectSummary[]> {
@@ -727,9 +876,9 @@ class LocalDatabase {
     }
 
     if (bookProjects && Array.isArray(bookProjects)) {
-      const tx = db.transaction('bookProjects', 'readwrite');
-      const store = tx.objectStore('bookProjects');
-      for (const p of bookProjects) store.put(p);
+      for (const project of bookProjects as BookProject[]) {
+        await this.saveBookProject(project);
+      }
     }
 
     if (settings) {
