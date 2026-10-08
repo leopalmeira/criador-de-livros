@@ -3,7 +3,7 @@ import { AlertCircle, Loader2, Mic2, Pause, Play, RefreshCw, Users } from 'lucid
 import {
   AudiobookCastAnalysis,
   AudiobookClient,
-  FishAudioVoice
+  AudiobookSelectableVoice
 } from '../../../services/audiobook/audiobook-client';
 
 interface AudiobookCastPanelProps {
@@ -12,7 +12,7 @@ interface AudiobookCastPanelProps {
   onChange: (analysis: AudiobookCastAnalysis | null) => void;
 }
 
-const languageMatch = (voice: FishAudioVoice, language: string) => {
+const languageMatch = (voice: AudiobookSelectableVoice, language: string) => {
   if (voice.languages.length === 0) return true;
   const base = language.toLowerCase().split('-')[0];
   const names: Record<string, string> = {
@@ -34,7 +34,7 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
   language,
   onChange
 }) => {
-  const [voices, setVoices] = useState<FishAudioVoice[]>([]);
+  const [voices, setVoices] = useState<AudiobookSelectableVoice[]>([]);
   const [analysis, setAnalysis] = useState<AudiobookCastAnalysis | null>(null);
   const [isLoadingVoices, setIsLoadingVoices] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -50,7 +50,8 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
 
   useEffect(() => {
     let active = true;
-    AudiobookClient.listFishAudioVoices()
+    setIsLoadingVoices(true);
+    AudiobookClient.listAudiobookVoices(language)
       .then((items) => {
         if (active) setVoices(items);
       })
@@ -63,7 +64,23 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
     return () => {
       active = false;
     };
-  }, []);
+  }, [language]);
+
+  useEffect(() => {
+    if (!analysis) return;
+    const availableIds = new Set(voiceOptions.map((voice) => voice.id));
+    if (analysis.cast.every((member) => !member.voiceId || availableIds.has(member.voiceId))) return;
+    const updated = {
+      ...analysis,
+      cast: analysis.cast.map((member) =>
+        member.voiceId && !availableIds.has(member.voiceId)
+          ? { ...member, voiceId: undefined }
+          : member
+      )
+    };
+    setAnalysis(updated);
+    onChange(updated);
+  }, [analysis, onChange, voiceOptions]);
 
   const analyze = async () => {
     setError(null);
@@ -156,7 +173,7 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
           </h4>
           <p style={{ margin: '4px 0 0', color: '#475569', fontSize: 12, lineHeight: 1.5 }}>
             A IA identifica narrador e personagens. Revise o elenco e associe cada papel a uma voz
-            Fish Audio antes de gerar.
+            neural natural antes de gerar.
           </p>
         </div>
       </div>
@@ -183,7 +200,7 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
           {analysis ? 'Reanalisar elenco com IA' : 'Identificar elenco com IA'}
         </button>
         {isLoadingVoices && (
-          <span style={{ color: '#64748b', fontSize: 12 }}>Carregando vozes Fish Audio...</span>
+          <span style={{ color: '#64748b', fontSize: 12 }}>Carregando vozes disponíveis...</span>
         )}
       </div>
       {isAnalyzing && analysisProgress && (
@@ -225,8 +242,7 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
                 fontSize: 12
               }}
             >
-              A conta Fish Audio não retornou modelos de voz compatíveis com este idioma. Cadastre
-              modelos de voz na Fish Audio ou escolha outro idioma.
+              Nenhuma voz natural compatível foi encontrada. Confira sua conexão ou escolha outro idioma.
             </div>
           )}
 
@@ -273,10 +289,10 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
                       color: '#0f172a'
                     }}
                   >
-                    <option value="">Selecione uma voz Fish Audio</option>
+                    <option value="">Selecione uma voz</option>
                     {voiceOptions.map((voice) => (
                       <option key={voice.id} value={voice.id}>
-                        {voice.title}
+                        {voice.title} {voice.provider === 'neural-cloud' ? '— Natural' : '— Fish Audio'}
                       </option>
                     ))}
                   </select>

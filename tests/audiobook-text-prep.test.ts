@@ -147,4 +147,28 @@ Diálogo com travessão:
     }, 'pt-BR');
     expect(changedVoiceUnits[1].hash).not.toBe(chapter.hash);
   });
+
+  it('applies the selected narrator voice to chapter headings and chapters without cast segments', () => {
+    const units = buildNarrationUnits({
+      title: 'Livro',
+      narratorVoiceId: 'edge:pt-BR-AntonioNeural',
+      chapters: [
+        { title: 'Sem elenco', text: 'Texto narrado.' },
+        {
+          title: 'Com personagem',
+          text: 'Ana respondeu.',
+          speakerSegments: [{ speakerId: 'ana', text: 'Ana respondeu.', voiceId: 'fish:ana-model' }]
+        }
+      ]
+    }, 'pt-BR');
+
+    expect(units[1].segments).toEqual([{
+      text: 'Capítulo 1. Sem elenco.\n\nTexto narrado.',
+      voiceId: 'edge:pt-BR-AntonioNeural'
+    }]);
+    expect(units[2].segments).toEqual([
+      { text: 'Capítulo 2. Com personagem.', voiceId: 'edge:pt-BR-AntonioNeural' },
+      { text: 'Ana respondeu.', voiceId: 'fish:ana-model' }
+    ]);
+  });
 });

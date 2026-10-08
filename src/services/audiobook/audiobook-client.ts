@@ -104,6 +104,10 @@ export interface FishAudioVoice {
   languages: string[];
 }
 
+export interface AudiobookSelectableVoice extends FishAudioVoice {
+  provider: 'fish-audio' | 'neural-cloud';
+}
+
 const DEFAULT_LANGUAGES: AudiobookLanguage[] = [
   { id: 'pt-BR', label: 'Português (Brasil)', flag: '🇧🇷' },
   { id: 'en-US', label: 'Inglês', flag: '🇺🇸' },
@@ -113,8 +117,8 @@ const DEFAULT_LANGUAGES: AudiobookLanguage[] = [
   { id: 'it-IT', label: 'Italiano', flag: '🇮🇹' }
 ];
 
-const MAX_CAST_CHAPTER_CHARS = 18_000;
-const MAX_CAST_BATCH_CHARS = 35_000;
+const MAX_CAST_CHAPTER_CHARS = 3_500;
+const MAX_CAST_BATCH_CHARS = 3_500;
 const MAX_CAST_BATCH_CHAPTERS = 20;
 
 interface CastAnalysisTextChunk {
@@ -274,6 +278,35 @@ export class AudiobookClient {
       throw new Error('Configure FISH_API_KEY no ambiente do servidor para listar as vozes.');
     }
     return Array.isArray(data.voices) ? data.voices : [];
+  }
+
+  static async listAudiobookVoices(language: string): Promise<AudiobookSelectableVoice[]> {
+    const [fishResult, neuralResult] = await Promise.allSettled([
+      this.listFishAudioVoices(),
+      this.fetchVoices(language)
+    ]);
+    const fishVoices = fishResult.status === 'fulfilled' ? fishResult.value : [];
+    const neuralResponse = neuralResult.status === 'fulfilled' ? neuralResult.value : null;
+    const hasNeuralCatalog = Array.isArray(neuralResponse?.voices);
+    const neuralVoices = hasNeuralCatalog
+      ? neuralResponse.voices.filter((voice) => voice.provider === 'neural-cloud')
+      : [];
+    if (!hasNeuralCatalog && fishVoices.length === 0) {
+      throw new Error('Não foi possível carregar o catálogo de vozes. Verifique a conexão e tente novamente.');
+    }
+    return [
+      ...fishVoices.map((voice) => ({
+        ...voice,
+        id: `fish:${voice.id}`,
+        provider: 'fish-audio' as const
+      })),
+      ...neuralVoices.map((voice) => ({
+        id: voice.id,
+        title: voice.name,
+        languages: [voice.language],
+        provider: 'neural-cloud' as const
+      }))
+    ];
   }
 
   static async analyzeAudiobookCast(

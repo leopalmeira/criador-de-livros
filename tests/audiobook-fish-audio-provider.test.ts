@@ -43,7 +43,9 @@ describe('FishAudioProvider', () => {
       FISH_VOICE_ID_MALE: 'male-model',
       FISH_VOICE_ID_FEMALE: 'female-model'
     });
-    const audio = await provider.synthesizeSegment('Hello there.', 'en-US', 'female');
+    const audio = await provider.synthesizeSegment('Hello there.', 'en-US', 'female', {
+      voiceId: 'fish:female-model'
+    });
 
     expect(audio).toEqual(dummyMp3Buffer());
     expect(fetchMock).toHaveBeenCalledTimes(2);

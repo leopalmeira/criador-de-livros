@@ -16,7 +16,7 @@ import { getDefaultAudiobookService, AudiobookError } from './service.js';
 import { listPublicLanguages } from './languages.js';
 import { getEngineStatus, getAvailableVoices } from './engine-diagnostics.js';
 import { getDefaultSFXProvider } from './sfx-provider.js';
-import { generateReplicateText } from '../replicate/api.js';
+import { generateReplicateText, ReplicateTextError } from '../replicate/api.js';
 
 const previewCache = new Map();
 const MAX_CAST_ANALYSIS_BODY_BYTES = 160 * 1024;
@@ -66,12 +66,36 @@ function parseBody(req, maxBytes = 35 * 1024 * 1024) {
 }
 
 function parseCastAnalysisOutput(raw) {
-  const text = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new AudiobookError('A análise retornou um formato inválido. Tente novamente.', 502, 'INVALID_ANALYSIS_RESPONSE');
+  const text = String(raw || '').trim();
+  for (let start = text.indexOf('{'); start >= 0; start = text.indexOf('{', start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < text.length; index++) {
+      const char = text[index];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') inString = true;
+      else if (char === '{') depth++;
+      else if (char === '}' && --depth === 0) {
+        try {
+          const parsed = JSON.parse(text.slice(start, index + 1));
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+        } catch {
+          break;
+        }
+      }
+    }
   }
+  throw new AudiobookError(
+    'A IA não retornou a análise estruturada. Tente novamente; nenhum trecho do livro foi descartado.',
+    502,
+    'INVALID_ANALYSIS_RESPONSE'
+  );
 }
 
 function normalizeAnalysisWhitespace(text) {
@@ -354,12 +378,20 @@ export function createAudiobookApi(options = {}) {
         }
 
         const analyzeText = options.generateReplicateText || generateReplicateText;
-        const raw = await analyzeText(createCastAnalysisPrompt(chapters, knownCast), {
-          token: options.replicateToken,
-          fetchImpl: options.fetchImpl,
-          maxTokens: 12_000,
-          temperature: 0.1
-        });
+        let raw;
+        try {
+          raw = await analyzeText(createCastAnalysisPrompt(chapters, knownCast), {
+            token: options.replicateToken,
+            fetchImpl: options.fetchImpl,
+            maxTokens: 4096,
+            temperature: 0.1
+          });
+        } catch (error) {
+          if (error instanceof ReplicateTextError) {
+            throw new AudiobookError(error.message, error.status, error.code);
+          }
+          throw error;
+        }
         const analysis = validateCastAnalysis(parseCastAnalysisOutput(raw), chapters, knownCast);
         sendJson(res, 200, { success: true, ...analysis });
         return true;
@@ -592,7 +624,11 @@ export function createAudiobookApi(options = {}) {
         return true;
       }
       console.error('[AudiobookApi] Erro interno:', err);
-      sendJson(res, 500, { success: false, error: 'Ocorreu um erro interno no estúdio de audiobook.' });
+      sendJson(res, 500, {
+        success: false,
+        error: 'Ocorreu um erro interno no estúdio de audiobook.',
+        code: 'AUDIOBOOK_INTERNAL_ERROR'
+      });
       return true;
     }
   };

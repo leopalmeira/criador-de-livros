@@ -36,11 +36,19 @@ export class FishAudioProvider extends TTSProvider {
 
   voiceFor(language, voiceGender, voiceId = '') {
     if (!resolveLanguage(language)) return null;
-    return String(voiceId || '').trim() || this.voiceIds[voiceGender] || this.singleVoiceId || null;
+    const selectedId = String(voiceId || '').trim();
+    const fishVoiceId = selectedId.startsWith('fish:') ? selectedId.slice('fish:'.length) : selectedId;
+    return fishVoiceId || this.voiceIds[voiceGender] || this.singleVoiceId || null;
   }
 
   supportsVoice(language, voiceId) {
-    return Boolean(this.apiKey && resolveLanguage(language) && String(voiceId || '').trim());
+    const selectedId = String(voiceId || '').trim();
+    return Boolean(
+      this.apiKey &&
+      resolveLanguage(language) &&
+      selectedId &&
+      !selectedId.startsWith('edge:')
+    );
   }
 
   async isAvailable() {

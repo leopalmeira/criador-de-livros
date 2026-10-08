@@ -93,7 +93,7 @@ export class AudiobookService {
         );
       }
       if (chapter.speakerSegments.some((segment) => !segment.speakerId || !segment.text.trim() || !segment.voiceId)) {
-        throw new AudiobookError('Cada fala do elenco precisa ter interlocutor e voz Fish Audio.', 400, 'INVALID_CAST_SEGMENTS');
+        throw new AudiobookError('Cada fala do elenco precisa ter interlocutor e voz selecionada.', 400, 'INVALID_CAST_SEGMENTS');
       }
     }
 

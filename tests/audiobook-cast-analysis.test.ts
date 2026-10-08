@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import http from 'node:http';
 import { createAudiobookApi } from '../server/audiobook/api.js';
+import { ReplicateTextError } from '../server/replicate/api.js';
 
 async function withApi(options: Record<string, unknown>, run: (baseUrl: string) => Promise<void>) {
   const handler = createAudiobookApi({ service: { engines: {} }, ...options } as any);
@@ -38,6 +39,26 @@ describe('Audiobook AI cast backend routes', () => {
       expect(response.status).toBe(400);
       expect(await response.json()).toMatchObject({ success: false, code: 'EMPTY_CHAPTER' });
       expect(called).toBe(false);
+    });
+  });
+
+  it('returns the actionable Replicate analysis error instead of a generic failure', async () => {
+    await withApi({
+      generateReplicateText: async () => {
+        throw new ReplicateTextError('O serviço de análise respondeu HTTP 503.', 502, 'REPLICATE_REQUEST_FAILED');
+      }
+    }, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/audiobook/analyze-cast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapters: [{ text: 'Texto para analisar.' }] })
+      });
+      expect(response.status).toBe(502);
+      expect(await response.json()).toMatchObject({
+        success: false,
+        error: 'O serviço de análise respondeu HTTP 503.',
+        code: 'REPLICATE_REQUEST_FAILED'
+      });
     });
   });
 
@@ -127,7 +148,10 @@ describe('Audiobook AI cast backend routes', () => {
         expect(url).toBe('https://api.replicate.com/v1/models/meta/meta-llama-3-70b-instruct/predictions');
         authHeader = String(init.headers && (init.headers as Record<string, string>).Authorization);
         sentPrompt = String((JSON.parse(String(init.body)) as { input: { prompt: string } }).input.prompt);
-        return new Response(JSON.stringify({ status: 'succeeded', output: [JSON.stringify(expected)] }), {
+        return new Response(JSON.stringify({
+          status: 'succeeded',
+          output: ['Resultado da análise:\n\n```json\n' + JSON.stringify(expected) + '\n```']
+        }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });

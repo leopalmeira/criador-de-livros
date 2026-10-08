@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { TTSEngineManager } from '../server/audiobook/engine-manager.js';
 import { TTSProvider } from '../server/audiobook/providers/tts-provider.js';
+import { getAvailableVoices } from '../server/audiobook/engine-diagnostics.js';
 
 // Cria frame MPEG-2 Layer III válido para mockar retorno de áudio
 function dummyMp3Buffer(): Buffer {
@@ -31,6 +32,12 @@ class MockTTSProvider extends TTSProvider {
 
   supports(language: string): boolean {
     return true;
+  }
+
+  supportsVoice(_language: string, voiceId: string): boolean {
+    return this.name === 'neural-cloud'
+      ? voiceId.startsWith('edge:')
+      : this.name === 'fish-audio' && voiceId.startsWith('fish:');
   }
 
   async synthesizeSegment(text: string, language: string, gender: string): Promise<Buffer> {
@@ -94,5 +101,41 @@ describe('AudiobookStudio — TTS Engine Manager (Seleção Automática e Recupe
       preferredEngine: r1.engine
     });
     expect(r2.engine).toBe('engine-a');
+  });
+
+  it('routes selected edge and Fish voice IDs only to their matching providers', async () => {
+    const manager = new TTSEngineManager({ registerDefaults: false });
+    manager.register(new MockTTSProvider('neural-cloud', 50));
+    manager.register(new MockTTSProvider('fish-audio', 120));
+
+    const edgeProviders = await manager.rankEngines('pt-BR', 'female', undefined, 'edge:pt-BR-FranciscaNeural');
+    const fishProviders = await manager.rankEngines('pt-BR', 'female', undefined, 'fish:fish-model-1');
+
+    expect(edgeProviders.map((provider) => provider.name)).toEqual(['neural-cloud']);
+    expect(fishProviders.map((provider) => provider.name)).toEqual(['fish-audio']);
+  });
+
+  it('includes discovered neural voice IDs in the available voice catalog', async () => {
+    const voices = await getAvailableVoices('pt-BR', {
+      providers: [{
+        name: 'neural-cloud',
+        isAvailable: async () => true,
+        listVoices: async () => [{
+          id: 'edge:pt-BR-ThalitaMultilingualNeural',
+          name: 'Thalita Multilingual',
+          gender: 'female',
+          provider: 'neural-cloud',
+          language: 'pt-BR',
+          available: true
+        }]
+      }]
+    } as any);
+
+    expect(voices.voices).toContainEqual(expect.objectContaining({
+      id: 'edge:pt-BR-ThalitaMultilingualNeural',
+      name: 'Thalita Multilingual',
+      provider: 'neural-cloud',
+      available: true
+    }));
   });
 });

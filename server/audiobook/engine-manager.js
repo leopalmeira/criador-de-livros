@@ -72,9 +72,14 @@ export class TTSEngineManager {
 
   /** Motores compatíveis e disponíveis, do melhor para o pior. */
   async rankEngines(language, voiceGender, preferredName, voiceId) {
+    const selectedProvider = voiceId?.startsWith('edge:')
+      ? 'neural-cloud'
+      : voiceId
+        ? 'fish-audio'
+        : null;
     const compatible = this.providers.filter((p) =>
-      voiceId
-        ? p.name === 'fish-audio' && p.supportsVoice?.(language, voiceId)
+      selectedProvider
+        ? p.name === selectedProvider && p.supportsVoice?.(language, voiceId)
         : p.supports(language, voiceGender)
     );
     const available = [];

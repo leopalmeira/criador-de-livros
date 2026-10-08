@@ -101,7 +101,7 @@ export async function getAvailableVoices(languageInput, engineManager) {
   if (lang.neural) {
     if (lang.neural.female) {
       voices.push({
-        id: lang.neural.female,
+        id: `edge:${lang.neural.female}`,
         name: formatNeuralName(lang.neural.female),
         gender: 'female',
         provider: 'neural-cloud',
@@ -111,7 +111,7 @@ export async function getAvailableVoices(languageInput, engineManager) {
     }
     if (lang.neural.male) {
       voices.push({
-        id: lang.neural.male,
+        id: `edge:${lang.neural.male}`,
         name: formatNeuralName(lang.neural.male),
         gender: 'male',
         provider: 'neural-cloud',
@@ -131,6 +131,20 @@ export async function getAvailableVoices(languageInput, engineManager) {
       if (v.provider === p.name) {
         v.available = isAvail;
       }
+    }
+  }
+
+  const neuralProvider = em.providers.find((provider) => provider.name === 'neural-cloud');
+  if (neuralProvider?.listVoices) {
+    try {
+      const neuralVoices = await neuralProvider.listVoices(lang.id);
+      for (const voice of neuralVoices) {
+        if (!voices.some((existing) => existing.id === voice.id)) {
+          voices.push(voice);
+        }
+      }
+    } catch {
+      // Keep the configured defaults when the online voice catalog is unavailable.
     }
   }
 

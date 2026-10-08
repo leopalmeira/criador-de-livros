@@ -244,11 +244,12 @@ export function buildNarrationUnits(manuscript, languageInput) {
         ? /[.!?…]$/.test(chTitle) ? chTitle : `${chTitle}.`
         : `${w.chapter} ${chapterNumber}. ${/[.!?…]$/.test(chTitle) ? chTitle : `${chTitle}.`}`;
     const rawSegments = Array.isArray(chapter.speakerSegments) ? chapter.speakerSegments : [];
-    const narratorVoiceId =
-      rawSegments.find((segment) => String(segment.speakerId || '').toLowerCase() === 'narrator')?.voiceId || null;
+    const chapterNarratorVoiceId =
+      rawSegments.find((segment) => String(segment.speakerId || '').toLowerCase() === 'narrator')?.voiceId ||
+      narratorVoiceId;
     const segments = rawSegments.length > 0
       ? [
-          { text: heading, voiceId: narratorVoiceId },
+          { text: heading, voiceId: chapterNarratorVoiceId },
           ...rawSegments
             .map((segment) => ({
               text: prepareNarrationText(segment.text),
@@ -259,6 +260,9 @@ export function buildNarrationUnits(manuscript, languageInput) {
       : null;
     const body = prepareNarrationText(chapter.text ?? '');
     const text = body ? `${heading}\n\n${body}` : heading;
+    const narrationSegments = segments || (
+      narratorVoiceId ? [{ text, voiceId: narratorVoiceId }] : null
+    );
     const cleanTitle = chTitle.replace(CHAPTER_PREFIX, '').replace(/^[\s:.\-–—]+/, '').trim() || chTitle || `Capítulo ${chapterNumber}`;
     units.push({
       index: units.length,
@@ -269,9 +273,9 @@ export function buildNarrationUnits(manuscript, languageInput) {
       label: `Capítulo ${chapterNumber}`,
       title: cleanTitle,
       slug: slugify(chTitle || `capitulo-${chapterNumber}`),
-      text: segments ? segments.map((segment) => segment.text).join('\n\n') : text,
-      segments,
-      hash: segments ? sha1(JSON.stringify(segments)) : sha1(text)
+      text: narrationSegments ? narrationSegments.map((segment) => segment.text).join('\n\n') : text,
+      segments: narrationSegments,
+      hash: narrationSegments ? sha1(JSON.stringify(narrationSegments)) : sha1(text)
     });
   });
 

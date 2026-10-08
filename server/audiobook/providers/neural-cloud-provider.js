@@ -9,14 +9,56 @@ import { TTSProvider, withTimeout } from './tts-provider.js';
 import { resolveLanguage } from '../languages.js';
 
 let modPromise = null;
+let voiceCatalogPromise = null;
+let voiceCatalogCheckedAt = 0;
+let voiceCatalog = [];
+
 async function loadModule() {
   if (!modPromise) {
-    modPromise = import('msedge-tts').then((m) => ({
-      MsEdgeTTS: m.MsEdgeTTS ?? m.default?.MsEdgeTTS,
-      OUTPUT_FORMAT: m.OUTPUT_FORMAT ?? m.default?.OUTPUT_FORMAT
-    }));
+    modPromise = import('msedge-tts')
+      .then((m) => ({
+        MsEdgeTTS: m.MsEdgeTTS ?? m.default?.MsEdgeTTS,
+        OUTPUT_FORMAT: m.OUTPUT_FORMAT ?? m.default?.OUTPUT_FORMAT
+      }))
+      .catch((error) => {
+        modPromise = null;
+        throw error;
+      });
   }
   return modPromise;
+}
+
+async function getVoiceCatalog() {
+  if (voiceCatalog.length > 0 && Date.now() - voiceCatalogCheckedAt < 60 * 60_000) {
+    return voiceCatalog;
+  }
+  if (voiceCatalogPromise) return voiceCatalogPromise;
+
+  const catalogRequest = (async () => {
+    const { MsEdgeTTS } = await loadModule();
+    const tts = new MsEdgeTTS();
+    try {
+      const voices = await tts.getVoices();
+      voiceCatalog = voices
+        .filter((voice) => voice.ShortName && voice.Locale)
+        .map((voice) => ({
+          id: voice.ShortName,
+          name: voice.FriendlyName || voice.ShortName,
+          gender: String(voice.Gender || '').toLowerCase(),
+          language: voice.Locale
+        }));
+      voiceCatalogCheckedAt = Date.now();
+      return voiceCatalog;
+    } finally {
+      tts.close();
+    }
+  })();
+  voiceCatalogPromise = catalogRequest;
+  try {
+    return await catalogRequest;
+  } finally {
+    if (voiceCatalogPromise === catalogRequest) voiceCatalogPromise = null;
+  }
 }
 
 export class NeuralCloudProvider extends TTSProvider {
@@ -26,6 +68,33 @@ export class NeuralCloudProvider extends TTSProvider {
 
   voiceFor(language, voiceGender) {
     return resolveLanguage(language)?.neural?.[voiceGender] || null;
+  }
+
+  supportsVoice(language, voiceId) {
+    const lang = resolveLanguage(language);
+    return Boolean(
+      lang &&
+      typeof voiceId === 'string' &&
+      voiceId.startsWith('edge:') &&
+      voiceId.length > 5
+    );
+  }
+
+  async listVoices(language) {
+    const lang = resolveLanguage(language);
+    if (!lang) return [];
+    const languagePrefix = lang.id.toLowerCase();
+    return (await getVoiceCatalog())
+      .filter((voice) => voice.language.toLowerCase() === languagePrefix)
+      .filter((voice) => voice.gender === 'male' || voice.gender === 'female')
+      .map((voice) => ({
+        id: `edge:${voice.id}`,
+        name: voice.name,
+        gender: voice.gender,
+        provider: this.name,
+        language: lang.id,
+        available: true
+      }));
   }
 
   async isAvailable() {
@@ -41,8 +110,20 @@ export class NeuralCloudProvider extends TTSProvider {
     return Boolean(this.voiceFor(language, voiceGender));
   }
 
-  async synthesizeSegment(text, language, voiceGender) {
-    const voice = this.voiceFor(language, voiceGender);
+  async synthesizeSegment(text, language, voiceGender, options = {}) {
+    let voice = this.voiceFor(language, voiceGender);
+    if (options.voiceId) {
+      if (!this.supportsVoice(language, options.voiceId)) {
+        throw new Error('O ID de voz neural escolhido não é compatível com este idioma.');
+      }
+      const requestedId = options.voiceId.slice('edge:'.length);
+      const availableVoices = await this.listVoices(language);
+      const requestedVoice = availableVoices.find((candidate) => candidate.id === `edge:${requestedId}`);
+      if (!requestedVoice) {
+        throw new Error('A voz neural escolhida não está disponível para este idioma.');
+      }
+      voice = requestedId;
+    }
     if (!voice) throw new Error('Voz indisponível para este idioma/gênero');
     const { MsEdgeTTS, OUTPUT_FORMAT } = await loadModule();
 
