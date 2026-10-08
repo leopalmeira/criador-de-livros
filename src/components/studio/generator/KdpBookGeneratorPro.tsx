@@ -3899,7 +3899,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
                 <button
                   type="button"
-                  disabled
+                  onClick={() => setActiveTab('audiobook')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -3907,35 +3907,36 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     padding: '8px 14px',
                     borderRadius: 6,
                     border: '1px solid',
-                    borderColor: '#e2e8f0',
-                    background: '#f8fafc',
-                    color: '#94a3b8',
+                    borderColor: activeTab === 'audiobook' ? '#8b5cf6' : '#e2e8f0',
+                    background: activeTab === 'audiobook' ? '#f5f3ff' : '#ffffff',
+                    color: activeTab === 'audiobook' ? '#7c3aed' : '#64748b',
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: 'not-allowed'
+                    cursor: 'pointer'
                   }}
-                  title="Audiobook Studio: em breve"
+                  title="Abrir Audiobook Studio"
                 >
                   <Headphones size={15} /> 🎧 Audiobook · Em breve
                 </button>
 
                 <button
                   type="button"
-                  disabled
+                  onClick={() => setIsPublishingModalOpen(true)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
                     padding: '8px 14px',
                     borderRadius: 6,
-                    border: '1px solid #e2e8f0',
-                    background: '#f8fafc',
-                    color: '#94a3b8',
+                    border: '1px solid #10b981',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: 'not-allowed'
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
                   }}
-                  title="Publicação Multiplataforma: em breve"
+                  title="Abrir Publicação Multiplataforma"
                 >
                   <Globe size={15} /> 🚀 Multiplataforma · Em breve
                 </button>
@@ -6021,7 +6022,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
                 <button
                   type="button"
-                  disabled
+                  onClick={() => setIsPublishingModalOpen(true)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -6029,13 +6030,13 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     padding: '8px 14px',
                     borderRadius: 6,
                     background: '#f8fafc',
-                    color: '#94a3b8',
-                    border: '1px solid #e2e8f0',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: 'not-allowed'
+                    cursor: 'pointer'
                   }}
-                  title="Publicação Multiplataforma: em breve"
+                  title="Publicação Multiplataforma (Kindle, Audiobook, Impresso)"
                 >
                   <Globe size={14} /> Multiplataforma · Em breve
                 </button>
