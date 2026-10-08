@@ -85,9 +85,11 @@ describe('AudiobookStudio — Rotas e Protocolo HTTP (/api/audiobook)', () => {
   });
 
   afterAll(async () => {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+    server.closeAllConnections();
+    await closed;
     await fs.promises.rm(tmpDir, { recursive: true, force: true });
-  });
+  }, 20_000);
 
   it('1. GET /api/audiobook/languages retorna os idiomas suportados', async () => {
     const res = await fetch(`${baseUrl}/api/audiobook/languages`);
@@ -130,7 +132,7 @@ describe('AudiobookStudio — Rotas e Protocolo HTTP (/api/audiobook)', () => {
     expect(converted.status).toBe(200);
     expect(converted.headers.get('content-type')).toBe('audio/mpeg');
     expect((await converted.arrayBuffer()).byteLength).toBeGreaterThan(500);
-  });
+  }, 30_000);
 
   it('2. Fluxo completo: POST manuscript -> POST generate -> GET status -> HTTP Range -> ZIP', async () => {
     const projectId = 'proj_api_test_01';
