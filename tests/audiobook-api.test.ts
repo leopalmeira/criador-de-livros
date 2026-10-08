@@ -112,10 +112,12 @@ describe('AudiobookStudio — Rotas e Protocolo HTTP (/api/audiobook)', () => {
     });
   });
 
-  it('valida WAV e converte a master revisada em MP3 estéreo', async () => {
+  it('recusa métodos diferentes de POST ao gerar o MP3 final', async () => {
     const wrongMethod = await fetch(`${baseUrl}/api/audiobook/render-mp3`);
     expect(wrongMethod.status).toBe(405);
+  });
 
+  it('rejeita entrada que não contém um cabeçalho WAV válido', async () => {
     const invalid = await fetch(`${baseUrl}/api/audiobook/render-mp3`, {
       method: 'POST',
       headers: { 'Content-Type': 'audio/wav' },
@@ -123,7 +125,9 @@ describe('AudiobookStudio — Rotas e Protocolo HTTP (/api/audiobook)', () => {
     });
     expect(invalid.status).toBe(400);
     expect((await invalid.json()).code).toBe('INVALID_FINAL_AUDIO');
+  }, 15_000);
 
+  it('converte a master WAV revisada em MP3 estéreo', async () => {
     const converted = await fetch(`${baseUrl}/api/audiobook/render-mp3`, {
       method: 'POST',
       headers: { 'Content-Type': 'audio/wav' },
