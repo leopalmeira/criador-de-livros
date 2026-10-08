@@ -2511,7 +2511,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <select
                 value={creationSelectorValue}
                 onChange={event => {
-                  const selection = event.target.value;
+                  const selection = event.currentTarget.value;
+                  setCreationSelectorValue(selection);
                   if (selection.startsWith('theme:')) {
                     const theme = BOOK_THEMES.find(item => `theme:${item.id}` === selection);
                     if (theme) selectEditorialTheme(theme.label);
@@ -2538,7 +2539,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </optgroup>
               </select>
               <div style={{ marginTop: 5, fontSize: 10, color: '#475569' }}>
-                {BOOK_TYPE_CONFIGS[bookType].description}
+                <strong>Formato selecionado:</strong> {BOOK_TYPE_CONFIGS[bookType].label}. {BOOK_TYPE_CONFIGS[bookType].description}
+                {temaSelecionado && <> <strong>Gênero/tema:</strong> {temaSelecionado}.</>}
               </div>
             </div>
 
