@@ -7,6 +7,16 @@ export class TTSProvider {
   honorsGender: boolean;
   isAvailable(): Promise<boolean>;
   supports(language: string, voiceGender?: string): boolean;
-  synthesizeSegment(text: string, language: string, voiceGender: string): Promise<Buffer>;
-  generateSpeech(text: string, language: string, voiceGender: string): Promise<Buffer>;
+  synthesizeSegment(
+    text: string,
+    language: string,
+    voiceGender: string,
+    options?: { voiceId?: string }
+  ): Promise<Buffer>;
+  generateSpeech(
+    text: string,
+    language: string,
+    voiceGender: string,
+    options?: { voiceId?: string }
+  ): Promise<Buffer>;
 }

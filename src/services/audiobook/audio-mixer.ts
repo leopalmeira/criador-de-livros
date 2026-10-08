@@ -84,6 +84,121 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   return new Blob([arrayBuffer], { type: 'audio/wav' });
 }
 
+interface WavChunkInfo {
+  blob: Blob;
+  channels: number;
+  sampleRate: number;
+  bitsPerSample: number;
+  dataBytes: number;
+}
+
+async function inspectPcmWav(blob: Blob): Promise<WavChunkInfo> {
+  if (blob.size < 44) throw new Error('Um dos capítulos mixados não contém um WAV válido.');
+  const header = await blob.slice(0, 44).arrayBuffer();
+  const view = new DataView(header);
+  const ascii = (offset: number, length: number) =>
+    String.fromCharCode(...new Uint8Array(header, offset, length));
+  if (ascii(0, 4) !== 'RIFF' || ascii(8, 4) !== 'WAVE' || ascii(36, 4) !== 'data') {
+    throw new Error('Formato WAV inesperado ao montar o audiobook mixado.');
+  }
+  if (view.getUint16(20, true) !== 1) {
+    throw new Error('A montagem final aceita somente áudio PCM não comprimido.');
+  }
+  const dataBytes = view.getUint32(40, true);
+  if (dataBytes + 44 > blob.size) throw new Error('Um arquivo WAV de capítulo está truncado.');
+  return {
+    blob,
+    channels: view.getUint16(22, true),
+    sampleRate: view.getUint32(24, true),
+    bitsPerSample: view.getUint16(34, true),
+    dataBytes
+  };
+}
+
+function createPcmWavHeader(
+  channels: number,
+  sampleRate: number,
+  bitsPerSample: number,
+  dataBytes: number
+): ArrayBuffer {
+  if (dataBytes > 0xffffffff - 36) {
+    throw new Error('O audiobook mixado excede o limite de um arquivo WAV único. Divida a obra em volumes.');
+  }
+  const bytesPerSample = bitsPerSample / 8;
+  const blockAlign = channels * bytesPerSample;
+  const header = new ArrayBuffer(44);
+  const view = new DataView(header);
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, dataBytes + 36, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataBytes, true);
+  return header;
+}
+
+/** Monta os WAVs PCM por partes, sem decodificar o livro inteiro para a memória. */
+export async function concatenateWavBlobs(
+  chapterBlobs: Blob[],
+  pauseSeconds = 1.5
+): Promise<MixResult> {
+  if (chapterBlobs.length === 0) {
+    throw new Error('Nenhum capítulo mixado disponível para montar o audiobook.');
+  }
+
+  const chunks: WavChunkInfo[] = [];
+  for (const blob of chapterBlobs) chunks.push(await inspectPcmWav(blob));
+  const first = chunks[0];
+  if (chunks.some((chunk) =>
+    chunk.channels !== first.channels ||
+    chunk.sampleRate !== first.sampleRate ||
+    chunk.bitsPerSample !== first.bitsPerSample
+  )) {
+    throw new Error('Os capítulos mixados têm formatos de áudio diferentes e não podem ser unidos.');
+  }
+
+  const bytesPerSample = first.bitsPerSample / 8;
+  const blockAlign = first.channels * bytesPerSample;
+  const pauseBytes = Math.max(0, Math.floor(pauseSeconds * first.sampleRate)) * blockAlign;
+  const totalDataBytes = chunks.reduce((sum, chunk) => sum + chunk.dataBytes, 0) +
+    pauseBytes * Math.max(0, chunks.length - 1);
+  const parts: BlobPart[] = [createPcmWavHeader(
+    first.channels,
+    first.sampleRate,
+    first.bitsPerSample,
+    totalDataBytes
+  )];
+  const silence = new Uint8Array(Math.min(pauseBytes, first.sampleRate * blockAlign));
+  let remainingPauseBytes = pauseBytes;
+
+  chunks.forEach((chunk, index) => {
+    parts.push(chunk.blob.slice(44, 44 + chunk.dataBytes));
+    if (index < chunks.length - 1 && pauseBytes > 0) {
+      remainingPauseBytes = pauseBytes;
+      while (remainingPauseBytes > 0) {
+        const length = Math.min(remainingPauseBytes, silence.byteLength);
+        parts.push(silence.subarray(0, length));
+        remainingPauseBytes -= length;
+      }
+    }
+  });
+
+  const mixedBlob = new Blob(parts, { type: 'audio/wav' });
+  const durationSeconds = totalDataBytes / (first.sampleRate * blockAlign);
+  return {
+    mixedBlob,
+    mixedUrl: URL.createObjectURL(mixedBlob),
+    durationSeconds: Math.round(durationSeconds * 10) / 10
+  };
+}
+
 function writeString(view: DataView, offset: number, string: string) {
   for (let i = 0; i < string.length; i++) {
     view.setUint8(offset + i, string.charCodeAt(i));
@@ -137,7 +252,7 @@ export async function mixChapterAudio(
     tempCtx.close().catch(() => {});
   }
 
-  const sampleRate = voiceBuffer.sampleRate || 44100;
+  const sampleRate = 24000;
   const voiceDuration = voiceBuffer.duration;
 
   // Calcula a duração total necessária baseada na voz e nos efeitos da timeline
@@ -254,7 +369,7 @@ export async function mixChapterAudio(
   return {
     mixedBlob,
     mixedUrl,
-    durationSeconds: Math.round(maxDuration * 10) / 10
+    durationSeconds: renderedBuffer.duration
   };
 }
 

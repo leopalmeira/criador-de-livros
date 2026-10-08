@@ -112,4 +112,39 @@ Diálogo com travessão:
     expect(units[2].chapterNumber).toBe(2);
     expect(units[2].title).toBe('Passos no Escuro');
   });
+
+  it('5. buildNarrationUnits conserva as falas separadas e invalida o cache ao trocar a voz', () => {
+    const manuscript = {
+      title: 'Livro',
+      chapters: [{
+        title: 'Capítulo um',
+        text: 'Ana entrou. — Quem está aí? — perguntou ela.',
+        speakerSegments: [
+          { speakerId: 'narrator', text: 'Ana entrou. ', voiceId: 'voice-narrator' },
+          { speakerId: 'ana', text: '— Quem está aí? — perguntou ela.', voiceId: 'voice-ana' }
+        ]
+      }]
+    };
+
+    const units = buildNarrationUnits(manuscript, 'pt-BR');
+    const chapter = units[1];
+    expect(chapter.segments).toEqual([
+      { text: 'Capítulo 1. Capítulo um.', voiceId: 'voice-narrator' },
+      { text: 'Ana entrou.', voiceId: 'voice-narrator' },
+      { text: 'Quem está aí?, perguntou ela.', voiceId: 'voice-ana' }
+    ]);
+    expect(chapter.text).toContain('Quem está aí?');
+
+    const changedVoiceUnits = buildNarrationUnits({
+      ...manuscript,
+      chapters: [{
+        ...manuscript.chapters[0],
+        speakerSegments: manuscript.chapters[0].speakerSegments.map((segment, index) => ({
+          ...segment,
+          voiceId: index === 1 ? 'voice-ana-alt' : segment.voiceId
+        }))
+      }]
+    }, 'pt-BR');
+    expect(changedVoiceUnits[1].hash).not.toBe(chapter.hash);
+  });
 });

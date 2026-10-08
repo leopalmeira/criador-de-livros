@@ -17,6 +17,65 @@ export function getReplicateToken() {
   return process.env.REPLICATE_API_TOKEN || process.env.VITE_REPLICATE_API_TOKEN || DEFAULT_REPLICATE_TOKEN;
 }
 
+export class ReplicateTextError extends Error {
+  constructor(message, status = 502, code = 'REPLICATE_TEXT_ERROR') {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
+ * Generate text through the server-side Replicate token without logging the prompt.
+ * This is shared by backend features that need text generation outside the HTTP proxy.
+ */
+export async function generateReplicateText(prompt, {
+  token = getReplicateToken(),
+  fetchImpl = globalThis.fetch,
+  model = 'meta/meta-llama-3-70b-instruct',
+  maxTokens = 4096,
+  temperature = 0.2,
+  pollIntervalMs = 1200,
+  maxAttempts = 35
+} = {}) {
+  if (!token) throw new ReplicateTextError('O serviço de análise de texto não está configurado.', 503, 'REPLICATE_NOT_CONFIGURED');
+
+  const createRes = await fetchImpl(`https://api.replicate.com/v1/models/${model}/predictions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${token}`,
+      'Content-Type': 'application/json',
+      Prefer: 'wait=60'
+    },
+    body: JSON.stringify({ input: { prompt, max_tokens: maxTokens, temperature } })
+  });
+  if (!createRes.ok) {
+    throw new ReplicateTextError(`O serviço de análise respondeu HTTP ${createRes.status}.`, 502, 'REPLICATE_REQUEST_FAILED');
+  }
+
+  let prediction = await createRes.json();
+  let attempts = 0;
+  while (!['succeeded', 'failed', 'canceled'].includes(prediction?.status)) {
+    if (!prediction?.urls?.get || attempts >= maxAttempts) {
+      throw new ReplicateTextError('Tempo limite aguardando a análise de texto.', 504, 'REPLICATE_TIMEOUT');
+    }
+    attempts += 1;
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    const poll = await fetchImpl(prediction.urls.get, {
+      headers: { Authorization: `Token ${token}` }
+    });
+    if (!poll.ok) {
+      throw new ReplicateTextError(`O serviço de análise respondeu HTTP ${poll.status} ao consultar o resultado.`, 502, 'REPLICATE_POLL_FAILED');
+    }
+    prediction = await poll.json();
+  }
+
+  if (prediction.status !== 'succeeded') {
+    throw new ReplicateTextError('O serviço de análise não conseguiu concluir a solicitação.', 502, 'REPLICATE_GENERATION_FAILED');
+  }
+  return Array.isArray(prediction.output) ? prediction.output.join('') : String(prediction.output || '');
+}
+
 function sendJson(res, statusCode, data) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');

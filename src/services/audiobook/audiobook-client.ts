@@ -61,12 +61,47 @@ export interface ManuscriptPayload {
   subtitle?: string;
   author?: string;
   preface?: string;
+  narratorVoiceId?: string;
   chapters: Array<{
     title?: string;
     titulo?: string;
     text?: string;
     texto?: string;
+    speakerSegments?: Array<{
+      speakerId: string;
+      text: string;
+      voiceId: string;
+    }>;
   }>;
+}
+
+export interface AudiobookCastMember {
+  id: string;
+  name: string;
+  gender: 'male' | 'female' | 'unknown';
+  voiceId?: string;
+}
+
+export interface AudiobookCastSegment {
+  speakerId: string;
+  text: string;
+}
+
+export interface AudiobookCastChapter {
+  index: number;
+  title: string;
+  segments: AudiobookCastSegment[];
+}
+
+export interface AudiobookCastAnalysis {
+  cast: AudiobookCastMember[];
+  chapters: AudiobookCastChapter[];
+}
+
+export interface FishAudioVoice {
+  id: string;
+  title: string;
+  languages: string[];
 }
 
 const DEFAULT_LANGUAGES: AudiobookLanguage[] = [
@@ -77,6 +112,48 @@ const DEFAULT_LANGUAGES: AudiobookLanguage[] = [
   { id: 'de-DE', label: 'Alemão', flag: '🇩🇪' },
   { id: 'it-IT', label: 'Italiano', flag: '🇮🇹' }
 ];
+
+const MAX_CAST_CHAPTER_CHARS = 18_000;
+const MAX_CAST_BATCH_CHARS = 35_000;
+const MAX_CAST_BATCH_CHAPTERS = 20;
+
+interface CastAnalysisTextChunk {
+  originalChapterIndex: number;
+  title: string;
+  text: string;
+}
+
+function splitCastAnalysisChapter(
+  chapter: { title: string; text: string },
+  originalChapterIndex: number
+): CastAnalysisTextChunk[] {
+  const chunks: CastAnalysisTextChunk[] = [];
+  let start = 0;
+  while (start < chapter.text.length) {
+    let end = Math.min(start + MAX_CAST_CHAPTER_CHARS, chapter.text.length);
+    if (end < chapter.text.length) {
+      let boundary = end;
+      while (boundary > start && !/\s/.test(chapter.text[boundary - 1])) boundary--;
+      if (boundary > start) end = boundary;
+    }
+    if (end <= start) end = Math.min(start + MAX_CAST_CHAPTER_CHARS, chapter.text.length);
+    chunks.push({
+      originalChapterIndex,
+      title: chapter.title,
+      text: chapter.text.slice(start, end)
+    });
+    start = end;
+  }
+  return chunks;
+}
+
+function normalizeCastName(name: string): string {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function normalizeCastText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
 
 export function mapBookLanguageToAudiobook(bookLang?: string): string {
   const norm = String(bookLang ?? '').toLowerCase().trim();
@@ -187,6 +264,135 @@ export class AudiobookClient {
     }
   }
 
+  static async listFishAudioVoices(): Promise<FishAudioVoice[]> {
+    const res = await fetch('/api/audiobook/fish-audio/models', { cache: 'no-store' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Não foi possível carregar as vozes da conta Fish Audio.');
+    }
+    if (!data.configured) {
+      throw new Error('Configure FISH_API_KEY no ambiente do servidor para listar as vozes.');
+    }
+    return Array.isArray(data.voices) ? data.voices : [];
+  }
+
+  static async analyzeAudiobookCast(
+    chapters: Array<{ title: string; text: string }>,
+    onProgress?: (currentBatch: number, totalBatches: number) => void
+  ): Promise<AudiobookCastAnalysis> {
+    if (
+      chapters.length === 0 ||
+      chapters.some((chapter) => typeof chapter.text !== 'string' || !chapter.text.trim())
+    ) {
+      throw new Error('Inclua capítulos com texto antes de analisar o elenco.');
+    }
+    const textChunks = chapters.flatMap((chapter, index) =>
+      splitCastAnalysisChapter(chapter, index)
+    );
+    const batches: CastAnalysisTextChunk[][] = [];
+    let currentBatch: CastAnalysisTextChunk[] = [];
+    let currentBatchChars = 0;
+    for (const chunk of textChunks) {
+      if (
+        currentBatch.length > 0 &&
+        (currentBatch.length >= MAX_CAST_BATCH_CHAPTERS ||
+          currentBatchChars + chunk.text.length > MAX_CAST_BATCH_CHARS)
+      ) {
+        batches.push(currentBatch);
+        currentBatch = [];
+        currentBatchChars = 0;
+      }
+      currentBatch.push(chunk);
+      currentBatchChars += chunk.text.length;
+    }
+    if (currentBatch.length > 0) batches.push(currentBatch);
+
+    const cast: AudiobookCastMember[] = [
+      { id: 'narrator', name: 'Narrador', gender: 'unknown' }
+    ];
+    const castByName = new Map<string, AudiobookCastMember>();
+    const analyzedChapters: AudiobookCastChapter[] = chapters.map((chapter, index) => ({
+      index,
+      title: chapter.title,
+      segments: []
+    }));
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      onProgress?.(batchIndex + 1, batches.length);
+      const batch = batches[batchIndex];
+      const requestChapters = batch.map((chunk, index) => ({
+        id: `batch-${batchIndex + 1}-chapter-${index + 1}`,
+        title: chunk.title,
+        text: chunk.text
+      }));
+      const res = await fetch('/api/audiobook/analyze-cast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapters: requestChapters,
+          knownCast: cast.filter((member) => member.id !== 'narrator')
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'A IA não conseguiu identificar os interlocutores.');
+      }
+      if (!Array.isArray(data.cast) || !Array.isArray(data.chapters) ||
+          data.chapters.length !== batch.length) {
+        throw new Error('A análise retornou um formato inválido. Tente novamente.');
+      }
+
+      const speakerIdMap = new Map<string, string>();
+      for (const member of data.cast as AudiobookCastMember[]) {
+        if (!member?.id || !member.name) {
+          throw new Error('A análise retornou um integrante de elenco inválido.');
+        }
+        if (member.id === 'narrator' || normalizeCastName(member.name) === 'narrador') {
+          speakerIdMap.set(member.id, 'narrator');
+          continue;
+        }
+        const nameKey = normalizeCastName(member.name);
+        let globalMember = castByName.get(nameKey);
+        if (!globalMember) {
+          if (cast.length >= 100) {
+            throw new Error('A análise encontrou mais de 99 personagens. Divida a obra em volumes para continuar.');
+          }
+          globalMember = {
+            id: `cast-${cast.length}`,
+            name: member.name,
+            gender: member.gender
+          };
+          cast.push(globalMember);
+          castByName.set(nameKey, globalMember);
+        }
+        speakerIdMap.set(member.id, globalMember.id);
+      }
+
+      for (let chapterIndex = 0; chapterIndex < batch.length; chapterIndex++) {
+        const analyzed = data.chapters[chapterIndex];
+        if (!Array.isArray(analyzed?.segments)) {
+          throw new Error('A análise retornou segmentos inválidos. Tente novamente.');
+        }
+        const destination = analyzedChapters[batch[chapterIndex].originalChapterIndex];
+        for (const segment of analyzed.segments as AudiobookCastSegment[]) {
+          const speakerId = speakerIdMap.get(segment.speakerId);
+          if (!speakerId || typeof segment.text !== 'string' || segment.text.length === 0) {
+            throw new Error('A análise retornou segmentos sem um interlocutor válido.');
+          }
+          destination.segments.push({ speakerId, text: segment.text });
+        }
+      }
+    }
+
+    for (const chapter of analyzedChapters) {
+      if (normalizeCastText(chapter.segments.map((segment) => segment.text).join('')) !==
+          normalizeCastText(chapters[chapter.index].text)) {
+        throw new Error(`A análise não preservou todo o texto do capítulo "${chapter.title}". Tente novamente.`);
+      }
+    }
+    return { cast, chapters: analyzedChapters };
+  }
+
   static async startGeneration(
     projectId: string,
     language: string,
@@ -231,8 +437,14 @@ export class AudiobookClient {
   // ================================================================
   // PRÉVIA / TESTE DE VOZ
   // ================================================================
-  static getVoicePreviewUrl(language: string, voiceGender: AudiobookVoiceGender): string {
-    return `/api/audiobook/preview-voice?language=${encodeURIComponent(language)}&voiceGender=${encodeURIComponent(voiceGender)}`;
+  static getVoicePreviewUrl(
+    language: string,
+    voiceGender: AudiobookVoiceGender,
+    voiceId?: string
+  ): string {
+    const params = new URLSearchParams({ language, voiceGender });
+    if (voiceId) params.set('voiceId', voiceId);
+    return `/api/audiobook/preview-voice?${params.toString()}`;
   }
 
   // ================================================================
@@ -317,4 +529,3 @@ export interface SFXSearchResponse {
   freesoundConfigured?: boolean;
   error?: string;
 }
-

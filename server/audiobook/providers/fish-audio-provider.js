@@ -22,6 +22,8 @@ export class FishAudioProvider extends TTSProvider {
     this.singleVoiceId = String(env.FISH_VOICE_ID || '').trim();
     this.model = String(env.FISH_MODEL || 's2.1-pro-free').trim();
     this.honorsGender = Boolean(this.voiceIds.male && this.voiceIds.female);
+    this.voiceModels = [];
+    this.voiceModelsCheckedAt = 0;
   }
 
   headers() {
@@ -32,22 +34,48 @@ export class FishAudioProvider extends TTSProvider {
     };
   }
 
-  voiceFor(language, voiceGender) {
+  voiceFor(language, voiceGender, voiceId = '') {
     if (!resolveLanguage(language)) return null;
-    return this.voiceIds[voiceGender] || this.singleVoiceId || null;
+    return String(voiceId || '').trim() || this.voiceIds[voiceGender] || this.singleVoiceId || null;
+  }
+
+  supportsVoice(language, voiceId) {
+    return Boolean(this.apiKey && resolveLanguage(language) && String(voiceId || '').trim());
   }
 
   async isAvailable() {
-    return Boolean(this.apiKey && (this.singleVoiceId || (this.voiceIds.male && this.voiceIds.female)));
+    return Boolean(this.apiKey);
   }
 
   supports(language, voiceGender) {
     return Boolean(this.apiKey && this.voiceFor(language, voiceGender));
   }
 
-  async synthesizeSegment(text, language, voiceGender) {
-    const referenceId = this.voiceFor(language, voiceGender);
+  async listVoiceModels() {
+    if (Date.now() - this.voiceModelsCheckedAt < 10 * 60_000) return this.voiceModels;
+    const response = await fetchWithTimeout(
+      'https://api.fish.audio/model?self=true&page_size=100',
+      { headers: { Authorization: `Bearer ${this.apiKey}` } },
+      10000
+    );
+    if (!response.ok) {
+      throw new Error(`Fish Audio respondeu HTTP ${response.status} ao listar modelos de voz.`);
+    }
+    const data = await response.json();
+    const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : Array.isArray(data?.data) ? data.data : [];
+    this.voiceModels = items
+      .map((item) => String(item?._id || item?.id || '').trim())
+      .filter(Boolean);
+    this.voiceModelsCheckedAt = Date.now();
+    return this.voiceModels;
+  }
+
+  async synthesizeSegment(text, language, voiceGender, options = {}) {
+    const referenceId = this.voiceFor(language, voiceGender, options.voiceId);
     if (!referenceId) throw new Error('Configure um ID de voz Fish Audio para este gênero');
+    if (!(await this.listVoiceModels()).includes(referenceId)) {
+      throw new Error('O ID de voz escolhido não pertence à conta Fish Audio configurada.');
+    }
 
     const res = await fetchWithTimeout(
       'https://api.fish.audio/v1/tts',

@@ -71,8 +71,12 @@ export class TTSEngineManager {
   }
 
   /** Motores compatíveis e disponíveis, do melhor para o pior. */
-  async rankEngines(language, voiceGender, preferredName) {
-    const compatible = this.providers.filter((p) => p.supports(language, voiceGender));
+  async rankEngines(language, voiceGender, preferredName, voiceId) {
+    const compatible = this.providers.filter((p) =>
+      voiceId
+        ? p.name === 'fish-audio' && p.supportsVoice?.(language, voiceId)
+        : p.supports(language, voiceGender)
+    );
     const available = [];
     for (const p of compatible) {
       if (await this.checkAvailability(p)) available.push(p);
@@ -101,7 +105,12 @@ export class TTSEngineManager {
    * @returns {Promise<{ audio: Buffer, engine: string, genderHonored: boolean, attempts: number, switched: boolean }>}
    */
   async synthesize(text, language, voiceGender, context = {}) {
-    const allRanked = await this.rankEngines(language, voiceGender, context.preferredEngine);
+    const allRanked = await this.rankEngines(
+      language,
+      voiceGender,
+      context.preferredEngine,
+      context.voiceId
+    );
     if (allRanked.length === 0) {
       throw new Error('Nenhum motor de voz disponível no momento');
     }
@@ -117,7 +126,9 @@ export class TTSEngineManager {
       for (let attempt = 1; attempt <= this.attemptsPerEngine; attempt++) {
         attempts += 1;
         try {
-          const audio = await provider.generateSpeech(text, language, voiceGender);
+          const audio = await provider.generateSpeech(text, language, voiceGender, {
+            voiceId: context.voiceId
+          });
           if (!audio || audio.length < 50) throw new Error('Áudio inválido recebido do motor');
           return {
             audio,

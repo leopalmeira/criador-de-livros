@@ -31,8 +31,10 @@ describe('FishAudioProvider', () => {
   });
 
   it('sends Fish Audio’s TTS request with a backend bearer token and returns MP3', async () => {
-    const fetchMock = vi.fn(async (_url: string, _options: RequestInit) =>
-      new Response(dummyMp3Buffer(), { status: 200 })
+    const fetchMock = vi.fn(async (url: string, _options: RequestInit) =>
+      url === 'https://api.fish.audio/model?self=true&page_size=100'
+        ? new Response(JSON.stringify({ items: [{ _id: 'female-model' }] }), { status: 200 })
+        : new Response(dummyMp3Buffer(), { status: 200 })
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -44,8 +46,13 @@ describe('FishAudioProvider', () => {
     const audio = await provider.synthesizeSegment('Hello there.', 'en-US', 'female');
 
     expect(audio).toEqual(dummyMp3Buffer());
-    expect(fetchMock).toHaveBeenCalledOnce();
-    const [url, options] = fetchMock.mock.calls[0];
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [modelsUrl, modelsOptions] = fetchMock.mock.calls[0];
+    expect(modelsUrl).toBe('https://api.fish.audio/model?self=true&page_size=100');
+    expect(modelsOptions?.headers).toMatchObject({
+      Authorization: expect.stringMatching(/^Bearer /)
+    });
+    const [url, options] = fetchMock.mock.calls[1];
     expect(url).toBe('https://api.fish.audio/v1/tts');
     expect(options?.method).toBe('POST');
     expect(options?.headers).toMatchObject({

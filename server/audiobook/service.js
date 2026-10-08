@@ -69,11 +69,32 @@ export class AudiobookService {
     const chapters = rawChapters
       .map((c) => ({
         title: clean(c?.title ?? c?.titulo, 300),
-        text: String(c?.text ?? c?.texto ?? '').slice(0, MAX_CHAPTER_CHARS)
+        text: String(c?.text ?? c?.texto ?? '').slice(0, MAX_CHAPTER_CHARS),
+        speakerSegments: Array.isArray(c?.speakerSegments)
+          ? c.speakerSegments.slice(0, 2000).map((segment) => ({
+              speakerId: clean(segment?.speakerId, 100),
+              text: String(segment?.text ?? '').slice(0, MAX_CHAPTER_CHARS),
+              voiceId: clean(segment?.voiceId, 200)
+            }))
+          : []
       }))
       .filter((c) => c.text.trim().length > 0);
     if (chapters.length === 0) {
       throw new AudiobookError('O livro ainda não possui capítulos escritos para narrar.', 400, 'INVALID_MANUSCRIPT');
+    }
+    for (const chapter of chapters) {
+      if (chapter.speakerSegments.length === 0) continue;
+      const textFromSegments = chapter.speakerSegments.map((segment) => segment.text).join('');
+      if (textFromSegments.replace(/\s+/g, ' ').trim() !== chapter.text.replace(/\s+/g, ' ').trim()) {
+        throw new AudiobookError(
+          'As falas do elenco não correspondem exatamente ao texto do capítulo. Reanalise os interlocutores.',
+          400,
+          'INVALID_CAST_SEGMENTS'
+        );
+      }
+      if (chapter.speakerSegments.some((segment) => !segment.speakerId || !segment.text.trim() || !segment.voiceId)) {
+        throw new AudiobookError('Cada fala do elenco precisa ter interlocutor e voz Fish Audio.', 400, 'INVALID_CAST_SEGMENTS');
+      }
     }
 
     const manuscript = {
@@ -82,6 +103,7 @@ export class AudiobookService {
       subtitle: clean(input?.subtitle, 400),
       author: clean(input?.author, 200),
       preface: String(input?.preface ?? '').slice(0, MAX_CHAPTER_CHARS),
+      narratorVoiceId: clean(input?.narratorVoiceId, 200),
       chapters,
       savedAt: Date.now()
     };
@@ -228,7 +250,13 @@ export class AudiobookService {
         unit.attempts += 1;
         meta.attempts += 1;
         try {
-          const result = await this.synthesizeUnit(job, unit, source.text, attempt >= this.maxChapterAttempts);
+          const result = await this.synthesizeUnit(
+            job,
+            unit,
+            source.text,
+            attempt >= this.maxChapterAttempts,
+            source.segments
+          );
           await this.storage.writeFileAtomic(this.storage.chapterPath(projectId, unit.file), result.audio);
           unit.status = 'done';
           unit.durationSeconds = result.durationSeconds;
@@ -276,8 +304,16 @@ export class AudiobookService {
     meta.finishedAt = Date.now();
   }
 
-  async synthesizeUnit(job, unit, text, allowDegraded) {
-    const chunks = splitIntoChunks(text, this.chunkMaxChars);
+  async synthesizeUnit(job, unit, text, allowDegraded, segments = null) {
+    const speechSegments = Array.isArray(segments) && segments.length > 0
+      ? segments
+      : [{ text, voiceId: null }];
+    const chunks = speechSegments.flatMap((segment) =>
+      splitIntoChunks(segment.text, this.chunkMaxChars).map((chunk) => ({
+        text: chunk,
+        voiceId: segment.voiceId
+      }))
+    );
     if (chunks.length === 0) throw new Error('Capítulo sem texto para narrar');
     job.live = { unitIndex: unit.index, chunkDone: 0, chunkTotal: chunks.length };
     const buffers = [];
@@ -285,9 +321,10 @@ export class AudiobookService {
     let genderHonored = true;
     for (const chunk of chunks) {
       if (job.cancelled) throw new Error('Geração cancelada');
-      const r = await this.engines.synthesize(chunk, job.language, job.voiceGender, {
+      const r = await this.engines.synthesize(chunk.text, job.language, job.voiceGender, {
         preferredEngine: job.engine,
-        allowDegraded
+        allowDegraded: chunk.voiceId ? false : allowDegraded,
+        voiceId: chunk.voiceId || undefined
       });
       if (r.genderHonored) job.engine = r.engine;
       else genderHonored = false;

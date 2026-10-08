@@ -42,7 +42,7 @@ export class TTSProvider {
 
   /** Sintetiza UM segmento (<= maxChars) e devolve um Buffer MP3. */
   // eslint-disable-next-line no-unused-vars
-  async synthesizeSegment(text, language, voiceGender) {
+  async synthesizeSegment(text, language, voiceGender, options = {}) {
     throw new Error('synthesizeSegment não implementado');
   }
 
@@ -51,12 +51,12 @@ export class TTSProvider {
    * Divide internamente nos limites do motor (sempre em frases) e junta o MP3.
    * @returns {Promise<Buffer>} MP3
    */
-  async generateSpeech(text, language, voiceGender) {
+  async generateSpeech(text, language, voiceGender, options = {}) {
     const parts = splitIntoChunks(text, this.maxChars);
     if (parts.length === 0) throw new Error('Texto vazio para narração');
     const audio = [];
     for (const part of parts) {
-      audio.push(await this.synthesizeSegment(part, language, voiceGender));
+      audio.push(await this.synthesizeSegment(part, language, voiceGender, options));
     }
     return audio.length === 1 ? audio[0] : concatMp3Buffers(audio);
   }

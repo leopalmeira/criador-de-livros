@@ -217,6 +217,7 @@ export function buildNarrationUnits(manuscript, languageInput) {
   if (author) introParts.push(`${w.by} ${author}.`);
   let introText = introParts.join('\n\n');
   if (preface) introText += `\n\n${w.preface}.\n\n${preface}`;
+  const narratorVoiceId = String(manuscript.narratorVoiceId || '').trim() || null;
 
   const units = [];
   let order = 1;
@@ -229,7 +230,8 @@ export function buildNarrationUnits(manuscript, languageInput) {
     label: 'Introdução',
     title: bookTitle,
     text: introText,
-    hash: sha1(introText)
+    segments: narratorVoiceId ? [{ text: introText, voiceId: narratorVoiceId }] : null,
+    hash: narratorVoiceId ? sha1(JSON.stringify([{ text: introText, voiceId: narratorVoiceId }])) : sha1(introText)
   });
 
   (manuscript.chapters || []).forEach((chapter, i) => {
@@ -241,6 +243,20 @@ export function buildNarrationUnits(manuscript, languageInput) {
       : CHAPTER_PREFIX.test(chTitle)
         ? /[.!?…]$/.test(chTitle) ? chTitle : `${chTitle}.`
         : `${w.chapter} ${chapterNumber}. ${/[.!?…]$/.test(chTitle) ? chTitle : `${chTitle}.`}`;
+    const rawSegments = Array.isArray(chapter.speakerSegments) ? chapter.speakerSegments : [];
+    const narratorVoiceId =
+      rawSegments.find((segment) => String(segment.speakerId || '').toLowerCase() === 'narrator')?.voiceId || null;
+    const segments = rawSegments.length > 0
+      ? [
+          { text: heading, voiceId: narratorVoiceId },
+          ...rawSegments
+            .map((segment) => ({
+              text: prepareNarrationText(segment.text),
+              voiceId: String(segment.voiceId || '').trim() || null
+            }))
+            .filter((segment) => segment.text)
+        ]
+      : null;
     const body = prepareNarrationText(chapter.text ?? '');
     const text = body ? `${heading}\n\n${body}` : heading;
     const cleanTitle = chTitle.replace(CHAPTER_PREFIX, '').replace(/^[\s:.\-–—]+/, '').trim() || chTitle || `Capítulo ${chapterNumber}`;
@@ -253,8 +269,9 @@ export function buildNarrationUnits(manuscript, languageInput) {
       label: `Capítulo ${chapterNumber}`,
       title: cleanTitle,
       slug: slugify(chTitle || `capitulo-${chapterNumber}`),
-      text,
-      hash: sha1(text)
+      text: segments ? segments.map((segment) => segment.text).join('\n\n') : text,
+      segments,
+      hash: segments ? sha1(JSON.stringify(segments)) : sha1(text)
     });
   });
 
