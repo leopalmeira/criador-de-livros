@@ -2510,11 +2510,25 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 }}
               >
                 <option value="">-- Selecione o Tema da Obra ({BOOK_THEMES.length} opções) --</option>
-                {BOOK_THEMES.map(t => (
-                  <option key={t.id} value={t.label}>
-                    {t.label} {t.childrenBook ? '👶 (Infantil)' : ''}
-                  </option>
-                ))}
+                {([
+                  ['Ficção', 'ficcao'],
+                  ['Não ficção', 'nao-ficcao'],
+                  ['Infantil', 'infantil'],
+                  ['Atividades', 'atividades'],
+                  ['Misto', 'misto']
+                ] as const).map(([groupLabel, kind]) => {
+                  const themes = BOOK_THEMES.filter(theme => theme.kind === kind);
+                  if (themes.length === 0) return null;
+                  return (
+                    <optgroup key={kind} label={groupLabel}>
+                      {themes.map(theme => (
+                        <option key={theme.id} value={theme.label}>
+                          {theme.label} {theme.childrenBook ? '👶 (Infantil)' : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
 
               {/* Subtema Dinâmico */}

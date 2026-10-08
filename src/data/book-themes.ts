@@ -33,6 +33,7 @@ export const BOOK_THEMES: BookTheme[] = [
   t('Horror psicológico', 'ficcao', ['Paranoia', 'Isolamento', 'Pesadelo', 'Perda de identidade']),
   t('Aventura', 'ficcao', ['Expedição', 'Sobrevivência', 'Tesouro perdido', 'Viagem épica']),
   t('Drama', 'ficcao', ['Conflito familiar', 'Superação', 'Perda e luto', 'Dilema moral']),
+  t('Não ficção', 'nao-ficcao', ['Biografias e memórias', 'Autoajuda e desenvolvimento pessoal', 'Negócios e finanças', 'Guias práticos']),
   t('Biografia', 'nao-ficcao', ['Personalidade histórica', 'Empreendedor', 'Artista', 'Esportista']),
   t('Memórias', 'nao-ficcao', ['Infância', 'Imigração', 'Carreira', 'Superação pessoal']),
   t('Autoajuda', 'nao-ficcao', ['Autoconfiança', 'Hábitos e disciplina', 'Propósito e motivação', 'Superação de desafios'], false, 'livros de autoajuda e desenvolvimento pessoal'),

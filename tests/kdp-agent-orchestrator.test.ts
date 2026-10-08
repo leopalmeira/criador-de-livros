@@ -22,6 +22,13 @@ describe('Orquestrador editorial KDP', () => {
     expect(theme?.subthemes).toContain('Hábitos e disciplina');
   });
 
+  it('oferece Não ficção como categoria selecionável com subtemas abrangentes', () => {
+    const theme = BOOK_THEMES.find(item => item.label === 'Não ficção');
+
+    expect(theme?.kind).toBe('nao-ficcao');
+    expect(theme?.subthemes).toContain('Autoajuda e desenvolvimento pessoal');
+  });
+
   it('produz um plano validado e envia o contexto completo ao arquiteto', async () => {
     let capturedPrompt = '';
     const plan = validPlan(3);
