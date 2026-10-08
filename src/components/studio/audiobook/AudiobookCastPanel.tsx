@@ -172,8 +172,8 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
             Elenco de vozes e interlocutores
           </h4>
           <p style={{ margin: '4px 0 0', color: '#475569', fontSize: 12, lineHeight: 1.5 }}>
-            A IA identifica narrador e personagens. Revise o elenco e associe cada papel a uma voz
-            neural natural antes de gerar.
+            A IA coordena interlocutores, pausas naturais e sugestões de efeitos por trecho. Revise o
+            elenco e associe uma voz a cada personagem antes de narrar.
           </p>
         </div>
       </div>
@@ -197,7 +197,7 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
           }}
         >
           {isAnalyzing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-          {analysis ? 'Reanalisar elenco com IA' : 'Identificar elenco com IA'}
+          {analysis ? 'Reanalisar falas e direção com IA' : 'Analisar falas, vozes e efeitos com IA'}
         </button>
         {isLoadingVoices && (
           <span style={{ color: '#64748b', fontSize: 12 }}>Carregando vozes disponíveis...</span>

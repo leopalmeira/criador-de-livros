@@ -18,6 +18,26 @@ function dummyMp3Buffer(): Buffer {
   return frame;
 }
 
+function silentWavBuffer(durationSeconds: number): Buffer {
+  const sampleRate = 44_100;
+  const dataSize = sampleRate * durationSeconds * 2;
+  const wav = Buffer.alloc(44 + dataSize);
+  wav.write('RIFF', 0);
+  wav.writeUInt32LE(36 + dataSize, 4);
+  wav.write('WAVE', 8);
+  wav.write('fmt ', 12);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(sampleRate, 24);
+  wav.writeUInt32LE(sampleRate * 2, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write('data', 36);
+  wav.writeUInt32LE(dataSize, 40);
+  return wav;
+}
+
 class FastMockTTSProvider extends TTSProvider {
   constructor() {
     super({ name: 'fast-mock', priority: 100, honorsGender: true });
@@ -88,6 +108,28 @@ describe('AudiobookStudio — Rotas e Protocolo HTTP (/api/audiobook)', () => {
       progressPercent: 0,
       finalReady: false
     });
+  });
+
+  it('valida WAV e converte a master revisada em MP3 estéreo', async () => {
+    const wrongMethod = await fetch(`${baseUrl}/api/audiobook/render-mp3`);
+    expect(wrongMethod.status).toBe(405);
+
+    const invalid = await fetch(`${baseUrl}/api/audiobook/render-mp3`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/wav' },
+      body: Buffer.from('not a wave file')
+    });
+    expect(invalid.status).toBe(400);
+    expect((await invalid.json()).code).toBe('INVALID_FINAL_AUDIO');
+
+    const converted = await fetch(`${baseUrl}/api/audiobook/render-mp3`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/wav' },
+      body: silentWavBuffer(0.5)
+    });
+    expect(converted.status).toBe(200);
+    expect(converted.headers.get('content-type')).toBe('audio/mpeg');
+    expect((await converted.arrayBuffer()).byteLength).toBeGreaterThan(500);
   });
 
   it('2. Fluxo completo: POST manuscript -> POST generate -> GET status -> HTTP Range -> ZIP', async () => {

@@ -85,6 +85,8 @@ export interface AudiobookCastMember {
 export interface AudiobookCastSegment {
   speakerId: string;
   text: string;
+  pauseAfterMs?: number;
+  soundCue?: string | null;
 }
 
 export interface AudiobookCastChapter {
@@ -412,7 +414,12 @@ export class AudiobookClient {
           if (!speakerId || typeof segment.text !== 'string' || segment.text.length === 0) {
             throw new Error('A análise retornou segmentos sem um interlocutor válido.');
           }
-          destination.segments.push({ speakerId, text: segment.text });
+          destination.segments.push({
+            speakerId,
+            text: segment.text,
+            pauseAfterMs: segment.pauseAfterMs,
+            soundCue: segment.soundCue
+          });
         }
       }
     }
@@ -465,6 +472,23 @@ export class AudiobookClient {
       throw new Error(data.error || 'Falha ao reiniciar o estúdio.');
     }
     return data.status;
+  }
+
+  static async renderFinalMp3(mixedWav: Blob): Promise<Blob> {
+    const response = await fetch('/api/audiobook/render-mp3', {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/wav' },
+      body: mixedWav
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Não foi possível gerar o MP3 final.');
+    }
+    const mp3 = await response.blob();
+    if (mp3.size < 500 || mp3.type !== 'audio/mpeg') {
+      throw new Error('O servidor retornou um MP3 vazio ou inválido.');
+    }
+    return mp3;
   }
 
   // ================================================================

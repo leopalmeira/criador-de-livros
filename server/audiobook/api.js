@@ -11,11 +11,14 @@
 // ================================================================
 
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
+import { Transform } from 'node:stream';
 import JSZip from 'jszip';
 import { getDefaultAudiobookService, AudiobookError } from './service.js';
 import { listPublicLanguages } from './languages.js';
 import { getEngineStatus, getAvailableVoices } from './engine-diagnostics.js';
 import { getDefaultSFXProvider } from './sfx-provider.js';
+import { getFfmpegPath, hasFfmpeg } from './mp3.js';
 import { generateReplicateText, ReplicateTextError } from '../replicate/api.js';
 
 const previewCache = new Map();
@@ -23,6 +26,11 @@ const MAX_CAST_ANALYSIS_BODY_BYTES = 160 * 1024;
 const MAX_CAST_ANALYSIS_CHAPTERS = 20;
 const MAX_CAST_ANALYSIS_CHAPTER_CHARS = 20_000;
 const MAX_CAST_ANALYSIS_TOTAL_CHARS = 40_000;
+const MAX_FINAL_WAV_BYTES = 1024 * 1024 * 1024;
+const SOUND_CUE_TYPES = new Set([
+  'rain', 'thunder', 'wind', 'door', 'footsteps', 'impact',
+  'clock', 'phone', 'birds', 'river', 'vehicle', 'tension'
+]);
 
 function sendJson(res, statusCode, data) {
   const body = JSON.stringify(data);
@@ -63,6 +71,86 @@ function parseBody(req, maxBytes = 35 * 1024 * 1024) {
       if (!settled) reject(err);
     });
   });
+}
+
+function streamFinalMp3(req, res) {
+  const ffmpeg = spawn(getFfmpegPath(), [
+    '-hide_banner', '-loglevel', 'error',
+    '-i', 'pipe:0',
+    '-ac', '2', '-ar', '44100', '-b:a', '128k',
+    '-f', 'mp3', 'pipe:1'
+  ]);
+  const errors = [];
+  let receivedBytes = 0;
+  let header = Buffer.alloc(0);
+  let streamError = null;
+  let outputStarted = false;
+  const inputGuard = new Transform({
+    transform(chunk, _encoding, callback) {
+      receivedBytes += chunk.length;
+      if (receivedBytes > MAX_FINAL_WAV_BYTES) {
+        streamError = new AudiobookError('O WAV final excede o limite de 1 GB.', 413, 'FINAL_AUDIO_TOO_LARGE');
+        callback(streamError);
+        return;
+      }
+      if (header.length < 12) {
+        header = Buffer.concat([header, chunk.subarray(0, 12 - header.length)]);
+        if (header.length >= 12 &&
+            (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WAVE')) {
+          streamError = new AudiobookError('O arquivo enviado não é um WAV válido.', 400, 'INVALID_FINAL_AUDIO');
+          callback(streamError);
+          return;
+        }
+      }
+      callback(null, chunk);
+    },
+    flush(callback) {
+      if (header.length < 12) {
+        streamError = new AudiobookError('O arquivo WAV está vazio ou incompleto.', 400, 'INVALID_FINAL_AUDIO');
+        callback(streamError);
+        return;
+      }
+      callback();
+    }
+  });
+
+  ffmpeg.stderr.on('data', (chunk) => errors.push(chunk));
+  ffmpeg.stdout.on('data', (chunk) => {
+    if (!outputStarted) {
+      outputStarted = true;
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Disposition', 'attachment; filename="audiobook-final.mp3"');
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.write(chunk);
+  });
+  inputGuard.on('error', () => ffmpeg.kill());
+  ffmpeg.stdin.on('error', () => {});
+  ffmpeg.on('error', (error) => {
+    if (!res.headersSent) {
+      sendJson(res, 500, { success: false, error: error.message, code: 'MP3_RENDER_FAILED' });
+    } else {
+      res.destroy(error);
+    }
+  });
+  ffmpeg.on('close', (code) => {
+    if (code === 0 && outputStarted) {
+      res.end();
+    } else if (!res.headersSent) {
+      const error = streamError || new AudiobookError(
+        `Falha ao gerar o MP3 final${errors.length ? `: ${Buffer.concat(errors).toString().slice(0, 200)}` : '.'}`,
+        500,
+        'MP3_RENDER_FAILED'
+      );
+      sendJson(res, error.status, { success: false, error: error.message, code: error.code });
+    } else {
+      res.destroy();
+    }
+  });
+  req.on('aborted', () => ffmpeg.kill());
+  req.pipe(inputGuard).pipe(ffmpeg.stdin);
 }
 
 function parseCastAnalysisOutput(raw) {
@@ -166,12 +254,31 @@ function validateCastAnalysis(result, chapters, knownCast = []) {
       if (segmentIndex < 0 || segmentIndex >= expected.analysisSegments.length || !castIds.has(speakerId)) {
         throw new AudiobookError('A análise retornou segmentos ou narradores inválidos.', 502, 'INVALID_ANALYSIS_RESPONSE');
       }
-      if (!speakerBySegment.has(segmentIndex)) speakerBySegment.set(segmentIndex, speakerId);
+      if (!speakerBySegment.has(segmentIndex)) {
+        const requestedPause = Number(segment?.pauseAfterMs);
+        const pauseAfterMs = Number.isFinite(requestedPause)
+          ? Math.max(0, Math.min(2500, Math.round(requestedPause)))
+          : 0;
+        const soundCue = SOUND_CUE_TYPES.has(segment?.soundCue) ? segment.soundCue : null;
+        speakerBySegment.set(segmentIndex, { speakerId, pauseAfterMs, soundCue });
+      }
     });
-    const segments = expected.analysisSegments.map((text, segmentIndex) => ({
-      speakerId: speakerBySegment.get(segmentIndex) || 'narrator',
-      text
-    }));
+    const segments = expected.analysisSegments.map((text, segmentIndex) => {
+      const analysis = speakerBySegment.get(segmentIndex);
+      const next = speakerBySegment.get(segmentIndex + 1);
+      const punctuationPause = /[?!”»]$/.test(text.trim())
+        ? 520
+        : /[.!…]$/.test(text.trim())
+          ? 360
+          : 0;
+      const speakerChangePause = next && analysis && next.speakerId !== analysis.speakerId ? 350 : 0;
+      return {
+        speakerId: analysis?.speakerId || 'narrator',
+        text,
+        pauseAfterMs: Math.max(analysis?.pauseAfterMs || 0, punctuationPause, speakerChangePause),
+        soundCue: analysis?.soundCue || null
+      };
+    });
     return { index, title: expected.title, segments };
   });
 
@@ -182,7 +289,12 @@ function createCastAnalysisPrompt(chapters, knownCast = []) {
   const schema = {
     chapters: chapters.map(({ index }) => ({
       index,
-      segments: [{ segmentIndex: 0, speakerId: 'ID do integrante do elenco' }]
+      segments: [{
+        segmentIndex: 0,
+        speakerId: 'ID do integrante do elenco',
+        pauseAfterMs: 450,
+        soundCue: 'door|footsteps|rain|thunder|wind|impact|clock|phone|birds|river|vehicle|tension|null'
+      }]
     })),
     cast: [
       { id: 'narrator', name: 'Narrador', gender: 'unknown' },
@@ -190,9 +302,10 @@ function createCastAnalysisPrompt(chapters, knownCast = []) {
     ]
   };
   return [
-    'Analise os trechos numerados dos capítulos e identifique narrador e personagens falantes. Responda exclusivamente com JSON válido, sem markdown, seguindo exatamente este formato:',
+    'Coordene a direção de áudio dos trechos numerados: identifique quem fala, defina pausas naturais e escolha no máximo um efeito sonoro pertinente por trecho. Responda exclusivamente com JSON válido, sem markdown, seguindo exatamente este formato:',
     JSON.stringify(schema),
-    'Cada trecho de entrada já possui um índice fixo. Devolva exatamente um item por trecho, sem alterar os índices; não devolva nem copie os textos. O servidor reconstrói os segmentos diretamente do original, portanto sua tarefa é somente classificar cada índice com um speakerId.',
+    'Cada trecho de entrada já possui um índice fixo. Devolva exatamente um item por trecho, sem alterar os índices; não devolva nem copie os textos. O servidor reconstrói os segmentos diretamente do original. pauseAfterMs deve ficar entre 0 e 2500: use cerca de 250-450 ms após uma frase normal, 500-800 ms após pergunta/exclamação, 700-1200 ms em transição de interlocutor ou pausa dramática, e 0 quando a frase continua. Não exagere nas pausas.',
+    'soundCue deve ser um dos valores enumerados no schema ou null. Use somente para eventos audíveis explícitos ou mudança clara de ambiente, não para metáforas; prefira null a inventar ou inserir efeito em toda frase. Limite a 4 cues por capítulo.',
     'O cast deve sempre conter a entrada {id:"narrator", name:"Narrador", gender:"unknown"} para a voz narrativa. Inclua os demais speakers com ids únicos como "cast-1", "cast-2", nome e gender ("male", "female" ou "unknown"). Cada speakerId precisa apontar para um integrante do cast. Atribua falas explícitas ao personagem que as diz e a narração ao "narrator"; se não for possível identificar, use "narrator".',
     knownCast.length > 0
       ? `Elenco já identificado em partes anteriores (reutilize o mesmo id e nome para estas pessoas quando aparecerem novamente): ${JSON.stringify(knownCast)}`
@@ -304,6 +417,24 @@ export function createAudiobookApi(options = {}) {
         const language = reqUrl.searchParams?.get('language') || 'pt-BR';
         const result = await getAvailableVoices(language, service.engines);
         sendJson(res, 200, { success: true, ...result });
+        return true;
+      }
+
+      // 1d. POST /render-mp3 — Converte a master WAV revisada em MP3 estéreo final
+      if (sub === '/render-mp3' || sub === '/render-mp3/') {
+        if (req.method !== 'POST') {
+          sendJson(res, 405, { success: false, error: 'Método não permitido.', code: 'METHOD_NOT_ALLOWED' });
+          return true;
+        }
+        if (!(await hasFfmpeg())) {
+          sendJson(res, 503, { success: false, error: 'O conversor MP3 não está disponível no servidor.', code: 'FFMPEG_MISSING' });
+          return true;
+        }
+        if (Number(req.headers['content-length']) > MAX_FINAL_WAV_BYTES) {
+          sendJson(res, 413, { success: false, error: 'O WAV final excede o limite de 1 GB.', code: 'FINAL_AUDIO_TOO_LARGE' });
+          return true;
+        }
+        streamFinalMp3(req, res);
         return true;
       }
 

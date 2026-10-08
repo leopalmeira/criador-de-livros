@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import {
   SoundTimelineEvent,
-  SoundEffectPriority
+  SoundEffectPriority,
+  SpeechTimelineCue
 } from '../../../types/audiobook-studio';
 import {
   SOUND_EFFECTS_CATALOG,
@@ -29,6 +30,8 @@ interface AudioTimelineProps {
   onDeleteEvent: (eventId: string) => void;
   onDuplicateEvent: (event: SoundTimelineEvent) => void;
   onAddEvent: (event: SoundTimelineEvent) => void;
+  speechCues?: SpeechTimelineCue[];
+  onUpdateSpeechCue?: (cue: SpeechTimelineCue) => void;
   currentTimeSeconds?: number;
 }
 
@@ -39,11 +42,14 @@ export const AudioTimeline: React.FC<AudioTimelineProps> = ({
   onDeleteEvent,
   onDuplicateEvent,
   onAddEvent,
+  speechCues = [],
+  onUpdateSpeechCue,
   currentTimeSeconds = 0
 }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedSpeechCueId, setSelectedSpeechCueId] = useState<string | null>(null);
 
   // Estados de busca e preview de efeitos reais
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -265,7 +271,7 @@ export const AudioTimeline: React.FC<AudioTimelineProps> = ({
           )}
         </div>
 
-        {/* FAIXA 1: TRILHA DE VOZ DO NARRADOR */}
+        {/* FAIXA 1: NARRAÇÃO COM MARCADORES DE FALA */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10, minWidth: 600 }}>
           <div style={{
             width: 90,
@@ -280,7 +286,7 @@ export const AudioTimeline: React.FC<AudioTimelineProps> = ({
           </div>
           <div style={{
             flex: 1,
-            height: 32,
+            minHeight: 32,
             background: 'linear-gradient(90deg, rgba(14,165,233,0.25), rgba(59,130,246,0.25))',
             border: '1px solid rgba(56,189,248,0.4)',
             borderRadius: 6,
@@ -292,11 +298,47 @@ export const AudioTimeline: React.FC<AudioTimelineProps> = ({
             fontSize: 11,
             fontWeight: 600
           }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              🎙️ Narração Neural Kokoro (Voz Principal • 100% Volume Master)
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.8 }}>
+              🎙️ Vozes e pausas dirigidas por IA
             </span>
+            {speechCues.map((cue, index) => {
+              const leftPct = (cue.startTimeSeconds / totalDuration) * 100;
+              const widthPct = Math.min(100 - leftPct, (cue.durationSeconds / totalDuration) * 100);
+              const colors = ['#0284c7', '#7c3aed', '#db2777', '#059669', '#d97706'];
+              return (
+                <button
+                  key={cue.id}
+                  type="button"
+                  onClick={() => setSelectedSpeechCueId(cue.id)}
+                  title={`${cue.speakerName}: ${cue.text}\nInício estimado ${cue.startTimeSeconds.toFixed(1)}s • ${cue.pauseAfterMs}ms de pausa`}
+                  style={{
+                    position: 'absolute',
+                    left: `${leftPct}%`,
+                    width: `${Math.max(2, widthPct)}%`,
+                    top: 2,
+                    bottom: 2,
+                    padding: '0 4px',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    border: selectedSpeechCueId === cue.id ? '2px solid white' : '1px solid rgba(255,255,255,0.65)',
+                    borderRadius: 4,
+                    background: colors[index % colors.length],
+                    color: '#fff',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {cue.speakerName}
+                </button>
+              );
+            })}
           </div>
         </div>
+        <p style={{ margin: '-4px 0 8px 90px', color: '#94a3b8', fontSize: 10 }}>
+          Os marcadores de fala são estimativas guiadas pelo texto e pelas pausas sintetizadas; selecione um para ajustar a referência e alinhar efeitos.
+        </p>
 
         {/* FAIXA 2: TRILHA DE AMBIENTE */}
         <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 10, minWidth: 600 }}>
@@ -442,6 +484,39 @@ export const AudioTimeline: React.FC<AudioTimelineProps> = ({
           </div>
         </div>
       </div>
+
+      {selectedSpeechCue && onUpdateSpeechCue && (
+        <div style={{
+          background: '#082f49',
+          border: '1px solid #0369a1',
+          borderRadius: 8,
+          padding: 12,
+          color: '#e0f2fe',
+          display: 'grid',
+          gap: 8
+        }}>
+          <strong style={{ fontSize: 12 }}>Referência de fala: {selectedSpeechCue.speakerName}</strong>
+          <span style={{ fontSize: 11, color: '#bae6fd' }}>{selectedSpeechCue.text.slice(0, 180)}</span>
+          <label style={{ display: 'grid', gridTemplateColumns: '150px 1fr 55px', alignItems: 'center', gap: 10, fontSize: 11 }}>
+            Posição de referência
+            <input
+              type="range"
+              min={0}
+              max={Math.max(0, totalDuration - selectedSpeechCue.durationSeconds)}
+              step={0.1}
+              value={Math.min(selectedSpeechCue.startTimeSeconds, Math.max(0, totalDuration - selectedSpeechCue.durationSeconds))}
+              onChange={(event) => onUpdateSpeechCue({
+                ...selectedSpeechCue,
+                startTimeSeconds: Number(event.target.value)
+              })}
+            />
+            <span>{selectedSpeechCue.startTimeSeconds.toFixed(1)}s</span>
+          </label>
+          <span style={{ fontSize: 10, color: '#7dd3fc' }}>
+            Ajustar este marcador ajuda a alinhar efeitos; não desloca nem regrava a fala sintetizada.
+          </span>
+        </div>
+      )}
 
       {/* EDITOR DETALHADO DO EVENTO SELECIONADO NA TIMELINE */}
       {selectedEventId && (() => {

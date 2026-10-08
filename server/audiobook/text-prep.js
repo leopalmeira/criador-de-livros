@@ -249,11 +249,13 @@ export function buildNarrationUnits(manuscript, languageInput) {
       narratorVoiceId;
     const segments = rawSegments.length > 0
       ? [
-          { text: heading, voiceId: chapterNarratorVoiceId },
+          { text: heading, voiceId: chapterNarratorVoiceId, pauseAfterMs: 500 },
           ...rawSegments
             .map((segment) => ({
               text: prepareNarrationText(segment.text),
-              voiceId: String(segment.voiceId || '').trim() || null
+              voiceId: String(segment.voiceId || '').trim() || null,
+              pauseAfterMs: Math.max(0, Math.min(2500, Number(segment.pauseAfterMs) || 0)),
+              soundCue: String(segment.soundCue || '').trim() || null
             }))
             .filter((segment) => segment.text)
         ]

@@ -1139,6 +1139,23 @@ export interface BookAudiobookAsset {
   finalFile?: string;
   mixedMasterUrl?: string;
   timelineEvents?: Record<number, any[]>;
+  speechCues?: Record<number, Array<{
+    id: string;
+    speakerId: string;
+    speakerName: string;
+    text: string;
+    startTimeSeconds: number;
+    durationSeconds: number;
+    pauseAfterMs: number;
+  }>>;
+  castAnalysis?: {
+    cast: Array<{ id: string; name: string; gender: 'male' | 'female' | 'unknown'; voiceId?: string }>;
+    chapters: Array<{
+      index: number;
+      title: string;
+      segments: Array<{ speakerId: string; text: string; pauseAfterMs?: number; soundCue?: string | null }>;
+    }>;
+  };
   soundDesignSummary?: Record<number, any>;
   chapterMixedAudio?: Record<number, { url: string; duration: number }>;
   generatedAt: number;
@@ -1257,4 +1274,3 @@ export interface ProjectSummary {
   qualityScore?: number;
   isReadyForKdp?: boolean;
 }
-

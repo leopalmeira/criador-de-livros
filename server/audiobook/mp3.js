@@ -7,6 +7,13 @@
 
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
+import ffmpegStatic from 'ffmpeg-static';
+
+const FFMPEG_PATH = process.env.FFMPEG_PATH || ffmpegStatic || 'ffmpeg';
+
+export function getFfmpegPath() {
+  return FFMPEG_PATH;
+}
 
 const BITRATES_V1_L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
 const BITRATES_V2_L3 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
@@ -96,7 +103,7 @@ export function hasFfmpeg() {
   if (ffmpegChecked) return ffmpegChecked;
   ffmpegChecked = new Promise((resolve) => {
     try {
-      const p = spawn('ffmpeg', ['-version'], { stdio: 'ignore' });
+      const p = spawn(FFMPEG_PATH, ['-version'], { stdio: 'ignore' });
       p.on('error', () => resolve(false));
       p.on('exit', (code) => resolve(code === 0));
     } catch {
@@ -114,7 +121,7 @@ export async function convertToMp3(input) {
     throw err;
   }
   return new Promise((resolve, reject) => {
-    const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-ac', '1', '-ar', '24000', '-b:a', '64k', '-f', 'mp3', 'pipe:1']);
+    const p = spawn(FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-ac', '1', '-ar', '24000', '-b:a', '64k', '-f', 'mp3', 'pipe:1']);
     const chunks = [];
     const errors = [];
     p.stdout.on('data', (c) => chunks.push(c));
@@ -127,6 +134,46 @@ export async function convertToMp3(input) {
     p.stdin.on('error', () => {});
     p.stdin.end(input);
   });
+}
+
+const silenceCache = new Map();
+
+/** Gera silêncio MP3 compatível com o formato de narração usado pelo serviço. */
+export async function createSilenceMp3(durationMs) {
+  const duration = Math.max(0, Math.min(2500, Math.round(Number(durationMs) || 0)));
+  if (duration < 50) return Buffer.alloc(0);
+  if (silenceCache.has(duration)) return silenceCache.get(duration);
+  if (!(await hasFfmpeg())) {
+    const err = new Error('FFmpeg é necessário para aplicar as pausas da direção de voz.');
+    err.code = 'FFMPEG_MISSING';
+    throw err;
+  }
+  const silence = new Promise((resolve, reject) => {
+    const process = spawn(FFMPEG_PATH, [
+      '-hide_banner', '-loglevel', 'error',
+      '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono',
+      '-t', (duration / 1000).toFixed(3),
+      '-b:a', '64k', '-f', 'mp3', 'pipe:1'
+    ]);
+    const chunks = [];
+    const errors = [];
+    process.stdout.on('data', (chunk) => chunks.push(chunk));
+    process.stderr.on('data', (chunk) => errors.push(chunk));
+    process.on('error', reject);
+    process.on('close', (code) => {
+      if (code === 0 && chunks.length > 0) resolve(Buffer.concat(chunks));
+      else reject(new Error(`Falha ao criar pausa de áudio: ${Buffer.concat(errors).toString().slice(0, 200)}`));
+    });
+    process.stdin.on('error', () => {});
+    process.stdin.end();
+  });
+  silenceCache.set(duration, silence);
+  try {
+    return await silence;
+  } catch (error) {
+    silenceCache.delete(duration);
+    throw error;
+  }
 }
 
 export const isMp3 = (buf) => {

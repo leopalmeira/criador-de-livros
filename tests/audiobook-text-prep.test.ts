@@ -129,9 +129,9 @@ Diálogo com travessão:
     const units = buildNarrationUnits(manuscript, 'pt-BR');
     const chapter = units[1];
     expect(chapter.segments).toEqual([
-      { text: 'Capítulo 1. Capítulo um.', voiceId: 'voice-narrator' },
-      { text: 'Ana entrou.', voiceId: 'voice-narrator' },
-      { text: 'Quem está aí?, perguntou ela.', voiceId: 'voice-ana' }
+      { text: 'Capítulo 1. Capítulo um.', voiceId: 'voice-narrator', pauseAfterMs: 500 },
+      { text: 'Ana entrou.', voiceId: 'voice-narrator', pauseAfterMs: 0, soundCue: null },
+      { text: 'Quem está aí?, perguntou ela.', voiceId: 'voice-ana', pauseAfterMs: 0, soundCue: null }
     ]);
     expect(chapter.text).toContain('Quem está aí?');
 
@@ -167,8 +167,8 @@ Diálogo com travessão:
       voiceId: 'edge:pt-BR-AntonioNeural'
     }]);
     expect(units[2].segments).toEqual([
-      { text: 'Capítulo 2. Com personagem.', voiceId: 'edge:pt-BR-AntonioNeural' },
-      { text: 'Ana respondeu.', voiceId: 'fish:ana-model' }
+      { text: 'Capítulo 2. Com personagem.', voiceId: 'edge:pt-BR-AntonioNeural', pauseAfterMs: 500 },
+      { text: 'Ana respondeu.', voiceId: 'fish:ana-model', pauseAfterMs: 0, soundCue: null }
     ]);
   });
 });

@@ -31,6 +31,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "amazon-buddy": "^2.2.45",
     "cheerio": "^1.2.0",
+    "ffmpeg-static": "^5.3.0",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
     "lucide-react": "^1.48.0",

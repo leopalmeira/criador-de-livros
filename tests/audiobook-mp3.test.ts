@@ -8,7 +8,9 @@ import {
   mp3DurationSeconds,
   concatMp3Buffers,
   concatMp3Files,
-  isMp3
+  isMp3,
+  createSilenceMp3,
+  hasFfmpeg
 } from '../server/audiobook/mp3.js';
 
 // Cria frame MPEG-2 Layer III válido: 24kHz, 48kbps, mono -> 144 bytes por frame = 0.024s
@@ -87,5 +89,13 @@ describe('AudiobookStudio — Processamento de Áudio MP3', () => {
     expect(mp3DurationSeconds(finalBuf)).toBeCloseTo(1.2, 2);
 
     await fs.promises.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('gera pausas MP3 com duração real usando o binário empacotado', async () => {
+    expect(await hasFfmpeg()).toBe(true);
+    const silence = await createSilenceMp3(500);
+    expect(isMp3(silence)).toBe(true);
+    expect(mp3DurationSeconds(silence)).toBeGreaterThanOrEqual(0.45);
+    expect(mp3DurationSeconds(silence)).toBeLessThanOrEqual(0.6);
   });
 });

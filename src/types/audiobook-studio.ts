@@ -103,6 +103,16 @@ export interface SoundTimelineEvent {
   duckingRatio?: number;
 }
 
+export interface SpeechTimelineCue {
+  id: string;
+  speakerId: string;
+  speakerName: string;
+  text: string;
+  startTimeSeconds: number;
+  durationSeconds: number;
+  pauseAfterMs: number;
+}
+
 // ================================================================
 // CAPÍTULO DE AUDIOBOOK COM MULTI-TRACK TIMELINE
 // ================================================================

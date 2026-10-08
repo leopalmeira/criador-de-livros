@@ -168,7 +168,7 @@ describe('Audiobook AI cast backend routes', () => {
         chapters: [{
           index: 0,
           title: 'Capítulo',
-          segments: [{ text: original, speakerId: 'cast-2' }]
+          segments: [{ text: original, speakerId: 'cast-2', pauseAfterMs: 360, soundCue: null }]
         }]
       });
       expect(authHeader).toBe(`Token ${replicateToken}`);

@@ -6,6 +6,7 @@ import { AudiobookService } from '../server/audiobook/service.js';
 import { AudiobookStorage } from '../server/audiobook/storage.js';
 import { TTSEngineManager } from '../server/audiobook/engine-manager.js';
 import { TTSProvider } from '../server/audiobook/providers/tts-provider.js';
+import { mp3DurationSeconds } from '../server/audiobook/mp3.js';
 
 // Cria frame MPEG-2 Layer III válido para testes rápidos e reproduzíveis
 function dummyMp3Buffer(): Buffer {
@@ -36,6 +37,10 @@ class TestableTTSProvider extends TTSProvider {
 
   supports(language: string): boolean {
     return true;
+  }
+
+  supportsVoice(_language: string, voiceId: string): boolean {
+    return Boolean(voiceId);
   }
 
   async synthesizeSegment(text: string, language: string, gender: string): Promise<Buffer> {
@@ -226,5 +231,30 @@ describe('AudiobookStudio — Geração Completa, Resiliência e Retomada', () =
     expect(reSynthesizedCap1).toBe(false);
     expect(reSynthesizedCap3).toBe(false);
     expect(newCalls.length).toBe(1); // sintetizou estritamente apenas o capítulo que faltava!
+  });
+
+  it('insere a pausa de direção entre falas do capítulo narrado', async () => {
+    const provider = new TestableTTSProvider('fish-audio');
+    const engineManager = new TTSEngineManager({ registerDefaults: false });
+    engineManager.register(provider);
+    const service = new AudiobookService({ storage, engineManager, sleep: () => Promise.resolve() });
+    const projectId = 'proj_speech_pause';
+
+    await service.saveManuscript(projectId, {
+      ...sampleBook,
+      chapters: [{
+        title: 'Pausa',
+        text: 'Antes. Depois.',
+        speakerSegments: [
+          { speakerId: 'narrator', text: 'Antes. ', voiceId: 'fish:mock-voice', pauseAfterMs: 500 },
+          { speakerId: 'narrator', text: 'Depois.', voiceId: 'fish:mock-voice', pauseAfterMs: 0 }
+        ]
+      }]
+    });
+    await service.startGeneration({ projectId, language: 'pt-BR', voiceGender: 'male' });
+    await service.waitForJob(projectId);
+
+    const chapterBuffer = await fs.promises.readFile(storage.chapterPath(projectId, '02-capitulo-01.mp3'));
+    expect(mp3DurationSeconds(chapterBuffer)).toBeGreaterThan(0.5);
   });
 });

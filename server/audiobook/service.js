@@ -10,7 +10,7 @@ import { AudiobookStorage } from './storage.js';
 import { TTSEngineManager } from './engine-manager.js';
 import { resolveLanguage, resolveGender, GENDER_LABEL } from './languages.js';
 import { buildNarrationUnits, splitIntoChunks } from './text-prep.js';
-import { concatMp3Buffers, concatMp3Files, mp3DurationSeconds } from './mp3.js';
+import { concatMp3Buffers, concatMp3Files, createSilenceMp3, mp3DurationSeconds } from './mp3.js';
 
 export class AudiobookError extends Error {
   constructor(message, status = 400, code = 'BAD_REQUEST') {
@@ -74,7 +74,9 @@ export class AudiobookService {
           ? c.speakerSegments.slice(0, 2000).map((segment) => ({
               speakerId: clean(segment?.speakerId, 100),
               text: String(segment?.text ?? '').slice(0, MAX_CHAPTER_CHARS),
-              voiceId: clean(segment?.voiceId, 200)
+              voiceId: clean(segment?.voiceId, 200),
+              pauseAfterMs: Math.max(0, Math.min(2500, Math.round(Number(segment?.pauseAfterMs) || 0))),
+              soundCue: clean(segment?.soundCue, 30)
             }))
           : []
       }))
@@ -92,7 +94,10 @@ export class AudiobookService {
           'INVALID_CAST_SEGMENTS'
         );
       }
-      if (chapter.speakerSegments.some((segment) => !segment.speakerId || !segment.text.trim() || !segment.voiceId)) {
+      if (chapter.speakerSegments.some((segment) =>
+        !segment.speakerId || !segment.text.trim() || !segment.voiceId ||
+        (segment.soundCue && !/^(rain|thunder|wind|door|footsteps|impact|clock|phone|birds|river|vehicle|tension)$/.test(segment.soundCue))
+      )) {
         throw new AudiobookError('Cada fala do elenco precisa ter interlocutor e voz selecionada.', 400, 'INVALID_CAST_SEGMENTS');
       }
     }
@@ -308,12 +313,14 @@ export class AudiobookService {
     const speechSegments = Array.isArray(segments) && segments.length > 0
       ? segments
       : [{ text, voiceId: null }];
-    const chunks = speechSegments.flatMap((segment) =>
-      splitIntoChunks(segment.text, this.chunkMaxChars).map((chunk) => ({
+    const chunks = speechSegments.flatMap((segment) => {
+      const textChunks = splitIntoChunks(segment.text, this.chunkMaxChars);
+      return textChunks.map((chunk, index) => ({
         text: chunk,
-        voiceId: segment.voiceId
-      }))
-    );
+        voiceId: segment.voiceId,
+        pauseAfterMs: index === textChunks.length - 1 ? segment.pauseAfterMs || 0 : 0
+      }));
+    });
     if (chunks.length === 0) throw new Error('Capítulo sem texto para narrar');
     job.live = { unitIndex: unit.index, chunkDone: 0, chunkTotal: chunks.length };
     const buffers = [];
@@ -330,6 +337,9 @@ export class AudiobookService {
       else genderHonored = false;
       if (!engines.includes(r.engine)) engines.push(r.engine);
       buffers.push(r.audio);
+      if (chunk.pauseAfterMs > 0) {
+        buffers.push(await createSilenceMp3(chunk.pauseAfterMs));
+      }
       job.live.chunkDone += 1;
     }
     const audio = concatMp3Buffers(buffers);
