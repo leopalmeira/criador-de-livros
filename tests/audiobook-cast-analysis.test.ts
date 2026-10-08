@@ -132,11 +132,7 @@ describe('Audiobook AI cast backend routes', () => {
       ],
       chapters: [{
         index: 0,
-        title: 'Capítulo',
-        segments: [
-          { text: '“Olá, Maria!”, ', speakerId: 'cast-2' },
-          { text: ' disse João.', speakerId: 'cast-1' }
-        ]
+        segments: [{ segmentIndex: 0, speakerId: 'cast-2' }]
       }]
     };
     const replicateToken = 'replicate-server-secret';
@@ -172,10 +168,7 @@ describe('Audiobook AI cast backend routes', () => {
         chapters: [{
           index: 0,
           title: 'Capítulo',
-          segments: [
-            { text: '“Olá, Maria!”, ', speakerId: 'cast-2' },
-            { text: ' disse João.', speakerId: 'narrator' }
-          ]
+          segments: [{ text: original, speakerId: 'cast-2' }]
         }]
       });
       expect(authHeader).toBe(`Token ${replicateToken}`);
@@ -183,14 +176,14 @@ describe('Audiobook AI cast backend routes', () => {
     });
   });
 
-  it('rejects model output that rewrites or omits chapter text', async () => {
+  it('rebuilds source text verbatim even if the model tries to rewrite a segment', async () => {
     await withApi({
       generateReplicateText: async () => JSON.stringify({
         cast: [{ id: 'cast-1', name: 'Narrador', gender: 'unknown' }],
         chapters: [{
           index: 0,
           title: '',
-          segments: [{ text: 'Texto reescrito', speakerId: 'cast-1' }]
+          segments: [{ segmentIndex: 0, text: 'Texto reescrito', speakerId: 'cast-1' }]
         }]
       })
     }, async (baseUrl) => {
@@ -199,8 +192,11 @@ describe('Audiobook AI cast backend routes', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chapters: [{ text: 'Texto original' }] })
       });
-      expect(response.status).toBe(502);
-      expect(await response.json()).toMatchObject({ success: false, code: 'ANALYSIS_TEXT_MISMATCH' });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        success: true,
+        chapters: [{ segments: [{ text: 'Texto original', speakerId: 'narrator' }] }]
+      });
     });
   });
 
@@ -213,7 +209,7 @@ describe('Audiobook AI cast backend routes', () => {
           chapters: [{
             index: 0,
             title: 'Parte 2',
-            segments: [{ text: 'Ela voltou.', speakerId: 'cast-1' }]
+            segments: [{ segmentIndex: 0, speakerId: 'cast-1' }]
           }]
         });
       }

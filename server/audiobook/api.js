@@ -98,8 +98,17 @@ function parseCastAnalysisOutput(raw) {
   );
 }
 
-function normalizeAnalysisWhitespace(text) {
-  return text.replace(/\s+/gu, ' ').trim();
+function splitCastAnalysisText(text) {
+  const segments = [];
+  let start = 0;
+  const sentenceEnds = /[.!?…]["”')\]]*(?=\s|$)/gu;
+  for (const match of text.matchAll(sentenceEnds)) {
+    const end = match.index + match[0].length;
+    if (end > start) segments.push(text.slice(start, end));
+    start = end;
+  }
+  if (start < text.length) segments.push(text.slice(start));
+  return segments.length > 0 ? segments : [text];
 }
 
 function validateCastAnalysis(result, chapters, knownCast = []) {
@@ -147,19 +156,22 @@ function validateCastAnalysis(result, chapters, knownCast = []) {
     if (!chapter || chapter.index !== index || !Array.isArray(chapter.segments) || chapter.segments.length > 2_000) {
       throw new AudiobookError('A análise retornou capítulos fora de ordem ou inválidos.', 502, 'INVALID_ANALYSIS_RESPONSE');
     }
-    let reconstructed = '';
-    const segments = chapter.segments.map((segment) => {
+    const speakerBySegment = new Map();
+    chapter.segments.forEach((segment, outputIndex) => {
+      const segmentIndex = Number.isInteger(segment?.segmentIndex)
+        ? segment.segmentIndex
+        : outputIndex;
       const suppliedSpeakerId = typeof segment?.speakerId === 'string' ? segment.speakerId : '';
       const speakerId = speakerIdAliases.get(suppliedSpeakerId) || suppliedSpeakerId;
-      if (typeof segment?.text !== 'string' || segment.text.length === 0 || !castIds.has(speakerId)) {
+      if (segmentIndex < 0 || segmentIndex >= expected.analysisSegments.length || !castIds.has(speakerId)) {
         throw new AudiobookError('A análise retornou segmentos ou narradores inválidos.', 502, 'INVALID_ANALYSIS_RESPONSE');
       }
-      reconstructed += segment.text;
-      return { speakerId, text: segment.text };
+      if (!speakerBySegment.has(segmentIndex)) speakerBySegment.set(segmentIndex, speakerId);
     });
-    if (normalizeAnalysisWhitespace(reconstructed) !== normalizeAnalysisWhitespace(expected.text)) {
-      throw new AudiobookError('A análise alterou ou omitiu texto do capítulo. Tente novamente.', 502, 'ANALYSIS_TEXT_MISMATCH');
-    }
+    const segments = expected.analysisSegments.map((text, segmentIndex) => ({
+      speakerId: speakerBySegment.get(segmentIndex) || 'narrator',
+      text
+    }));
     return { index, title: expected.title, segments };
   });
 
@@ -170,8 +182,7 @@ function createCastAnalysisPrompt(chapters, knownCast = []) {
   const schema = {
     chapters: chapters.map(({ index }) => ({
       index,
-      title: 'Título do capítulo',
-      segments: [{ speakerId: 'ID do integrante do elenco', text: 'Trecho do texto deste capítulo' }]
+      segments: [{ segmentIndex: 0, speakerId: 'ID do integrante do elenco' }]
     })),
     cast: [
       { id: 'narrator', name: 'Narrador', gender: 'unknown' },
@@ -179,15 +190,19 @@ function createCastAnalysisPrompt(chapters, knownCast = []) {
     ]
   };
   return [
-    'Analise o texto dos capítulos e identifique narrador e personagens falantes. Responda exclusivamente com JSON válido, sem markdown, seguindo exatamente este formato:',
+    'Analise os trechos numerados dos capítulos e identifique narrador e personagens falantes. Responda exclusivamente com JSON válido, sem markdown, seguindo exatamente este formato:',
     JSON.stringify(schema),
-    'Regras obrigatórias: mantenha cada capítulo na ordem recebida e use seu índice numérico (começando em zero); divida o texto em segmentos consecutivos; cada segmento deve copiar uma parte não vazia do texto original; não corrija, resuma, omita, acrescente ou reescreva palavras ou pontuação. A reconstrução dos segmentos, normalizando sequências de espaços em branco para um espaço e removendo espaços externos, deve corresponder ao capítulo original.',
-    'O cast deve sempre conter exatamente a entrada {id:"narrator", name:"Narrador", gender:"unknown"} para a voz narrativa. Inclua os demais speakers com ids únicos como "cast-1", "cast-2", nome e gender ("male", "female" ou "unknown"). Cada speakerId precisa apontar para um integrante do cast. Se não houver fala identificável, atribua todo o texto ao speakerId "narrator".',
+    'Cada trecho de entrada já possui um índice fixo. Devolva exatamente um item por trecho, sem alterar os índices; não devolva nem copie os textos. O servidor reconstrói os segmentos diretamente do original, portanto sua tarefa é somente classificar cada índice com um speakerId.',
+    'O cast deve sempre conter a entrada {id:"narrator", name:"Narrador", gender:"unknown"} para a voz narrativa. Inclua os demais speakers com ids únicos como "cast-1", "cast-2", nome e gender ("male", "female" ou "unknown"). Cada speakerId precisa apontar para um integrante do cast. Atribua falas explícitas ao personagem que as diz e a narração ao "narrator"; se não for possível identificar, use "narrator".',
     knownCast.length > 0
       ? `Elenco já identificado em partes anteriores (reutilize o mesmo id e nome para estas pessoas quando aparecerem novamente): ${JSON.stringify(knownCast)}`
       : '',
     'Capítulos de entrada:',
-    JSON.stringify(chapters.map(({ index, title, text }) => ({ index, title, text })))
+    JSON.stringify(chapters.map(({ index, title, analysisSegments }) => ({
+      index,
+      title,
+      segments: analysisSegments.map((text, segmentIndex) => ({ segmentIndex, text }))
+    })))
   ].join('\n\n');
 }
 
@@ -352,7 +367,7 @@ export function createAudiobookApi(options = {}) {
             throw new AudiobookError(`O capítulo ${index + 1} excede o limite de ${MAX_CAST_ANALYSIS_CHAPTER_CHARS} caracteres.`, 413, 'CHAPTER_TOO_LARGE');
           }
           totalChars += text.length;
-          return { id, index, title, text };
+          return { id, index, title, text, analysisSegments: splitCastAnalysisText(text) };
         });
         if (new Set(chapters.map(({ id }) => id)).size !== chapters.length) {
           throw new AudiobookError('Os identificadores dos capítulos devem ser únicos.', 400, 'DUPLICATE_CHAPTER_ID');
