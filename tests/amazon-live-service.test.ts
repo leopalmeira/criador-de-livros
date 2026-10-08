@@ -1,27 +1,53 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { AmazonLiveService } from '../src/services/amazon-live-service';
 
-describe('AmazonLiveService - Dados Reais da Amazon em Tempo Real', () => {
-  it('1. Puxa sugestões de busca da API oficial da Amazon Books', async () => {
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('AmazonLiveService', () => {
+  it('parses Amazon book suggestions from a successful response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      suggestions: [
+        { value: 'suspense books' },
+        { value: 'psychological suspense' },
+        { value: '' }
+      ]
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+
     const suggestions = await AmazonLiveService.getLiveSuggestions('suspense');
-    expect(Array.isArray(suggestions)).toBe(true);
-    // Deve conter sugestões reais da Amazon
-    expect(suggestions.length).toBeGreaterThan(0);
-    expect(suggestions.some(s => s.toLowerCase().includes('suspense'))).toBe(true);
+    expect(suggestions).toEqual(['suspense books', 'psychological suspense']);
   });
 
-  it('2. Extrai livros reais com ASIN, capa dos servidores Amazon e preço', async () => {
-    const books = await AmazonLiveService.searchAmazonBooks('coloring book', 4);
-    expect(Array.isArray(books)).toBe(true);
-    expect(books.length).toBeGreaterThan(0);
+  it('parses book data from Amazon search HTML', async () => {
+    const html = `
+      <div data-component-type="s-search-result" data-asin="B012345678">
+        <h2><span>Coloring Book for Adults</span></h2>
+        <img class="s-image" src="https://images-na.ssl-images-amazon.com/images/I/test-cover.jpg">
+        <span class="a-price"><span class="a-offscreen">$12.99</span></span>
+        <span class="a-icon-alt">4.7 out of 5 stars</span>
+        <span class="a-size-base s-underline-text">1234</span>
+        <div class="a-row a-size-base a-color-secondary"><div class="a-row">by Test Author</div></div>
+        <span class="a-badge-text">Best Seller</span>
+      </div>
+    `;
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(html, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' }
+    })));
 
-    const first = books[0];
-    expect(first.asin).toBeDefined();
-    expect(first.asin.length).toBe(10);
-    expect(first.title).toBeDefined();
-    expect(first.coverImage).toContain('amazon.com');
-    expect(first.priceUsd).toBeGreaterThan(0);
-    expect(first.royaltyEstUsd).toBeGreaterThan(0);
-    expect(first.amazonUrl).toContain(`https://www.amazon.com/dp/${first.asin}`);
-  }, 20000);
+    const books = await AmazonLiveService.searchAmazonBooks('coloring book', 4);
+    expect(books).toEqual([{
+      asin: 'B012345678',
+      title: 'Coloring Book for Adults',
+      author: 'Test Author',
+      priceUsd: 12.99,
+      royaltyEstUsd: 9.09,
+      rating: 4.7,
+      reviewsCount: 1234,
+      coverImage: 'https://images-na.ssl-images-amazon.com/images/I/test-cover.jpg',
+      amazonUrl: 'https://www.amazon.com/dp/B012345678',
+      badge: 'Best Seller'
+    }]);
+  });
 });
