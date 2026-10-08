@@ -419,14 +419,16 @@ export const BookIntelDashboard: React.FC<Props> = ({
 
                   <button
                     className="btn-hero-cta"
-                    onClick={() => onOpenPublishing && onOpenPublishing()}
+                    disabled
                     style={{
-                      background: 'linear-gradient(135deg, #059669, #047857)',
-                      boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)'
+                      background: '#e2e8f0',
+                      color: '#64748b',
+                      cursor: 'not-allowed',
+                      boxShadow: 'none'
                     }}
-                    title="Central de Publicação Multiplataforma"
+                    title="Publicação Multiplataforma: em breve"
                   >
-                    <Globe size={18} /> {t('hero.btnMultiplatform')}
+                    <Globe size={18} /> {t('hero.btnMultiplatform')} · Em breve
                   </button>
                 </div>
               </div>
@@ -651,12 +653,10 @@ export const BookIntelDashboard: React.FC<Props> = ({
                           </button>
                           <button
                             className="btn-icon-soft"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenPublishing && onOpenPublishing(p.id);
-                            }}
-                            title="Publicação Multiplataforma"
-                            style={{ color: '#0f172a', borderColor: '#cbd5e1' }}
+                            disabled
+                            aria-label="Publicação Multiplataforma: em breve"
+                            title="Publicação Multiplataforma: em breve"
+                            style={{ color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed' }}
                           >
                             <Globe size={14} />
                           </button>

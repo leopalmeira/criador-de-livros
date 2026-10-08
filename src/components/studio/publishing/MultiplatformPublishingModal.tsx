@@ -210,22 +210,23 @@ export const MultiplatformPublishingModal: React.FC<MultiplatformPublishingModal
 
           <button
             type="button"
-            onClick={() => setActiveTab('audiobook')}
+            disabled
             style={{
               padding: '12px 4px',
               border: 'none',
               background: 'none',
-              borderBottom: activeTab === 'audiobook' ? '2px solid #2563eb' : '2px solid transparent',
-              color: activeTab === 'audiobook' ? '#2563eb' : '#64748b',
+              borderBottom: '2px solid transparent',
+              color: '#94a3b8',
               fontWeight: 700,
               fontSize: 13,
-              cursor: 'pointer',
+              cursor: 'not-allowed',
               display: 'flex',
               alignItems: 'center',
               gap: 6
             }}
+            title="Audiobook Studio: em breve"
           >
-            <Headphones size={16} /> Audiobook Studio
+            <Headphones size={16} /> Audiobook · Em breve
           </button>
 
           <button
@@ -352,22 +353,23 @@ export const MultiplatformPublishingModal: React.FC<MultiplatformPublishingModal
 
                     <button
                       type="button"
-                      onClick={() => setActiveTab('audiobook')}
+                      disabled
                       style={{
                         padding: '8px 16px',
-                        background: '#2563eb',
-                        color: '#ffffff',
-                        border: 'none',
+                        background: '#e2e8f0',
+                        color: '#64748b',
+                        border: '1px solid #cbd5e1',
                         borderRadius: 6,
                         fontSize: 12,
                         fontWeight: 700,
-                        cursor: 'pointer',
+                        cursor: 'not-allowed',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 6
                       }}
+                      title="Audiobook Studio: em breve"
                     >
-                      <Headphones size={15} /> Abrir Audiobook Studio
+                      <Headphones size={15} /> Audiobook · Em breve
                     </button>
                   </div>
                 </div>
