@@ -177,6 +177,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [diagnostico, setDiagnostico] = useState('Sistema pronto.');
   const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'colorir' | 'planner' | 'audiobook'>('preview');
   const [bookType, setBookType] = useState<BookType>('fiction-novel');
+  const [creationSelectorValue, setCreationSelectorValue] = useState('format:fiction-novel');
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
 
   // Sistema de Eficiência Máxima de API (Modo Ultra Econômico Google Gemini)
@@ -256,6 +257,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setAutor('');
       setGenero('');
       setBookType('fiction-novel');
+      setCreationSelectorValue('format:fiction-novel');
       setTopico('');
       setTemaSelecionado('');
       setSubtemaSelecionado('');
@@ -292,6 +294,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setBookType(initialProject.kdpBookType && BOOK_TYPE_CONFIGS[initialProject.kdpBookType]
         ? initialProject.kdpBookType
         : 'fiction-novel');
+      setCreationSelectorValue(`format:${initialProject.kdpBookType && BOOK_TYPE_CONFIGS[initialProject.kdpBookType]
+        ? initialProject.kdpBookType
+        : 'fiction-novel'}`);
       setTitulo(initialProject.title || '');
       setSubtitulo(initialProject.subtitle || '');
       setAutor(initialProject.author || 'Leandro Palmeira');
@@ -372,6 +377,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
             setBookType(p.config.bookType && BOOK_TYPE_CONFIGS[p.config.bookType as BookType]
               ? p.config.bookType as BookType
               : 'fiction-novel');
+            setCreationSelectorValue(`format:${p.config.bookType && BOOK_TYPE_CONFIGS[p.config.bookType as BookType]
+              ? p.config.bookType
+              : 'fiction-novel'}`);
           }
           setStatusMsg(`Projeto salvo carregado: ${p.livro.capitulos.length} capítulos.`);
           setStatusType('ok');
@@ -2332,6 +2340,72 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
     setStatusType('normal');
   };
 
+  const applyBookType = (selectedType: BookType) => {
+    const config = BOOK_TYPE_CONFIGS[selectedType];
+    setBookType(selectedType);
+    setCreationSelectorValue(`format:${selectedType}`);
+    setFormato(config.trimSize);
+    setPaginasAlvo(config.targetPages);
+    if (config.chapterCount[1] > 0) setMaxCapitulos(config.chapterCount[1]);
+    setGenero(config.label);
+
+    if (selectedType === 'children-picture-book') {
+      const childrenTheme = getTheme('historias-infantis-ilustradas') || getTheme('literatura-infantil');
+      setTemaSelecionado(childrenTheme?.label || 'Histórias infantis ilustradas');
+      setSubtemaSelecionado(childrenTheme?.subthemes[0] || 'Aventuras com animais');
+      setFaixaEtaria('6-8');
+      setActiveTab('preview');
+    } else if (selectedType === 'planner' || selectedType === 'diary') {
+      setActiveTab('planner');
+    } else if (selectedType === 'coloring-book') {
+      setActiveTab('colorir');
+    } else {
+      setActiveTab('preview');
+    }
+  };
+
+  const selectEditorialTheme = (themeLabel: string) => {
+    const theme = getTheme(themeLabel);
+    if (!theme) return;
+
+    const normalizedLabel = theme.label.toLowerCase();
+    let selectedType: BookType;
+    if (normalizedLabel.includes('colorir')) selectedType = 'coloring-book';
+    else if (theme.kind === 'infantil') selectedType = 'children-picture-book';
+    else if (theme.kind === 'atividades') {
+      selectedType = /sudoku|lógica|enigmas|quebra-cabeças|labirintos|caça-palavras/.test(normalizedLabel)
+        ? 'puzzle-book'
+        : 'activity-book';
+    } else if (theme.kind === 'ficcao') {
+      if (normalizedLabel.includes('romance')) selectedType = 'romance';
+      else if (normalizedLabel.includes('fantasia')) selectedType = 'fantasy';
+      else if (normalizedLabel.includes('ficção científica')) selectedType = 'sci-fi';
+      else if (normalizedLabel.includes('terror') || normalizedLabel.includes('horror') || normalizedLabel.includes('thriller')) selectedType = 'thriller';
+      else if (normalizedLabel.includes('mistério') || normalizedLabel.includes('investigação criminal') || normalizedLabel.includes('policial')) selectedType = 'mystery';
+      else if (normalizedLabel.includes('suspense')) selectedType = 'suspense';
+      else selectedType = 'fiction-novel';
+    } else if (theme.kind === 'nao-ficcao') {
+      if (normalizedLabel.includes('autoajuda') || normalizedLabel.includes('desenvolvimento pessoal') || normalizedLabel.includes('psicologia') || normalizedLabel.includes('espiritualidade')) selectedType = 'self-help';
+      else if (normalizedLabel.includes('finanças') || normalizedLabel.includes('investimentos')) selectedType = 'finance';
+      else if (normalizedLabel.includes('negócios') || normalizedLabel.includes('empreendedorismo') || normalizedLabel.includes('marketing') || normalizedLabel.includes('liderança')) selectedType = 'business';
+      else if (normalizedLabel.includes('biografia') || normalizedLabel.includes('memórias') || normalizedLabel.includes('história real')) selectedType = 'biography';
+      else if (normalizedLabel.includes('educação')) selectedType = 'education';
+      else if (normalizedLabel.includes('saúde') || normalizedLabel.includes('bem-estar')) selectedType = 'health-wellness';
+      else if (normalizedLabel.includes('manual') || normalizedLabel.includes('programação') || normalizedLabel.includes('tecnologia')) selectedType = 'technical-manual';
+      else if (normalizedLabel.includes('guia')) selectedType = 'practical-guide';
+      else selectedType = 'non-fiction';
+    } else {
+      selectedType = 'short-ebook';
+    }
+
+    applyBookType(selectedType);
+    setTemaSelecionado(theme.label);
+    setSubtemaSelecionado(theme.subthemes[0] || '');
+    setCreationSelectorValue(`theme:${theme.id}`);
+    setGenero(theme.label);
+    if (theme.childrenBook) setFaixaEtaria('6-8');
+  };
+
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* HEADER ELEGANTE DO BOOK INTEL KDP (TEMA CLARO) */}
@@ -2435,38 +2509,33 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 Tipo de livro / formato de criação
               </label>
               <select
-                value={bookType}
+                value={creationSelectorValue}
                 onChange={event => {
-                  const selectedType = event.target.value as BookType;
-                  const config = BOOK_TYPE_CONFIGS[selectedType];
-                  setBookType(selectedType);
-                  setFormato(config.trimSize);
-                  setPaginasAlvo(config.targetPages);
-                  if (config.chapterCount[1] > 0) setMaxCapitulos(config.chapterCount[1]);
-                  setGenero(config.label);
-
-                  if (selectedType === 'children-picture-book') {
-                    const childrenTheme = getTheme('historias-infantis-ilustradas')
-                      || getTheme('literatura-infantil');
-                    setTemaSelecionado(childrenTheme?.label || 'Histórias infantis ilustradas');
-                    setSubtemaSelecionado(childrenTheme?.subthemes[0] || 'Aventuras com animais');
-                    setFaixaEtaria('6-8');
-                    setActiveTab('preview');
-                  } else if (selectedType === 'planner' || selectedType === 'diary') {
-                    setActiveTab('planner');
-                  } else if (selectedType === 'coloring-book') {
-                    setActiveTab('colorir');
-                  } else {
-                    setActiveTab('preview');
+                  const selection = event.target.value;
+                  if (selection.startsWith('theme:')) {
+                    const theme = BOOK_THEMES.find(item => `theme:${item.id}` === selection);
+                    if (theme) selectEditorialTheme(theme.label);
+                    return;
                   }
+                  const selectedType = selection.replace('format:', '') as BookType;
+                  if (BOOK_TYPE_CONFIGS[selectedType]) applyBookType(selectedType);
                 }}
                 style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #c7d2fe', fontSize: 12, background: '#ffffff', color: '#0f172a' }}
               >
-                {Object.values(BOOK_TYPE_CONFIGS).map(config => (
-                  <option key={config.id} value={config.id}>
-                    [{config.category}] {config.label}
-                  </option>
-                ))}
+                <optgroup label="Formatos de criação">
+                  {Object.values(BOOK_TYPE_CONFIGS).map(config => (
+                    <option key={config.id} value={`format:${config.id}`}>
+                      [{config.category}] {config.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label={`Gêneros e temas (${BOOK_THEMES.length})`}>
+                  {BOOK_THEMES.map(theme => (
+                    <option key={theme.id} value={`theme:${theme.id}`}>
+                      {theme.label} {theme.childrenBook ? '👶 (Infantil)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
               <div style={{ marginTop: 5, fontSize: 10, color: '#475569' }}>
                 {BOOK_TYPE_CONFIGS[bookType].description}
@@ -2482,20 +2551,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 value={temaSelecionado}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setTemaSelecionado(val);
-                  const tObj = getTheme(val);
-                  if (tObj && tObj.subthemes.length > 0) {
-                    setSubtemaSelecionado(tObj.subthemes[0]);
-                  } else {
+                  if (!val) {
+                    setTemaSelecionado('');
                     setSubtemaSelecionado('');
+                    setCreationSelectorValue(`format:${bookType}`);
+                    setGenero('Thriller / Mistério Investigativo');
+                    return;
                   }
-                  if (tObj?.childrenBook) {
-                    setFaixaEtaria('6-8');
-                  }
-                  if (val.toLowerCase().includes('colorir')) {
-                    setActiveTab('colorir');
-                  }
-                  setGenero(val || 'Thriller / Mistério Investigativo');
+                  selectEditorialTheme(val);
                 }}
                 style={{
                   width: '100%',
