@@ -9,6 +9,7 @@
 import { F5TTSProvider } from './providers/f5tts-provider.js';
 import { KokoroProvider } from './providers/kokoro-provider.js';
 import { XTTSProvider } from './providers/xtts-provider.js';
+import { FishAudioProvider } from './providers/fish-audio-provider.js';
 import { NeuralCloudProvider } from './providers/neural-cloud-provider.js';
 import { BasicFallbackProvider } from './providers/basic-fallback-provider.js';
 
@@ -40,6 +41,7 @@ export class TTSEngineManager {
       new F5TTSProvider(env),
       new XTTSProvider(env),
       new KokoroProvider(env),
+      new FishAudioProvider(env),
       new NeuralCloudProvider(),
       new BasicFallbackProvider()
     ];
