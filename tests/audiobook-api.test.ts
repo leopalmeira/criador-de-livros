@@ -78,6 +78,18 @@ describe('AudiobookStudio — Rotas e Protocolo HTTP (/api/audiobook)', () => {
     expect(data.languages.length).toBeGreaterThanOrEqual(6);
   });
 
+  it('retorna status idle com coleção de capítulos vazia para uma obra ainda não gerada', async () => {
+    const res = await fetch(`${baseUrl}/api/audiobook/status/proj_without_audiobook`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.status).toMatchObject({
+      status: 'idle',
+      chapters: [],
+      progressPercent: 0,
+      finalReady: false
+    });
+  });
+
   it('2. Fluxo completo: POST manuscript -> POST generate -> GET status -> HTTP Range -> ZIP', async () => {
     const projectId = 'proj_api_test_01';
 

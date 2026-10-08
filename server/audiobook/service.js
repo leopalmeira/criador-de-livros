@@ -357,7 +357,23 @@ export class AudiobookService {
     const job = this.jobs.get(projectId);
     const hasManuscript = Boolean(await this.storage.readJson(projectId, 'manuscript.json'));
     const meta = job ? job.meta : await this.storage.readJson(projectId, 'metadata.json');
-    if (!meta) return { projectId, status: 'idle', hasManuscript, message: MESSAGES.idle };
+    if (!meta) {
+      return {
+        projectId,
+        status: 'idle',
+        hasManuscript,
+        progressPercent: 0,
+        totalUnits: 0,
+        completedCount: 0,
+        bookChapters: 0,
+        current: null,
+        resumeFrom: null,
+        chapters: [],
+        durationSeconds: 0,
+        finalReady: false,
+        message: MESSAGES.idle
+      };
+    }
 
     let status = meta.status;
     if (status === 'generating' && !job) status = 'interrupted';

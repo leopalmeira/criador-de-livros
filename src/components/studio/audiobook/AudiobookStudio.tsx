@@ -570,13 +570,13 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
         subtitle: activeBookSubtitle || '',
         author: activeBookAuthor || 'Autor',
         preface: '',
-        narratorVoiceId: castAnalysis?.cast.find((member) => member.id === 'narrator')?.voiceId,
+        narratorVoiceId: castAnalysis?.cast?.find((member) => member.id === 'narrator')?.voiceId,
         chapters: activeChapters.map((chapter, index) => ({
           ...chapter,
           speakerSegments: castAnalysis?.chapters
-            .find((item) => item.index === index)
+            ?.find((item) => item.index === index)
             ?.segments.map((segment) => {
-              const speaker = castAnalysis.cast.find((member) => member.id === segment.speakerId);
+              const speaker = castAnalysis.cast?.find((member) => member.id === segment.speakerId);
               if (!speaker?.voiceId) {
                 throw new Error(`Selecione uma voz para ${speaker?.name || 'cada interlocutor'} antes de gravar.`);
               }
@@ -821,7 +821,8 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       const nextEvents = { ...chapterTimelineEvents };
       const nextSummaries = { ...soundDesignSummary };
       const nextMixed = { ...chapterMixedAudio };
-      const introUnit = status.chapters.find((chapter) => chapter.kind === 'intro' && chapter.status === 'done');
+      const chapters = Array.isArray(status.chapters) ? status.chapters : [];
+      const introUnit = chapters.find((chapter) => chapter.kind === 'intro' && chapter.status === 'done');
       if (!introUnit?.file) {
         throw new Error('Não encontrei o áudio pronto da introdução.');
       }
@@ -837,7 +838,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       let elapsedMasterSeconds = introMaster.durationSeconds;
 
       for (let chapterIdx = 0; chapterIdx < chaps.length; chapterIdx++) {
-        const unit = status.chapters.find(
+        const unit = chapters.find(
           (chapter) => chapter.kind === 'chapter' && chapter.index === chapterIdx + 1
         );
         if (!unit || unit.status !== 'done' || !unit.file) {
@@ -1058,7 +1059,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
   const bookLangNorm = mapBookLanguageToAudiobook(bookLanguage);
   const isLanguageDifferent = selectedLanguage !== bookLangNorm;
   const selectedMixedChapterIndex = activeChapterIndex > 0 ? activeChapterIndex - 1 : -1;
-  const activePlayerChapter = statusData?.chapters.find((chapter) => chapter.index === activeChapterIndex);
+  const activePlayerChapter = statusData?.chapters?.find((chapter) => chapter.index === activeChapterIndex);
   const playerOffsetSeconds = playMixedAudio && !completeMixedAudio
     ? activePlayerChapter?.startSeconds || 0
     : 0;
@@ -2877,7 +2878,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
                   Tocando:{' '}
                   <strong>
-                    {statusData.chapters.find((c) => c.index === activeChapterIndex)?.label || 'Introdução'}
+                    {statusData.chapters?.find((c) => c.index === activeChapterIndex)?.label || 'Introdução'}
                   </strong>
                   {playMixedAudio &&
                     selectedMixedChapterIndex >= 0 &&
