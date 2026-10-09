@@ -21,4 +21,3 @@ services:
     name: bookengin-db
     plan: free
     region: oregon
-    postgresMajorVersion: 16
