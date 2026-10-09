@@ -1268,6 +1268,7 @@ export interface BookProject {
   kdpConcept?: IBookConcept;
   kdpBible?: IBookBible;
   kdpChapters?: IBookChapter[];
+  chapters?: any[];
   kdpEditorReport?: IBookEditorReport;
   kdpCoverDesign?: IBookCoverDesign;
   kdpMetadata?: IBookMetadataKdp;

@@ -479,12 +479,12 @@ export class ManuscriptIntegrityEngine {
 
     // Sanitiza kdpChapters
     if (updated.kdpChapters && Array.isArray(updated.kdpChapters)) {
-      updated.kdpChapters = updated.kdpChapters.map((ch) => {
-        const raw = ch.content || ch.prose || ch.texto || '';
+      updated.kdpChapters = updated.kdpChapters.map((ch: any) => {
+        const raw = ch?.content || ch?.prose || ch?.texto || '';
         const sanitized = this.sanitizeChapterContent(raw);
         return {
           ...ch,
-          title: this.cleanLaTeXResiduals(ch.title || ''),
+          title: this.cleanLaTeXResiduals(ch?.title || ''),
           content: sanitized.cleanText,
           prose: sanitized.cleanText,
           texto: sanitized.cleanText
@@ -492,14 +492,15 @@ export class ManuscriptIntegrityEngine {
       });
     }
 
-    // Sanitiza chapters convencionais
-    if (updated.chapters && Array.isArray(updated.chapters)) {
-      updated.chapters = updated.chapters.map((ch) => {
-        const raw = ch.content || '';
+    // Sanitiza chapters convencionais se presentes no projeto legado
+    const legacyChapters = (updated as any).chapters;
+    if (legacyChapters && Array.isArray(legacyChapters)) {
+      (updated as any).chapters = legacyChapters.map((ch: any) => {
+        const raw = ch?.content || ch?.prose || ch?.texto || '';
         const sanitized = this.sanitizeChapterContent(raw);
         return {
           ...ch,
-          title: this.cleanLaTeXResiduals(ch.title || ''),
+          title: this.cleanLaTeXResiduals(ch?.title || ''),
           content: sanitized.cleanText
         };
       });

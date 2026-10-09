@@ -65,7 +65,7 @@ export const PlannerBookStudio: React.FC<PlannerBookStudioProps> = ({
   const handleDownload = () => {
     try {
       const bytes = buildPlannerPdf(title.trim() || selectedTrack.label, author, trackId, pages);
-      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const blob = new Blob([bytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

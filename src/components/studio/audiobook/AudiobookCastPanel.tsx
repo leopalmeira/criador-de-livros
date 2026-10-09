@@ -118,7 +118,7 @@ export const AudiobookCastPanel: React.FC<AudiobookCastPanelProps> = ({
   };
 
   const allVoicesAssigned =
-    Boolean(analysis?.cast.length) && analysis.cast.every((member) => Boolean(member.voiceId));
+    Boolean(analysis?.cast?.length) && Boolean(analysis?.cast?.every((member) => Boolean(member.voiceId)));
 
   const toggleVoicePreview = async (member: AudiobookCastAnalysis['cast'][number]) => {
     const currentAudio = previewAudioRef.current;

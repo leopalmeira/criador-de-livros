@@ -258,6 +258,9 @@ export const BookStudioApp: React.FC = () => {
       pipelineStage: 'writing',
       pipelineProgress: 85,
       pipelineLog: ['Criado via Módulo Exclusivo Foto Livro Realista'],
+      tasks: [],
+      notes: '',
+      competitorsAsins: [],
       coverImageUrl: cinematicData.coverImageUrl,
       cinematicNovelData: cinematicData
     };

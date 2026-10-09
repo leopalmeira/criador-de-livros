@@ -50,6 +50,7 @@ export const AudioTimeline: React.FC<AudioTimelineProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedSpeechCueId, setSelectedSpeechCueId] = useState<string | null>(null);
+  const selectedSpeechCue = speechCues.find(c => c.id === selectedSpeechCueId) || null;
 
   // Estados de busca e preview de efeitos reais
   const [searchQuery, setSearchQuery] = useState<string>('');

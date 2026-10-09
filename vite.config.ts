@@ -34,6 +34,7 @@ function kdpAiBackendPlugin() {
           return;
         }
         try {
+          // @ts-ignore
           const { handleAuthApi } = await import('./server/auth/api.js');
           const handled = await handleAuthApi(req, res, requestUrl);
           if (!handled) next();
@@ -149,7 +150,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
-          const { BackendCoverService } = await import('./src/services/backend-cover-service');
+          const { BackendCoverService } = await import('./src/services/backend-cover-service.ts');
 
           // Rota: GET /api/covers/api-key-status
           if (req.method === 'GET' && (url === '/api-key-status' || url === '/api-key-status/')) {
@@ -285,7 +286,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
-          const { AmazonLiveService } = await import('./src/services/amazon-live-service');
+          const { AmazonLiveService } = await import('./src/services/amazon-live-service.ts');
           const reqUrl = new URL(req.url, 'http://localhost');
           const pathname = reqUrl.pathname;
 

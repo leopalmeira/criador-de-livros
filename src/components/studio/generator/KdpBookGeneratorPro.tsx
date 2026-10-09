@@ -125,17 +125,6 @@ const ENGLISH_THEME_LABELS: Record<string, string> = {
   'Contos': 'Short Stories',
   'Ficção policial': 'Crime Fiction',
   'Ficção histórica': 'Historical Fiction',
-  'Romance histórico': 'Historical Romance',
-  'Horror psicológico': 'Psychological Horror',
-  'Memórias': 'Memoir',
-  'Finanças pessoais': 'Personal Finance',
-  'Saúde e bem-estar': 'Health & Wellness',
-  'Histórias infantis ilustradas': 'Illustrated Children’s Stories',
-  'Livros para colorir': 'Coloring Books',
-  'História real': 'True Stories',
-  'Clássicos e domínio público': 'Classics & Public Domain',
-  'Educação financeira infantil': 'Financial Education for Kids',
-  'Ficção policial': 'Crime Fiction',
   'Autoconfiança': 'Self-confidence',
   'Amor à distância': 'Long-distance love',
   'Brasil colonial': 'Colonial Brazil',
@@ -264,7 +253,6 @@ const ENGLISH_THEME_LABELS: Record<string, string> = {
   'Propósito de vida': 'Life purpose',
   'Rotinas': 'Routines',
   'Organização digital': 'Digital organization',
-  'Fundos imobiliários': 'Real estate funds',
   'Vendas': 'Sales',
   'Estratégia': 'Strategy',
   'Gestão': 'Management',
@@ -402,8 +390,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     return isEnglish ? labels[type] || BOOK_TYPE_CONFIGS[type].label : BOOK_TYPE_CONFIGS[type].label;
   };
   const bookTypeDescription = (type: BookType) => {
-    if (!isEnglish) return BOOK_TYPE_CONFIGS[type].description;
-    const descriptions: Record<BookType, string> = {
+    if (!isEnglish) return BOOK_TYPE_CONFIGS[type]?.description || '';
+    const descriptions: Partial<Record<BookType, string>> = {
+      'cinematic_illustrated_novel': 'Cinematic Photo Book with realistic AI imagery, embedded narrative, and visual storytelling.',
       'children-picture-book': '8.5" x 8.5" square format, full-bleed color, 32 pages, simple text, and rich illustrations throughout.',
       'illustrated-book': '7" x 10" format with vibrant illustrations accompanying descriptive passages.',
       'light-novel': '5" x 8" trim size, cream paper, fast chapters, dynamic pacing, and engaging dialogue.',
@@ -433,7 +422,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       'puzzle-book': 'Crosswords, Sudoku, word searches, and logic puzzles with answer keys.',
       other: 'A format customized by the author, without a predefined template.'
     };
-    return descriptions[type];
+    return descriptions[type] || BOOK_TYPE_CONFIGS[type]?.description || '';
   };
   const bookTypeCategory = (category: string) => isEnglish ? ({
     'Ficção': 'Fiction',

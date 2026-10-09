@@ -97,7 +97,7 @@ class LocalDatabase {
     });
   }
 
-  private async replaceOwnedRecords<T extends { ownerId?: string }>(
+  private async replaceOwnedRecords<T extends Record<string, any>>(
     storeName: string,
     records: T[],
     getId: (record: T) => IDBValidKey,

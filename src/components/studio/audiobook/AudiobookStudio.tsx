@@ -116,7 +116,7 @@ function createSpeechCues(
 ): SpeechTimelineCue[] {
   const chapter = analysis?.chapters.find((item) => item.index === chapterIndex);
   if (!chapter || chapter.segments.length === 0) return [];
-  const speakerNames = new Map(analysis.cast.map((speaker) => [speaker.id, speaker.name]));
+  const speakerNames = new Map((analysis?.cast || []).map((speaker) => [speaker.id, speaker.name]));
   const segments = chapter.segments;
   const weights = segments.map((segment) => Math.max(1, segment.text.trim().split(/\s+/).length));
   const totalWords = weights.reduce((sum, weight) => sum + weight, 0);
