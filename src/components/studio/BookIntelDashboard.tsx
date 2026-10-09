@@ -679,13 +679,13 @@ export const BookIntelDashboard: React.FC<Props> = ({
                       <Film size={22} color="#f59e0b" />
                     </div>
                     <h3 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 900, color: '#ffffff' }}>
-                      Romance Cinematográfico Realista
+                      Foto Livro Realista
                     </h3>
                     <div style={{ fontSize: 12, color: '#fcd34d', fontWeight: 600, fontStyle: 'italic', marginBottom: 8 }}>
-                      Crie histórias com personagens realistas, imagens cinematográficas, narração e diálogos integrados em cada página.
+                      Crie foto livros cinematográficos com personagens realistas, imagens da API Replicate, narração densa e diálogos integrados.
                     </div>
                     <p style={{ margin: 0, fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>
-                      Produza foto-livros com fotografia fotorrealista estilo cinema, continuidade estrita de personagens, narração densa e diálogos integrados visualmente sem fundos brancos genéricos.
+                      Produza foto-livros com estética cinematográfica 35mm fotorrealista via Replicate, múltiplos painéis sequenciais por página, narração rica e sem fundos brancos genéricos.
                     </p>
                   </div>
 

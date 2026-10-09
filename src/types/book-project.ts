@@ -665,7 +665,7 @@ export const BOOK_TYPE_CONFIGS: Record<BookType, IBookTypeConfig> = {
   },
   'cinematic_illustrated_novel': {
     id: 'cinematic_illustrated_novel',
-    label: 'Romance Cinematográfico Realista',
+    label: 'Foto Livro Realista',
     category: 'Ficção',
     trimSize: '7x10',
     paperType: 'color',
@@ -1299,7 +1299,7 @@ export interface BookProject {
   // Ativos de Audiobook (Narração, Master e Timeline Multi-track para Remix)
   audiobook?: BookAudiobookAsset;
   
-  // Romance Cinematográfico Realista (Módulo Especializado Foto Livro com Narração Integrada)
+  // Foto Livro Realista (Módulo Especializado Foto Livro com Narração Integrada)
   cinematicNovelData?: CinematicNovelProjectData;
 
   // 13-Stage Editorial Pipeline Tracking

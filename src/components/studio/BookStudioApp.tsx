@@ -203,9 +203,31 @@ export const BookStudioApp: React.FC = () => {
     }
   };
 
-  // Concluir criação do Romance Cinematográfico no Wizard
+  // Concluir criação do Foto Livro Realista no Wizard
   const handleCinematicWizardComplete = async (cinematicData: CinematicNovelProjectData) => {
     setIsCinematicWizardOpen(false);
+
+    // Constrói capítulos compatíveis com a engine padrão de livros convencionais
+    const chapters = (cinematicData.storyBible.chapterSummaries || []).map((ch) => {
+      const chapterPages = cinematicData.pages.filter(p => p.chapterNumber === ch.chapterNumber);
+      const chapterText = chapterPages.map(p => {
+        const panelsText = (p.panels || []).map(pn => pn.narrationText).filter(Boolean).join('\n\n');
+        const dialoguesText = (p.dialogues || []).map(d => `${d.speakerName}: "${d.speechText}"`).join('\n');
+        return `${panelsText}\n\n${dialoguesText}`.trim();
+      }).join('\n\n---\n\n');
+
+      return {
+        id: `chap_${ch.chapterNumber}_${Date.now()}`,
+        number: ch.chapterNumber,
+        title: ch.title,
+        content: chapterText || ch.summary,
+        summary: ch.summary,
+        wordCount: (chapterText || ch.summary).split(/\s+/).filter(Boolean).length,
+        status: 'ESCRITO' as const,
+        scenes: []
+      };
+    });
+
     const bookProj: BookProject = {
       id: cinematicData.id,
       createdAt: cinematicData.createdAt,
@@ -227,14 +249,15 @@ export const BookStudioApp: React.FC = () => {
       targetPrice: 39.90,
       currency: 'BRL',
       targetMarketplace: 'Amazon KDP',
-      categories: ['Ficção / Romance Cinematográfico', cinematicData.genre],
-      keywords: ['Romance Cinematográfico', 'Foto Livro Realista', 'Graphic Novel'],
+      categories: ['Foto Livro Realista', cinematicData.genre],
+      keywords: ['Foto Livro Realista', 'Fotografia 35mm', 'Graphic Novel Realista', 'KDP Colorido'],
       targetAudience: cinematicData.targetAudience,
       topic: cinematicData.premise,
       kdpBookType: 'cinematic_illustrated_novel',
+      chapters,
       pipelineStage: 'writing',
       pipelineProgress: 85,
-      pipelineLog: ['Criado via Módulo Exclusivo Romance Cinematográfico Realista'],
+      pipelineLog: ['Criado via Módulo Exclusivo Foto Livro Realista'],
       coverImageUrl: cinematicData.coverImageUrl,
       cinematicNovelData: cinematicData
     };
@@ -245,15 +268,37 @@ export const BookStudioApp: React.FC = () => {
     reloadProjects();
   };
 
-  // Atualizar dados do Romance Cinematográfico no Editor
+  // Atualizar dados do Foto Livro Realista no Editor
   const handleUpdateCinematicProject = async (updated: CinematicNovelProjectData) => {
     setActiveCinematicProject(updated);
     const existing = await db.getBookProject(updated.id);
     if (existing) {
+      const syncedChapters = (updated.storyBible?.chapterSummaries || []).map((ch) => {
+        const chapterPages = updated.pages.filter(p => p.chapterNumber === ch.chapterNumber);
+        const chapterText = chapterPages.map(p => {
+          const panelsText = (p.panels || []).map(pn => pn.narrationText).filter(Boolean).join('\n\n');
+          const dialoguesText = (p.dialogues || []).map(d => `${d.speakerName}: "${d.speechText}"`).join('\n');
+          return `${panelsText}\n\n${dialoguesText}`.trim();
+        }).join('\n\n---\n\n');
+
+        return {
+          id: `chap_${ch.chapterNumber}_${Date.now()}`,
+          number: ch.chapterNumber,
+          title: ch.title,
+          content: chapterText || ch.summary,
+          summary: ch.summary,
+          wordCount: (chapterText || ch.summary).split(/\s+/).filter(Boolean).length,
+          status: 'ESCRITO' as const,
+          scenes: []
+        };
+      });
+
       const merged: BookProject = {
         ...existing,
         title: updated.title,
         subtitle: updated.subtitle,
+        chapters: syncedChapters.length > 0 ? syncedChapters : existing.chapters,
+        actualPages: updated.pages.length,
         updatedAt: Date.now(),
         coverImageUrl: updated.coverImageUrl || existing.coverImageUrl,
         cinematicNovelData: updated

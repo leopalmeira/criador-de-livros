@@ -275,7 +275,7 @@ export const CinematicNovelWizard: React.FC<CinematicNovelWizardProps> = ({
           </div>
           <div>
             <h2 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: '#ffffff' }}>
-              Romance Cinematográfico Realista
+              Foto Livro Realista
             </h2>
             <span style={{ fontSize: 12, color: '#94a3b8' }}>
               Assistente de Criação Editorial Especializado (6 Etapas)
@@ -374,7 +374,7 @@ export const CinematicNovelWizard: React.FC<CinematicNovelWizardProps> = ({
                 Etapa 1 de 5
               </span>
               <h3 style={{ margin: '4px 0 8px', fontSize: 24, fontWeight: 900, color: '#ffffff' }}>
-                Defina a Atmosfera e a Premissa do Romance Cinematográfico
+                Defina a Atmosfera e a Premissa do Foto Livro Realista
               </h3>
               <p style={{ margin: 0, fontSize: 14, color: '#94a3b8', lineHeight: 1.5 }}>
                 O gênero e o tom emocional determinam a direção artística das fotos, a tensão dramática e a estrutura visual dos quadros.
@@ -946,7 +946,7 @@ export const CinematicNovelWizard: React.FC<CinematicNovelWizardProps> = ({
 
             <div>
               <h3 style={{ margin: '0 0 8px', fontSize: 26, fontWeight: 900, color: '#fff' }}>
-                Romance Cinematográfico Montado com Sucesso!
+                Foto Livro Realista Montado com Sucesso!
               </h3>
               <p style={{ margin: 0, fontSize: 15, color: '#94a3b8', maxWidth: 540 }}>
                 As fotografias fotorrealistas foram produzidas e os textos integrados diretamente na composição gráfica sem fundos brancos genéricos.
@@ -995,7 +995,7 @@ export const CinematicNovelWizard: React.FC<CinematicNovelWizardProps> = ({
                 boxShadow: '0 8px 20px rgba(37, 99, 235, 0.4)'
               }}
             >
-              Abrir no Editor do Romance Cinematográfico <ArrowRight size={18} />
+              Abrir no Editor do Foto Livro Realista <ArrowRight size={18} />
             </button>
           </div>
         )}

@@ -10,6 +10,10 @@ import {
   CinematicDialogueItem
 } from '../../../types/cinematic-novel';
 import { CinematicNovelService } from '../../../services/cinematic-novel-service';
+import {
+  getRealisticCinematicSvgDataUrl,
+  generateFrameVisualWithReplicate
+} from '../../../services/cinematic-frame-generator';
 
 interface CinematicNovelEditorProps {
   project: CinematicNovelProjectData;
@@ -106,6 +110,34 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
       alert(`Falha ao regenerar imagem: ${err?.message || 'Erro desconhecido'}`);
     } finally {
       setIsRegeneratingImage(false);
+      setStatusMessage(null);
+    }
+  };
+
+  // Regenera imagem específica de um único painel via Replicate FLUX
+  const handleRegeneratePanel = async (panelId: string, visualPrompt: string, sceneDesc: string) => {
+    if (!currentPage) return;
+    setStatusMessage('Gerando quadro fotográfico via Replicate FLUX.1...');
+    try {
+      const dataUrl = await generateFrameVisualWithReplicate(visualPrompt, sceneDesc, '16:9');
+      const updatedPanels = (currentPage.panels || []).map(p => 
+        p.id === panelId ? { ...p, imageUrl: dataUrl } : p
+      );
+      const updatedPages = [...project.pages];
+      updatedPages[currentPageIndex] = {
+        ...currentPage,
+        panels: updatedPanels,
+        updatedAt: Date.now()
+      };
+      onUpdateProject({
+        ...project,
+        pages: updatedPages,
+        updatedAt: Date.now()
+      });
+      showNotice('✓ Quadro fotográfico gerado via Replicate com sucesso!');
+    } catch (err: any) {
+      alert(`Falha ao gerar quadro: ${err?.message || 'Erro de conexão'}`);
+    } finally {
       setStatusMessage(null);
     }
   };
@@ -240,7 +272,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
                 borderRadius: 4,
                 letterSpacing: '0.05em'
               }}>
-                ROMANCE CINEMATOGRÁFICO REALISTA
+                FOTO LIVRO REALISTA
               </span>
               <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#ffffff' }}>
                 {project.title}
@@ -464,195 +496,250 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
                   </span>
                 </div>
 
-                {/* IMAGEM PRINCIPAL FOTORREALISTA */}
-                <div style={{
-                  position: 'relative',
-                  width: '100%',
-                  minHeight: 480,
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                  background: '#1e293b',
-                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  {currentPage.imageUrl ? (
-                    <img
-                      src={currentPage.imageUrl}
-                      alt={currentPage.sceneSummary}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                    />
-                  ) : (
-                    <div style={{
-                      height: 480,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#94a3b8',
-                      gap: 12,
-                      padding: 24,
-                      textAlign: 'center'
-                    }}>
-                      <Film size={44} color="#38bdf8" />
-                      <span style={{ fontWeight: 600 }}>Imagem Cinematográfica da Página</span>
-                      <p style={{ fontSize: 12, maxWidth: 380, color: '#64748b', margin: 0 }}>
-                        {currentPage.visualPrompt}
-                      </p>
-                      <button
-                        onClick={handleRegenerateImage}
-                        disabled={isRegeneratingImage}
-                        style={{
-                          background: '#2563eb',
-                          color: '#fff',
-                          border: 'none',
-                          padding: '8px 16px',
-                          borderRadius: 8,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {isRegeneratingImage ? 'Gerando...' : 'Gerar Fotografia da Cena'}
-                      </button>
-                    </div>
-                  )}
+                {/* SEQUÊNCIA DE PAINÉIS CINEMATOGRÁFICOS DO FOTO LIVRO REALISTA (SEM FUNDO BRANCO) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%' }}>
+                  {(currentPage.panels && currentPage.panels.length > 0 ? currentPage.panels : [
+                    {
+                      id: `p_default_${currentPage.id}`,
+                      panelIndex: 1,
+                      framing: currentPage.cameraFraming || 'plano-medio',
+                      sceneDescription: currentPage.sceneSummary,
+                      visualPrompt: currentPage.visualPrompt,
+                      narrationText: currentPage.narrationText,
+                      dialogues: currentPage.dialogues || []
+                    }
+                  ]).map((panel, pIdx) => {
+                    const fallbackSvg = getRealisticCinematicSvgDataUrl(panel.visualPrompt || currentPage.visualPrompt, panel.sceneDescription || 'generic');
+                    const panelImg = panel.imageUrl || (pIdx === 0 && currentPage.imageUrl ? currentPage.imageUrl : fallbackSvg);
 
-                  {/* CAIXA DE NARRAÇÃO SOBREPOSTA COM EFEITO TRANSLÚCIDO ELEGANTE (SEM FUNDO BRANCO!) */}
-                  {currentPage.narrationText && (
-                    <div style={{
-                      position: 'absolute',
-                      bottom: 16,
-                      left: 16,
-                      right: 16,
-                      background: 'rgba(15, 23, 42, 0.78)',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255, 255, 255, 0.18)',
-                      borderRadius: 10,
-                      padding: '14px 18px',
-                      color: '#f8fafc',
-                      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                      fontSize: 13,
-                      lineHeight: 1.55,
-                      fontFamily: 'Merriweather, Georgia, serif',
-                      textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#38bdf8', fontWeight: 800 }}>
-                          Narração Cinematográfica
-                        </span>
-                        <button
-                          onClick={() => {
-                            setNarrationDraft(currentPage.narrationText);
-                            setEditingNarration(true);
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#94a3b8',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            fontSize: 11
-                          }}
-                          title="Editar Narração sem regenerar a imagem"
-                        >
-                          <Edit3 size={12} /> Editar
-                        </button>
-                      </div>
-                      <div>
-                        {currentPage.narrationText.slice(0, 320)}...
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* PAINÉIS SEQUENCIAIS ADICIONAIS OU DIÁLOGOS DA CENA */}
-                {currentPage.dialogues && currentPage.dialogues.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
-                    {currentPage.dialogues.map((dial) => (
+                    return (
                       <div
-                        key={dial.id}
+                        key={panel.id || `panel_${pIdx}`}
                         style={{
-                          background: dial.speechType === 'thought' 
-                            ? 'rgba(30, 41, 59, 0.75)' 
-                            : 'rgba(15, 23, 42, 0.85)',
-                          backdropFilter: 'blur(8px)',
-                          border: dial.speechType === 'thought'
-                            ? '1px dashed rgba(148, 163, 184, 0.35)'
-                            : '1px solid rgba(255, 255, 255, 0.15)',
-                          borderRadius: 8,
-                          padding: '12px 16px',
+                          position: 'relative',
+                          width: '100%',
+                          borderRadius: 10,
+                          overflow: 'hidden',
+                          background: '#0f172a',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
                           display: 'flex',
-                          alignItems: 'flex-start',
-                          justifyContent: 'space-between',
-                          gap: 12
+                          flexDirection: 'column'
                         }}
                       >
-                        <div style={{ flex: 1 }}>
-                          <span style={{
-                            fontSize: 11,
+                        {/* QUADRO FOTOGRÁFICO REALISTA COM PROPORÇÃO CINEMATOGRÁFICA 35MM */}
+                        <div style={{
+                          position: 'relative',
+                          width: '100%',
+                          minHeight: 280,
+                          background: '#020617',
+                          overflow: 'hidden'
+                        }}>
+                          <img
+                            src={panelImg}
+                            alt={panel.sceneDescription || `Quadro ${pIdx + 1}`}
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (target.src !== fallbackSvg) {
+                                target.src = fallbackSvg;
+                              }
+                            }}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              minHeight: 280,
+                              maxHeight: 420,
+                              objectFit: 'cover',
+                              display: 'block'
+                            }}
+                          />
+
+                          {/* BADGE DO QUADRO E BOTÃO REPLICATE FLUX */}
+                          <div style={{
+                            position: 'absolute',
+                            top: 10,
+                            right: 10,
+                            display: 'flex',
+                            gap: 6
+                          }}>
+                            <button
+                              onClick={() => handleRegeneratePanel(panel.id, panel.visualPrompt || currentPage.visualPrompt, panel.sceneDescription)}
+                              style={{
+                                background: 'rgba(15, 23, 42, 0.82)',
+                                backdropFilter: 'blur(6px)',
+                                border: '1px solid rgba(56, 189, 248, 0.4)',
+                                color: '#38bdf8',
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
+                              }}
+                              title="Gerar nova imagem deste quadro via API Replicate FLUX"
+                            >
+                              <Camera size={12} /> Replicate FLUX
+                            </button>
+                          </div>
+
+                          <div style={{
+                            position: 'absolute',
+                            top: 10,
+                            left: 10,
+                            background: 'rgba(15, 23, 42, 0.85)',
+                            backdropFilter: 'blur(6px)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#e2e8f0',
+                            fontSize: 10,
                             fontWeight: 800,
-                            color: dial.speechType === 'thought' ? '#a5b4fc' : '#38bdf8',
-                            display: 'block',
-                            marginBottom: 2
+                            padding: '3px 8px',
+                            borderRadius: 4,
+                            letterSpacing: '0.04em'
                           }}>
-                            {dial.speakerName} {dial.speechType === 'thought' ? '(Pensamento)' : ''}:
-                          </span>
-                          <span style={{
-                            fontSize: 13,
-                            color: '#f1f5f9',
-                            fontStyle: dial.speechType === 'thought' ? 'italic' : 'normal',
-                            lineHeight: 1.45
-                          }}>
-                            "{dial.speechText}"
-                          </span>
+                            QUADRO {pIdx + 1} • {panel.framing?.replace(/-/g, ' ').toUpperCase() || '35MM'}
+                          </div>
                         </div>
 
-                        <button
-                          onClick={() => {
-                            setSelectedDialogueId(dial.id);
-                            setDialogueDraft(dial.speechText);
-                          }}
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            border: 'none',
-                            color: '#cbd5e1',
-                            padding: '4px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Edit3 size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        {/* CAIXA DE NARRAÇÃO INTEGRADA COM ALTA DENSIDADE LITERÁRIA (SEM FUNDO BRANCO!) */}
+                        {panel.narrationText && (
+                          <div style={{
+                            background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.94) 0%, rgba(10, 15, 29, 0.98) 100%)',
+                            borderTop: '1px solid rgba(255, 255, 255, 0.14)',
+                            padding: '16px 20px',
+                            color: '#f8fafc',
+                            fontFamily: 'Merriweather, Georgia, serif',
+                            fontSize: 13.5,
+                            lineHeight: 1.65,
+                            position: 'relative'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f59e0b', fontWeight: 800 }}>
+                                Narração Literária do Quadro
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setNarrationDraft(panel.narrationText || '');
+                                  setEditingNarration(true);
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#94a3b8',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  fontSize: 11
+                                }}
+                                title="Editar Narração deste quadro"
+                              >
+                                <Edit3 size={12} /> Editar
+                              </button>
+                            </div>
+                            <div style={{ textShadow: '0 1px 2px rgba(0, 0, 0, 0.6)' }}>
+                              {panel.narrationText}
+                            </div>
+                          </div>
+                        )}
 
-                {/* DESTAQUE DE DOCUMENTO OU BILHETE NA CENA (EXEMPLO DO BILHETE DO ENVELOPE) */}
-                {currentPage.pageNumber === 1 && (
-                  <div style={{
-                    marginTop: 8,
-                    background: '#d4b996',
-                    color: '#291b0f',
-                    borderRadius: 6,
-                    padding: '14px 20px',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
-                    border: '1px solid #b89873',
-                    fontFamily: '"Caveat", cursive, "Comic Sans MS", sans-serif',
-                    fontSize: 20,
-                    textAlign: 'center',
-                    transform: 'rotate(-0.8deg)',
-                    lineHeight: 1.3
-                  }}>
-                    <span style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#6d4c2b', marginBottom: 4 }}>
-                      Documento inserido na cena • Papel Pardo Rústico
-                    </span>
-                    "Você esqueceu o que aconteceu na ponte."
-                  </div>
-                )}
+                        {/* DIÁLOGOS OU PENSAMENTOS DA CENA (SEM FUNDO BRANCO) */}
+                        {panel.dialogues && panel.dialogues.length > 0 && (
+                          <div style={{
+                            background: 'rgba(10, 15, 29, 0.96)',
+                            borderTop: '1px dashed rgba(255, 255, 255, 0.1)',
+                            padding: '12px 18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8
+                          }}>
+                            {panel.dialogues.map((dial) => (
+                              <div
+                                key={dial.id}
+                                style={{
+                                  background: dial.speechType === 'thought' 
+                                    ? 'rgba(30, 41, 59, 0.85)' 
+                                    : 'rgba(15, 23, 42, 0.9)',
+                                  border: dial.speechType === 'thought'
+                                    ? '1px dashed rgba(165, 180, 252, 0.4)'
+                                    : '1px solid rgba(56, 189, 248, 0.35)',
+                                  borderRadius: 8,
+                                  padding: '10px 14px',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  gap: 10
+                                }}
+                              >
+                                <div style={{ flex: 1 }}>
+                                  <span style={{
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    color: dial.speechType === 'thought' ? '#a5b4fc' : '#38bdf8',
+                                    display: 'block',
+                                    marginBottom: 2
+                                  }}>
+                                    {dial.speakerName} {dial.speechType === 'thought' ? '(Pensamento)' : ''}:
+                                  </span>
+                                  <span style={{
+                                    fontSize: 13,
+                                    color: '#f8fafc',
+                                    fontStyle: dial.speechType === 'thought' ? 'italic' : 'normal',
+                                    lineHeight: 1.45
+                                  }}>
+                                    "{dial.speechText}"
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setSelectedDialogueId(dial.id);
+                                    setDialogueDraft(dial.speechText);
+                                  }}
+                                  style={{
+                                    background: 'rgba(255, 255, 255, 0.08)',
+                                    border: 'none',
+                                    color: '#cbd5e1',
+                                    padding: '4px 8px',
+                                    borderRadius: 4,
+                                    fontSize: 11,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Edit3 size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* DOCUMENTO RÚSTICO / BILHETE DO ENVELOPE PARDO */}
+                        {panel.documentInset && (
+                          <div style={{
+                            margin: '12px 16px 16px',
+                            background: '#d4b996',
+                            color: '#291b0f',
+                            borderRadius: 6,
+                            padding: '14px 20px',
+                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+                            border: '1px solid #b89873',
+                            fontFamily: '"Caveat", cursive, "Comic Sans MS", sans-serif',
+                            fontSize: 20,
+                            textAlign: 'center',
+                            transform: 'rotate(-0.8deg)',
+                            lineHeight: 1.3
+                          }}>
+                            <span style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#6d4c2b', marginBottom: 4 }}>
+                              Documento inserido na cena • Papel Pardo Rústico
+                            </span>
+                            "{panel.documentInset.text}"
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
 
                 {/* RODAPÉ EDITORIAL DA PÁGINA */}
                 <div style={{
@@ -665,7 +752,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
                   color: '#64748b'
                 }}>
                   <span>Formato KDP: 7x10 pol Full-Bleed</span>
-                  <span>Romance Cinematográfico Realista</span>
+                  <span>Foto Livro Realista</span>
                 </div>
               </div>
 
@@ -749,8 +836,8 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
                     onClick={handleRegenerateImage}
                     disabled={isRegeneratingImage}
                     style={{
-                      background: 'rgba(56, 189, 248, 0.12)',
-                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(37, 99, 235, 0.28))',
+                      border: '1px solid rgba(56, 189, 248, 0.5)',
                       color: '#38bdf8',
                       padding: '8px 14px',
                       borderRadius: 8,
@@ -763,7 +850,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
                     }}
                   >
                     <RefreshCw size={14} className={isRegeneratingImage ? 'animate-spin' : ''} />
-                    {isRegeneratingImage ? 'Regenerando Imagem...' : 'Regenerar Imagem Pontual'}
+                    {isRegeneratingImage ? 'Gerando no Replicate FLUX...' : 'Regenerar Página no Replicate FLUX'}
                   </button>
 
                   <button
@@ -1251,7 +1338,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
                     Checklist de Produção Oficial (17 Etapas)
                   </h3>
                   <p style={{ margin: '4px 0 0', fontSize: 13, color: '#94a3b8' }}>
-                    Acompanhamento rigoroso do estado real da produção do Romance Cinematográfico.
+                    Acompanhamento rigoroso do estado real da produção do Foto Livro Realista.
                   </p>
                 </div>
 

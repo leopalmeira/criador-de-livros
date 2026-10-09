@@ -40,7 +40,7 @@ export class CinematicNovelService {
     return {
       id,
       title: params.title || 'A Última Mentira Perfeita',
-      subtitle: params.subtitle || 'Um Romance Cinematográfico Realista',
+      subtitle: params.subtitle || 'Foto Livro Realista',
       author: params.author || 'Autor(a)',
       genre: params.genre,
       subgenre: params.subgenre,
@@ -88,7 +88,7 @@ export class CinematicNovelService {
     suggestedSubtitle: string;
   }> {
     const systemPrompt = `Você é um premiado diretor de cinema e autor de Graphic Novels / Foto Livros de Ficção Realista de nível mundial.
-Sua missão é desenvolver o roteiro completo, a Story Bible rigorosa e a Character Bible para um Romance Cinematográfico Realista.
+Sua missão é desenvolver o roteiro completo, a Story Bible rigorosa e a Character Bible para um Foto Livro Realista.
 
 Diretrizes Imperativas:
 1. Gênero: "${project.genre}" (Subgênero: "${project.subgenre}").
@@ -482,28 +482,68 @@ Você DEVE responder ESTRITAMENTE em formato JSON válido, sem texto fora do JSO
       }
     ] : [
       {
-        id: `p1_single_${pageId}`,
+        id: `p1_p2_${pageId}`,
         panelIndex: 1,
+        framing: 'plano-geral-estabelecedor',
+        sceneDescription: `Fachada externa do edifício médico sob chuva fria de manhã.`,
+        visualPrompt: `cinematic 35mm film still, modern medical building exterior in wet rainy morning, cold blue tones, city traffic reflections on wet pavement, photorealistic`,
+        narrationText: `A chuva continuava a fustigar as amplas janelas de vidro do edifício médico. No terceiro andar, a claridade cinzenta da manhã contrastava com a iluminação âmbar suave do consultório. Helena permaneceu imóvel na ante-sala por alguns segundos antes da porta se abrir.`,
+        dialogues: []
+      },
+      {
+        id: `p2_p2_${pageId}`,
+        panelIndex: 2,
         framing: 'plano-medio',
-        sceneDescription: `Cena dramática no consultório médico entre ${mainChar.name} e ${secondaryChar.name}.`,
-        visualPrompt: visualPrompt,
-        narrationText: `O silêncio no consultório parecia pesar toneladas. O Dr. Arthur ajeitou os óculos sobre o nariz e cruzou os dedos sobre a mesa de mogno. Helena mantinha os olhos fixos nos papéis diante dele, reconhecendo que cada explicação oferecida até então era apenas uma cortina de fumaça para proteger um segredo que não podia ser enterrado.`,
+        sceneDescription: `Dr. Arthur com óculos e jaleco médico sentado à mesa de mogno.`,
+        visualPrompt: `cinematic movie still, intelligent male doctor in white medical coat with modern glasses sitting behind dark mahogany desk, reviewing medical charts with grave expression, 35mm photography`,
+        narrationText: `O silêncio no consultório parecia pesar toneladas. O Dr. Arthur ajeitou os óculos sobre o nariz e cruzou os dedos sobre a mesa de mogno. Diante dele, os relatórios neurológicos de Helena repousavam sob uma pasta azul escura com anotações sigilosas.`,
         dialogues: [
           {
             id: `d1_p2_${pageId}`,
             speakerId: secondaryChar.id,
             speakerName: secondaryChar.name,
-            speechText: 'Se você continuar cavando essa lembrança, não terá como voltar atrás, Helena.',
+            speechText: 'Se você continuar cavando essa lembrança, não terá como voltar atrás, Helena. Certas portas nunca deveriam ser reabertas.',
             speechType: 'speech'
-          },
+          }
+        ]
+      },
+      {
+        id: `p3_p2_${pageId}`,
+        panelIndex: 3,
+        framing: 'close-up-dramatico',
+        sceneDescription: `Helena encarando o médico com expressão firme e determinada.`,
+        visualPrompt: `cinematic dramatic close-up, 34-year-old woman with wavy brown hair, piercing dark eyes, tense jaw, sitting in consultation chair under soft directional light, hyperrealistic`,
+        narrationText: `Helena mantinha os olhos fixos nos papéis diante dele, reconhecendo que cada explicação oferecida até então era apenas uma cortina de fumaça para proteger um segredo que não podia ser enterrado.`,
+        dialogues: [
           {
             id: `d2_p2_${pageId}`,
             speakerId: mainChar.id,
             speakerName: mainChar.name,
-            speechText: 'Eu já perdi o chão no momento em que encontrei aquele bilhete. Não me peça para fingir que nada aconteceu.',
+            speechText: 'Eu já perdi o chão no momento em que encontrei aquele bilhete sobre a bancada. Não me peça para fingir que nada aconteceu.',
             speechType: 'speech'
           }
         ]
+      },
+      {
+        id: `p4_p2_${pageId}`,
+        panelIndex: 4,
+        framing: 'plano-detalhe',
+        sceneDescription: `Helena deslizando o envelope pardo sobre a mesa de mogno diante do médico.`,
+        visualPrompt: `cinematic detailed shot, woman hand placing brown kraft paper envelope on dark mahogany desk next to medical stethoscope and prescription notepad`,
+        narrationText: `Ela retirou o papel pardo áspero do bolso do casaco e o deslizou devagar pelo verniz da mesa. Arthur encarou as palavras datilografadas "Você esqueceu o que aconteceu na ponte" e, pela primeira vez em cinco anos, Helena viu o sangue desaparecer do rosto do médico.`,
+        dialogues: [
+          {
+            id: `d3_p2_${pageId}`,
+            speakerId: secondaryChar.id,
+            speakerName: secondaryChar.name,
+            speechText: 'Helena, você precisa saber que isso não é uma coincidência... Ainda há alguém lá fora que sabe tudo sobre você.',
+            speechType: 'speech'
+          }
+        ],
+        documentInset: {
+          text: 'Você esqueceu o que aconteceu na ponte.',
+          textureType: 'bilhete-pardo'
+        }
       }
     ];
 
@@ -556,18 +596,21 @@ Você DEVE responder ESTRITAMENTE em formato JSON válido, sem texto fora do JSO
   }
 
   /**
-   * Renderiza a imagem cinematográfica fotorrealista da página
+   * Renderiza a imagem cinematográfica fotorrealista da página via Replicate FLUX.1
    */
   static async generatePageVisual(plan: CinematicPagePlan): Promise<string> {
+    const { generateFrameVisualWithReplicate, getRealisticCinematicSvgDataUrl } = await import('./cinematic-frame-generator');
     try {
-      const url = await aiService.generateImage(plan.visualPrompt);
-      return url;
+      const result = await generateFrameVisualWithReplicate(
+        plan.visualPrompt,
+        plan.sceneSummary || 'generic',
+        '3:4'
+      );
+      if (result) return result;
     } catch (err) {
-      console.warn('[CinematicNovelService] Falha na geração da página pelo provedor principal, utilizando fallback FLUX:', err);
-      const encoded = encodeURIComponent(plan.visualPrompt.substring(0, 420));
-      const seed = Math.floor(Math.random() * 899999 + 100000);
-      return `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1536&nologo=true&model=flux&seed=${seed}`;
+      console.warn('[FotoLivroService] Falha na chamada Replicate, aplicando renderizador fotorrealista de segurança:', err);
     }
+    return getRealisticCinematicSvgDataUrl(plan.visualPrompt, plan.sceneSummary || 'generic');
   }
 
   /**

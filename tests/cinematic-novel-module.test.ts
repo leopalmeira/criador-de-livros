@@ -7,7 +7,7 @@ describe('Módulo Romance Cinematográfico Realista — Testes Unitários de Pon
     const config = BOOK_TYPE_CONFIGS['cinematic_illustrated_novel'];
     expect(config).toBeDefined();
     expect(config.id).toBe('cinematic_illustrated_novel');
-    expect(config.label).toBe('Romance Cinematográfico Realista');
+    expect(config.label).toBe('Foto Livro Realista');
     expect(config.category).toBe('Ficção');
     expect(config.fullBleed).toBe(true);
     expect(config.paperType).toBe('color');
