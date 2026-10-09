@@ -12,7 +12,8 @@
     "start": "node --max-old-space-size=460 server.js",
     "start:local": "node --env-file=.env --max-old-space-size=460 server.js",
     "preview": "node server.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:admin": "node --env-file=.env scripts/seed-admin.js"
   },
   "engines": {
     "node": ">=20.0.0"

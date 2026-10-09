@@ -13,4 +13,12 @@ services:
       - key: FISH_API_KEY
         sync: false
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: bookengin-db
+          property: connectionString
+
+  - type: pserv
+    name: bookengin-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: 16
