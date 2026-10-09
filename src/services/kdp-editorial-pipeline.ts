@@ -33,6 +33,7 @@ import {
 } from './kdp-editorial-review';
 import { buildKdpPdf, inspectCover } from './kdp-pdf-builder';
 import { validatePdf } from './kdp-pdf-validator';
+import { ManuscriptIntegrityEngine } from './manuscript-integrity-engine';
 
 // ---------------------------------------------------------------
 // ARMAZENAMENTO
@@ -456,6 +457,17 @@ export async function runEditorialPipeline(inp: PipelineInput): Promise<Pipeline
   const tocRes = rebuildToc(J.chapters.map(c => ({ title: c.title })));
   J.toc = tocRes.toc;
   J.tocIssues = [...J.tocIssues.filter(t => t.startsWith('Sumário antigo')), ...tocRes.issues];
+
+  // 11.1) Validação de integridade e contagem contra o sumário/original
+  const expectedCount = J.original.capitulos.length;
+  const consistency = ManuscriptIntegrityEngine.validateBookConsistency(
+    expectedCount,
+    J.chapters.map(c => ({ title: c.title, text: c.correctedText, index: c.index }))
+  );
+  if (consistency.discrepancyWarning) {
+    J.tocIssues.push(consistency.discrepancyWarning);
+    addLog(J, `Atenção: ${consistency.discrepancyWarning}`);
+  }
 
   // --- 12) capa ---------------------------------------------------
   progress(75, 'capa', 'Verificando a capa…');

@@ -1,14 +1,14 @@
-// Construtor profissional de EPUB 3 em conformidade com especificações do Amazon KDP
-// Suporta reparação automática de acentuação, formatação XHTML estruturada e inclusão de capa
 import JSZip from 'jszip';
 import { BookProject } from '../../types/book-project';
 import { ManuscriptAccentRepairEngine } from '../manuscript-accent-repair';
+import { ManuscriptIntegrityEngine } from '../manuscript-integrity-engine';
 
 export class EpubBuilder {
   /**
    * Constrói um arquivo .epub 3 válido a partir de um BookProject
    */
-  public static async buildEpub(project: BookProject): Promise<Blob> {
+  public static async buildEpub(rawProject: BookProject): Promise<Blob> {
+    const project = ManuscriptIntegrityEngine.sanitizeBookProject(rawProject);
     const zip = new JSZip();
 
     // 1. mimetype (DEVE ser o primeiro arquivo e descompactado/STORE)
@@ -267,9 +267,11 @@ li {
     const chapters: FormattedEpubChapter[] = rawChapters.map((ch: any, idx: number): FormattedEpubChapter => {
       const num = ch.index || ch.number || (idx + 1);
       const titleRaw = ch.title || ch.titulo || `Capítulo ${num}`;
-      const titleRepaired = ManuscriptAccentRepairEngine.repairManuscript(titleRaw);
+      const titleClean = ManuscriptIntegrityEngine.cleanLaTeXResiduals(titleRaw);
+      const titleRepaired = ManuscriptAccentRepairEngine.repairManuscript(titleClean);
       const contentRaw = ch.content || ch.prose || ch.texto || ch.summary || 'Capítulo em elaboração.';
-      const contentRepaired = ManuscriptAccentRepairEngine.repairManuscript(contentRaw);
+      const contentSanitized = ManuscriptIntegrityEngine.sanitizeChapterContent(contentRaw);
+      const contentRepaired = ManuscriptAccentRepairEngine.repairManuscript(contentSanitized.cleanText);
 
       return {
         num,

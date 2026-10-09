@@ -10,6 +10,7 @@ import type {
   CorrectionChange,
   PendingItem,
 } from '../types/editorial-correction';
+import { ManuscriptIntegrityEngine } from './manuscript-integrity-engine';
 
 export interface RuleOptions {
   /** converte "- fala" / "– fala" em "— fala" (desligar em não-ficção com listas) */
@@ -149,6 +150,23 @@ export function applyDeterministicFixes(
   const pt = opts.portuguese !== false;
   let t = (input || '').replace(/\r\n?/g, '\n');
 
+  // 0) Resíduos de sintaxe LaTeX e caracteres matemáticos residuais (ex: $\hat{E}$ -> Ê)
+  const afterLatex = ManuscriptIntegrityEngine.cleanLaTeXResiduals(t);
+  if (afterLatex !== t) {
+    tr.changes.push({
+      id: nextId(chapterIndex),
+      chapterIndex,
+      original: '(marcações LaTeX/matemáticas residuais)',
+      corrected: '(caracteres acentuados em UTF-8)',
+      type: 'codificacao',
+      reason: 'Sintaxe matemática/LaTeX residual convertida para caracteres acentuados UTF-8',
+      resolution: 'CORRIGIDO_AUTOMATICAMENTE',
+      source: 'regras',
+      occurrences: 1,
+    });
+    t = afterLatex;
+  }
+
   // 1) Codificação corrompida (mojibake)
   for (const [bad, good] of MOJIBAKE) {
     if (!t.includes(bad)) continue;
@@ -258,6 +276,45 @@ export function applyDeterministicFixes(
     });
   }
   t = normalized;
+
+  // 8.1) Remoção de metadados e marcadores de fim de bloco (ex: "Fim do Capítulo 18.")
+  const blockMarkerResult = ManuscriptIntegrityEngine.removeChapterBlockMarkers(t);
+  if (blockMarkerResult.removedMarkers.length > 0) {
+    tr.changes.push({
+      id: nextId(chapterIndex),
+      chapterIndex,
+      original: blockMarkerResult.removedMarkers.join('; '),
+      corrected: '(marcador de controle/metadado removido)',
+      type: 'paragrafo',
+      reason: 'Marcadores de encerramento de bloco ou metadados de modelo de IA removidos',
+      resolution: 'CORRIGIDO_AUTOMATICAMENTE',
+      source: 'regras',
+      occurrences: blockMarkerResult.removedMarkers.length,
+    });
+    t = blockMarkerResult.cleanText;
+  }
+
+  // 8.2) Watchdog de integridade e fechamento sintático de final de capítulo (em prosa substancial)
+  if (opts.dialogueHyphen !== false && t.length > 30) {
+    const truncCheck = ManuscriptIntegrityEngine.checkChapterTruncation(t);
+    if (truncCheck.isTruncated) {
+      const repaired = ManuscriptIntegrityEngine.repairTruncatedSentence(t);
+      if (repaired !== t) {
+        tr.changes.push({
+          id: nextId(chapterIndex),
+          chapterIndex,
+          original: '…' + t.slice(Math.max(0, t.length - 40)),
+          corrected: '…' + repaired.slice(Math.max(0, repaired.length - 40)),
+          type: 'pontuacao',
+          reason: `Frase de encerramento truncada foi reparada sintaticamente (${truncCheck.reason || 'sem pontuação final'})`,
+          resolution: 'CORRIGIDO_AUTOMATICAMENTE',
+          source: 'regras',
+          occurrences: 1,
+        });
+        t = repaired;
+      }
+    }
+  }
 
   // 9) Pendências que regras não podem resolver sozinhas
   const repl = (t.match(/\uFFFD/g) || []).length;

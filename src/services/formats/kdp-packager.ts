@@ -1,8 +1,8 @@
-// Empacotador do Pacote Completo KDP (.ZIP) conforme especificação oficial do projeto
 import JSZip from 'jszip';
 import { BookProject } from '../../types/book-project';
 import { EpubBuilder } from './epub-builder';
 import { PdfBuilder } from './pdf-builder';
+import { ManuscriptIntegrityEngine } from '../manuscript-integrity-engine';
 
 export class KdpPackager {
   /**
@@ -12,7 +12,8 @@ export class KdpPackager {
     return this.packageFullKdpBundle(project);
   }
 
-  public static async packageFullKdpBundle(project: BookProject): Promise<Blob> {
+  public static async packageFullKdpBundle(rawProject: BookProject): Promise<Blob> {
+    const project = ManuscriptIntegrityEngine.sanitizeBookProject(rawProject);
     const zip = new JSZip();
     const slug = (project.title || 'livro-kdp')
       .toLowerCase()

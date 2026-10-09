@@ -28,6 +28,7 @@ import {
 } from '../../../services/kdp-book-verifier';
 import { EditorialCorrectionSection } from './EditorialCorrectionSection';
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
+import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrity-engine';
 import type { FinalBookRecord } from '../../../types/editorial-correction';
 import { newId } from '../../../services/project-state';
 import { BOOK_THEMES, getTheme, isChildrenTheme, type BookTheme } from '../../../data/book-themes';
@@ -1129,16 +1130,11 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       return;
     }
 
-    const selectedConfig = BOOK_TYPE_CONFIGS[bookType];
-    const isIllustratedStory = bookType === 'children-picture-book';
-    const palavrasAlvo = isIllustratedStory ? paginasAlvo * 45 : paginasAlvo * 300;
-    const estimatedChapters = isIllustratedStory ? Math.ceil(paginasAlvo / 2) : Math.round(palavrasAlvo / 900);
-    const capsCalc = isIllustratedStory
-      ? Math.max(selectedConfig.chapterCount[0], Math.min(selectedConfig.chapterCount[1], maxCapitulos, estimatedChapters))
-      : Math.max(3, Math.min(maxCapitulos, estimatedChapters));
-    const palavrasPorCap = isIllustratedStory
-      ? 90
-      : Math.round(palavrasAlvo / capsCalc);
+    const selectedConfig = BOOK_TYPE_CONFIGS[bookType] || BOOK_TYPE_CONFIGS['fiction-novel'];
+    const palavrasAlvo = paginasAlvo * 300;
+    const estimatedChapters = Math.round(palavrasAlvo / 900);
+    const capsCalc = Math.max(3, Math.min(maxCapitulos, estimatedChapters));
+    const palavrasPorCap = Math.round(palavrasAlvo / capsCalc);
 
     setTotalCaps(capsCalc);
     setCapAtual(0);
@@ -1328,7 +1324,6 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
 REGRAS TÉCNICAS OBRIGATÓRIAS (ESTILO EDITORIAL KDP):
 ${regraIdioma}
 1. Escreva em torno de ${palavrasPorCap} palavras (mínimo ${Math.round(palavrasPorCap * 0.85)} palavras ricas em detalhes).
-${isIllustratedStory ? `1A. HISTÓRIA INFANTIL ILUSTRADA: Escreva uma cena curta e completa para crianças de ${faixaEtaria || '6 a 8'} anos, com vocabulário simples, ação visual clara e continuidade do mesmo protagonista. Descreva uma única cena que possa ser ilustrada; mantenha entre 60 e 110 palavras e não inclua instruções de imagem no texto.` : ''}
 2. COERÊNCIA TOTAL: Mantenha rigorosamente os mesmos personagens, cenários e tom. Não invente premissas contraditórias.
 3. PROIBIÇÃO ABSOLUTA DE METÁFORAS: Seja o livro infantil, jovem ou adulto, NUNCA use metáforas, floreios poéticos abstratos, analogias figuradas ou palavras em sentido metafórico. Todas as descrições de cenários, sentimentos, ações e diálogos devem ser totalmente literais, diretas, claras e realistas.
 4. VOCABULÁRIO POPULAR E COMUM: Evite estritamente palavras difíceis, rebuscadas, arcaicas ou eruditas. Utilize palavras simples e naturais no idioma da obra (${livroBase.idioma}).
@@ -1397,21 +1392,16 @@ ${ganchoImediato}`;
 
         const cap = parseCapitulo(res.texto, num, total);
 
-        if (isIllustratedStory) {
-          setStatusMsg(`🎨 Ilustrando a página ${num} de ${total} da história infantil...`);
-          try {
-            cap.imagemDataUrl = await gerarIlustracaoCapitulo(
-              cap.titulo,
-              `Livro infantil "${livroBase.titulo}". Tema: ${temaSelecionado || livroBase.genero}; subtema: ${subtemaSelecionado || topico}. Manter o mesmo protagonista e estilo de aquarela das outras páginas. Cena desta página: ${cap.texto.slice(0, 350)}`,
-              estiloIlustracaoCapitulo,
-              '1:1'
-            );
-          } catch (imageError) {
-            const message = imageError instanceof Error ? imageError.message : 'Falha ao gerar ilustração desta página.';
-            logDiag(`⚠️ Ilustração pendente na página ${num}: ${message}`);
-            setStatusMsg(`⚠️ Página ${num}: a história foi escrita, mas a ilustração falhou. Você pode tentar novamente no preview.`);
-            setStatusType('error');
-          }
+        // BLINDAGEM EDITORIAL E SANITIZAÇÃO DE INTEGRIDADE (LaTeX, Metadados de IA, Truncamentos, Diálogos)
+        const sanitizacao = ManuscriptIntegrityEngine.sanitizeChapterContent(cap.texto);
+        cap.texto = sanitizacao.cleanText;
+        cap.titulo = ManuscriptIntegrityEngine.cleanLaTeXResiduals(cap.titulo);
+
+        if (sanitizacao.wasTruncated) {
+          logDiag(`Capítulo ${num}: Truncamento detectado e auto-reparado sintaticamente (${sanitizacao.truncationReason || 'fechamento de período'}).`);
+        }
+        if (sanitizacao.markersRemoved.length > 0) {
+          logDiag(`Capítulo ${num}: Marcadores de controle removidos: "${sanitizacao.markersRemoved.join('", "')}".`);
         }
 
         // Extrair frases para evitar repetições nos próximos capítulos

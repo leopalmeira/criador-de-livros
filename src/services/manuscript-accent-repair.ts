@@ -1,7 +1,5 @@
-// Motor Avançado de Correção de Acentuação e Desmojibake de Manuscritos em Português
-// Corrige artefatos de codificação UTF-8 / Latin1 (mojibake) e restaura acentos ausentes em palavras da língua portuguesa.
-
 import { BookProject } from '../types/book-project';
+import { ManuscriptIntegrityEngine } from './manuscript-integrity-engine';
 
 /**
  * Tabela de substituição de artefatos de mojibake (dupla codificação UTF-8 interpretada como Latin-1 / Windows-1252)
@@ -295,7 +293,8 @@ export class ManuscriptAccentRepairEngine {
    */
   public static repairManuscript(text: string): string {
     if (!text) return '';
-    const withoutMojibake = this.fixMojibake(text);
+    const withoutLaTeX = ManuscriptIntegrityEngine.cleanLaTeXResiduals(text);
+    const withoutMojibake = this.fixMojibake(withoutLaTeX);
     const withAccents = this.repairPortugueseAccents(withoutMojibake);
     return withAccents.normalize('NFC');
   }

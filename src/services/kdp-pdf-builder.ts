@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import type { BookType } from '../types/book-project';
 import type { CoverStatus } from '../types/editorial-correction';
 import { cleanChapterTitle } from './kdp-editorial-review';
+import { ManuscriptIntegrityEngine } from './manuscript-integrity-engine';
 
 export const TRIM_SIZES: Record<string, [number, number]> = {
   '6x9': [6, 9],
@@ -82,7 +83,8 @@ const REPLACE: Record<string, string> = {
 
 export function sanitizeForPdf(text: string, onUnsupported?: (ch: string) => void): string {
   let out = '';
-  for (const ch of text) {
+  const clean = ManuscriptIntegrityEngine.cleanLaTeXResiduals(text || '');
+  for (const ch of clean) {
     if (ch === '\n') { out += ch; continue; }
     if (REPLACE[ch] !== undefined) { out += REPLACE[ch]; continue; }
     const cp = ch.codePointAt(0)!;
@@ -198,7 +200,32 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   const leftOf = (p: number) => (isRecto(p) ? inner : outer);
 
   const bookTitle = sanitize(input.livro.titulo);
-  const chapters = input.livro.capitulos;
+  const rawChapters = input.livro.capitulos;
+  const chapters = rawChapters.map((c, i) => {
+    const sanitized = ManuscriptIntegrityEngine.sanitizeChapterContent(c.texto || '');
+    if (sanitized.wasTruncated) {
+      warnings.push(`Capítulo ${i + 1}: Truncamento detectado e reparado sintaticamente (${sanitized.truncationReason || 'fim abrupto'}).`);
+    }
+    if (sanitized.markersRemoved.length > 0) {
+      warnings.push(`Capítulo ${i + 1}: Marcadores de controle removidos: "${sanitized.markersRemoved.join('", "')}".`);
+    }
+    return {
+      ...c,
+      titulo: ManuscriptIntegrityEngine.cleanLaTeXResiduals(c.titulo || ''),
+      texto: sanitized.cleanText,
+    };
+  });
+
+  if (chapters.length > 0) {
+    const consistency = ManuscriptIntegrityEngine.validateBookConsistency(
+      chapters.length,
+      chapters.map((c, i) => ({ title: c.titulo, text: c.texto, index: i + 1 }))
+    );
+    if (consistency.discrepancyWarning) {
+      warnings.push(consistency.discrepancyWarning);
+    }
+  }
+
   const cleanTitles = chapters.map((c, i) => sanitize(cleanChapterTitle(c.titulo) || `Capítulo ${i + 1}`));
   const starts: number[] = new Array(chapters.length).fill(0);
 

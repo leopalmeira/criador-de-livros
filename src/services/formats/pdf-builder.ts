@@ -1,7 +1,7 @@
-// Gerador profissional de PDF Interior e Capa Full-Wrap para Amazon KDP usando jsPDF
 import { jsPDF } from 'jspdf';
 import { BookProject, TrimSize, PaperType } from '../../types/book-project';
 import { ShowMeTheStoryEngine } from '../show-me-the-story-engine';
+import { ManuscriptIntegrityEngine } from '../manuscript-integrity-engine';
 
 export class PdfBuilder {
   /**
@@ -47,6 +47,9 @@ export class PdfBuilder {
     if (needsStoryEnrichment) {
       activeProject = ShowMeTheStoryEngine.generateStoryBook(activeProject, targetPages);
     }
+
+    // 1.1 SANITIZAÇÃO EDITORIAL COMPLETA (Encoding Fix, Metadados, Truncamentos, Diálogos)
+    activeProject = ManuscriptIntegrityEngine.sanitizeBookProject(activeProject);
 
     const [widthMm, heightMm] = this.getTrimDimensionsMm(activeProject.trimSize || '6x9');
     const doc = new jsPDF({
