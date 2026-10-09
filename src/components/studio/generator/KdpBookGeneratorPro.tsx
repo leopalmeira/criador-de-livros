@@ -48,7 +48,12 @@ import {
   buildFallbackEditorialPlan,
   type KdpEditorialPlan
 } from '../../../services/kdp-agents-service';
-import { buildCoverArtPrompt, type CoverTitleLayout, type CoverVisualStyle } from '../../../services/kdp-cover-art-direction';
+import {
+  buildCoverArtPrompt,
+  getCoverTypographyTheme,
+  type CoverTitleLayout,
+  type CoverVisualStyle
+} from '../../../services/kdp-cover-art-direction';
 import {
   SilhuetaMarginalConfig,
   SILHUETA_CONFIG_PADRAO,
@@ -1680,27 +1685,20 @@ ${ganchoImediato}`;
     // A arte de fundo permanece 100% nítida e natural, sem faixas escuras borradas.
     // A legibilidade é garantida por contorno tipográfico (strokeText) e sombra projetada (shadowBlur).
 
-    // 1. TÍTULO DA OBRA (Apenas Título, Subtítulo e Autor na Capa)
-    let fontSizeTit = 106;
-    if (obraTitulo.length > 50) fontSizeTit = 72;
-    else if (obraTitulo.length > 32) fontSizeTit = 84;
-    else if (obraTitulo.length > 20) fontSizeTit = 96;
+    // 1. OBTÉM PALETA E CONFIGURAÇÃO TIPOGRÁFICA ARTÍSTICA DA OBRA
+    const configTipo = getCoverTypographyTheme(obraGenero, tipoEstilo);
 
-    let fontFamilia = '"Montserrat", "Inter", -apple-system, sans-serif';
-    let fontPeso = '900';
-    if (tipoEstilo === 'luxury-serif') {
-      fontFamilia = '"Playfair Display", "Cinzel", Georgia, serif';
-      fontPeso = '800';
-    } else if (tipoEstilo === 'bold-impact') {
-      fontFamilia = '"Oswald", "Impact", "Arial Black", sans-serif';
-      fontPeso = '800';
-    }
+    // Dimensionamento harmônico e monumental do título
+    let fontSizeTit = 110;
+    if (obraTitulo.length > 50) fontSizeTit = 74;
+    else if (obraTitulo.length > 32) fontSizeTit = 86;
+    else if (obraTitulo.length > 20) fontSizeTit = 98;
+    else if (obraTitulo.length < 14) fontSizeTit = 122; // Títulos concisos ganham presença imponente
 
     const centroTitulo = layoutTitulo === 'topo' ? 440 : 1040;
-    ctx.font = `${fontPeso} ${fontSizeTit}px ${fontFamilia}`;
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = 'rgba(0,0,0,0.98)';
-    ctx.shadowBlur = 28;
+    ctx.font = `${configTipo.fontWeightTitle} ${fontSizeTit}px ${configTipo.fontFamilyTitle}`;
+    ctx.shadowColor = configTipo.shadowColor;
+    ctx.shadowBlur = configTipo.shadowBlur;
 
     const tituloAlinhadoEsquerda = layoutTitulo === 'esquerda';
     ctx.textAlign = tituloAlinhadoEsquerda ? 'left' : 'center';
@@ -1712,25 +1710,31 @@ ${ganchoImediato}`;
     let yTit = Math.round(centroTitulo - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
     const xTitulo = tituloAlinhadoEsquerda ? 150 : canvas.width / 2;
 
+    // Gradiente vertical para conferir acabamento nobre/metálico/artístico ao título
+    const gradTitulo = ctx.createLinearGradient(0, yTit - lineHTit, 0, yTit + alturaTotalTit);
+    gradTitulo.addColorStop(0, configTipo.titleGradient[0]);
+    gradTitulo.addColorStop(1, configTipo.titleGradient[1]);
+
     linhasTitulo.forEach(l => {
-      ctx.strokeStyle = 'rgba(0,0,0,0.92)';
-      ctx.lineWidth = 8;
+      ctx.strokeStyle = configTipo.strokeColor;
+      ctx.lineWidth = configTipo.strokeWidth;
       ctx.strokeText(l, xTitulo, yTit);
+      ctx.fillStyle = gradTitulo;
       ctx.fillText(l, xTitulo, yTit);
       yTit += lineHTit;
     });
 
-    // 2. SUBTÍTULO COMERCIAL MODERNO (Coerente com o Título e as Palavras Buscadas da Amazon)
+    // 2. SUBTÍTULO COMERCIAL MODERNO HARMONIZADO
     if (obraSubtituloLimpo) {
       ctx.textAlign = 'center';
       let fontSizeSub = 44;
       if (obraSubtituloLimpo.length > 90) fontSizeSub = 36;
       else if (obraSubtituloLimpo.length > 55) fontSizeSub = 40;
 
-      ctx.font = `600 ${fontSizeSub}px "Inter", "Montserrat", -apple-system, sans-serif`;
-      ctx.fillStyle = '#f8fafc';
-      ctx.shadowColor = 'rgba(0,0,0,0.95)';
-      ctx.shadowBlur = 20;
+      ctx.font = `${configTipo.fontWeightSubtitle} ${fontSizeSub}px ${configTipo.fontFamilySubtitle}`;
+      ctx.fillStyle = configTipo.subtitleColor;
+      ctx.shadowColor = configTipo.shadowColor;
+      ctx.shadowBlur = Math.round(configTipo.shadowBlur * 0.75);
 
       const linhasSub = quebrarLinhas(ctx, obraSubtituloLimpo, canvas.width - 280);
       const lineHSub = Math.round(fontSizeSub * 1.35);
@@ -1745,23 +1749,23 @@ ${ganchoImediato}`;
       }
 
       linhasSub.forEach(l => {
-        ctx.strokeStyle = 'rgba(0,0,0,0.88)';
-        ctx.lineWidth = 5;
+        ctx.strokeStyle = configTipo.strokeColor;
+        ctx.lineWidth = Math.max(2, configTipo.strokeWidth - 1);
         ctx.strokeText(l, canvas.width / 2, ySub);
         ctx.fillText(l, canvas.width / 2, ySub);
         ySub += lineHSub;
       });
     }
 
-    // 3. NOME DO AUTOR NO RODAPÉ (Sem selos, medalhas ou cabeçalhos inventados)
-    ctx.shadowBlur = 24;
-    ctx.shadowColor = 'rgba(0,0,0,0.98)';
-    ctx.font = '700 46px "Montserrat", "Inter", -apple-system, sans-serif';
-    ctx.fillStyle = '#ffffff';
+    // 3. NOME DO AUTOR NO RODAPÉ COM TIPOGRAFIA REFINADA
+    ctx.shadowBlur = configTipo.shadowBlur;
+    ctx.shadowColor = configTipo.shadowColor;
+    ctx.font = `${configTipo.fontWeightAuthor} 46px ${configTipo.fontFamilyAuthor}`;
+    ctx.fillStyle = configTipo.authorColor;
     ctx.textAlign = 'center';
     const spacedAutor = obraAutorLimpo.toUpperCase().split('').join(' ');
-    ctx.strokeStyle = 'rgba(0,0,0,0.92)';
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = configTipo.strokeColor;
+    ctx.lineWidth = Math.max(2, configTipo.strokeWidth - 1);
     ctx.strokeText(spacedAutor, canvas.width / 2, canvas.height - 140);
     ctx.fillText(spacedAutor, canvas.width / 2, canvas.height - 140);
 

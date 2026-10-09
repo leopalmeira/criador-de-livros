@@ -3,6 +3,7 @@ import { Download, FileText, LoaderCircle, Sparkles } from 'lucide-react';
 import {
   buildPlannerPdf,
   planPlannerPages,
+  buildFallbackPlannerPages,
   PLANNER_TRACKS,
   type PlannerPagePlan,
   type PlannerTrackId
@@ -42,17 +43,29 @@ export const PlannerBookStudio: React.FC<PlannerBookStudioProps> = ({
     setStatus('Planejando páginas variadas para o seu planner...');
     setIsError(false);
     try {
-      const plannedPages = await planPlannerPages(
-        trackId,
-        title.trim() || selectedTrack.label,
-        pageCount
-      );
+      let plannedPages: PlannerPagePlan[];
+      try {
+        plannedPages = await planPlannerPages(
+          trackId,
+          title.trim() || selectedTrack.label,
+          pageCount
+        );
+      } catch (err: any) {
+        console.warn('[Planner] Modelo online oscilou, acionando Auto-Recuperação estruturada:', err?.message);
+        plannedPages = buildFallbackPlannerPages(
+          trackId,
+          title.trim() || selectedTrack.label,
+          pageCount
+        );
+      }
+
       if (!onConsumeCredit(title.trim() || selectedTrack.label)) {
         onRequireCredit();
         return;
       }
       setPages(plannedPages);
-      setStatus(`${plannedPages.length} páginas planejadas. Você pode baixar o miolo em PDF.`);
+      setStatus(`✓ ${plannedPages.length} páginas planejadas com sucesso! Você pode baixar o miolo em PDF.`);
+      setIsError(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Não foi possível planejar as páginas.';
       setStatus(message);

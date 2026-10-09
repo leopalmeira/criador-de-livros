@@ -275,7 +275,9 @@ export function sanitizarPromptArteSemTexto(generoOuTema: string, promptUsuario?
 
   const basePrompt = cleanUserPrompt || cenaConceitual;
 
-  // Blindagem definitiva anti-texto: proíbe textualmente qualquer tentativa de renderizar letras, palavras ou nomes
+  // Blindagem definitiva anti-texto e anti-ambientes domésticos clichês:
+  // Proíbe textualmente qualquer tentativa de renderizar letras/palavras e ambientes monótonos de sala
   return `${basePrompt}, vertical 2:3 book ratio.
-CRITICAL MANDATORY RULES: ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO LETTERING, NO FAKE ALPHABET, NO EMBEDDED WORDS, NO GIBBERISH WORDS, NO "FINANCAS", NO "FINANCES", NO WRITING, NO BOOK TITLES, NO AUTHOR NAMES, NO CAPTIONS, NO WATERMARKS, NO POLLINATIONS LOGOS, NO BADGES, NO CIRCULAR SEALS, NO MEDALS, NO STAMPS. Pure clean visual photography and artwork with 100% clean pristine composition without any text for programmatic canvas typography.`;
+CRITICAL MANDATORY RULES: ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO LETTERING, NO FAKE ALPHABET, NO EMBEDDED WORDS, NO GIBBERISH WORDS, NO "FINANCAS", NO "FINANCES", NO WRITING, NO BOOK TITLES, NO AUTHOR NAMES, NO CAPTIONS, NO WATERMARKS, NO POLLINATIONS LOGOS, NO BADGES, NO CIRCULAR SEALS, NO MEDALS, NO STAMPS.
+CRITICAL SCENE DIVERSITY RULE: ABSOLUTELY NO ORDINARY INDOOR LIVING ROOM, NO DOMESTIC ROOM, NO MUNDANE SOFA, NO BORING APARTMENT INTERIOR. Always render evocative cinematic outdoor locations, dramatic architectural fine art, atmospheric horizons or fine-art conceptual staging with 100% clean pristine composition for programmatic canvas typography.`;
 }

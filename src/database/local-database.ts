@@ -552,7 +552,11 @@ class LocalDatabase {
     const ownerId = this.activeUserId;
     project.updatedAt = Date.now();
     if (ownerId) {
-      await this.cloudRequest(`/api/projects/${encodeURIComponent(project.id)}`, 'PUT', { project });
+      try {
+        await this.cloudRequest(`/api/projects/${encodeURIComponent(project.id)}`, 'PUT', { project });
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para salvar projeto, salvando localmente no IndexedDB:', cloudErr);
+      }
     }
     await this.saveOwnedRecord('bookProjects', project, ownerId);
   }
@@ -560,12 +564,16 @@ class LocalDatabase {
   async getBookProject(id: string): Promise<BookProject | null> {
     const ownerId = this.activeUserId;
     if (ownerId) {
-      const response = await this.cloudRequest<{ project: BookProject | null }>(
-        `/api/projects/${encodeURIComponent(id)}`
-      );
-      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento do projeto.');
-      if (response.project) await this.saveOwnedRecord('bookProjects', response.project, ownerId);
-      return response.project;
+      try {
+        const response = await this.cloudRequest<{ project: BookProject | null }>(
+          `/api/projects/${encodeURIComponent(id)}`
+        );
+        if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento do projeto.');
+        if (response.project) await this.saveOwnedRecord('bookProjects', response.project, ownerId);
+        return response.project;
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para carregar projeto, buscando localmente no IndexedDB:', cloudErr);
+      }
     }
     return this.getOwnedRecord<BookProject & { ownerId?: string }>('bookProjects', id);
   }
@@ -573,24 +581,34 @@ class LocalDatabase {
   async getAllBookProjects(): Promise<BookProject[]> {
     const ownerId = this.activeUserId;
     if (ownerId) {
-      const response = await this.cloudRequest<{ projects: BookProject[] }>('/api/projects');
-      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante a sincronização dos projetos.');
-      await this.replaceOwnedRecords(
-        'bookProjects',
-        response.projects,
-        project => project.id,
-        ownerId
-      );
-      return response.projects.sort((a, b) => b.updatedAt - a.updatedAt);
+      try {
+        const response = await this.cloudRequest<{ projects: BookProject[] }>('/api/projects');
+        if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante a sincronização dos projetos.');
+        if (Array.isArray(response.projects)) {
+          await this.replaceOwnedRecords(
+            'bookProjects',
+            response.projects,
+            project => project.id,
+            ownerId
+          );
+          return response.projects.sort((a, b) => b.updatedAt - a.updatedAt);
+        }
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para listar projetos, usando dados locais do IndexedDB:', cloudErr);
+      }
     }
-    const list = await this.getAllOwnedRecords<BookProject & { ownerId?: string }>('bookProjects');
+    const list = await this.getAllOwnedRecords<BookProject & { ownerId?: string }>('bookProjects', ownerId);
     return list.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   async deleteBookProject(id: string): Promise<void> {
     const ownerId = this.activeUserId;
     if (ownerId) {
-      await this.cloudRequest(`/api/projects/${encodeURIComponent(id)}`, 'DELETE');
+      try {
+        await this.cloudRequest(`/api/projects/${encodeURIComponent(id)}`, 'DELETE');
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para excluir projeto remoto:', cloudErr);
+      }
     }
     await this.deleteOwnedRecord('bookProjects', id, ownerId);
   }
@@ -670,17 +688,29 @@ class LocalDatabase {
   // --- CORREÇÃO EDITORIAL: JOBS ---
   async saveEditorialJob(job: EditorialJob): Promise<void> {
     const ownerId = this.activeUserId;
-    if (ownerId) await this.saveCloudRecord('editorial-jobs', job.bookId, job);
+    if (ownerId) {
+      try {
+        await this.saveCloudRecord('editorial-jobs', job.bookId, job);
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para editorial-job, persistindo localmente no IndexedDB:', cloudErr);
+      }
+    }
     await this.saveOwnedRecord('editorialJobs', job, ownerId);
   }
 
   async getEditorialJob(bookId: string): Promise<EditorialJob | null> {
     const ownerId = this.activeUserId;
     if (ownerId) {
-      const job = await this.getCloudRecord<EditorialJob>('editorial-jobs', bookId);
-      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento da revisão editorial.');
-      if (job) await this.saveOwnedRecord('editorialJobs', job, ownerId);
-      return job;
+      try {
+        const job = await this.getCloudRecord<EditorialJob>('editorial-jobs', bookId);
+        if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento da revisão editorial.');
+        if (job) {
+          await this.saveOwnedRecord('editorialJobs', job, ownerId);
+          return job;
+        }
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para editorial-job, buscando localmente no IndexedDB:', cloudErr);
+      }
     }
     return this.getOwnedRecord<EditorialJob & { ownerId?: string }>('editorialJobs', bookId);
   }
@@ -688,7 +718,11 @@ class LocalDatabase {
   async deleteEditorialJob(bookId: string): Promise<void> {
     const ownerId = this.activeUserId;
     if (ownerId) {
-      await this.cloudRequest(`/api/user-data/editorial-jobs/${encodeURIComponent(bookId)}`, 'DELETE');
+      try {
+        await this.cloudRequest(`/api/user-data/editorial-jobs/${encodeURIComponent(bookId)}`, 'DELETE');
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para excluir editorial-job remoto:', cloudErr);
+      }
     }
     await this.deleteOwnedRecord('editorialJobs', bookId, ownerId);
   }
@@ -697,8 +731,12 @@ class LocalDatabase {
   async saveFinalBook(rec: FinalBookRecord): Promise<void> {
     const ownerId = this.activeUserId;
     if (ownerId) {
-      const cloudRecord = { ...rec, pdf: undefined, pdfBase64: arrayBufferToBase64(rec.pdf) };
-      await this.saveCloudRecord('final-books', rec.id, cloudRecord);
+      try {
+        const cloudRecord = { ...rec, pdf: undefined, pdfBase64: arrayBufferToBase64(rec.pdf) };
+        await this.saveCloudRecord('final-books', rec.id, cloudRecord);
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para final-book, persistindo localmente no IndexedDB:', cloudErr);
+      }
     }
     await this.saveOwnedRecord('finalBooks', rec, ownerId);
   }
@@ -706,13 +744,18 @@ class LocalDatabase {
   async getFinalBook(id: string): Promise<FinalBookRecord | null> {
     const ownerId = this.activeUserId;
     if (ownerId) {
-      const cloudRecord = await this.getCloudRecord<FinalBookRecord & { pdfBase64?: string }>('final-books', id);
-      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento do livro final.');
-      if (!cloudRecord) return null;
-      const record = { ...cloudRecord, pdf: base64ToArrayBuffer(cloudRecord.pdfBase64 || '') };
-      delete (record as FinalBookRecord & { pdfBase64?: string }).pdfBase64;
-      await this.saveOwnedRecord('finalBooks', record, ownerId);
-      return record;
+      try {
+        const cloudRecord = await this.getCloudRecord<FinalBookRecord & { pdfBase64?: string }>('final-books', id);
+        if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante o carregamento do livro final.');
+        if (cloudRecord) {
+          const record = { ...cloudRecord, pdf: base64ToArrayBuffer(cloudRecord.pdfBase64 || '') };
+          delete (record as FinalBookRecord & { pdfBase64?: string }).pdfBase64;
+          await this.saveOwnedRecord('finalBooks', record, ownerId);
+          return record;
+        }
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para final-book, buscando localmente no IndexedDB:', cloudErr);
+      }
     }
     return this.getOwnedRecord<FinalBookRecord & { ownerId?: string }>('finalBooks', id);
   }
@@ -720,22 +763,26 @@ class LocalDatabase {
   async getAllFinalBooks(): Promise<FinalBookRecord[]> {
     const ownerId = this.activeUserId;
     if (ownerId) {
-      const cloudRecords = await this.getAllCloudRecords<FinalBookRecord & { pdfBase64?: string }>('final-books');
-      if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante a sincronização dos livros finais.');
-      const localRecords = await this.getAllOwnedRecords<FinalBookRecord & { ownerId?: string }>('finalBooks', ownerId);
-      const localById = new Map(localRecords.map(record => [record.id, record]));
-      const records = cloudRecords.map(cloudRecord => {
-        const record = {
-          ...cloudRecord,
-          pdf: cloudRecord.pdfBase64
-            ? base64ToArrayBuffer(cloudRecord.pdfBase64)
-            : localById.get(cloudRecord.id)?.pdf || new ArrayBuffer(0)
-        };
-        delete (record as FinalBookRecord & { pdfBase64?: string }).pdfBase64;
-        return record;
-      });
-      await this.replaceOwnedRecords('finalBooks', records, record => record.id, ownerId);
-      return records.sort((a, b) => b.finalizedAt - a.finalizedAt);
+      try {
+        const cloudRecords = await this.getAllCloudRecords<FinalBookRecord & { pdfBase64?: string }>('final-books');
+        if (ownerId !== this.activeUserId) throw new Error('A conta foi alterada durante a sincronização dos livros finais.');
+        const localRecords = await this.getAllOwnedRecords<FinalBookRecord & { ownerId?: string }>('finalBooks', ownerId);
+        const localById = new Map(localRecords.map(record => [record.id, record]));
+        const records = cloudRecords.map(cloudRecord => {
+          const record = {
+            ...cloudRecord,
+            pdf: cloudRecord.pdfBase64
+              ? base64ToArrayBuffer(cloudRecord.pdfBase64)
+              : localById.get(cloudRecord.id)?.pdf || new ArrayBuffer(0)
+          };
+          delete (record as FinalBookRecord & { pdfBase64?: string }).pdfBase64;
+          return record;
+        });
+        await this.replaceOwnedRecords('finalBooks', records, record => record.id, ownerId);
+        return records.sort((a, b) => b.finalizedAt - a.finalizedAt);
+      } catch (cloudErr) {
+        console.warn('[LocalDatabase] Nuvem indisponível para listar final-books, usando dados locais do IndexedDB:', cloudErr);
+      }
     }
     const list = await this.getAllOwnedRecords<FinalBookRecord & { ownerId?: string }>('finalBooks');
     return list.sort((a, b) => b.finalizedAt - a.finalizedAt);
