@@ -150,7 +150,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
-          const { BackendCoverService } = await import('./src/services/backend-cover-service.ts');
+          const { BackendCoverService } = await import('./src/services/backend-cover-service');
 
           // Rota: GET /api/covers/api-key-status
           if (req.method === 'GET' && (url === '/api-key-status' || url === '/api-key-status/')) {
@@ -286,7 +286,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
-          const { AmazonLiveService } = await import('./src/services/amazon-live-service.ts');
+          const { AmazonLiveService } = await import('./src/services/amazon-live-service');
           const reqUrl = new URL(req.url, 'http://localhost');
           const pathname = reqUrl.pathname;
 
