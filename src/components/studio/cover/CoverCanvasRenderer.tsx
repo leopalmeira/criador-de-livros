@@ -18,7 +18,7 @@ export const CoverCanvasRenderer: React.FC<Props> = ({
   title,
   subtitle,
   author,
-  showBadge = true,
+  showBadge = false,
   badgeText,
   className = '',
   style = {},
@@ -170,7 +170,7 @@ export async function exportCoverHighResCanvas(
   title: string,
   subtitle: string,
   author: string,
-  showBadge: boolean = true,
+  showBadge: boolean = false,
   badgeText: string = '',
   format: 'png' | 'jpeg' = 'png'
 ): Promise<string> {

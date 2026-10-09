@@ -95,52 +95,10 @@ export async function comporCapaComTipografia(
 
         ctx.drawImage(img, dx, dy, dw, dh);
 
-        // 2. Vinheta e Gradiente Superior (Garante legibilidade total do Título)
-        const topGradient = ctx.createLinearGradient(0, 0, 0, height * 0.42);
-        topGradient.addColorStop(0, 'rgba(0, 0, 0, 0.75)');
-        topGradient.addColorStop(0.5, 'rgba(0, 0, 0, 0.45)');
-        topGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = topGradient;
-        ctx.fillRect(0, 0, width, height * 0.42);
+        // ZERO BLUR ARTIFICIAL: A arte é preservada 100% nítida e natural.
+        // Contraste tipográfico obtido estritamente via sombras projetadas e contorno (strokeText).
 
-        // 3. Gradiente Inferior (Garante legibilidade total do Nome do Autor)
-        const bottomGradient = ctx.createLinearGradient(0, height * 0.72, 0, height);
-        bottomGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        bottomGradient.addColorStop(0.5, 'rgba(0, 0, 0, 0.55)');
-        bottomGradient.addColorStop(1, 'rgba(0, 0, 0, 0.85)');
-        ctx.fillStyle = bottomGradient;
-        ctx.fillRect(0, height * 0.72, width, height * 0.28);
-
-        // 4. Selo / Categoria Superior
-        const seloText = (options.selo || 'COLEÇÃO EXCLUSIVA KDP').toUpperCase();
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#fef08a';
-        ctx.font = '700 32px "Trebuchet MS", sans-serif';
-        ctx.letterSpacing = '6px';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-        ctx.shadowBlur = 12;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 3;
-        ctx.fillText(seloText, width / 2, 140);
-
-        // 5. Linha divisória ornamental superior
-        ctx.strokeStyle = 'rgba(254, 240, 138, 0.6)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(width / 2 - 120, 165);
-        ctx.lineTo(width / 2 + 120, 165);
-        ctx.stroke();
-
-        // Gradiente suave central (garante legibilidade impecável do Título posicionado um pouco acima do meio)
-        const midGradient = ctx.createLinearGradient(0, height * 0.3, 0, height * 0.6);
-        midGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        midGradient.addColorStop(0.3, 'rgba(0, 0, 0, 0.62)');
-        midGradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.62)');
-        midGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = midGradient;
-        ctx.fillRect(0, height * 0.3, width, height * 0.3);
-
-        // 6. Título do Livro (LIGEIRAMENTE UM POUCO ACIMA DO MEIO DA CAPA)
+        // Título do Livro (LIGEIRAMENTE UM POUCO ACIMA DO MEIO DA CAPA)
         const cleanTitle = (options.titulo || 'LIVRO ILUSTRADO').toUpperCase();
         const maxTitleWidth = width * 0.86;
 
@@ -200,23 +158,18 @@ export async function comporCapaComTipografia(
           });
         }
 
-        // 8. Nome do Autor no Rodapé (Espaço reservado exclusivo)
-        const autorText = (options.autor ? `POR ${options.autor}` : 'AUTOR').toUpperCase();
+        // Nome do Autor no Rodapé (Apenas nome do autor, com contorno nítido)
+        const autorText = (options.autor || 'AUTOR').toUpperCase();
         ctx.font = '700 44px "Trebuchet MS", sans-serif';
         ctx.letterSpacing = '8px';
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = 20;
         ctx.shadowOffsetY = 4;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.90)';
+        ctx.lineWidth = 5;
+        ctx.strokeText(autorText, width / 2, height - 150);
         ctx.fillText(autorText, width / 2, height - 150);
-
-        // Linha divisória ornamental inferior
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(width / 2 - 90, height - 110);
-        ctx.lineTo(width / 2 + 90, height - 110);
-        ctx.stroke();
 
         // 9. Exporta em DataURL PNG
         const composedDataUrl = canvas.toDataURL('image/png', 0.95);

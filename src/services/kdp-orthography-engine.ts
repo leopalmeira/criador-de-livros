@@ -267,11 +267,15 @@ export function sanitizarPromptArteSemTexto(generoOuTema: string, promptUsuario?
     cenaConceitual = 'poetic romantic atmospheric lighting, soft golden hour boulevard, warm cinematic depth of field, gentle floral and twilight tones';
   }
 
-  const basePrompt = promptUsuario && promptUsuario.trim().length > 5
-    ? promptUsuario.trim()
+  const cleanUserPrompt = promptUsuario && promptUsuario.trim().length > 5
+    ? promptUsuario
+        .replace(/\b(book[\s-]?cover|bookcover|capa de livro|capa|poster|cartaz)\b/gi, 'cinematic scene')
+        .trim()
     : cenaConceitual;
 
-  // Blindagem definitiva anti-texto: proíbe textualmente qualquer tentativa de renderizar letras ou a palavra FINANCAS
+  const basePrompt = cleanUserPrompt || cenaConceitual;
+
+  // Blindagem definitiva anti-texto: proíbe textualmente qualquer tentativa de renderizar letras, palavras ou nomes
   return `${basePrompt}, vertical 2:3 book ratio.
-CRITICAL MANDATORY RULES: ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO LETTERING, NO FAKE ALPHABET, NO EMBEDDED WORDS, NO "FINANCAS", NO "FINANCES", NO WRITING, NO BOOK TITLES, NO CAPTIONS, NO WATERMARKS, NO POLLINATIONS LOGOS, NO BADGES, NO CIRCULAR SEALS, NO MEDALS, NO STAMPS. Pure clean visual artwork with wide open central negative space for programmatic canvas typography.`;
+CRITICAL MANDATORY RULES: ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO LETTERING, NO FAKE ALPHABET, NO EMBEDDED WORDS, NO GIBBERISH WORDS, NO "FINANCAS", NO "FINANCES", NO WRITING, NO BOOK TITLES, NO AUTHOR NAMES, NO CAPTIONS, NO WATERMARKS, NO POLLINATIONS LOGOS, NO BADGES, NO CIRCULAR SEALS, NO MEDALS, NO STAMPS. Pure clean visual photography and artwork with 100% clean pristine composition without any text for programmatic canvas typography.`;
 }

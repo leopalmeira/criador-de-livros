@@ -946,18 +946,22 @@ Responda APENAS com as 5 opções, uma por linha, numeradas de 1 a 5, sem explic
     setIsGeneratingSubtitulos(true);
     try {
       const refSubtitles = marketReferences.map(r => r.subtitle).filter(Boolean) as string[];
+      const refTitulosAmazon = marketReferences.map(r => r.title).filter(Boolean).slice(0, 5) as string[];
       const prompt = `Você é um estrategista editorial KDP especializado em conversão de vendas. Crie exatamente 5 opções de subtítulos comerciais persuasivos e TOTALMENTE ORIGINAIS para o livro:
-Título: "${titulo}"
-Tema: ${temaSelecionado || genero}
+Título da Obra: "${titulo}"
+Tema Central: ${temaSelecionado || genero}
 Subtema: ${subtemaSelecionado || 'Geral'}
-Diferencial: ${uniqueAngle || bookPromise || 'Transformador'}
+Diferencial Editorial: ${uniqueAngle || bookPromise || 'Transformador'}
 Público Alvo: ${targetReader || 'Geral'}
+Títulos e Palavras-chave de Referência da Amazon KDP: ${refTitulosAmazon.join(' | ') || 'Best-sellers da categoria'}
 Seed de novidade: ${Date.now()}_${Math.random().toString(36).slice(2, 6)}
 
 REGRAS OBRIGATÓRIAS:
-1. CRIE FRASES 100% COMPLETAS COM SENTIDO GRAMATICAL FINALIZADO E PONTUAÇÃO (NUNCA CORTE PALAVRAS PELA METADE E NUNCA DEIXE FRASES TRUNCADAS OU INCOMPLETAS).
-2. Tamanho ideal: entre 6 e 14 palavras bem elaboradas.
-3. Forte gancho de curiosidade, suspense ou benefício tangível para o leitor.
+1. O SUBTÍTULO DEVE TER COERÊNCIA ABSOLUTA COM O TÍTULO ("${titulo}"), complementando seu sentido e prometendo o desfecho/benefício central.
+2. Incorpore a linguagem e intenção de busca observadas nas referências de mercado da Amazon para atrair o leitor ideal.
+3. CRIE FRASES 100% COMPLETAS COM SENTIDO GRAMATICAL FINALIZADO E PONTUAÇÃO (NUNCA CORTE PALAVRAS PELA METADE E NUNCA DEIXE FRASES TRUNCADAS OU INCOMPLETAS).
+4. Tamanho ideal: entre 6 e 14 palavras bem elaboradas.
+5. Forte gancho de curiosidade, suspense ou autoridade.
 
 Responda APENAS com as 5 opções completas, uma por linha, numeradas de 1 a 5, sem explicações adicionais.`;
 
@@ -1642,77 +1646,14 @@ ${ganchoImediato}`;
     const cropH = Math.floor(srcH * 0.92);
     ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
 
-    // 1. Vinheta Superior Suave para o Cabeçalho de Revista
-    const topGrad = ctx.createLinearGradient(0, 0, 0, 520);
-    topGrad.addColorStop(0, 'rgba(4, 6, 12, 0.82)');
-    topGrad.addColorStop(0.6, 'rgba(4, 6, 12, 0.28)');
-    topGrad.addColorStop(1, 'rgba(4, 6, 12, 0)');
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, canvas.width, 520);
+    // ZERO BLUR ARTIFICIAL ATRÁS DO TÍTULO:
+    // A arte de fundo permanece 100% nítida e natural, sem faixas escuras borradas.
+    // A legibilidade é garantida por contorno tipográfico (strokeText) e sombra projetada (shadowBlur).
 
-    // 2. Área de contraste acompanha a posição tipográfica selecionada.
-    const alphaCentro = zonaLimpa === 'forte' ? 0.92 : zonaLimpa === 'suave' ? 0.60 : 0.80;
-    const centroTitulo = layoutTitulo === 'topo' ? 500 : 1040;
-    const zonaTituloInicio = centroTitulo - 400;
-    const zonaTituloFim = centroTitulo + 400;
-    const midGrad = ctx.createLinearGradient(0, zonaTituloInicio, 0, zonaTituloFim);
-    midGrad.addColorStop(0, 'rgba(5, 7, 14, 0)');
-    midGrad.addColorStop(0.20, `rgba(5, 7, 14, ${alphaCentro * 0.75})`);
-    midGrad.addColorStop(0.40, `rgba(5, 7, 14, ${alphaCentro})`);
-    midGrad.addColorStop(0.60, `rgba(5, 7, 14, ${alphaCentro})`);
-    midGrad.addColorStop(0.85, `rgba(5, 7, 14, ${alphaCentro * 0.70})`);
-    midGrad.addColorStop(1, 'rgba(5, 7, 14, 0)');
-    ctx.fillStyle = midGrad;
-    ctx.fillRect(0, zonaTituloInicio, canvas.width, zonaTituloFim - zonaTituloInicio);
-
-    // 3. Vinheta Profunda no Rodapé (1600px até o fim) para Subtítulo e Autor
-    const footerGrad = ctx.createLinearGradient(0, 1600, 0, canvas.height);
-    footerGrad.addColorStop(0, 'rgba(4, 6, 12, 0)');
-    footerGrad.addColorStop(0.25, 'rgba(4, 6, 12, 0.75)');
-    footerGrad.addColorStop(0.65, 'rgba(4, 6, 12, 0.94)');
-    footerGrad.addColorStop(1, '#04060c');
-    ctx.fillStyle = footerGrad;
-    ctx.fillRect(0, 1600, canvas.width, 800);
-
-    // 4. CABEÇALHO EDITORIAL DE REVISTA (Clean Magazine Header - ZERO SELOS OU MEDALHAS)
-    const getCleanMagazineHeader = (gen: string, prem: string) => {
-      const g = (gen + ' ' + prem).toLowerCase();
-      if (g.includes('investiga') || g.includes('crime') || g.includes('forense') || g.includes('misterio') || g.includes('thriller')) {
-        return 'THRILLER PSICOLÓGICO & SUSPENSE';
-      }
-      if (g.includes('terror') || g.includes('horror') || g.includes('fantasma') || g.includes('sombri')) {
-        return 'NARRATIVA OBSCURA DE SUSPENSE & TERROR';
-      }
-      if (g.includes('dinheiro') || g.includes('finan') || g.includes('patrimon') || g.includes('invest')) {
-        return 'FINANÇAS PESSOAIS & GESTÃO PATRIMONIAL';
-      }
-      if (g.includes('psicologia') || g.includes('habito') || g.includes('produtiv') || g.includes('desenvolvimento') || g.includes('alta performance')) {
-        return 'DESENVOLVIMENTO PESSOAL & ALTA PERFORMANCE';
-      }
-      if (g.includes('romance') || g.includes('amor') || g.includes('paixao')) {
-        return 'LITERATURA & FICÇÃO CONTEMPORÂNEA';
-      }
-      if (g.includes('ficcao') || g.includes('sci-fi') || g.includes('espaco')) {
-        return 'FICÇÃO CIENTÍFICA & NARRATIVA ESPECULATIVA';
-      }
-      return 'LITERATURA & ENSAIO CONTEMPORÂNEO';
-    };
-
-    const headerText = sanitizarOrtografiaEditorialCapa(getCleanMagazineHeader(obraGenero, obraPremissa));
-    ctx.textAlign = 'center';
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = 'rgba(0,0,0,0.95)';
-    ctx.font = '600 24px "Montserrat", "Inter", -apple-system, sans-serif';
-    ctx.fillStyle = '#fde68a'; // Dourado suave editorial
-
-    // Espaçamento de caracteres elegante de revista
-    const spacedHeader = headerText.split('').join(' ');
-    ctx.fillText(spacedHeader, canvas.width / 2, 170);
-
-    // 5. TÍTULO DA OBRA COM DESIGN MODERNO DE REVISTA
+    // 1. TÍTULO DA OBRA (Apenas Título, Subtítulo e Autor na Capa)
     let fontSizeTit = 106;
-    if (obraTitulo.length > 50) fontSizeTit = 74;
-    else if (obraTitulo.length > 32) fontSizeTit = 86;
+    if (obraTitulo.length > 50) fontSizeTit = 72;
+    else if (obraTitulo.length > 32) fontSizeTit = 84;
     else if (obraTitulo.length > 20) fontSizeTit = 96;
 
     let fontFamilia = '"Montserrat", "Inter", -apple-system, sans-serif';
@@ -1725,10 +1666,11 @@ ${ganchoImediato}`;
       fontPeso = '800';
     }
 
+    const centroTitulo = layoutTitulo === 'topo' ? 440 : 1040;
     ctx.font = `${fontPeso} ${fontSizeTit}px ${fontFamilia}`;
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0,0,0,0.98)';
-    ctx.shadowBlur = 30;
+    ctx.shadowBlur = 28;
 
     const tituloAlinhadoEsquerda = layoutTitulo === 'esquerda';
     ctx.textAlign = tituloAlinhadoEsquerda ? 'left' : 'center';
@@ -1741,39 +1683,39 @@ ${ganchoImediato}`;
     const xTitulo = tituloAlinhadoEsquerda ? 150 : canvas.width / 2;
 
     linhasTitulo.forEach(l => {
-      ctx.strokeStyle = 'rgba(0,0,0,0.90)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.92)';
       ctx.lineWidth = 8;
       ctx.strokeText(l, xTitulo, yTit);
       ctx.fillText(l, xTitulo, yTit);
       yTit += lineHTit;
     });
 
-    // Detalhe de acabamento: linha horizontal sutil minimalista abaixo do título
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#fde68a';
-    ctx.fillRect(tituloAlinhadoEsquerda ? xTitulo : (canvas.width / 2) - 45, yTit + 10, 90, 2);
-
-    // 6. SUBTÍTULO COMERCIAL MODERNO (Limpo, sem itálicos desajeitados e com ortografia corrigida)
+    // 2. SUBTÍTULO COMERCIAL MODERNO (Coerente com o Título e as Palavras Buscadas da Amazon)
     if (obraSubtituloLimpo) {
       ctx.textAlign = 'center';
-      let fontSizeSub = 46;
-      if (obraSubtituloLimpo.length > 90) fontSizeSub = 38;
-      else if (obraSubtituloLimpo.length > 55) fontSizeSub = 42;
+      let fontSizeSub = 44;
+      if (obraSubtituloLimpo.length > 90) fontSizeSub = 36;
+      else if (obraSubtituloLimpo.length > 55) fontSizeSub = 40;
 
-      ctx.font = `500 ${fontSizeSub}px "Inter", "Montserrat", -apple-system, sans-serif`;
+      ctx.font = `600 ${fontSizeSub}px "Inter", "Montserrat", -apple-system, sans-serif`;
       ctx.fillStyle = '#f8fafc';
       ctx.shadowColor = 'rgba(0,0,0,0.95)';
-      ctx.shadowBlur = 18;
+      ctx.shadowBlur = 20;
 
       const linhasSub = quebrarLinhas(ctx, obraSubtituloLimpo, canvas.width - 280);
       const lineHSub = Math.round(fontSizeSub * 1.35);
       const alturaTotalSub = linhasSub.length * lineHSub;
 
-      const yBaseSub = 2100;
-      let ySub = Math.max(1760, yBaseSub - alturaTotalSub + fontSizeSub);
+      let ySub: number;
+      if (layoutTitulo === 'topo') {
+        ySub = yTit + 50;
+      } else {
+        const yBaseSub = 2100;
+        ySub = Math.max(1760, yBaseSub - alturaTotalSub + fontSizeSub);
+      }
 
       linhasSub.forEach(l => {
-        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.88)';
         ctx.lineWidth = 5;
         ctx.strokeText(l, canvas.width / 2, ySub);
         ctx.fillText(l, canvas.width / 2, ySub);
@@ -1781,13 +1723,16 @@ ${ganchoImediato}`;
       });
     }
 
-    // 7. NOME DO AUTOR NO RODAPÉ (Caixa alta com letter-spacing de revista e ortografia precisa)
+    // 3. NOME DO AUTOR NO RODAPÉ (Sem selos, medalhas ou cabeçalhos inventados)
     ctx.shadowBlur = 24;
     ctx.shadowColor = 'rgba(0,0,0,0.98)';
     ctx.font = '700 46px "Montserrat", "Inter", -apple-system, sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     const spacedAutor = obraAutorLimpo.toUpperCase().split('').join(' ');
+    ctx.strokeStyle = 'rgba(0,0,0,0.92)';
+    ctx.lineWidth = 6;
+    ctx.strokeText(spacedAutor, canvas.width / 2, canvas.height - 140);
     ctx.fillText(spacedAutor, canvas.width / 2, canvas.height - 140);
 
     return canvas.toDataURL('image/png');
@@ -5789,47 +5734,26 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         </div>
                       </div>
 
-                      {/* CONTROLE DA ÁREA LIMPA DO TÍTULO (CLEAN CONTRAST ZONE) */}
+                      {/* CONTROLE DE NITIDEZ EDITORIAL DA CAPA (ZERO BLUR ARTIFICIAL) */}
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                           <label style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>
-                            Regra da Área Limpa do Título (Clean Zone):
+                            Nitidez da Imagem de Fundo:
                           </label>
-                          <span style={{ fontSize: 10, color: '#059669', fontWeight: 600 }}>
-                            Contraste anti-ruído ativo
+                          <span style={{ fontSize: 10, color: '#059669', fontWeight: 700 }}>
+                            Arte 100% Nítida (Zero Blur)
                           </span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                          {[
-                            { id: 'suave', label: 'Suave (60%)' },
-                            { id: 'media', label: 'Média (80%) ★' },
-                            { id: 'forte', label: 'Forte (92%)' }
-                          ].map((z) => {
-                            const isSelected = intensidadeZonaLimpa === z.id;
-                            return (
-                              <button
-                                key={z.id}
-                                type="button"
-                                onClick={() => setIntensidadeZonaLimpa(z.id as any)}
-                                style={{
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: isSelected ? '2px solid #059669' : '1px solid #cbd5e1',
-                                  background: isSelected ? '#ecfdf5' : '#ffffff',
-                                  fontSize: 11,
-                                  fontWeight: isSelected ? 700 : 500,
-                                  color: isSelected ? '#065f46' : '#334155',
-                                  cursor: 'pointer',
-                                  textAlign: 'center'
-                                }}
-                              >
-                                {z.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
-                          Garante que o título fique isolado sobre fundo escuro limpo, sem elementos da arte atrapalhando a leitura.
+                        <div style={{
+                          padding: '7px 10px',
+                          background: '#ecfdf5',
+                          borderRadius: 6,
+                          border: '1px solid #a7f3d0',
+                          fontSize: 11,
+                          color: '#065f46',
+                          lineHeight: 1.4
+                        }}>
+                          <b>Design Limpo:</b> A imagem de fundo é preservada com nitidez total, sem manchas ou blur artificial. Apenas o <b>Título</b>, <b>Subtítulo</b> e <b>Nome do Autor</b> são diagramados.
                         </div>
                       </div>
 

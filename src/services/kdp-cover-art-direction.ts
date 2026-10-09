@@ -22,7 +22,7 @@ export function buildCoverArtPrompt(
   const sampleContext = sample.trim() && !customPrompt.trim()
     ? `Supporting narrative context: ${sample.trim().slice(0, 500)}.`
     : '';
-  const sceneDirection = `Create a distinctive book-cover artwork rooted in this exact subject: ${subject}. Genre and visual context: ${genre}. ${sampleContext} Preserve the subject's real-world details and use a coherent, specific composition rather than a generic template.`;
+  const sceneDirection = `Create a distinctive cinematic visual scene rooted in this exact subject: ${subject}. Genre and visual context: ${genre}. ${sampleContext} Preserve the subject's real-world details and use a coherent, specific composition rather than a generic template.`;
   const realismDirection = 'Avoid waxy or plastic surfaces, uncanny faces, artificial anatomy, over-smoothed skin, excessive sharpening, generic 3D rendering, and unrelated decorative objects.';
 
   return sanitizarPromptArteSemTexto(
