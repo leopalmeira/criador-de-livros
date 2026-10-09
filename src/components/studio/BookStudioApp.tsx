@@ -543,9 +543,6 @@ export const BookStudioApp: React.FC = () => {
     );
   }
 
-  return null;
-  }
-
   // ============================================================
   // TELA 4: PAINEL ADMINISTRATIVO (APENAS ADMIN)
   // ============================================================
