@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: Book Intel KDP
+    name: BookEngin
     runtime: node
     plan: free
     region: oregon

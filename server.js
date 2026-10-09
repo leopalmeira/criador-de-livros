@@ -45,12 +45,12 @@ if (!fs.existsSync(COVERS_DIR)) {
 function ensureDistExists() {
   const dashFile = path.join(DIST_DIR, 'dashboard.html');
   if (!fs.existsSync(dashFile)) {
-    console.log('[Book Intel KDP] dist/dashboard.html não encontrado. Executando build de produção...');
+    console.log('[BookEngin] dist/dashboard.html não encontrado. Executando build de produção...');
     try {
       execSync('npm run build', { stdio: 'inherit', cwd: __dirname });
-      console.log('[Book Intel KDP] Build de produção concluído com sucesso!');
+      console.log('[BookEngin] Build de produção concluído com sucesso!');
     } catch (err) {
-      console.error('[Book Intel KDP] Erro ao executar build automático:', err.message);
+      console.error('[BookEngin] Erro ao executar build automático:', err.message);
     }
   }
 }
@@ -325,7 +325,7 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, {
       status: 'ok',
       ping: 'pong',
-      service: 'Book Intel KDP',
+      service: 'BookEngin',
       uptime: process.uptime(),
       timestamp: Date.now()
     });
@@ -613,7 +613,7 @@ const server = http.createServer(async (req, res) => {
 
     // Se dashboard.html não existe, tenta compilar na hora
     try {
-      console.log('[Book Intel KDP] dist/dashboard.html ausente na rota SPA. Tentando compilar...');
+      console.log('[BookEngin] dist/dashboard.html ausente na rota SPA. Tentando compilar...');
       execSync('npm run build', { stdio: 'inherit', cwd: __dirname });
       if (fs.existsSync(fallbackFile)) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -621,7 +621,7 @@ const server = http.createServer(async (req, res) => {
         return fs.createReadStream(fallbackFile).pipe(res);
       }
     } catch (err) {
-      console.error('[Book Intel KDP] Erro na compilação SPA:', err.message);
+      console.error('[BookEngin] Erro na compilação SPA:', err.message);
     }
   }
 
@@ -639,7 +639,7 @@ function startKeepAlivePing() {
   const pingUrl = `${externalUrl.replace(/\/$/, '')}/ping`;
   const PING_INTERVAL_MS = 10 * 60 * 1000; // 10 minutos (Render adormece com 15 min de inatividade)
 
-  console.log(`[Book Intel KDP] 🛡️ Keep-Alive Ping ativado: monitorando ${pingUrl} a cada 10 min`);
+  console.log(`[BookEngin] 🛡️ Keep-Alive Ping ativado: monitorando ${pingUrl} a cada 10 min`);
 
   // Primeiro ping após 30 segundos
   setTimeout(() => runPing(pingUrl), 30000);
@@ -651,7 +651,7 @@ function startKeepAlivePing() {
 async function runPing(url) {
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'BookIntel-KeepAlive-Ping/1.0' },
+      headers: { 'User-Agent': 'BookEngin-KeepAlive-Ping/1.0' },
       signal: AbortSignal.timeout(15000)
     });
     console.log(`[Keep-Alive Ping] 🟢 ${new Date().toLocaleTimeString('pt-BR')} - Ping para ${url} [Status ${res.status}]`);
@@ -661,7 +661,7 @@ async function runPing(url) {
 }
 
 server.listen(PORT, HOST, () => {
-  console.log(`[Book Intel KDP] Servidor Node online em http://${HOST}:${PORT}`);
-  console.log(`[Book Intel KDP] Servindo frontend de ${DIST_DIR}`);
+  console.log(`[BookEngin] Servidor Node online em http://${HOST}:${PORT}`);
+  console.log(`[BookEngin] Servindo frontend de ${DIST_DIR}`);
   startKeepAlivePing();
 });

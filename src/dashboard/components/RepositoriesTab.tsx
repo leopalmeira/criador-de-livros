@@ -31,7 +31,7 @@ const INTEGRATED_SCRIPTS: ScriptItem[] = [
     repo: 'wesleyscholl/book-generator',
     category: 'Pesquisa de Mercado',
     description: 'Pesquisa e validação de tópicos de alta demanda e baixa concorrência na Amazon KDP.',
-    integration: 'Integrado nas Pesquisas de Nichos & Demanda do BookIntel',
+    integration: 'Integrado nas Pesquisas de Nichos & Demanda do BookEngin',
     path: 'book-generator/scripts/kdp_topic_finder.sh'
   },
   {
@@ -39,7 +39,7 @@ const INTEGRATED_SCRIPTS: ScriptItem[] = [
     repo: 'wesleyscholl/book-generator',
     category: 'Auditoria & Originalidade',
     description: 'Verificação profunda de originalidade, n-gramas e detecção de padrões repetitivos.',
-    integration: 'Integrado no Quality Gate Editorial do BookIntel',
+    integration: 'Integrado no Quality Gate Editorial do BookEngin',
     path: 'book-generator/scripts/plagiarism_report_manager.sh'
   },
   {
@@ -47,7 +47,7 @@ const INTEGRATED_SCRIPTS: ScriptItem[] = [
     repo: 'wesleyscholl/book-generator',
     category: 'Motores IA',
     description: 'Roteamento inteligente entre múltiplos modelos de IA (Local Ollama, OpenAI, Claude, OpenRouter).',
-    integration: 'Integrado no LocalAiEngine & AiService do BookIntel',
+    integration: 'Integrado no LocalAiEngine & AiService do BookEngin',
     path: 'book-generator/scripts/multi_provider_ai.sh'
   },
   {
@@ -117,7 +117,7 @@ export const RepositoriesTab: React.FC = () => {
               </span>
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#cbd5e1' }}>
-              Os códigos-fonte dos melhores repositórios open-source de publicação KDP estão presentes e integrados diretamente no BookIntel.
+              Os códigos-fonte dos melhores repositórios open-source de publicação KDP estão presentes e integrados diretamente no BookEngin.
             </p>
           </div>
         </div>
@@ -339,7 +339,7 @@ export const RepositoriesTab: React.FC = () => {
                 <th style={{ padding: '12px 14px' }}>Script / Módulo</th>
                 <th style={{ padding: '12px 14px' }}>Repositório de Origem</th>
                 <th style={{ padding: '12px 14px' }}>Categoria</th>
-                <th style={{ padding: '12px 14px' }}>Status de Integração no BookIntel</th>
+                <th style={{ padding: '12px 14px' }}>Status de Integração no BookEngin</th>
                 <th style={{ padding: '12px 14px' }}>Ação</th>
               </tr>
             </thead>
@@ -449,7 +449,7 @@ export const RepositoriesTab: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Como o BookIntel Utiliza:</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Como o BookEngin Utiliza:</div>
               <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5 }}>
                 {selectedScript.integration}. A lógica foi portar diretamente para a stack da extensão com persistência no IndexedDB, oferecendo execução instantânea sem necessidade de terminal ou dependências externas pesadas.
               </p>

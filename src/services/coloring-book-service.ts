@@ -289,7 +289,7 @@ export async function gerarIlustracaoPaginaColorir(
     const capaComposta = await comporCapaComTipografia(rawDataUrl, {
       titulo: coverOptions.titulo,
       subtitulo: coverOptions.subtitulo,
-      autor: coverOptions.autor || 'Book Intel KDP',
+      autor: coverOptions.autor || 'Autor',
       selo: 'EDIÇÃO ESPECIAL PARA COLORIR'
     });
     return capaComposta;
@@ -344,7 +344,7 @@ export async function buildColoringBookPdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(14);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Por ${autor || 'Book Intel KDP'}`, pageWidth / 2, 255, { align: 'center' });
+  doc.text(`Por ${autor || 'Autor'}`, pageWidth / 2, 255, { align: 'center' });
 
   // Linha decorativa
   doc.setDrawColor(203, 213, 225);

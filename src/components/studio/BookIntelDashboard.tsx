@@ -129,8 +129,9 @@ export const BookIntelDashboard: React.FC<Props> = ({
               <BookOpen size={20} color="#ffffff" />
             </div>
             <div className="intel-brand-names">
-              <span className="intel-name-primary">BOOK INTEL</span>
-              <span className="intel-badge-kdp">KDP</span>
+              <span className="intel-name-primary" style={{ fontWeight: 900, letterSpacing: '-0.3px', color: '#ffffff' }}>
+                BookEngin
+              </span>
               <span className="intel-brand-divider">|</span>
               <span className="intel-brand-slogan">{t('nav.slogan')}</span>
             </div>

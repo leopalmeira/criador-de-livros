@@ -1,6 +1,6 @@
 // ================================================================
 // TIMELINE DE ÁUDIO VISUAL — MULTI-TRACK AUDIO EDITOR
-// Book Intel KDP — Trilhas: VOICE | AMBIENTE | SFX
+// BookEngin — Trilhas: VOICE | AMBIENTE | SFX
 // ================================================================
 
 import React, { useState, useEffect, useRef } from 'react';

@@ -1,7 +1,7 @@
 {
   "name": "criador-de-livros",
   "version": "1.0.0",
-  "description": "Book Intel KDP - Plataforma Editorial e Inteligência de Mercado para Amazon KDP",
+  "description": "BookEngin - Plataforma Editorial e Inteligência de Mercado para Amazon KDP, Google Play Books e Apple Books",
   "main": "server.js",
   "scripts": {
     "dev": "vite",

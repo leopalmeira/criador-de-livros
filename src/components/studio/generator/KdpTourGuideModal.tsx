@@ -1,5 +1,5 @@
 // ================================================================
-// TOUR GUIADO & GUIA DE FUNÇÕES — BOOK INTEL KDP PRO
+// TOUR GUIADO & GUIA DE FUNÇÕES — BOOKENGIN
 // Explicação passo a passo e mapa completo de cada botão e função
 // ================================================================
 
@@ -42,7 +42,7 @@ export const KdpTourGuideModal: React.FC<KdpTourGuideModalProps> = ({
     {
       title: '1. Tema Central & Gênero Literário',
       badge: 'ETAPA INICIAL OBRIGATÓRIA',
-      description: 'O tema define o nicho exato da obra e calibra todo o vocabulário, estrutura narrativa e referências de mercado que o motor IA do Book Intel irá utilizar.',
+      description: 'O tema define o nicho exato da obra e calibra todo o vocabulário, estrutura narrativa e referências de mercado que o motor IA do BookEngin irá utilizar.',
       buttonHighlights: [
         {
           name: 'Tema Central do Livro (60 Opções)',
@@ -250,7 +250,7 @@ export const KdpTourGuideModal: React.FC<KdpTourGuideModalProps> = ({
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
-                Tour Guiado & Guia das Funções do Book Intel
+                Tour Guiado & Guia das Funções do BookEngin
               </h3>
               <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8' }}>
                 Entenda exatamente o que faz cada botão e como validar o seu livro
@@ -408,7 +408,7 @@ export const KdpTourGuideModal: React.FC<KdpTourGuideModalProps> = ({
                 color: '#1e40af',
                 lineHeight: 1.5
               }}>
-                <strong>Guia Geral de Navegação:</strong> Aqui você pode consultar rapidamente o significado e impacto de cada botão da interface do Book Intel KDP Pro.
+                <strong>Guia Geral de Navegação:</strong> Aqui você pode consultar rapidamente o significado e impacto de cada botão da interface do BookEngin.
               </div>
 
               {tourSteps.map((step, sIdx) => (

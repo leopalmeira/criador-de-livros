@@ -564,7 +564,7 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
       conteudo += `                por ${book.author}\n\n\n`;
       conteudo += `FICHA EDITORIAL:\n`;
       conteudo += `Edição: 1ª Edição Digital & Impressa Amazon KDP\n`;
-      conteudo += `Plataforma: Book Intel KDP v1.0\n`;
+      conteudo += `Plataforma: BookEngin v1.0\n`;
       conteudo += `Diagramação: Padrão Oficial Amazon KDP\n\n`;
       conteudo += `--------------------------------------------------------------------------------\n`;
       conteudo += `SUMÁRIO\n`;
@@ -1877,7 +1877,7 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
             id: selectedBookForKdpPublish.projectId || selectedBookForKdpPublish.id,
             title: selectedBookForKdpPublish.title || 'Livro KDP',
             subtitle: selectedBookForKdpPublish.subtitle,
-            author: selectedBookForKdpPublish.author || 'Autor Book Intel',
+            author: selectedBookForKdpPublish.author || 'Autor',
             capitulos: selectedBookForKdpPublish.chapters || [],
             coverUrl: selectedBookForKdpPublish.coverDataUrl || null,
             trimSize: selectedBookForKdpPublish.trimSize || '6x9'

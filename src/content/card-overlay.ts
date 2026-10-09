@@ -36,7 +36,7 @@ export class CardOverlay {
     overlay.innerHTML = `
       <div class="bookintel-header-row">
         <div class="bookintel-brand-tag">
-          <span>⚡ BookIntel</span>
+          <span>⚡ BookEngin</span>
           <span class="bookintel-badge bookintel-badge-obs">OBSERVADO</span>
         </div>
         <div class="bookintel-tooltip-wrapper">

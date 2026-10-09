@@ -69,7 +69,7 @@ export const DISTRIBUTION_PLATFORMS: Record<DistributionPlatformId, Distribution
     instructions: [
       '1. Acesse o Apple Books for Authors usando seu Apple ID.',
       '2. Selecione Publicar Audiobook.',
-      '3. Utilize os metadados gerados pelo Book Intel em /METADATA/metadata.json.',
+      '3. Utilize os metadados gerados pelo BookEngin em /METADATA/metadata.json.',
       '4. Carregue os arquivos de áudio correspondentes a cada capítulo.'
     ]
   },
@@ -283,7 +283,7 @@ export function generateNotebookLmPackage(
   const instructionsContent = `GUIA PASSO A PASSO PARA O NOTEBOOKLM (GOOGLE AI)
 ==================================================
 
-O Book Intel KDP preparou todo o manuscrito estruturado para você utilizar a tecnologia de síntese e visão geral de áudio do NotebookLM do Google.
+O BookEngin preparou todo o manuscrito estruturado para você utilizar a tecnologia de síntese e visão geral de áudio do NotebookLM do Google.
 
 PASSO 1: ACESSAR O NOTEBOOKLM
 Acesse: https://notebooklm.google.com/
@@ -295,7 +295,7 @@ PASSO 2: CRIAR NOVO NOTEBOOK
 
 PASSO 3: IMPORTAR O ROTEIRO
 1. No menu de Fontes (Sources), clique em "Adicionar Fonte".
-2. Selecione "Carregar Arquivo" (Upload File) e anexe o arquivo "roteiro-audiobook-notebooklm.md" que o Book Intel gerou para você.
+2. Selecione "Carregar Arquivo" (Upload File) e anexe o arquivo "roteiro-audiobook-notebooklm.md" que o BookEngin gerou para você.
 3. O NotebookLM processará o texto e identificará toda a estrutura de capítulos.
 
 PASSO 4: GERAR ÁUDIO (DEEP DIVE / PODCAST)
@@ -305,7 +305,7 @@ PASSO 4: GERAR ÁUDIO (DEEP DIVE / PODCAST)
 
 PASSO 5: BAIXAR E VINCULAR
 1. Quando a geração terminar, clique nos três pontinhos (...) ao lado do áudio e selecione "Fazer Download".
-2. Volte ao Audiobook Studio do Book Intel KDP e importe o áudio no capítulo correspondente ou pacote final.
+2. Volte ao Audiobook Studio do BookEngin e importe o áudio no capítulo correspondente ou pacote final.
 `;
 
   return {
@@ -443,7 +443,7 @@ export async function buildPublicationPackageZip(
     totalDurationEstimatedSeconds: chapters.reduce((s, c) => s + (c.durationSeconds || 0), 0),
     platformsTargeted: selectedPlatforms,
     exportedAt: new Date().toISOString(),
-    generator: 'Book Intel KDP — AI Publishing Studio'
+    generator: 'BookEngin — AI Publishing Studio'
   };
   metadataFolder?.file('metadata.json', JSON.stringify(metadataObj, null, 2));
 
@@ -466,7 +466,7 @@ Autor: ${config.author}
 Narrador: ${config.narrator}
 
 DESCRIÇÃO DO AUDIOBOOK:
-Uma experiência imersiva em áudio produzida pelo Book Intel Studio.
+Uma experiência imersiva em áudio produzida pelo BookEngin Studio.
 Ouça os ensinamentos, histórias e conceitos em alta resolução com dicção e cadência profissionais.
 
 ESTRUTURA DE FAIXAS:
@@ -492,7 +492,7 @@ REQUISITOS TÉCNICOS:
 PASSO A PASSO RECOMENDADO:
 ${plat.instructions.join('\n')}
 
-IMPORTANTE: O Book Intel KDP organiza todos os arquivos, metadados e áudios de acordo com os padrões técnicos do ${plat.shortName}. A submissão final deve ser realizada através do canal oficial citado acima.
+IMPORTANTE: O BookEngin organiza todos os arquivos, metadados e áudios de acordo com os padrões técnicos do ${plat.shortName}. A submissão final deve ser realizada através do canal oficial citado acima.
 `;
     publicationFolder?.file(`${platId}-info.txt`, platInfoText);
   });

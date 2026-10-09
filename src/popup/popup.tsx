@@ -178,7 +178,7 @@ export const PopupApp: React.FC = () => {
           <span style={{ fontSize: '18px' }}>⚡</span>
           <div>
             <div style={{ fontWeight: 900, fontSize: '14px', letterSpacing: '-0.3px', color: '#ffffff' }}>
-              BookIntel Pro
+              BookEngin Pro
             </div>
             <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>
               KDP Market Intelligence
@@ -495,7 +495,7 @@ export const PopupApp: React.FC = () => {
                 Abra a Amazon para Monitorar
               </h3>
               <p style={{ margin: '0 0 16px 0', fontSize: '11px', color: '#94a3b8', lineHeight: 1.5 }}>
-                O BookIntel monitora automaticamente BSR, faturamento, royalties e concorrência enquanto você navega. Escolha uma loja:
+                O BookEngin monitora automaticamente BSR, faturamento, royalties e concorrência enquanto você navega. Escolha uma loja:
               </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
@@ -606,7 +606,7 @@ export const PopupApp: React.FC = () => {
           📊 Abrir Plataforma Editorial & Dashboard Completo ➔
         </button>
         <div style={{ textAlign: 'center', fontSize: '10px', color: '#64748b', marginTop: '8px' }}>
-          BookIntel Enterprise v1.0 • 100% Local • KDP Ready
+          BookEngin Enterprise v1.0 • 100% Local • KDP Ready
         </div>
       </div>
     </div>

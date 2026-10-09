@@ -1,6 +1,6 @@
 // ================================================================
 // AUDIO MIXER & MASTERIZAÇÃO — MULTI-TRACK COM AUTO-DUCKING
-// Book Intel KDP — Estúdio Profissional de Mixagem e Normalização
+// BookEngin — Estúdio Profissional de Mixagem e Normalização
 // ================================================================
 
 import { SoundTimelineEvent } from '../../types/audiobook-studio';

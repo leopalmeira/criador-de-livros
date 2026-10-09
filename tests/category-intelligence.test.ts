@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { CategoryIntelligenceService } from '../src/services/category-intelligence-service';
 import { db } from '../src/database/local-database';
 
-describe('BOOK INTEL KDP — Inteligência Comercial por Gênero (CategoryIntelligenceService)', () => {
+describe('BookEngin — Inteligência Comercial por Gênero (CategoryIntelligenceService)', () => {
   it('deve listar a hierarquia de gêneros e categorias', () => {
     const genres = CategoryIntelligenceService.getGenreHierarchy();
     expect(genres.length).toBeGreaterThan(0);

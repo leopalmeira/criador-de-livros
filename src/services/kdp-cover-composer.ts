@@ -201,7 +201,7 @@ export async function comporCapaComTipografia(
         }
 
         // 8. Nome do Autor no Rodapé (Espaço reservado exclusivo)
-        const autorText = (options.autor ? `POR ${options.autor}` : 'BOOK INTEL KDP').toUpperCase();
+        const autorText = (options.autor ? `POR ${options.autor}` : 'AUTOR').toUpperCase();
         ctx.font = '700 44px "Trebuchet MS", sans-serif';
         ctx.letterSpacing = '8px';
         ctx.fillStyle = '#ffffff';

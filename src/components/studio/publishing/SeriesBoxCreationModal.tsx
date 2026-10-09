@@ -1,6 +1,6 @@
 // ================================================================
 // MODAL: CRIAR BOX / TRILOGIA (SÉRIE COMPLETA KDP)
-// Book Intel KDP — Box Set de 3 Livros, Metadados de Coleção e Sinopse Unificada
+// BookEngin — Box Set de 3 Livros, Metadados de Coleção e Sinopse Unificada
 // ================================================================
 
 import React, { useState } from 'react';
@@ -27,7 +27,7 @@ export const SeriesBoxCreationModal: React.FC<SeriesBoxCreationModalProps> = ({
   const [boxTitle, setBoxTitle] = useState(`BOX TRILOGIA: ${cleanTitle} (Edição Completa • Volumes 1 a 3)`);
   const [seriesName, setSeriesName] = useState(`Saga ${cleanTitle}`);
   const [boxSubtitle, setBoxSubtitle] = useState('A Trilogia Completa de Investigação e Suspense em um Único Volume Oficial KDP');
-  const [authorName, setAuthorName] = useState(baseBook.author || 'Autor Book Intel');
+  const [authorName, setAuthorName] = useState(baseBook.author || 'Autor');
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([baseBook.id]);
   const [isExportingBox, setIsExportingBox] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);

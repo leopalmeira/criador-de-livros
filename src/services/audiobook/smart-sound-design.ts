@@ -1,6 +1,6 @@
 // ================================================================
 // 🎬 SMART SOUND DESIGN — ANÁLISE SEMÂNTICA CONTEXTUAL
-// Book Intel KDP — Interpretação Literária & Geração de Timeline
+// BookEngin — Interpretação Literária & Geração de Timeline
 // ================================================================
 
 import {

@@ -1,6 +1,6 @@
 // ================================================================
 // TIPOS DO AUDIOBOOK STUDIO & MOTOR DE VOZ KOKORO TTS
-// Book Intel KDP — AI Publishing Studio & Smart Sound Design
+// BookEngin — AI Publishing Studio & Smart Sound Design
 // ================================================================
 
 export type VoiceGender = 'masculino' | 'feminino';

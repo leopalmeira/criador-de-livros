@@ -1,11 +1,10 @@
 // ============================================================================
-// BOOK INTEL KDP — LANDING PAGE OFICIAL DE DIVULGAÇÃO & ACESSO EDITORIAL
-// Substitui a antiga tela de login simples pela página completa de apresentação.
+// BOOKENGIN — LANDING PAGE OFICIAL DE DIVULGAÇÃO & ACESSO EDITORIAL
 // Layout idêntico à identidade visual oficial da plataforma:
 // - Design Dark Neon com glow azul/ciano
 // - Seletor de Idiomas (Português, English, Español) com troca em tempo real
 // - Grid de 6 Recursos da Plataforma
-// - Box de Preço e Crédito: Cadastro Gratuito + US$ 3 por livro gerado
+// - Box de Preço e Assinatura: US$ 25 por mês para até 15 livros
 // - Mockups 3D de Livros de alta qualidade KDP (Thriller, Livro de Colorir, Sudoku)
 // - Card Integrado de Login & Cadastro Gratuito
 // ============================================================================
@@ -34,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useTranslation, SupportedLanguage } from '../../../services/i18n-service';
 import { AuthApiError, authClient } from '../../../services/auth-client';
+import { formatPlatformPrice, replacePlatformPrice } from '../../../services/market-region';
 import './login-page.css';
 
 interface Props {
@@ -41,7 +41,8 @@ interface Props {
 }
 
 export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
-  const { t, currentLang, setLanguage } = useTranslation();
+  const { t, currentLang, setLanguage, isBrazil } = useTranslation();
+  const subscriptionPrice = formatPlatformPrice(25, isBrazil);
 
   // Estados de formulário
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
@@ -189,7 +190,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
           flexWrap: 'wrap',
           gap: 16
         }} className="login-page__header-inner">
-          {/* LOGO BOOK INTEL KDP */}
+          {/* LOGO BOOKENGIN */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 42,
@@ -205,11 +206,8 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.3px', color: '#ffffff' }}>
-                  BOOK INTEL
-                </span>
-                <span style={{ fontSize: 18, fontWeight: 900, color: '#38bdf8' }}>
-                  KDP
+                <span style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.3px', color: '#ffffff' }}>
+                  BookEngin
                 </span>
               </div>
               <div style={{ fontSize: 11, color: '#94a3b8', letterSpacing: '0.2px' }}>
@@ -233,7 +231,8 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               {t('nav.language')}:
             </span>
 
-            {/* PORTUGUÊS */}
+            {/* Brasil mantém a escolha de idioma; fora do Brasil, o site fica em inglês. */}
+            {isBrazil && <>
             <button
               type="button"
               onClick={() => setLanguage('pt-BR')}
@@ -255,6 +254,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             >
               <span>🇧🇷</span> Português
             </button>
+            </>}
 
             {/* ENGLISH */}
             <button
@@ -279,6 +279,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <span>🇺🇸</span> English
             </button>
 
+            {isBrazil && <>
             {/* ESPAÑOL */}
             <button
               type="button"
@@ -301,6 +302,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             >
               <span>🇪🇸</span> Español
             </button>
+            </>}
           </div>
 
           {/* SLOGAN & CTA SUPERIOR */}
@@ -360,7 +362,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
             {/* SUBTÍTULO DESCRITIVO */}
             <p style={{
-              margin: '0 0 24px 0',
+              margin: '0 0 18px 0',
               fontSize: 14,
               lineHeight: 1.6,
               color: '#94a3b8',
@@ -368,6 +370,32 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             }}>
               {t('landing.heroDesc')}
             </p>
+
+            {/* PLATAFORMAS HOMOLOGADAS DE PUBLICAÇÃO */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 8,
+              marginBottom: 22,
+              padding: '8px 12px',
+              borderRadius: 10,
+              background: 'rgba(15, 23, 42, 0.6)',
+              border: '1px solid rgba(56, 189, 248, 0.25)'
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                {currentLang === 'pt-BR' ? 'Plataformas:' : currentLang === 'es-ES' ? 'Plataformas:' : 'Platforms:'}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.35)', color: '#fbbf24', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 800 }}>
+                Amazon KDP
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.35)', color: '#38bdf8', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 800 }}>
+                Google Play Books
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.35)', color: '#c084fc', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 800 }}>
+                Apple Books
+              </span>
+            </div>
 
             {/* GRID DE 6 RECURSOS DA PLATAFORMA */}
             <div style={{
@@ -595,7 +623,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: 32, fontWeight: 900, color: '#38bdf8', letterSpacing: '-0.5px' }}>
-                      {t('landing.pricingPrice')}
+                      {subscriptionPrice}
                     </span>
                     <span style={{ fontSize: 13, color: '#cbd5e1', fontWeight: 600 }}>
                       {t('landing.pricingPeriod')}
@@ -660,7 +688,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   {t('landing.pricingImpact')}
                 </div>
                 <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                  {t('landing.pricingCallout')}
+                  {replacePlatformPrice(t('landing.pricingCallout'), subscriptionPrice)}
                 </div>
               </div>
             </div>
@@ -908,8 +936,8 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               }}>
                 <BookOpen size={26} color="#ffffff" />
               </div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#ffffff' }}>
-                BOOK INTEL <span style={{ color: '#38bdf8' }}>KDP</span>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.3px' }}>
+                BookEngin
               </h2>
               <p style={{ margin: '6px 0 0 0', fontSize: 12, color: '#94a3b8', lineHeight: 1.4 }}>
                 {t('landing.authSubtitle')}
@@ -1303,7 +1331,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   gap: 6
                 }}>
                   <CheckCircle2 size={14} color="#38bdf8" />
-                  <span>{t('landing.subscriptionNotice')}</span>
+                  <span>{replacePlatformPrice(t('landing.subscriptionNotice'), subscriptionPrice)}</span>
                 </div>
 
                 {/* Botão de Concluir Cadastro */}
@@ -1369,6 +1397,11 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
         color: '#64748b'
       }}>
         {t('landing.footerCopyright')}
+        <div style={{ marginTop: 8, fontSize: 10 }}>
+          {currentLang === 'pt-BR'
+            ? 'País detectado aproximadamente pelo endereço IP para definir idioma e moeda. A consulta usa ipapi.co.'
+            : 'Country is estimated from your IP address to select language and currency. Lookup provided by ipapi.co.'}
+        </div>
       </footer>
     </div>
   );

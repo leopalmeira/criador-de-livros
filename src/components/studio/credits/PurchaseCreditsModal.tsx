@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { X, Sparkles, CreditCard, ShieldCheck, CheckCircle2, Zap, BookOpen } from 'lucide-react';
 import { useBookCredits, CREDIT_PACKAGES, CreditPackage, BOOK_CREDIT_PRICE_USD, KdpCreditsService } from '../../../services/kdp-credits-service';
 import { useTranslation } from '../../../services/i18n-service';
+import { formatPlatformPrice } from '../../../services/market-region';
 
 interface Props {
   isOpen: boolean;
@@ -16,8 +17,15 @@ interface Props {
 
 export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, motivo }) => {
   const { balance, purchaseCredits } = useBookCredits();
-  const { t, currentLang } = useTranslation();
-  const [pacoteSelecionado, setPacoteSelecionado] = useState<CreditPackage>(CREDIT_PACKAGES[0]); // Default Assinatura 49.90
+  const { t, currentLang, isBrazil } = useTranslation();
+  const subscriptionPrice = formatPlatformPrice(25, isBrazil);
+  const ui = (portuguese: string, english: string) => currentLang === 'pt-BR' ? portuguese : english;
+  const packageName = (pkg: CreditPackage) => {
+    if (currentLang === 'pt-BR') return pkg.name;
+    if (pkg.id === 'subscription_monthly') return 'BookEngin Subscription (Up to 15 Books)';
+    return `${pkg.booksCount} ${pkg.booksCount === 1 ? 'Book' : 'Books'}`;
+  };
+  const [pacoteSelecionado, setPacoteSelecionado] = useState<CreditPackage>(CREDIT_PACKAGES[0]); // Default Assinatura US$ 25
   const [processando, setProcessando] = useState(false);
   const [sucessoMsg, setSucessoMsg] = useState(false);
 
@@ -27,8 +35,8 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
     setProcessando(true);
     setTimeout(() => {
       if (pacoteSelecionado.id === 'subscription_monthly') {
-        KdpCreditsService.activateSubscription('Assinatura Mensal KDP - Acesso Ilimitado');
-        purchaseCredits(99, 'Ativação de Assinatura Mensal 49,90');
+        KdpCreditsService.activateSubscription('Assinatura Mensal BookEngin - Até 15 Livros/mês');
+        purchaseCredits(15, 'Ativação de Assinatura Mensal US$ 25');
       } else {
         purchaseCredits(pacoteSelecionado.booksCount, `Compra de pacote: ${pacoteSelecionado.name}`);
       }
@@ -92,10 +100,10 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#ffffff' }}>
-                Assinatura Editorial & Créditos KDP
+                {ui('Assinatura Editorial & Créditos KDP', 'Editorial Subscription & KDP Credits')}
               </h3>
               <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#94a3b8' }}>
-                Assinatura completa por apenas 49,90 (R$, US$ ou €) • Acesso Ilimitado
+                {ui(`Assinatura completa por apenas ${subscriptionPrice}/mês • Acesso Ilimitado`, `Full subscription for ${subscriptionPrice}/month • Unlimited Access`)}
               </p>
             </div>
           </div>
@@ -149,7 +157,7 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             marginBottom: 22,
             border: '1px solid rgba(255, 255, 255, 0.08)'
           }}>
-            <span style={{ fontSize: 13, color: '#94a3b8' }}>Seu saldo de créditos atual:</span>
+            <span style={{ fontSize: 13, color: '#94a3b8' }}>{ui('Seu saldo de créditos atual:', 'Your current credit balance:')}</span>
             <span style={{
               fontSize: 15,
               fontWeight: 800,
@@ -158,12 +166,12 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               alignItems: 'center',
               gap: 6
             }}>
-              <BookOpen size={16} /> {balance} {balance === 1 ? 'Livro' : 'Livros'} ({balance * BOOK_CREDIT_PRICE_USD} USD)
+              <BookOpen size={16} /> {balance} {balance === 1 ? ui('Livro', 'Book') : ui('Livros', 'Books')} ({balance * BOOK_CREDIT_PRICE_USD} USD)
             </span>
           </div>
 
           <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#cbd5e1', marginBottom: 12 }}>
-            Selecione o pacote de créditos desejado:
+            {ui('Selecione o pacote de créditos desejado:', 'Choose a credit package:')}
           </label>
 
           {/* LISTA DE PACOTES */}
@@ -198,19 +206,19 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                       borderRadius: 12,
                       textTransform: 'uppercase'
                     }}>
-                      Mais Escolhido
+                      {ui('Mais Escolhido', 'Most Popular')}
                     </div>
                   )}
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{pkg.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{packageName(pkg)}</span>
                     {isSelected && <CheckCircle2 size={16} color="#38bdf8" />}
                   </div>
 
                   <div style={{ fontSize: 20, fontWeight: 900, color: '#38bdf8' }}>
                     {pkg.id === 'subscription_monthly' ? (
                       <>
-                        {currentLang === 'pt-BR' ? 'R$ 49,90' : currentLang === 'es-ES' ? '49,90 €' : 'US$ 49.90'}
+                        {subscriptionPrice}
                         <span style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600, marginLeft: 4 }}>
                           {currentLang === 'pt-BR' ? '/ mês' : currentLang === 'es-ES' ? '/ mes' : '/ mo'}
                         </span>
@@ -247,7 +255,7 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               gap: 8
             }}>
               <CheckCircle2 size={18} />
-              Assinatura ativada com sucesso! Liberando acesso ilimitado...
+              {ui('Assinatura ativada com sucesso! Liberando acesso ilimitado...', 'Subscription activated! Unlocking unlimited access...')}
             </div>
           ) : (
             <button
@@ -272,7 +280,11 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               }}
             >
               <CreditCard size={18} />
-              {processando ? 'Processando...' : pacoteSelecionado.id === 'subscription_monthly' ? `Ativar Assinatura Ilimitada (${currentLang === 'pt-BR' ? 'R$ 49,90/mês' : currentLang === 'es-ES' ? '49,90 €/mes' : 'US$ 49.90/mo'})` : `Adicionar ${pacoteSelecionado.booksCount} Livros por US$ ${pacoteSelecionado.priceUsd.toFixed(2)}`}
+              {processando
+                ? ui('Processando...', 'Processing...')
+                : pacoteSelecionado.id === 'subscription_monthly'
+                  ? ui(`Ativar Assinatura Ilimitada (${subscriptionPrice}/mês)`, `Activate Unlimited Subscription (${subscriptionPrice}/month)`)
+                  : ui(`Adicionar ${pacoteSelecionado.booksCount} Livros por US$ ${pacoteSelecionado.priceUsd.toFixed(2)}`, `Add ${pacoteSelecionado.booksCount} Books for US$ ${pacoteSelecionado.priceUsd.toFixed(2)}`)}
             </button>
           )}
 
@@ -287,7 +299,7 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             color: '#64748b'
           }}>
             <ShieldCheck size={14} color="#10b981" />
-            <span>Sem mensalidade fixa • Seus créditos nunca expiram • Uso instantâneo</span>
+            <span>{ui('Sem mensalidade fixa • Seus créditos nunca expiram • Uso instantâneo', 'No fixed monthly fee • Credits never expire • Instant access')}</span>
           </div>
         </div>
       </div>

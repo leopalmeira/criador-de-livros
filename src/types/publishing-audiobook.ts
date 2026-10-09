@@ -1,6 +1,6 @@
 // ================================================================
 // TIPOS DO ECOSSISTEMA DE AUDIOBOOK & PUBLICAÇÃO MULTIPLATAFORMA
-// Book Intel KDP — AI Publishing Studio (1 Conteúdo → Vários Formatos)
+// BookEngin — AI Publishing Studio (1 Conteúdo → Vários Formatos)
 // ================================================================
 
 export type AudiobookNarrationMethod = 'notebooklm' | 'ai-tts' | 'human-upload';

@@ -56,8 +56,269 @@ import { sanitizarOrtografiaEditorialCapa } from '../../../services/kdp-orthogra
 import { useBookCredits } from '../../../services/kdp-credits-service';
 import { PurchaseCreditsModal } from '../credits/PurchaseCreditsModal';
 import { PlannerBookStudio } from '../planner/PlannerBookStudio';
+import { useTranslation } from '../../../services/i18n-service';
 
 const newProjectId = () => newId('prj_');
+
+const ENGLISH_THEME_LABELS: Record<string, string> = {
+  'Mistério': 'Mystery',
+  'Investigação criminal': 'Crime Investigation',
+  'Thriller psicológico': 'Psychological Thriller',
+  'Suspense': 'Suspense',
+  'Romance': 'Romance',
+  'Romance contemporâneo': 'Contemporary Romance',
+  'Romance histórico': 'Historical Romance',
+  'Fantasia': 'Fantasy',
+  'Ficção científica': 'Science Fiction',
+  'Terror': 'Horror',
+  'Horror psicológico': 'Psychological Horror',
+  'Aventura': 'Adventure',
+  'Drama': 'Drama',
+  'Não ficção': 'Nonfiction',
+  'Biografia': 'Biography',
+  'Memórias': 'Memoir',
+  'Autoajuda': 'Self-Help',
+  'Desenvolvimento pessoal': 'Personal Development',
+  'Produtividade': 'Productivity',
+  'Finanças pessoais': 'Personal Finance',
+  'Investimentos': 'Investing',
+  'Negócios': 'Business',
+  'Empreendedorismo': 'Entrepreneurship',
+  'Marketing': 'Marketing',
+  'Liderança': 'Leadership',
+  'Educação': 'Education',
+  'História': 'History',
+  'Filosofia': 'Philosophy',
+  'Psicologia': 'Psychology',
+  'Saúde e bem-estar': 'Health & Wellness',
+  'Espiritualidade': 'Spirituality',
+  'Religião': 'Religion',
+  'Crianças': 'Children',
+  'Educação infantil': 'Early Childhood Education',
+  'Literatura infantil': 'Children’s Literature',
+  'Histórias infantis ilustradas': 'Illustrated Children’s Stories',
+  'Livros para colorir': 'Coloring Books',
+  'Atividades infantis': 'Kids’ Activity Books',
+  'Labirintos': 'Mazes',
+  'Caça-palavras': 'Word Search',
+  'Sudoku': 'Sudoku',
+  'Jogos de lógica': 'Logic Puzzles',
+  'Casos criminais fictícios': 'Fictional Crime Cases',
+  'Investigação interativa': 'Interactive Mystery',
+  'Enigmas': 'Riddles',
+  'Quebra-cabeças': 'Puzzles',
+  'Humor': 'Humor',
+  'Culinária': 'Cooking',
+  'Viagem': 'Travel',
+  'Natureza': 'Nature',
+  'Animais': 'Animals',
+  'Tecnologia': 'Technology',
+  'Inteligência Artificial': 'Artificial Intelligence',
+  'Programação': 'Programming',
+  'História real': 'True Stories',
+  'Clássicos e domínio público': 'Classics & Public Domain',
+  'Guias práticos': 'Practical Guides',
+  'Manuais': 'Manuals',
+  'Educação financeira infantil': 'Financial Education for Kids',
+  'Aventuras infantis': 'Kids’ Adventures',
+  'Contos': 'Short Stories',
+  'Ficção policial': 'Crime Fiction',
+  'Ficção histórica': 'Historical Fiction',
+  'Romance histórico': 'Historical Romance',
+  'Horror psicológico': 'Psychological Horror',
+  'Memórias': 'Memoir',
+  'Finanças pessoais': 'Personal Finance',
+  'Saúde e bem-estar': 'Health & Wellness',
+  'Histórias infantis ilustradas': 'Illustrated Children’s Stories',
+  'Livros para colorir': 'Coloring Books',
+  'História real': 'True Stories',
+  'Clássicos e domínio público': 'Classics & Public Domain',
+  'Educação financeira infantil': 'Financial Education for Kids',
+  'Ficção policial': 'Crime Fiction',
+  'Autoconfiança': 'Self-confidence',
+  'Amor à distância': 'Long-distance love',
+  'Brasil colonial': 'Colonial Brazil',
+  'Magia e academias': 'Magic and academies',
+  'Reinos em guerra': 'Kingdoms at war',
+  'Pós-apocalipse': 'Post-apocalypse',
+  'Perseguição': 'Pursuit',
+  'Obsessão': 'Obsession',
+  'Cold case': 'Cold case',
+  'Século XIX': '19th century',
+  'Fábulas': 'Fables',
+  'Histórias de bichos': 'Animal stories',
+  'Amizade e emoções': 'Friendship and emotions',
+  'Mandalas': 'Mandalas',
+  'Recorte e colagem': 'Cut and paste',
+  'Ligue os pontos': 'Connect the dots',
+  'Desenho guiado': 'Guided drawing',
+  'Coordenação motora': 'Motor skills',
+  'Temáticos': 'Themed',
+  'Infantil': 'Children',
+  'Adulto': 'Adult',
+  'Letras grandes': 'Large print',
+  'Raciocínio': 'Reasoning',
+  'Padrões': 'Patterns',
+  'Sequências': 'Sequences',
+  'Desafios mentais': 'Brain teasers',
+  'Casos curtos': 'Short cases',
+  'Júri': 'Jury',
+  'Detetive leitor': 'Reader as detective',
+  'Cifras': 'Ciphers',
+  'Mistérios curtos': 'Short mysteries',
+  'Lógicos': 'Logic puzzles',
+  'Visuais': 'Visual puzzles',
+  'Numéricos': 'Number puzzles',
+  'Crônicas': 'Essays',
+  'Piadas': 'Jokes',
+  'Sátira': 'Satire',
+  'Situações do dia a dia': 'Everyday situations',
+  'Doces': 'Desserts',
+  'Saudável': 'Healthy cooking',
+  'Cozinha regional': 'Regional cuisine',
+  'Mochilão': 'Backpacking',
+  'Relatos': 'Travel stories',
+  'Observação de aves': 'Birdwatching',
+  'Sustentabilidade': 'Sustainability',
+  'Ecossistemas': 'Ecosystems',
+  'Pets': 'Pets',
+  'Fauna brasileira': 'Brazilian wildlife',
+  'Adestramento': 'Pet training',
+  'Curiosidades': 'Fun facts',
+  'Gadgets': 'Gadgets',
+  'Internet': 'Internet',
+  'Futuro digital': 'Digital future',
+  'IA no trabalho': 'AI at work',
+  'Prompts': 'Prompts',
+  'Ética em IA': 'AI ethics',
+  'IA para iniciantes': 'AI for beginners',
+  'Lógica de programação': 'Programming logic',
+  'Carreira dev': 'Software development career',
+  'Grandes eventos': 'Major events',
+  'Expedições': 'Expeditions',
+  'Sobrevivência real': 'Real-life survival',
+  'Edição comentada': 'Annotated edition',
+  'Antologia': 'Anthology',
+  'Adaptação': 'Adaptation',
+  'Erros comuns': 'Common mistakes',
+  'Técnicos': 'Technical',
+  'Do usuário': 'User guide',
+  'Procedimentos': 'Procedures',
+  'Referência rápida': 'Quick reference',
+  'Mesada': 'Allowance',
+  'Economizar': 'Saving money',
+  'Valor do trabalho': 'The value of work',
+  'Doar e dividir': 'Giving and sharing',
+  'Exploradores': 'Explorers',
+  'Mundo mágico': 'Magical world',
+  'Animais falantes': 'Talking animals',
+  'Missões': 'Missions',
+  'Realismo mágico': 'Magical realism',
+  'Noir': 'Noir',
+  'Whodunit': 'Whodunit',
+  'Delegacia': 'Police station',
+  'Antiguidade': 'Ancient history',
+  'Renascimento': 'Renaissance',
+  'Revoluções': 'Revolutions',
+  'Guerras': 'Wars',
+  'Personalidade histórica': 'Historical figure',
+  'Sair das dívidas': 'Getting out of debt',
+  'Orçamento': 'Budgeting',
+  'Aposentadoria': 'Retirement',
+  'Renda fixa': 'Fixed-income investing',
+  'Ações': 'Stocks',
+  'Fundos imobiliários': 'Real estate funds',
+  'Primeiro negócio': 'First business',
+  'Startups': 'Startups',
+  'Renda extra': 'Extra income',
+  'Copywriting': 'Copywriting',
+  'Tráfego pago': 'Paid advertising',
+  'Equipes remotas': 'Remote teams',
+  'Comunicação': 'Communication',
+  'Primeiro cargo de gestão': 'First management role',
+  'Cultura': 'Culture',
+  'Professores': 'Teachers',
+  'Concursos': 'Competitive exams',
+  'Idade Média': 'Middle Ages',
+  'Guerras mundiais': 'World wars',
+  'Civilizações antigas': 'Ancient civilizations',
+  'Estoicismo': 'Stoicism',
+  'Ética': 'Ethics',
+  'Filosofia do cotidiano': 'Everyday philosophy',
+  'Existencialismo': 'Existentialism',
+  'Comportamento': 'Behavior',
+  'Inteligência emocional': 'Emotional intelligence',
+  'Alimentação': 'Nutrition',
+  'Exercícios': 'Exercise',
+  'Autoconhecimento': 'Self-awareness',
+  'Gratidão': 'Gratitude',
+  'Devocional': 'Devotional',
+  'História das religiões': 'History of religions',
+  'Vida de fé': 'Faith',
+  'Imigração': 'Immigration',
+  'Carreira': 'Career',
+  'Superação pessoal': 'Personal growth',
+  'Hábitos': 'Habits',
+  'Mentalidade': 'Mindset',
+  'Propósito de vida': 'Life purpose',
+  'Rotinas': 'Routines',
+  'Organização digital': 'Digital organization',
+  'Fundos imobiliários': 'Real estate funds',
+  'Vendas': 'Sales',
+  'Estratégia': 'Strategy',
+  'Gestão': 'Management',
+  'Foco': 'Focus',
+  'Iniciante': 'Beginner',
+  'Intermediário': 'Intermediate',
+  'Avançado': 'Advanced',
+  'Brasil': 'Brazil',
+  'Médio': 'Medium',
+  'Difícil': 'Hard',
+  'Fácil': 'Easy'
+};
+
+const ENGLISH_SUBTHEMES: Record<string, string> = {
+  'Cidade pequena': 'Small town', 'Casa antiga': 'Old house', 'Desaparecimento': 'Disappearance',
+  'Detetive amador': 'Amateur detective', 'Procedimental policial': 'Police procedural',
+  'Perícia forense': 'Forensic investigation', 'Detetive particular': 'Private detective',
+  'Narrador não confiável': 'Unreliable narrator', 'Manipulação': 'Manipulation',
+  'Memória falsa': 'False memory', 'Segredo de família': 'Family secret',
+  'Reféns': 'Hostages', 'Conspiração': 'Conspiracy', 'Inimigos para amantes': 'Enemies to lovers',
+  'Segunda chance': 'Second chance', 'Amor à distância': 'Long-distance love',
+  'Amizade que vira amor': 'Friends to lovers', 'Vida corporativa': 'Corporate life',
+  'Cidade grande': 'Big city', 'Recomeço': 'Fresh start', 'Família moderna': 'Modern family',
+  'Guerra': 'War', 'Corte e nobreza': 'Court and nobility', 'Alta fantasia': 'High fantasy',
+  'Fantasia urbana': 'Urban fantasy', 'Viagem espacial': 'Space travel', 'Distopia': 'Dystopia',
+  'Inteligência artificial': 'Artificial intelligence', 'Casa assombrada': 'Haunted house',
+  'Folclore': 'Folklore', 'Sobrenatural': 'Supernatural', 'Sobrevivência': 'Survival',
+  'Conflito familiar': 'Family conflict', 'Perda e luto': 'Loss and grief',
+  'Hábitos e disciplina': 'Habits and discipline', 'Propósito e motivação': 'Purpose and motivation',
+  'Gestão do tempo': 'Time management', 'Foco profundo': 'Deep focus',
+  'Reserva de emergência': 'Emergency fund', 'Iniciantes': 'Beginners',
+  'Pequenas empresas': 'Small businesses', 'Negócio digital': 'Digital business',
+  'Redes sociais': 'Social media', 'Marca pessoal': 'Personal brand',
+  'Métodos de estudo': 'Study methods', 'Ensino em casa': 'Homeschooling',
+  'Ansiedade': 'Anxiety', 'Relacionamentos': 'Relationships', 'Sono': 'Sleep',
+  'Saúde mental': 'Mental health', 'Meditação': 'Meditation', 'Mindfulness': 'Mindfulness',
+  'Estudo bíblico': 'Bible study', 'Amizade': 'Friendship', 'Emoções': 'Emotions',
+  'Alfabetização': 'Literacy', 'Cores e formas': 'Colors and shapes',
+  'Contos de fadas': 'Fairy tales', 'Hora de dormir': 'Bedtime',
+  'Aventuras com animais': 'Animal adventures', 'Fantasia e magia': 'Fantasy and magic',
+  'Aprender brincando': 'Learn through play', 'Animais': 'Animals', 'Natureza': 'Nature',
+  'Fácil': 'Easy', 'Médio': 'Medium', 'Difícil': 'Hard', 'Iniciante': 'Beginner',
+  'Intermediário': 'Intermediate', 'Avançado': 'Advanced', 'Cena do crime': 'Crime scene',
+  'Pistas e evidências': 'Clues and evidence', 'Livro-jogo': 'Gamebook',
+  'Escolha o final': 'Choose the ending', 'Pistas escondidas': 'Hidden clues',
+  'Charadas': 'Riddles', 'Códigos': 'Codes', 'Palavras cruzadas': 'Crosswords',
+  'Receitas rápidas': 'Quick recipes', 'Roteiros': 'Itineraries', 'Dicas econômicas': 'Budget tips',
+  'Jardinagem': 'Gardening', 'Segurança digital': 'Digital security',
+  'Python': 'Python', 'JavaScript': 'JavaScript', 'Passo a passo': 'Step by step',
+  'Checklists': 'Checklists', 'Para iniciantes': 'For beginners', 'Crimes reais': 'True crime',
+  'Contos curtos': 'Short stories', 'Contos de terror': 'Horror stories',
+  'Contos policiais': 'Crime stories', 'Policial urbano': 'Urban crime',
+  'Empreendedor': 'Entrepreneur', 'Artista': 'Artist', 'Esportista': 'Athlete',
+  'Foco': 'Focus', 'Organização digital': 'Digital organization'
+};
 
 interface Capitulo {
   titulo: string;
@@ -101,6 +362,85 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   onBackToDashboard,
   onProjectSaved
 }) => {
+  const { currentLang } = useTranslation();
+  const isEnglish = currentLang === 'en-US';
+  const ui = (portuguese: string, english: string) => isEnglish ? english : portuguese;
+  const themeLabel = (label: string) => isEnglish ? ENGLISH_THEME_LABELS[label] || label : label;
+  const subthemeLabel = (label: string) => isEnglish ? ENGLISH_SUBTHEMES[label] || label : label;
+  const bookTypeLabel = (type: BookType) => {
+    const labels: Partial<Record<BookType, string>> = {
+      'children-picture-book': 'Illustrated Children’s Book',
+      'illustrated-book': 'Illustrated Book / Graphic Novel',
+      'light-novel': 'Light Novel',
+      'fiction-novel': 'Novel / General Fiction',
+      'romance': 'Romance',
+      'fantasy': 'Fantasy',
+      'thriller': 'Thriller',
+      'mystery': 'Mystery',
+      'suspense': 'Suspense',
+      'sci-fi': 'Science Fiction',
+      'self-help': 'Self-Help',
+      'business': 'Business',
+      'finance': 'Personal Finance',
+      'health-wellness': 'Health & Wellness',
+      'education': 'Education',
+      'practical-guide': 'Practical Guide',
+      'biography': 'Biography',
+      'non-fiction': 'Nonfiction',
+      'technical-manual': 'Technical Manual',
+      'short-ebook': 'Short eBook',
+      'workbook': 'Workbook',
+      'activity-book': 'Activity Book',
+      'coloring-book': 'Coloring Book',
+      'journal': 'Journal',
+      'planner': 'Planner',
+      'diary': 'Diary',
+      'puzzle-book': 'Puzzle Book',
+      'other': 'Other'
+    };
+    return isEnglish ? labels[type] || BOOK_TYPE_CONFIGS[type].label : BOOK_TYPE_CONFIGS[type].label;
+  };
+  const bookTypeDescription = (type: BookType) => {
+    if (!isEnglish) return BOOK_TYPE_CONFIGS[type].description;
+    const descriptions: Record<BookType, string> = {
+      'children-picture-book': '8.5" x 8.5" square format, full-bleed color, 32 pages, simple text, and rich illustrations throughout.',
+      'illustrated-book': '7" x 10" format with vibrant illustrations accompanying descriptive passages.',
+      'light-novel': '5" x 8" trim size, cream paper, fast chapters, dynamic pacing, and engaging dialogue.',
+      'fiction-novel': '6" x 9" novel format, cream paper, and a classic three-act arc: setup, escalation, climax, and resolution.',
+      romance: 'Character chemistry, internal conflict, emotional tension, and a satisfying ending.',
+      fantasy: 'Rich worldbuilding, magic, prophecies, distinct peoples, and a hero’s journey.',
+      thriller: 'Clues, plot twists, imminent danger, and short chapters with strong hooks.',
+      mystery: 'A central mystery, planted clues, red herrings, and a climactic reveal.',
+      suspense: 'A dark atmosphere, paranoia, oppressive pacing, and shocking revelations.',
+      'sci-fi': 'Future technology, social dilemmas, artificial intelligence, space, or dystopian futures.',
+      'self-help': 'A practical 6" x 9" editorial format with actionable steps and case studies.',
+      business: 'Executive-level management methods, clear frameworks, and practical business applications.',
+      finance: 'Progressive guidance on money, financial mindset, budgeting, and investing.',
+      'health-wellness': 'Practical guidance on longevity, healthy routines, nutrition, and mental balance.',
+      education: 'Progressive teaching for educators, students, or parents using effective learning methods.',
+      'practical-guide': 'A practical, direct manual with checklists and numbered steps.',
+      biography: 'A chronological life story covering challenges, lessons, and an inspiring legacy.',
+      'non-fiction': 'A progressive 6" x 9" educational format, from fundamentals to advanced practical steps.',
+      'technical-manual': 'A spacious 7" x 10" format for code or technical tables, explained step by step.',
+      'short-ebook': 'A focused, high-value book designed for a one-to-two-hour Kindle read.',
+      workbook: 'An interactive workbook with exercises, fill-in spaces, and practical activities.',
+      'activity-book': 'Varied activities such as mazes, connect-the-dots, coloring, word searches, and learning games.',
+      'coloring-book': 'Line-art illustrations for coloring, single-sided printing, and varied themes.',
+      journal: 'A journal with writing prompts and space for reflection, gratitude, or planning.',
+      planner: 'A planner organized into daily, weekly, monthly, or project-based pages.',
+      diary: 'A guided journal with questions, reflections, and lined pages; no prose chapters.',
+      'puzzle-book': 'Crosswords, Sudoku, word searches, and logic puzzles with answer keys.',
+      other: 'A format customized by the author, without a predefined template.'
+    };
+    return descriptions[type];
+  };
+  const bookTypeCategory = (category: string) => isEnglish ? ({
+    'Ficção': 'Fiction',
+    'Não-Ficção': 'Nonfiction',
+    'Infantil & Ilustrado': 'Children & Illustrated',
+    'Técnico & Guias': 'Technical & Guides'
+  }[category] || category) : category;
+
   // Configurações do formulário
   const [titulo, setTitulo] = useState('');
   const [subtitulo, setSubtitulo] = useState('');
@@ -110,7 +450,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [paginasAlvo, setPaginasAlvo] = useState(100);
   const [maxCapitulos, setMaxCapitulos] = useState(15);
   const [formato, setFormato] = useState('6x9');
-  const [idioma, setIdioma] = useState('português');
+  const [idioma, setIdioma] = useState(() => isEnglish ? 'inglês' : 'português');
   const [tamCapitulo, setTamCapitulo] = useState(11);
   const [corCapitulo, setCorCapitulo] = useState('#1e293b');
   const [optPromo, setOptPromo] = useState(true);
@@ -271,7 +611,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setPaginasAlvo(100);
       setMaxCapitulos(15);
       setFormato('6x9');
-      setIdioma('português');
+      setIdioma(isEnglish ? 'inglês' : 'português');
       setTamCapitulo(11);
       setCorCapitulo('#1e293b');
       setLivro(null);
@@ -332,7 +672,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
           subtitulo: initialProject.subtitle || '',
           autor: initialProject.author,
           genero: initialProject.categories?.[0] || 'Thriller / Mistério Investigativo',
-          idioma: 'português',
+          idioma: isEnglish ? 'inglês' : 'português',
           capitulos: caps,
           meta: {
             palavrasPorCap: 900,
@@ -373,7 +713,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
             setPaginasAlvo(p.config.paginasAlvo || 100);
             setMaxCapitulos(p.config.maxCapitulos || 15);
             setFormato(p.config.formato || '6x9');
-            setIdioma(p.config.idioma || 'português');
+            setIdioma(p.config.idioma || (isEnglish ? 'inglês' : 'português'));
             setBookType(p.config.bookType && BOOK_TYPE_CONFIGS[p.config.bookType as BookType]
               ? p.config.bookType as BookType
               : 'fiction-novel');
@@ -1957,7 +2297,7 @@ ${ganchoImediato}`;
     logDiag(`${fixedCount} correções aplicadas automaticamente`);
   };
 
-  // SALVAR NO CATÁLOGO DO BOOK INTEL KDP (INDEXEDDB)
+  // SALVAR NO CATÁLOGO DO BOOKENGIN (INDEXEDDB)
   const salvarNoCatalogo = async () => {
     if (!livro) {
       setStatusMsg('Gere o livro antes de salvar no catálogo.');
@@ -2008,13 +2348,13 @@ ${ganchoImediato}`;
       competitorsAsins: [],
       pipelineStage: 'writing',
       pipelineProgress: 100,
-      pipelineLog: [`Livro gerado e catalogado no Book Intel KDP com ${livro.capitulos.length} capítulos.`]
+      pipelineLog: [`Livro gerado e catalogado no BookEngin com ${livro.capitulos.length} capítulos.`]
     };
 
     await db.saveBookProject(novoProjeto);
     if (onProjectSaved) onProjectSaved(novoProjeto);
 
-    setStatusMsg('✓ Obra salva com sucesso no catálogo do Book Intel KDP!');
+    setStatusMsg('✓ Obra salva com sucesso no catálogo do BookEngin!');
     setStatusType('ok');
     logDiag('Projeto registrado no IndexedDB');
   };
@@ -2408,7 +2748,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* HEADER ELEGANTE DO BOOK INTEL KDP (TEMA CLARO) */}
+      {/* HEADER ELEGANTE DO BOOKENGIN (TEMA CLARO) */}
       <header
         style={{
           background: '#ffffff',
@@ -2437,12 +2777,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               cursor: 'pointer'
             }}
           >
-            <ArrowLeft size={16} /> Voltar à Dashboard
+            <ArrowLeft size={16} /> {ui('Voltar à Dashboard', 'Back to Dashboard')}
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>📚</span>
             <h1 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-              Gerador de Livros KDP Pro
+              {ui('Gerador de Livros KDP Pro', 'KDP Pro Book Generator')}
             </h1>
           </div>
         </div>
@@ -2461,7 +2801,11 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               border: '1px solid #e2e8f0'
             }}
           >
-            {gerando ? `⏳ Cap ${capAtual + 1}/${totalCaps}` : capAtual > 0 ? `✓ ${capAtual} Capítulos Prontos` : 'Pronto'}
+            {gerando
+              ? `⏳ ${ui('Capítulo', 'Chapter')} ${capAtual + 1}/${totalCaps}`
+              : capAtual > 0
+                ? `✓ ${capAtual} ${ui('Capítulos Prontos', 'Chapters Ready')}`
+                : ui('Pronto', 'Ready')}
           </div>
         </div>
       </header>
@@ -2501,12 +2845,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 margin: '0 0 16px'
               }}
             >
-              <span>✍️</span> Parâmetros da Obra KDP
+              <span>✍️</span> {ui('Parâmetros da Obra KDP', 'Book Setup')}
             </h2>
 
             <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 5 }}>
-                Tipo de livro / formato de criação
+                {ui('Tipo de livro / formato de criação', 'Book type / creation format')}
               </label>
               <select
                 value={creationSelectorValue}
@@ -2523,31 +2867,32 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 }}
                 style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #c7d2fe', fontSize: 12, background: '#ffffff', color: '#0f172a' }}
               >
-                <optgroup label="Formatos de criação">
+                <optgroup label={ui('Formatos de criação', 'Creation formats')}>
                   {Object.values(BOOK_TYPE_CONFIGS).map(config => (
                     <option key={config.id} value={`format:${config.id}`}>
-                      [{config.category}] {config.label}
+                      [{bookTypeCategory(config.category)}] {bookTypeLabel(config.id)}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label={`Gêneros e temas (${BOOK_THEMES.length})`}>
+                <optgroup label={`${ui('Gêneros e temas', 'Genres and themes')} (${BOOK_THEMES.length})`}>
                   {BOOK_THEMES.map(theme => (
                     <option key={theme.id} value={`theme:${theme.id}`}>
-                      {theme.label} {theme.childrenBook ? '👶 (Infantil)' : ''}
+                      {themeLabel(theme.label)} {theme.childrenBook ? `👶 (${ui('Infantil', 'Children')})` : ''}
                     </option>
                   ))}
                 </optgroup>
               </select>
               <div style={{ marginTop: 5, fontSize: 10, color: '#475569' }}>
-                <strong>Formato selecionado:</strong> {BOOK_TYPE_CONFIGS[bookType].label}. {BOOK_TYPE_CONFIGS[bookType].description}
-                {temaSelecionado && <> <strong>Gênero/tema:</strong> {temaSelecionado}.</>}
+                <strong>{ui('Formato selecionado:', 'Selected format:')}</strong> {bookTypeLabel(bookType)}.
+                {' '}{bookTypeDescription(bookType)}
+                {temaSelecionado && <> <strong>{ui('Gênero/tema:', 'Genre/theme:')}</strong> {themeLabel(temaSelecionado)}.</>}
               </div>
             </div>
 
             {/* ETAPA 1 — ESCOLHA DO TEMA DO LIVRO */}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
-                1. Tema Central do Livro (Obrigatório antes do Título)
+                {ui('1. Tema Central do Livro (Obrigatório antes do Título)', '1. Main Book Theme (Required before the title)')}
               </label>
               <select
                 value={temaSelecionado}
@@ -2574,10 +2919,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   marginBottom: 8
                 }}
               >
-                <option value="">-- Selecione o Tema da Obra ({BOOK_THEMES.length} opções) --</option>
+                <option value="">-- {ui('Selecione o Tema da Obra', 'Select a Book Theme')} ({BOOK_THEMES.length} {ui('opções', 'options')}) --</option>
                 {BOOK_THEMES.map(theme => (
                   <option key={theme.id} value={theme.label}>
-                    {theme.label} {theme.childrenBook ? '👶 (Infantil)' : ''}
+                    {themeLabel(theme.label)} {theme.childrenBook ? `👶 (${ui('Infantil', 'Children')})` : ''}
                   </option>
                 ))}
               </select>
@@ -2586,7 +2931,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {temaSelecionado && getTheme(temaSelecionado)?.subthemes.length ? (
                 <div style={{ marginTop: 6 }}>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 2 }}>
-                    Subtema / Especialização
+                    {ui('Subtema / Especialização', 'Subtheme / Specialization')}
                   </label>
                   <select
                     value={subtemaSelecionado}
@@ -2602,7 +2947,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     }}
                   >
                     {getTheme(temaSelecionado)?.subthemes.map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
+                      <option key={sub} value={sub}>{subthemeLabel(sub)}</option>
                     ))}
                   </select>
                 </div>
@@ -2612,7 +2957,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {(isChildrenTheme(temaSelecionado) || genero.toLowerCase().includes('infantil')) && (
                 <div style={{ marginTop: 10, padding: '8px 10px', background: '#fef3c7', borderRadius: 6, border: '1px solid #fde68a' }}>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
-                    👶 Faixa Etária Obrigatória (Controla Vocabulário e Complexidade)
+                    👶 {ui('Faixa Etária Obrigatória (Controla Vocabulário e Complexidade)', 'Required Age Range (Controls Vocabulary and Complexity)')}
                   </label>
                   <select
                     value={faixaEtaria}
@@ -2628,12 +2973,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       fontWeight: 600
                     }}
                   >
-                    <option value="">-- Selecione a Faixa Etária Obrigatória --</option>
-                    <option value="3-5">3–5 anos (Frases ultracurtas, vocabulário concreto)</option>
-                    <option value="6-8">6–8 anos (Linguagem acessível, narrativa direta)</option>
-                    <option value="9-12">9–12 anos (Vocabulário intermediário, desafios)</option>
-                    <option value="13-15">13–15 anos (Transição YA, maior complexidade)</option>
-                    <option value="16-17">16–17 anos (Linguagem madura e reflexiva)</option>
+                    <option value="">-- {ui('Selecione a Faixa Etária Obrigatória', 'Select the required age range')} --</option>
+                    <option value="3-5">{ui('3–5 anos (Frases ultracurtas, vocabulário concreto)', 'Ages 3–5 (Very short sentences, concrete vocabulary)')}</option>
+                    <option value="6-8">{ui('6–8 anos (Linguagem acessível, narrativa direta)', 'Ages 6–8 (Accessible language, direct storytelling)')}</option>
+                    <option value="9-12">{ui('9–12 anos (Vocabulário intermediário, desafios)', 'Ages 9–12 (Intermediate vocabulary, challenges)')}</option>
+                    <option value="13-15">{ui('13–15 anos (Transição YA, maior complexidade)', 'Ages 13–15 (Young adult transition, greater complexity)')}</option>
+                    <option value="16-17">{ui('16–17 anos (Linguagem madura e reflexiva)', 'Ages 16–17 (Mature, reflective language)')}</option>
                   </select>
                 </div>
               )}
@@ -2643,7 +2988,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
-                  2. Inteligência de Mercado Amazon KDP
+                  {ui('2. Inteligência de Mercado Amazon KDP', '2. Amazon KDP Market Insights')}
                 </label>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <button
@@ -2687,7 +3032,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     }}
                   >
                     <RefreshCw size={11} className={isAnalyzingMarket ? 'spin' : ''} />
-                    {isAnalyzingMarket ? 'Sorteando...' : '🔄 Sortear Outros'}
+                    {isAnalyzingMarket ? ui('Sorteando...', 'Finding more...') : `🔄 ${ui('Sortear Outros', 'Find More')}`}
                   </button>
                   <button
                     type="button"
@@ -2708,7 +3053,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     }}
                   >
                     <Sparkles size={11} />
-                    {isAnalyzingMarket ? 'Analisando...' : 'Analisar Mercado'}
+                    {isAnalyzingMarket ? ui('Analisando...', 'Analyzing...') : ui('Analisar Mercado', 'Analyze Market')}
                   </button>
                 </div>
               </div>
@@ -2776,12 +3121,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   borderRadius: 4,
                   border: '1px solid #a7f3d0'
                 }}>
-                  Ativa no Motor
+                  {ui('Ativa no Motor', 'Enabled in the Engine')}
                 </span>
               </div>
               <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.4 }}>
-                • <b>Sem Metáforas:</b> Texto 100% literal e claro (infantil ou adulto)<br />
-                • <b>Vocabulário Popular:</b> Palavras simples e comuns para coisas, pessoas e objetos
+                • <b>{ui('Sem Metáforas:', 'No Metaphors:')}</b> {ui('Texto 100% literal e claro (infantil ou adulto)', '100% literal and clear text (for children or adults)')}<br />
+                • <b>{ui('Vocabulário Popular:', 'Everyday Vocabulary:')}</b> {ui('Palavras simples e comuns para coisas, pessoas e objetos', 'Simple, common words for things, people, and objects')}
               </div>
             </div>
 
@@ -2789,7 +3134,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
-                  3. Título do Livro (Original)
+                  {ui('3. Título do Livro (Original)', '3. Book Title (Original)')}
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <button
@@ -2830,7 +3175,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       gap: 4
                     }}
                   >
-                    <Wand2 size={11} color="#475569" /> {isGeneratingTitulos ? 'Gerando...' : '5 Sugestões Originais'}
+                    <Wand2 size={11} color="#475569" /> {isGeneratingTitulos ? ui('Gerando...', 'Generating...') : ui('5 Sugestões Originais', '5 Original Suggestions')}
                   </button>
                 </div>
               </div>
@@ -2839,7 +3184,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {opcoesTitulos.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
                   <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>
-                    ✓ Opções originais validadas (clique para aplicar):
+                    {ui('✓ Opções originais validadas (clique para aplicar):', '✓ Originality-checked options (click to apply):')}
                   </div>
                   {opcoesTitulos.map((opt, i) => (
                     <button
@@ -2869,7 +3214,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   type="text"
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Ex: O Código do Silêncio"
+                  placeholder={ui('Ex: O Código do Silêncio', 'e.g. The Code of Silence')}
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -2907,7 +3252,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
-                  Subtítulo Comercial
+                  {ui('Subtítulo Comercial', 'Marketing Subtitle')}
                 </label>
                 <button
                   type="button"
@@ -2927,7 +3272,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     gap: 4
                   }}
                 >
-                  <Wand2 size={11} color="#475569" /> {isGeneratingSubtitulos ? 'Gerando...' : '5 Sugestões'}
+                  <Wand2 size={11} color="#475569" /> {isGeneratingSubtitulos ? ui('Gerando...', 'Generating...') : ui('5 Sugestões', '5 Suggestions')}
                 </button>
               </div>
 
@@ -2964,7 +3309,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   rows={3}
                   value={subtitulo}
                   onChange={(e) => setSubtitulo(e.target.value)}
-                  placeholder="Ex: O que está oculto nas sombras da mente humana e os segredos que ninguém ousa revelar"
+                  placeholder={ui('Ex: O que está oculto nas sombras da mente humana e os segredos que ninguém ousa revelar', 'e.g. What lies hidden in the shadows of the human mind and the secrets no one dares to reveal')}
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -3014,7 +3359,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         salvarProgressoLocal(atualizado);
                         return atualizado;
                       });
-                      setStatusMsg('✓ Título e Subtítulo atualizados diretamente no livro gerado!');
+                      setStatusMsg(ui('✓ Título e Subtítulo atualizados diretamente no livro gerado!', '✓ Title and subtitle updated in the generated book!'));
                       setStatusType('ok');
                     }}
                     style={{
@@ -3030,9 +3375,9 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
-                    title="Aplica o título e subtítulo digitados diretamente ao livro já gerado"
+                    title={ui('Aplica o título e subtítulo digitados diretamente ao livro já gerado', 'Apply the entered title and subtitle to the generated book')}
                   >
-                    <Check size={12} /> Salvar no Livro Gerado
+                    <Check size={12} /> {ui('Salvar no Livro Gerado', 'Save to Generated Book')}
                   </button>
                 </div>
               )}
@@ -3042,7 +3387,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-                  4. Diferencial Editorial KDP
+                  {ui('4. Diferencial Editorial KDP', '4. KDP Editorial Differentiation')}
                 </label>
                 <button
                   type="button"
@@ -3063,21 +3408,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   }}
                 >
                   <Wand2 size={11} color="#475569" className={isSuggestingDiferencial ? 'spin' : ''} />
-                  {isSuggestingDiferencial ? 'Gerando...' : 'Sugerir com IA'}
+                  {isSuggestingDiferencial ? ui('Gerando...', 'Generating...') : ui('Sugerir com IA', 'Suggest with AI')}
                 </button>
               </div>
 
               {/* Ângulo Único */}
               <div style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
-                  Ângulo Único (Por que este livro é diferente?)
+                  {ui('Ângulo Único (Por que este livro é diferente?)', 'Unique Angle (What makes this book different?)')}
                 </label>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                   <textarea
                     rows={2}
                     value={uniqueAngle}
                     onChange={(e) => setUniqueAngle(e.target.value)}
-                    placeholder="Ex: Abordagem neurocientífica aplicada a casos reais e análise forense"
+                    placeholder={ui('Ex: Abordagem neurocientífica aplicada a casos reais e análise forense', 'e.g. A neuroscience-based approach applied to real cases and forensic analysis')}
                     style={{
                       flex: 1,
                       padding: '6px 10px',
@@ -3120,14 +3465,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {/* Promessa Central */}
               <div style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
-                  Promessa Central ao Leitor
+                  {ui('Promessa Central ao Leitor', 'Core Promise to the Reader')}
                 </label>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                   <textarea
                     rows={2}
                     value={bookPromise}
                     onChange={(e) => setBookPromise(e.target.value)}
-                    placeholder="Ex: Revelar os padrões ocultos da mente humana e prender o leitor a cada reviravolta"
+                    placeholder={ui('Ex: Revelar os padrões ocultos da mente humana e prender o leitor a cada reviravolta', 'e.g. Reveal hidden patterns of the human mind and keep readers engaged with every twist')}
                     style={{
                       flex: 1,
                       padding: '6px 10px',
@@ -3170,14 +3515,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               {/* Público / Leitor Alvo */}
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
-                  Público / Leitor Alvo
+                  {ui('Público / Leitor Alvo', 'Target Audience / Reader')}
                 </label>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                   <textarea
                     rows={2}
                     value={targetReader}
                     onChange={(e) => setTargetReader(e.target.value)}
-                    placeholder="Ex: Jovens adultos, profissionais em transição, leitores vorazes de suspense psicológico"
+                    placeholder={ui('Ex: Jovens adultos, profissionais em transição, leitores vorazes de suspense psicológico', 'e.g. Young adults, professionals in transition, avid psychological thriller readers')}
                     style={{
                       flex: 1,
                       padding: '6px 10px',
@@ -3221,14 +3566,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             {/* Autor */}
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                Autor / Pseudônimo
+                {ui('Autor / Pseudônimo', 'Author / Pen Name')}
               </label>
               <div style={{ display: 'flex', gap: 6 }}>
                 <input
                   type="text"
                   value={autor}
                   onChange={(e) => setAutor(e.target.value)}
-                  placeholder="Seu nome ou pseudônimo"
+                  placeholder={ui('Seu nome ou pseudônimo', 'Your name or pen name')}
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -3265,14 +3610,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             {/* Premissa Central */}
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                Premissa Central da História
+                {ui('Premissa Central da História', 'Central Story Premise')}
               </label>
               <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                 <textarea
                   rows={3}
                   value={topico}
                   onChange={(e) => setTopico(e.target.value)}
-                  placeholder="Descreva a ideia central, protagonista, conflito e segredo do livro..."
+                  placeholder={ui('Descreva a ideia central, protagonista, conflito e segredo do livro...', 'Describe the central idea, protagonist, conflict, and secret of the book...')}
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -3312,7 +3657,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                  Páginas Alvo
+                  {ui('Páginas Alvo', 'Target Pages')}
                 </label>
                 <input
                   type="number"
@@ -3332,7 +3677,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                  Máximo Capítulos
+                  {ui('Máximo Capítulos', 'Maximum Chapters')}
                 </label>
                 <input
                   type="number"
@@ -3355,7 +3700,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                  Tamanho KDP
+                  {ui('Tamanho KDP', 'KDP Trim Size')}
                 </label>
                 <select
                   value={formato}
@@ -3368,7 +3713,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     fontSize: 13
                   }}
                 >
-                  <option value="6x9">6 x 9" (padrão)</option>
+                  <option value="6x9">{ui('6 x 9" (padrão)', '6 x 9" (standard)')}</option>
                   <option value="5x8">5 x 8"</option>
                   <option value="5.5x8.5">5.5 x 8.5"</option>
                   <option value="8.5x11">8.5 x 11"</option>
@@ -3376,7 +3721,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                  Idioma
+                  {ui('Idioma', 'Language')}
                 </label>
                 <select
                   value={idioma}
@@ -3389,9 +3734,9 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     fontSize: 13
                   }}
                 >
-                  <option value="português">Português</option>
-                  <option value="inglês">Inglês</option>
-                  <option value="espanhol">Espanhol</option>
+                  <option value="português">{ui('Português', 'Portuguese')}</option>
+                  <option value="inglês">{ui('Inglês', 'English')}</option>
+                  <option value="espanhol">{ui('Espanhol', 'Spanish')}</option>
                 </select>
               </div>
             </div>
@@ -3400,7 +3745,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                  Tam. Capítulo (pt)
+                  {ui('Tam. Capítulo (pt)', 'Chapter Font Size (pt)')}
                 </label>
                 <input
                   type="number"
@@ -3419,7 +3764,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                  Cor do Capítulo
+                  {ui('Cor do Capítulo', 'Chapter Color')}
                 </label>
                 <input
                   type="color"
@@ -3517,7 +3862,11 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               >
                 <Play size={16} /> {bookType === 'planner' || bookType === 'diary'
                   ? '🚀 Gerar Páginas'
-                  : isPlanningEditorial ? 'Planejando...' : gerando ? 'Gerando...' : '🚀 Gerar Livro'}
+                  : isPlanningEditorial
+                    ? ui('Planejando...', 'Planning...')
+                    : gerando
+                      ? ui('Gerando...', 'Generating...')
+                      : `🚀 ${ui('Gerar Livro', 'Generate Book')}`}
               </button>
 
               <button
@@ -3601,7 +3950,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   <Play size={14} />
                   {autoClickCountdown !== null
                     ? `⚡ Auto-clique em ${autoClickCountdown}s...`
-                    : `▶ Continuar Geração (Capítulo ${livro.capitulos.length + 1})`}
+                    : `▶ ${ui('Continuar Geração (Capítulo', 'Continue Generating (Chapter')} ${livro.capitulos.length + 1})`}
                 </button>
                 <button
                   type="button"
@@ -6232,7 +6581,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         onClose={() => setIsPublishingModalOpen(false)}
         project={{
           id: projectIdRef.current || initialProject?.id || 'prj_studio',
-          title: titulo || 'Projeto Book Intel',
+          title: titulo || 'Projeto BookEngin',
           subtitle: subtitulo,
           author: autor,
           capitulos: livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || [],

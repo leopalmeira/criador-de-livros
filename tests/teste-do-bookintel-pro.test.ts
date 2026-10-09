@@ -6,7 +6,7 @@ import { PdfBuilder } from '../src/services/formats/pdf-builder';
 import { KdpPackager } from '../src/services/formats/kdp-packager';
 import { BookProject, IBookChapter } from '../src/types/book-project';
 
-describe('Livro de Teste Automático (Item 51) - Teste do BookIntel Pro', () => {
+describe('Livro de Teste Automático (Item 51) - Teste do BookEngin Pro', () => {
   it('deve executar o pipeline completo: ideia -> planejamento -> outline -> Book Bible -> capítulos -> revisão -> compilação (EPUB e PDF)', async () => {
     // Provedor local embutido para execução determinística e offline
     const aiService = new AiService({ provider: 'local-builtin', model: 'local-coauthor-engine' });
@@ -19,9 +19,9 @@ describe('Livro de Teste Automático (Item 51) - Teste do BookIntel Pro', () => 
 
     // 2. CONCEITO & TÍTULO
     const concept = await pipeline.generateConcept(idea, 'finance', 'Português');
-    concept.title = 'Teste do BookIntel Pro';
+    concept.title = 'Teste do BookEngin Pro';
     concept.subtitle = 'Manual Prático de Organização Financeira para Jovens Adultos';
-    expect(concept.title).toBe('Teste do BookIntel Pro');
+    expect(concept.title).toBe('Teste do BookEngin Pro');
 
     // 3. OUTLINE (SUMÁRIO DE CAPÍTULOS)
     const outline = await pipeline.generateOutline(concept, 'finance', 'Português');
@@ -49,22 +49,22 @@ describe('Livro de Teste Automático (Item 51) - Teste do BookIntel Pro', () => 
     }
 
     // 6. ELEMENTOS EDITORIAIS (PÁGINAS PRELIMINARES E FINAIS)
-    const editorial = await pipeline.generateEditorialMatter(concept, 'Autor BookIntel Pro');
-    expect(editorial.halfTitle).toBe('Teste do BookIntel Pro');
+    const editorial = await pipeline.generateEditorialMatter(concept, 'Autor BookEngin Pro');
+    expect(editorial.halfTitle).toBe('Teste do BookEngin Pro');
     expect(editorial.copyrightNotice).toContain('©');
 
     // 7. METADADOS KDP (7 KEYWORDS E CATEGORIAS)
-    const metadata = await pipeline.generateMetadataKdp(concept, chapters, 'Autor BookIntel Pro', 'Português');
+    const metadata = await pipeline.generateMetadataKdp(concept, chapters, 'Autor BookEngin Pro', 'Português');
     expect(metadata.keywords7.length).toBe(7);
 
     // 8. CRIAÇÃO DO OBJETO DE PROJETO
     const totalWords = chapters.reduce((s, c) => s + (c.wordCount || 0), 0);
     // 8. CRIAÇÃO DO OBJETO DE PROJETO
     const project: BookProject = {
-      id: 'proj_teste_bookintel_pro',
+      id: 'proj_teste_bookengin_pro',
       title: concept.title,
       subtitle: concept.subtitle,
-      author: 'Autor BookIntel Pro',
+      author: 'Autor BookEngin Pro',
       description: concept.shortSynopsis || 'Livro de finanças pessoais',
       language: 'Português',
       format: 'Capa Comum',

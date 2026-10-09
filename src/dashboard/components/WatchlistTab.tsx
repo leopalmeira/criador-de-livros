@@ -45,7 +45,7 @@ export const WatchlistTab: React.FC<WatchlistTabProps> = ({ onSelectBook }) => {
         dailySales: item.currentDailySales
       };
     });
-    exportBooksToCsv(exportable, 'watchlist-bookintel.csv');
+    exportBooksToCsv(exportable, 'watchlist-bookengin.csv');
   };
 
   const filtered = items.filter(item => 

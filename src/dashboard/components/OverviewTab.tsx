@@ -90,7 +90,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onSelectBook, onNaviga
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-              BookIntel Enterprise • Cobertura Global (22 Marketplaces)
+              BookEngin Enterprise • Cobertura Global (22 Marketplaces)
             </div>
             <h3 style={{ margin: '4px 0 6px 0', fontSize: '20px', fontWeight: 800, color: '#fff' }}>
               Pesquisa & Inteligência de Mercado Editorial

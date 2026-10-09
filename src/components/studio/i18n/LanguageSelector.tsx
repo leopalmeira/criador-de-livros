@@ -7,9 +7,10 @@ import { Globe, ChevronDown, Check } from 'lucide-react';
 import { useTranslation, SupportedLanguage } from '../../../services/i18n-service';
 
 export const LanguageSelector: React.FC = () => {
-  const { currentLang, currentOption, languages, setLanguage } = useTranslation();
+  const { currentLang, currentOption, languages, setLanguage, isBrazil } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const availableLanguages = isBrazil ? languages : languages.filter(language => language.code === 'en-US');
 
   // Fecha o dropdown se clicar fora
   useEffect(() => {
@@ -81,10 +82,10 @@ export const LanguageSelector: React.FC = () => {
           }}
         >
           <div style={{ padding: '6px 8px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6 }}>
-            Idioma / Language
+            {isBrazil ? 'Idioma / Language' : 'Language'}
           </div>
 
-          {languages.map((lang) => {
+          {availableLanguages.map((lang) => {
             const isSelected = lang.code === currentLang;
             return (
               <button

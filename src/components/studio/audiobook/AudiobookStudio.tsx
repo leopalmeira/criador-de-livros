@@ -1,6 +1,6 @@
 // ================================================================
 // AUDIOBOOK STUDIO — ESTÚDIO DE GERAÇÃO 100% AUTOMÁTICO
-// Book Intel KDP — O usuário escolhe apenas Idioma + Voz (Masc/Fem)
+// BookEngin — O usuário escolhe apenas Idioma + Voz (Masc/Fem)
 // Todo o processamento técnico, particionamento e junção são automáticos.
 // ================================================================
 
@@ -468,9 +468,9 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
       fallbackUsed = true;
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         const sampleText = selectedLanguage.startsWith('en')
-          ? 'Hello! This is a preview of the neural voice selected for your audiobook in Book Intel.'
+          ? 'Hello! This is a preview of the neural voice selected for your audiobook in BookEngin.'
           : selectedLanguage.startsWith('es')
-          ? '¡Hola! Esta es una vista previa de la voz seleccionada para su audiolibro en Book Intel.'
+          ? '¡Hola! Esta es una vista previa de la voz seleccionada para su audiolibro en BookEngin.'
           : selectedLanguage.startsWith('fr')
           ? 'Bonjour! Ceci est un aperçu de la voix sélectionnée pour votre livre audio.'
           : 'Olá! Esta é uma demonstração da voz neural selecionada para narrar o seu livro com alta fidelidade.';

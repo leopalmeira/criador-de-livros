@@ -59,7 +59,7 @@ export function getReplicateToken(): string {
 }
 
 /**
- * Mapeia o aspect ratio do Book Intel para o formato aceito pelo FLUX Schnell do Replicate.
+ * Mapeia o aspect ratio do BookEngin para o formato aceito pelo FLUX Schnell do Replicate.
  */
 function normalizeAspectRatio(ratio: string): string {
   switch (ratio) {

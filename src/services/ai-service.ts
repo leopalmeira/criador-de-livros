@@ -661,7 +661,7 @@ Não importa se você está começando do zero ou procurando quebrar um platô d
 
     if (baseUrl.includes('openrouter.ai')) {
       headers['HTTP-Referer'] = 'https://github.com/ShonP/kdp-book';
-      headers['X-Title'] = 'BookIntel KDP Book Creator';
+      headers['X-Title'] = 'BookEngin Book Creator';
     }
 
     const model = this.settings.model?.trim() || 'gpt-4o-mini';

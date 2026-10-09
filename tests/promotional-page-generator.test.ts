@@ -6,7 +6,7 @@ import {
   getAvailableApiKeys
 } from '../src/services/kdp-ai-engine';
 
-describe('BOOK INTEL KDP — Gerador de Página Promocional & KDP Pro Engine', () => {
+describe('BookEngin — Gerador de Página Promocional & KDP Pro Engine', () => {
   it('1. Deve mapear temas visuais adaptativos corretos por gênero', () => {
     const suspenseTheme = obterTemaPorGenero('Thriller / Mistério Investigativo');
     expect(suspenseTheme.name).toBe('Suspense / Mistério');

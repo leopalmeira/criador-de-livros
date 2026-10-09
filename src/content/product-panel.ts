@@ -138,7 +138,7 @@ export class ProductPanel {
           <svg class="bi-ca-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#3b82f6" stroke="#2563eb"/>
           </svg>
-          <span class="bi-ca-title">BookIntel<span style="color:#2563eb">.ai</span></span>
+          <span class="bi-ca-title">BookEngin<span style="color:#2563eb">.ai</span></span>
         </div>
         <div class="bi-ca-header-right">
           <span class="bi-ca-badge">${formatBadgeText}</span>

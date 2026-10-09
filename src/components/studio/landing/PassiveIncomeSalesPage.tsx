@@ -49,14 +49,14 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
   const faqItems = [
     {
       q: 'Preciso ter experiência como escritor para criar livros?',
-      a: 'Não. O motor de IA do Book Intel KDP foi treinado com padrões de best-sellers da Amazon. Ele constrói títulos magnéticos, capítulos encadeados em português natural, vocabulário popular e sem metáforas complicadas. Qualquer pessoa pode criar um livro de alta qualidade em minutos.'
+      a: 'Não. O motor de IA do BookEngin foi treinado com padrões de best-sellers da Amazon. Ele constrói títulos magnéticos, capítulos encadeados em português natural, vocabulário popular e sem metáforas complicadas. Qualquer pessoa pode criar um livro de alta qualidade em minutos.'
     },
     {
       q: 'Como funciona o limite de 5 livros por mês no plano de R$ 49,90?',
       a: 'Você pode gerar até 5 livros completos mensalmente — incluindo capítulos narrativos, capas profissionais em alta resolução já diagramadas e exportação em formato padrão KDP (PDF e eBook Kindle).'
     },
     {
-      q: 'A publicação é feita direto da plataforma sem sair do Book Intel KDP?',
+      q: 'A publicação é feita direto da plataforma sem sair do BookEngin?',
       a: 'Sim! Nosso Publicador Direto In-App valida as margens, monta a capa aberta, estrutura os metadados, formata a descrição comercial e transmite os dados para a Amazon KDP sem você precisar sair da ferramenta.'
     },
     {
@@ -65,7 +65,7 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
     },
     {
       q: 'Os direitos autorais dos livros são meus?',
-      a: 'Sim, 100% seus! Você detém todos os direitos comerciais, autorais e patrimoniais de cada livro e capa criados na plataforma. A Book Intel KDP não cobra comissões sobre as suas vendas na Amazon.'
+      a: 'Sim, 100% seus! Você detém todos os direitos comerciais, autorais e patrimoniais de cada livro e capa criados na plataforma. A BookEngin não cobra comissões sobre as suas vendas na Amazon.'
     },
     {
       q: 'Posso cancelar a assinatura quando quiser?',
@@ -89,7 +89,7 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
               </div>
               <div className="pis-logo-text">
                 <span className="pis-logo-title">
-                  BOOK INTEL <span className="pis-logo-badge">KDP PRO</span>
+                  BOOKENGIN <span className="pis-logo-badge">PRO</span>
                 </span>
                 <span className="pis-logo-sub">Máquina de Renda Passiva na Amazon</span>
               </div>
@@ -286,7 +286,7 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
           <span className="pis-tag-section">Método 100% Automático</span>
           <h2 className="pis-section-title">Como Funciona a Criação & Venda</h2>
           <p className="pis-section-desc">
-            Tudo acontece de forma integrada dentro do Book Intel KDP, da ideia ao livro publicado.
+            Tudo acontece de forma integrada dentro do BookEngin, da ideia ao livro publicado.
           </p>
         </div>
 
@@ -320,7 +320,7 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
             </div>
             <h3 className="pis-step-title">3. Publique Direto & Fature Royalties</h3>
             <p className="pis-step-desc">
-              Publique direto da plataforma sem sair do Book Intel KDP. A Amazon imprime sob demanda cada pedido, despacha para a casa do leitor e deposita 70% do lucro direto na sua conta.
+              Publique direto da plataforma sem sair do BookEngin. A Amazon imprime sob demanda cada pedido, despacha para a casa do leitor e deposita 70% do lucro direto na sua conta.
             </p>
           </div>
         </div>
@@ -402,7 +402,7 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
       <section className="pis-container">
         <div className="pis-section-title-wrap">
           <span className="pis-tag-section">Casos Reais</span>
-          <h2 className="pis-section-title">Quem Publica com o Book Intel KDP Recomenda</h2>
+          <h2 className="pis-section-title">Quem Publica com o BookEngin Recomenda</h2>
           <p className="pis-section-desc">
             Autores e empreendedores que transformaram tempo livre em ativos perpétuos de renda passiva.
           </p>
@@ -488,7 +488,7 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
             <a href="#faq">Dúvidas</a>
           </div>
           <div>
-            © {new Date().getFullYear()} BOOK INTEL KDP — Plataforma de Criação & Publicação Direta na Amazon. Todos os direitos reservados.
+            © {new Date().getFullYear()} BookEngin — Plataforma de Criação & Publicação Direta de Livros. Todos os direitos reservados.
           </div>
         </div>
       </footer>
@@ -527,13 +527,13 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
                   Seu plano de <strong>R$ 49,90/mês</strong> foi ativado. Você já pode criar até 5 livros mensais e publicá-los direto na Amazon.
                 </p>
                 <div style={{ color: '#f59e0b', fontSize: '0.85rem', fontWeight: 600 }}>
-                  Redirecionando para o seu Estúdio Book Intel KDP...
+                  Redirecionando para o seu Estúdio BookEngin...
                 </div>
               </div>
             ) : (
               <>
                 <div className="pis-modal-header">
-                  <h3 className="pis-modal-title">Assinar Book Intel KDP Pro</h3>
+                  <h3 className="pis-modal-title">Assinar BookEngin Pro</h3>
                   <p className="pis-modal-sub">Gere até 5 livros completos todo mês e publique direto no KDP.</p>
                 </div>
 
@@ -585,7 +585,7 @@ export const PassiveIncomeSalesPage: React.FC<PassiveIncomeSalesPageProps> = ({
                       userSelect: 'all',
                       marginBottom: 8
                     }}>
-                      contato@bookintel.com.br
+                      contato@bookengin.com
                     </div>
                     <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600 }}>
                       ✓ Liberação automática imediata após confirmação

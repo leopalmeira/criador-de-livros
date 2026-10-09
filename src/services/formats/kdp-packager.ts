@@ -189,7 +189,7 @@ ${cov?.backCoverBlurb || p.description || ''}
     <hr/>
     <h3>Checklist de Verificações:</h3>
     <ul>${checksList || '<li>A auditoria de qualidade ainda não foi executada para este projeto.</li>'}</ul>
-    <p style="font-size: 12px; color: #64748b; margin-top: 30px;">Gerado pelo BookIntel Editorial Engine em ${new Date().toLocaleString('pt-BR')}.</p>
+    <p style="font-size: 12px; color: #64748b; margin-top: 30px;">Gerado pelo BookEngin Editorial Engine em ${new Date().toLocaleString('pt-BR')}.</p>
   </div>
 </body>
 </html>`;

@@ -40,7 +40,7 @@ export const KdpDirectPublishModal: React.FC<KdpDirectPublishModalProps> = ({
   // Etapa 1: Metadados Oficiais KDP
   const [bookTitle, setBookTitle] = useState(project.title || '');
   const [bookSubtitle, setBookSubtitle] = useState(project.subtitle || '');
-  const [authorName, setAuthorName] = useState(project.author || 'Autor Book Intel');
+  const [authorName, setAuthorName] = useState(project.author || 'Autor');
   const [language, setLanguage] = useState('Português');
   const [descriptionHtml, setDescriptionHtml] = useState(
     project.description ||
@@ -94,7 +94,7 @@ export const KdpDirectPublishModal: React.FC<KdpDirectPublishModalProps> = ({
     if (project) {
       setBookTitle(project.title || '');
       setBookSubtitle(project.subtitle || '');
-      setAuthorName(project.author || 'Autor Book Intel');
+      setAuthorName(project.author || 'Autor');
     }
   }, [project]);
 
@@ -267,7 +267,7 @@ export const KdpDirectPublishModal: React.FC<KdpDirectPublishModalProps> = ({
                 </span>
               </div>
               <p style={{ margin: 0, fontSize: '0.82rem', color: '#94a3b8' }}>
-                Publique seu livro na Amazon sem sair da plataforma Book Intel KDP
+                Publique seu livro na Amazon sem sair da plataforma BookEngin
               </p>
             </div>
           </div>

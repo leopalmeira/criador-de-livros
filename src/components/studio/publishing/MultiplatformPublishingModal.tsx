@@ -70,7 +70,7 @@ export const MultiplatformPublishingModal: React.FC<MultiplatformPublishingModal
         {
           title: project.title || 'Livro em Publicação',
           subtitle: project.subtitle || '',
-          author: project.author || 'Autor Book Intel',
+          author: project.author || 'Autor',
           narrator: 'Leandro Palmeira (Voz Neural AI)',
           language: 'Português — Brasil',
           type: 'ai-narrated',
@@ -497,7 +497,7 @@ export const MultiplatformPublishingModal: React.FC<MultiplatformPublishingModal
                       🎧 Distribuição no Spotify Audiobooks
                     </h3>
                     <p style={{ margin: 0, fontSize: 13, color: '#bbf7d0', maxWidth: 620 }}>
-                      Prepare seu audiobook para ser ouvido por milhões de assinantes no Spotify em todo o mundo. O Book Intel organiza os áudios e metadados no formato exato homologado.
+                      Prepare seu audiobook para ser ouvido por milhões de assinantes no Spotify em todo o mundo. O BookEngin organiza os áudios e metadados no formato exato homologado.
                     </p>
                   </div>
 
@@ -631,7 +631,7 @@ export const MultiplatformPublishingModal: React.FC<MultiplatformPublishingModal
                     Transparência de Royalties & Políticas
                   </h4>
                   <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
-                    O Book Intel KDP separa rigorosamente o que é <strong>DADO REAL</strong> (relatório homologado) de <strong>ESTIMATIVAS</strong>.
+                    O BookEngin separa rigorosamente o que é <strong>DADO REAL</strong> (relatório homologado) de <strong>ESTIMATIVAS</strong>.
                   </p>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 700, background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 4 }}>

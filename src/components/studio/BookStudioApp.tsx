@@ -365,7 +365,7 @@ export const BookStudioApp: React.FC = () => {
   }
 
   // ============================================================
-  // TELA 1: DASHBOARD BOOK INTEL KDP (DESIGN PROFISSIONAL)
+  // TELA 1: DASHBOARD BOOKENGIN (DESIGN PROFISSIONAL)
   // ============================================================
   if (mode === 'project-list') {
     const targetProjectForPublishing = publishingProject || projects[0] || {

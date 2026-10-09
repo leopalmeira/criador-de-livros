@@ -35,7 +35,7 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
   tema = 'Livros de Colorir',
   subtema = '',
   titulo = '',
-  autor = 'Book Intel Studio',
+  autor = 'Autor',
   capaDataUrl,
   onLivroCompilado,
   onCapaGerada
@@ -247,7 +247,7 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
     try {
       const pdfBytes = await buildColoringBookPdf(
         tituloLocal || titulo || 'Meu Livro de Colorir KDP',
-        autorLocal || autor || 'Book Intel Studio',
+        autorLocal || autor || 'Autor',
         pages,
         localCapaDataUrl
       );
@@ -274,7 +274,7 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
         jobId: `job_${bookId}`,
         title: titulo || 'Livro de Colorir KDP',
         subtitle: subtema ? `Coleção ${subtema}` : 'Edição Especial para Colorir',
-        author: autor || 'Book Intel Studio',
+        author: autor || 'Autor',
         coverDataUrl: localCapaDataUrl || undefined,
         pdf: pdfBytes.buffer as ArrayBuffer,
         pageCount: totalPdfPages,
@@ -288,7 +288,7 @@ export const ColoringBookStudio: React.FC<ColoringBookStudioProps> = ({
         report: {
           generatedAt: Date.now(),
           bookTitle: titulo || 'Livro de Colorir KDP',
-          author: autor || 'Book Intel Studio',
+          author: autor || 'Autor',
           pagesAnalyzed: paginasComImagem.length,
           pdfPages: totalPdfPages,
           chaptersIdentified: paginasInternas.length,

@@ -1,6 +1,6 @@
 // ================================================================
 // MODAL: CRIAR VOLUME 2 / VOLUME 3 (SEQUÊNCIA EDITORIAL)
-// Book Intel KDP — Continuidade Narrativa, Arcos e Personagens
+// BookEngin — Continuidade Narrativa, Arcos e Personagens
 // ================================================================
 
 import React, { useState } from 'react';
@@ -41,7 +41,7 @@ export const SequenceCreationModal: React.FC<SequenceCreationModalProps> = ({
   const [continuationPremise, setContinuationPremise] = useState(
     `Continuação direta de "${cleanBaseTitle}". Resgata os desfechos e consequências dos eventos anteriores, aprofundando os arcos e revelando novos segredos não resolvidos no Volume ${nextVolumeNum - 1}.`
   );
-  const [authorName, setAuthorName] = useState(baseBook.author || 'Autor Book Intel');
+  const [authorName, setAuthorName] = useState(baseBook.author || 'Autor');
   const [genre, setGenre] = useState(baseBook.genre || 'Thriller / Mistério Investigativo');
   const [isCreating, setIsCreating] = useState(false);
 

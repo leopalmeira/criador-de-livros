@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "BookIntel - Inteligência de Mercado Editorial",
+  "name": "BookEngin - Inteligência de Mercado Editorial",
   "version": "1.0.0",
   "description": "Análise de mercado editorial para livros e Kindle na Amazon. BSR, estimativa de vendas, royalties, nichos e histórico 100% local.",
   "permissions": [
@@ -41,7 +41,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "BookIntel - Análise Editorial",
+    "default_title": "BookEngin - Análise Editorial",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

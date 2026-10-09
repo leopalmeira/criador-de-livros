@@ -8,13 +8,13 @@ export const ExportBackupTab: React.FC = () => {
 
   const handleExportAllBooks = async () => {
     const books = await db.getAllBooks();
-    exportBooksToCsv(books, 'catalogo-completo-bookintel.csv');
+    exportBooksToCsv(books, 'catalogo-completo-bookengin.csv');
   };
 
   const handleExportFullBackup = async () => {
     const backup = await db.exportAllData();
     const jsonStr = JSON.stringify(backup, null, 2);
-    downloadBlob(jsonStr, `bookintel-backup-${new Date().toISOString().split('T')[0]}.json`, 'application/json');
+    downloadBlob(jsonStr, `bookengin-backup-${new Date().toISOString().split('T')[0]}.json`, 'application/json');
     setStatusMsg('✓ Arquivo de backup completo gerado e baixado com sucesso!');
     setTimeout(() => setStatusMsg(''), 4000);
   };

@@ -189,7 +189,7 @@ Retorne como um JSON array com esses campos exatos. Retorne exclusivamente o arr
         </div>
       </div>
 
-      {/* PAINEL DE INTELIGÊNCIA COMERCIAL DA CATEGORIA (BOOK INTEL KDP) */}
+      {/* PAINEL DE INTELIGÊNCIA COMERCIAL DA CATEGORIA (BOOKENGIN) */}
       <CategoryIntelligencePanel
         initialMarketplace="amazon.com"
         onSelectOpportunity={handleApplyOpportunity}

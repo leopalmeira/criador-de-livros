@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 
 export const BOOK_CREDIT_PRICE_USD = 3.00;
-export const MONTHLY_SUBSCRIPTION_PRICE = 49.90;
+export const MONTHLY_SUBSCRIPTION_PRICE = 25.00;
 const CREDITS_STORAGE_KEY = 'kdp_user_book_credits';
 const CREDITS_HISTORY_KEY = 'kdp_user_credits_history';
 const SUBSCRIPTION_STORAGE_KEY = 'kdp_user_active_subscription';
@@ -35,9 +35,9 @@ export interface CreditPackage {
 export const CREDIT_PACKAGES: CreditPackage[] = [
   {
     id: 'subscription_monthly',
-    name: 'Assinatura Ilimitada KDP',
-    booksCount: 9999,
-    priceUsd: 49.90,
+    name: 'Assinatura BookEngin (Até 15 Livros)',
+    booksCount: 15,
+    priceUsd: 25.00,
     popular: true,
   },
   {
@@ -79,14 +79,14 @@ export class KdpCreditsService {
   /**
    * Ativa a assinatura mensal de 49,90
    */
-  public static activateSubscription(description = 'Assinatura Mensal KDP - Acesso Ilimitado'): void {
+  public static activateSubscription(description = 'Assinatura Mensal BookEngin - Até 15 Livros/mês'): void {
     if (typeof window !== 'undefined') {
       localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, 'true');
     }
     this.recordTransaction({
       id: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: 'SUBSCRIPTION',
-      amount: 9999,
+      amount: 15,
       description,
       timestamp: Date.now(),
       costUsd: MONTHLY_SUBSCRIPTION_PRICE

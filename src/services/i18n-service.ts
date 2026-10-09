@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
+import { detectVisitorCountry, isBrazilianCountry } from './market-region';
 
 export type SupportedLanguage = 'pt-BR' | 'en-US' | 'es-ES' | 'fr-FR' | 'de-DE' | 'ru-RU';
 
@@ -30,13 +31,23 @@ export const SUPPORTED_LANGUAGES: LanguageOption[] = [
   { code: 'ru-RU', label: 'Русский', flag: '🇷🇺', nativeName: 'Русский', country: 'Россия' },
 ];
 
-const STORAGE_KEY = 'kdp_preferred_lang';
 const EVENT_NAME = 'kdp-language-changed';
+let activeLanguage: SupportedLanguage = 'en-US';
+let languageManuallySelected = false;
+let detectedCountryCode: string | null = null;
+
+function applyLanguage(lang: SupportedLanguage): void {
+  activeLanguage = lang;
+  if (typeof window !== 'undefined') {
+    document.documentElement.lang = lang;
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { lang } }));
+  }
+}
 
 export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
   'pt-BR': {
     // Header & Navbar
-    'nav.slogan': 'Inteligência para o seu sucesso na Amazon',
+    'nav.slogan': 'Your Ideas. Complete Books. One Platform.',
     'nav.aiGuide': 'IA Guia do Autor',
     'nav.help': 'Configurações e Ajuda',
     'nav.proPlan': 'Plano Pro',
@@ -45,8 +56,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Hero Banner
     'hero.greeting': 'Olá, Leandro',
-    'hero.welcome': 'Bem-vindo ao Book Intel KDP',
-    'hero.description': 'Encontre nichos lucrativos, crie livros profissionais e publique diretamente na Amazon KDP sem sair da plataforma.',
+    'hero.welcome': 'Bem-vindo ao BookEngin',
+    'hero.description': 'Encontre nichos lucrativos, crie livros profissionais e publique na Amazon KDP, Google Play Books e Apple Books diretamente da plataforma.',
     'hero.btnNewBook': 'Criar Novo Projeto',
     'hero.btnBatch': 'Gerador em Lote (1 a 20)',
     'hero.btnManuals': 'Manuais "Como Fazer"',
@@ -118,15 +129,15 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'aiGuide.subtitle': 'Orientação em tempo real para nichos, manuscritos e conformidade Amazon',
 
     // Footer
-    'footer.brand': 'Book Intel KDP v1.0',
-    'footer.desc': 'Plataforma de Inteligência Editorial para Amazon KDP',
+    'footer.brand': 'BookEngin v1.0',
+    'footer.desc': 'Plataforma Profissional de Criação e Publicação Editorial com IA',
 
     // Landing Page & Divulgação
-    'landing.sloganHeader': 'Crie. Automatize. Publique. Lucre!',
-    'landing.subHeaderBrand': 'Seu Aliado na Produção de Livros para a Amazon',
+    'landing.sloganHeader': 'Your Ideas. Complete Books. One Platform.',
+    'landing.subHeaderBrand': 'Your Ideas. Complete Books. One Platform.',
     'landing.heroTitleMain': 'Crie Livros Incríveis',
-    'landing.heroTitleHighlight': 'para a Amazon KDP',
-    'landing.heroDesc': 'Transforme suas ideias em livros profissionais com o poder da Inteligência Artificial. Pesquise, planeje, escreva, crie capas e gere seu PDF pronto para publicar na Amazon, tudo em um só lugar!',
+    'landing.heroTitleHighlight': 'para Amazon KDP, Google Play & Apple Books',
+    'landing.heroDesc': 'Transforme suas ideias em livros profissionais com o poder da Inteligência Artificial. Pesquise, planeje, escreva, crie capas e publique na Amazon KDP, Google Play Books e Apple Books, tudo em um só lugar!',
     'landing.featResearchTitle': 'Pesquisa Inteligente',
     'landing.featResearchDesc': 'Encontre os melhores nichos e oportunidades',
     'landing.featWritingTitle': 'Escrita com IA',
@@ -140,17 +151,17 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.featAllInOneTitle': 'Tudo em um só lugar',
     'landing.featAllInOneDesc': 'Do planejamento ao livro final',
 
-    // Assinatura e Preço (R$ 49,90 / mês)
-    'landing.pricingTag': 'PLANO ASSINATURA',
-    'landing.pricingPrice': 'R$ 49,90',
+    // Assinatura e Preço (US$ 25 / mês - até 15 livros)
+    'landing.pricingTag': 'PLANO MENSAL',
+    'landing.pricingPrice': 'US$ 25',
     'landing.pricingPeriod': '/ mês',
-    'landing.pricingBadge': 'Acesso Ilimitado',
+    'landing.pricingBadge': 'Até 15 Livros / Mês',
     'landing.pricingCancelAnytime': 'Cancele quando quiser',
-    'landing.pricingBenefit1': 'Geração ilimitada de livros e e-books',
+    'landing.pricingBenefit1': 'Até 15 livros completos por mês',
     'landing.pricingBenefit2': 'Capas em altíssima resolução com IA',
     'landing.pricingBenefit3': 'PDF diagramado pronto para o KDP',
     'landing.pricingImpact': 'Mais produtividade. Mais qualidade. Mais resultados.',
-    'landing.pricingCallout': 'Assine agora por apenas R$ 49,90/mês e publique sem limites!',
+    'landing.pricingCallout': 'Assine agora por apenas US$ 25/mês para até 15 livros e publique sem limites!',
 
     // Capas em HTML (renderizadas e traduzidas em tempo real)
     'landing.cover1.badge': 'BESTSELLER KDP',
@@ -187,21 +198,21 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.placeholderName': 'Ex: Leandro Palmeira',
     'landing.rememberMe': 'Lembrar de mim neste dispositivo',
     'landing.forgotPassword': 'Esqueceu a senha?',
-    'landing.btnEnterDashboard': 'Entrar no Painel do Book Intel',
+    'landing.btnEnterDashboard': 'Entrar no Painel do BookEngin',
     'landing.btnLoading': 'Carregando...',
     'landing.orDivider': 'OU',
     'landing.registerBoxTitle': 'Cadastre-se agora',
     'landing.registerBoxDesc': 'Crie sua conta e aproveite o acesso completo à plataforma.',
     'landing.btnCreateAccount': 'Criar minha conta',
     'landing.btnSubmitRegister': 'Criar Conta e Começar',
-    'landing.subscriptionNotice': 'Assinatura mensal por R$ 49,90. Acesso imediato a todas as ferramentas.',
-    'landing.securityFootnote': 'Ambiente Editorial Seguro • Acesso Direto ao Dashboard KDP',
-    'landing.footerCopyright': 'BOOK INTEL KDP | Tecnologia + Criatividade = Livros de Sucesso',
+    'landing.subscriptionNotice': 'Assinatura mensal por US$ 25 para até 15 livros. Acesso imediato a todas as ferramentas.',
+    'landing.securityFootnote': 'Ambiente Editorial Seguro • Acesso Direto ao Dashboard BookEngin',
+    'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
   },
 
   'en-US': {
     // Header & Navbar
-    'nav.slogan': 'Intelligence for your Amazon publishing success',
+    'nav.slogan': 'Your Ideas. Complete Books. One Platform.',
     'nav.aiGuide': 'Author AI Mentor',
     'nav.help': 'Settings & Help',
     'nav.proPlan': 'Pro Plan',
@@ -210,8 +221,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Hero Banner
     'hero.greeting': 'Hello, Leandro',
-    'hero.welcome': 'Welcome to Book Intel KDP',
-    'hero.description': 'Discover high-demand niches, craft professional books, and publish straight to Amazon KDP right from your dashboard.',
+    'hero.welcome': 'Welcome to BookEngin',
+    'hero.description': 'Discover high-demand niches, craft professional books, and publish to Amazon KDP, Google Play Books, and Apple Books directly from your dashboard.',
     'hero.btnNewBook': 'Create New Project',
     'hero.btnBatch': 'Batch Generator (1–20)',
     'hero.btnManuals': '"How-To" Manuals',
@@ -283,15 +294,15 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'aiGuide.subtitle': 'Real-time guidance for profitable niches, manuscripts, and KDP compliance',
 
     // Footer
-    'footer.brand': 'Book Intel KDP v1.0',
-    'footer.desc': 'Editorial Intelligence Platform for Amazon KDP',
+    'footer.brand': 'BookEngin v1.0',
+    'footer.desc': 'Professional Editorial AI Creation & Publishing Platform',
 
     // Landing Page & Divulgação
-    'landing.sloganHeader': 'Create. Automate. Publish. Profit!',
-    'landing.subHeaderBrand': 'Your Ally in Amazon Book Production',
+    'landing.sloganHeader': 'Your Ideas. Complete Books. One Platform.',
+    'landing.subHeaderBrand': 'Your Ideas. Complete Books. One Platform.',
     'landing.heroTitleMain': 'Create Incredible Books',
-    'landing.heroTitleHighlight': 'for Amazon KDP',
-    'landing.heroDesc': 'Transform your ideas into professional books powered by Artificial Intelligence. Research, plan, write, design covers, and generate your print-ready PDF for Amazon, all in one place!',
+    'landing.heroTitleHighlight': 'for Amazon KDP, Google Play & Apple Books',
+    'landing.heroDesc': 'Transform your ideas into professional books powered by Artificial Intelligence. Research, plan, write, design covers, and publish on Amazon KDP, Google Play Books, and Apple Books, all in one place!',
     'landing.featResearchTitle': 'Smart Research',
     'landing.featResearchDesc': 'Find the most lucrative niches and opportunities',
     'landing.featWritingTitle': 'AI Book Writing',
@@ -305,17 +316,17 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.featAllInOneTitle': 'All-in-One Studio',
     'landing.featAllInOneDesc': 'From topic ideation to finalized release',
 
-    // Subscription & Pricing (US$ 49.90 / mo)
-    'landing.pricingTag': 'SUBSCRIPTION PLAN',
-    'landing.pricingPrice': 'US$ 49.90',
+    // Subscription & Pricing (US$ 25 / mo - up to 15 books)
+    'landing.pricingTag': 'MONTHLY PLAN',
+    'landing.pricingPrice': 'US$ 25',
     'landing.pricingPeriod': '/ month',
-    'landing.pricingBadge': 'Unlimited Access',
+    'landing.pricingBadge': 'Up to 15 Books / Month',
     'landing.pricingCancelAnytime': 'Cancel anytime',
-    'landing.pricingBenefit1': 'Unlimited book & e-book generation',
+    'landing.pricingBenefit1': 'Up to 15 complete books per month',
     'landing.pricingBenefit2': 'Ultra high-definition AI book covers',
     'landing.pricingBenefit3': 'Print-ready formatted KDP PDFs',
     'landing.pricingImpact': 'Accelerated book production powered by state-of-the-art AI.',
-    'landing.pricingCallout': 'Subscribe now for just US$ 49.90/mo and publish without limits!',
+    'landing.pricingCallout': 'Subscribe now for just US$ 25/mo for up to 15 books and publish without limits!',
 
     // HTML Book Covers (Dynamic Real-Time Translation)
     'landing.cover1.badge': 'KDP BESTSELLER',
@@ -352,21 +363,21 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.placeholderName': 'E.g.: John Doe',
     'landing.rememberMe': 'Remember me on this device',
     'landing.forgotPassword': 'Forgot password?',
-    'landing.btnEnterDashboard': 'Enter Book Intel Dashboard',
+    'landing.btnEnterDashboard': 'Enter BookEngin Dashboard',
     'landing.btnLoading': 'Signing in...',
     'landing.orDivider': 'OR',
     'landing.registerBoxTitle': 'Register now',
     'landing.registerBoxDesc': 'Create your account and get full unlimited access to the suite.',
     'landing.btnCreateAccount': 'Create my account',
     'landing.btnSubmitRegister': 'Create Account & Start',
-    'landing.subscriptionNotice': 'Monthly subscription for US$ 49.90. Immediate access to all tools.',
-    'landing.securityFootnote': 'Secure Publishing Environment • Direct Access to KDP Dashboard',
-    'landing.footerCopyright': 'BOOK INTEL KDP | Technology + Creativity = Bestselling Books',
+    'landing.subscriptionNotice': 'Monthly subscription for US$ 25 for up to 15 books. Immediate access to all tools.',
+    'landing.securityFootnote': 'Secure Publishing Environment • Direct Access to BookEngin Dashboard',
+    'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
   },
 
   'es-ES': {
     // Header & Navbar
-    'nav.slogan': 'Inteligencia editorial para su éxito en Amazon',
+    'nav.slogan': 'Your Ideas. Complete Books. One Platform.',
     'nav.aiGuide': 'IA Mentor del Autor',
     'nav.help': 'Configuración y Ayuda',
     'nav.proPlan': 'Plan Pro',
@@ -375,8 +386,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Hero Banner
     'hero.greeting': 'Hola, Leandro',
-    'hero.welcome': 'Bienvenido a Book Intel KDP',
-    'hero.description': 'Descubra nichos de alta demanda, redacte libros profesionales y publique directamente en Amazon KDP sin salir de la plataforma.',
+    'hero.welcome': 'Bienvenido a BookEngin',
+    'hero.description': 'Descubra nichos de alta demanda, redacte libros profesionales y publique en Amazon KDP, Google Play Books y Apple Books directamente desde la plataforma.',
     'hero.btnNewBook': 'Crear Nuevo Proyecto',
     'hero.btnBatch': 'Generador por Lotes (1 a 20)',
     'hero.btnManuals': 'Manuales "Cómo Hacer"',
@@ -448,15 +459,15 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'aiGuide.subtitle': 'Orientación en tiempo real para nichos rentables, manuscritos y cumplimiento de KDP',
 
     // Footer
-    'footer.brand': 'Book Intel KDP v1.0',
-    'footer.desc': 'Plataforma de Inteligencia Editorial para Amazon KDP',
+    'footer.brand': 'BookEngin v1.0',
+    'footer.desc': 'Plataforma Profesional de Creación y Publicación Editorial con IA',
 
     // Landing Page & Divulgação
-    'landing.sloganHeader': '¡Crea. Automatiza. Publica. Genera ganancias!',
-    'landing.subHeaderBrand': 'Tu Aliado en la Producción de Libros para Amazon',
+    'landing.sloganHeader': 'Your Ideas. Complete Books. One Platform.',
+    'landing.subHeaderBrand': 'Your Ideas. Complete Books. One Platform.',
     'landing.heroTitleMain': 'Crea Libros Increíbles',
-    'landing.heroTitleHighlight': 'para Amazon KDP',
-    'landing.heroDesc': '¡Transforma tus ideas en libros profesionales con el poder de la Inteligencia Artificial. Investiga, planifica, escribe, crea portadas y genera tu PDF listo para publicar en Amazon, todo en un solo lugar!',
+    'landing.heroTitleHighlight': 'para Amazon KDP, Google Play & Apple Books',
+    'landing.heroDesc': '¡Transforma tus ideas en libros profesionales con el poder de la Inteligencia Artificial. Investiga, planifica, escribe, crea portadas y publica en Amazon KDP, Google Play Books y Apple Books, todo en un solo lugar!',
     'landing.featResearchTitle': 'Investigación Inteligente',
     'landing.featResearchDesc': 'Encuentra los mejores nichos y oportunidades',
     'landing.featWritingTitle': 'Escritura con IA',
@@ -470,17 +481,17 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.featAllInOneTitle': 'Todo en un solo lugar',
     'landing.featAllInOneDesc': 'Desde la planificación hasta el libro final',
 
-    // Suscripción y Precio (49,90 € / mes)
-    'landing.pricingTag': 'PLAN DE SUSCRIPCIÓN',
-    'landing.pricingPrice': '49,90 €',
+    // Suscripción y Precio (US$ 25 / mes - hasta 15 libros)
+    'landing.pricingTag': 'PLAN MENSUAL',
+    'landing.pricingPrice': 'US$ 25',
     'landing.pricingPeriod': '/ mes',
-    'landing.pricingBadge': 'Acceso Ilimitado',
+    'landing.pricingBadge': 'Hasta 15 Libros / Mes',
     'landing.pricingCancelAnytime': 'Cancela cuando quieras',
-    'landing.pricingBenefit1': 'Generación ilimitada de libros y e-books',
+    'landing.pricingBenefit1': 'Hasta 15 libros completos por mes',
     'landing.pricingBenefit2': 'Portadas de libros en alta resolución con IA',
     'landing.pricingBenefit3': 'PDFs maquetados listos para Amazon KDP',
     'landing.pricingImpact': 'Más productividad. Más calidad. Más resultados.',
-    'landing.pricingCallout': '¡Suscríbete ahora por solo 49,90 €/mes y publica sin límites!',
+    'landing.pricingCallout': '¡Suscríbete ahora por solo US$ 25/mes para hasta 15 libros y publica sin límites!',
 
     // Portadas en HTML (renderizadas y traducidas en tiempo real)
     'landing.cover1.badge': 'BESTSELLER KDP',
@@ -517,16 +528,16 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.placeholderName': 'Ej: Carlos Mendoza',
     'landing.rememberMe': 'Recordarme en este dispositivo',
     'landing.forgotPassword': '¿Olvidaste tu contraseña?',
-    'landing.btnEnterDashboard': 'Entrar al Panel de Book Intel',
+    'landing.btnEnterDashboard': 'Entrar al Panel de BookEngin',
     'landing.btnLoading': 'Iniciando sesión...',
     'landing.orDivider': 'O',
     'landing.registerBoxTitle': 'Regístrate ahora',
     'landing.registerBoxDesc': 'Crea tu cuenta y aprovecha el acceso ilimitado a la plataforma.',
     'landing.btnCreateAccount': 'Crear mi cuenta',
     'landing.btnSubmitRegister': 'Crear Cuenta y Empezar',
-    'landing.subscriptionNotice': 'Suscripción mensual por 49,90 €. Acceso inmediato a todas las herramientas.',
-    'landing.securityFootnote': 'Entorno Editorial Seguro • Acceso Directo al Dashboard KDP',
-    'landing.footerCopyright': 'BOOK INTEL KDP | Tecnología + Creatividad = Libros de Éxito',
+    'landing.subscriptionNotice': 'Suscripción mensual por US$ 25 para hasta 15 libros. Acceso inmediato a todas las herramientas.',
+    'landing.securityFootnote': 'Entorno Editorial Seguro • Acceso Directo al Dashboard BookEngin',
+    'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
   },
 
   'fr-FR': {
@@ -540,7 +551,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Hero Banner
     'hero.greeting': 'Bonjour, Leandro',
-    'hero.welcome': 'Bienvenue sur Book Intel KDP',
+    'hero.welcome': 'Bienvenue sur BookEngin',
     'hero.description': 'Trouvez des niches rentables, créez des livres de qualité professionnelle et publiez directement sur Amazon KDP sans quitter la plateforme.',
     'hero.btnNewBook': 'Créer un Projet',
     'hero.btnBatch': 'Générateur par Lots (1 à 20)',
@@ -613,7 +624,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'aiGuide.subtitle': 'Conseils en temps réel sur les niches, manuscrits et conformité KDP',
 
     // Footer
-    'footer.brand': 'Book Intel KDP v1.0',
+    'footer.brand': 'BookEngin v1.0',
     'footer.desc': 'Plateforme d’Intelligence Éditoriale pour Amazon KDP',
   },
 
@@ -628,7 +639,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Hero Banner
     'hero.greeting': 'Hallo, Leandro',
-    'hero.welcome': 'Willkommen bei Book Intel KDP',
+    'hero.welcome': 'Willkommen bei BookEngin',
     'hero.description': 'Finden Sie lukrative Marktnischen, erstellen Sie erstklassige Bücher und veröffentlichen Sie direkt auf Amazon KDP.',
     'hero.btnNewBook': 'Neues Projekt erstellen',
     'hero.btnBatch': 'Stapel-Generator (1 bis 20)',
@@ -701,7 +712,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'aiGuide.subtitle': 'Echtzeit-Beratung zu Marktnischen, Manuskripten und KDP-Richtlinien',
 
     // Footer
-    'footer.brand': 'Book Intel KDP v1.0',
+    'footer.brand': 'BookEngin v1.0',
     'footer.desc': 'Verlagsintelligenz-Plattform für Amazon KDP',
   },
 
@@ -716,7 +727,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Hero Banner
     'hero.greeting': 'Здравствуйте, Leandro',
-    'hero.welcome': 'Добро пожаловать в Book Intel KDP',
+    'hero.welcome': 'Добро пожаловать в BookEngin',
     'hero.description': 'Находите прибыльные ниши, создавайте профессиональные книги и публикуйте их напрямую на Amazon KDP прямо с панели управления.',
     'hero.btnNewBook': 'Создать новый проект',
     'hero.btnBatch': 'Пакетный генератор (1–20)',
@@ -789,30 +800,32 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'aiGuide.subtitle': 'Консультации в реальном времени по нишам, рукописям и требованиям Amazon',
 
     // Footer
-    'footer.brand': 'Book Intel KDP v1.0',
+    'footer.brand': 'BookEngin v1.0',
     'footer.desc': 'Платформа редакционной аналитики для Amazon KDP',
   }
 };
 
 /**
- * Obtém o idioma selecionado atualmente do localStorage ou fallback para pt-BR
+ * Starts in English to avoid showing Brazilian prices before country detection.
  */
 export function getCurrentLanguage(): SupportedLanguage {
-  if (typeof window === 'undefined') return 'pt-BR';
-  const saved = localStorage.getItem(STORAGE_KEY) as SupportedLanguage | null;
-  if (saved && TRANSLATIONS[saved]) {
-    return saved;
-  }
-  return 'pt-BR';
+  return activeLanguage;
 }
 
 /**
- * Define o novo idioma ativo, persiste e emite evento reativo para toda a aplicação
+ * Define the user's language for the current visit.
  */
 export function setLanguage(lang: SupportedLanguage): void {
   if (!TRANSLATIONS[lang]) return;
-  localStorage.setItem(STORAGE_KEY, lang);
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { lang } }));
+  if (!isBrazilianCountry(detectedCountryCode) && lang !== 'en-US') {
+    applyLanguage('en-US');
+    return;
+  }
+  languageManuallySelected = true;
+  applyLanguage(lang);
+  if (detectedCountryCode === 'BR') {
+    localStorage.setItem('kdp_preferred_lang_BR', lang);
+  }
 }
 
 /**
@@ -834,6 +847,8 @@ export function t(key: string, fallback?: string): string {
  */
 export function useTranslation() {
   const [currentLang, setCurrentLang] = useState<SupportedLanguage>(getCurrentLanguage());
+  const [countryCode, setCountryCode] = useState<string | null>(null);
+  const [regionResolved, setRegionResolved] = useState(false);
 
   useEffect(() => {
     const handleLangChange = (e: any) => {
@@ -847,6 +862,36 @@ export function useTranslation() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    detectVisitorCountry()
+      .then(country => {
+        if (!mounted) return;
+        detectedCountryCode = country;
+        setCountryCode(country);
+        if (!isBrazilianCountry(country)) {
+          languageManuallySelected = false;
+          applyLanguage('en-US');
+        } else if (!languageManuallySelected) {
+          const preferred = localStorage.getItem('kdp_preferred_lang_BR') as SupportedLanguage | null;
+          applyLanguage(preferred && TRANSLATIONS[preferred] ? preferred : 'pt-BR');
+        }
+      })
+      .catch(() => {
+        if (!mounted) return;
+        detectedCountryCode = null;
+        setCountryCode(null);
+        languageManuallySelected = false;
+        applyLanguage('en-US');
+      })
+      .finally(() => {
+        if (mounted) setRegionResolved(true);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const translate = (key: string, fallback?: string): string => {
     const dict = TRANSLATIONS[currentLang] || TRANSLATIONS['pt-BR'];
     const text = dict[key];
@@ -857,8 +902,9 @@ export function useTranslation() {
   };
 
   const changeLanguage = (newLang: SupportedLanguage) => {
+    if (!isBrazilianCountry(countryCode) && newLang !== 'en-US') return;
     setLanguage(newLang);
-    setCurrentLang(newLang);
+    setCurrentLang(getCurrentLanguage());
   };
 
   const currentOption = SUPPORTED_LANGUAGES.find(l => l.code === currentLang) || SUPPORTED_LANGUAGES[0];
@@ -866,6 +912,9 @@ export function useTranslation() {
   return {
     currentLang,
     currentOption,
+    countryCode,
+    isBrazil: isBrazilianCountry(countryCode),
+    regionResolved,
     languages: SUPPORTED_LANGUAGES,
     t: translate,
     setLanguage: changeLanguage

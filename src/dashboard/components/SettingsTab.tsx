@@ -180,7 +180,7 @@ export const SettingsTab: React.FC = () => {
     <div>
       <div className="header-banner">
         <div>
-          <h2 className="page-title">Configurações do BookIntel</h2>
+          <h2 className="page-title">Configurações do BookEngin</h2>
           <div className="page-subtitle">Ajuste parâmetros de exibição, moedas, royalties KDP e cálculo de oportunidade</div>
         </div>
 

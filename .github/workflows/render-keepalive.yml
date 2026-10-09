@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Ping Book Intel KDP no Render
+      - name: Ping BookEngin no Render
         run: |
           echo "Disparando Keep-Alive Ping para https://book-intel-kdp.onrender.com/ping..."
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 60 https://book-intel-kdp.onrender.com/ping || echo "FAILED")
