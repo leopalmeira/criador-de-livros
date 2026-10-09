@@ -11,6 +11,21 @@ const MAX_PROJECT_BODY_BYTES = 50 * 1024 * 1024;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const rateLimits = new Map();
 
+const PLAN_LIMITS = {
+  free: { maxProjects: 3, maxStorageMB: 100, maxApiCallsDay: 100, features: ['gerador_basico', 'export_pdf'] },
+  pro: { maxProjects: 50, maxStorageMB: 5000, maxApiCallsDay: 5000, features: ['gerador_basico', 'gerador_avancado', 'audiobook', 'coloring', 'export_pdf', 'export_epub', 'kdp_direct', 'analytics'] },
+  enterprise: { maxProjects: -1, maxStorageMB: -1, maxApiCallsDay: -1, features: ['all'] }
+};
+
+function getPlanLimits(plan) {
+  return PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+}
+
+function hasFeature(plan, feature) {
+  const limits = getPlanLimits(plan);
+  return limits.features.includes('all') || limits.features.includes(feature);
+}
+
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS kdp_users (
     id BIGSERIAL PRIMARY KEY,
@@ -18,9 +33,21 @@ const SCHEMA_SQL = `
     name TEXT NOT NULL,
     password_salt TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    verification_token TEXT,
+    verification_expires TIMESTAMPTZ,
+    reset_token TEXT,
+    reset_expires TIMESTAMPTZ,
+    plan TEXT NOT NULL DEFAULT 'free',
+    plan_expires TIMESTAMPTZ,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE UNIQUE INDEX IF NOT EXISTS kdp_users_email_lower_idx ON kdp_users (LOWER(email));
+  CREATE INDEX IF NOT EXISTS kdp_users_verification_idx ON kdp_users (verification_token) WHERE verification_token IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS kdp_users_reset_idx ON kdp_users (reset_token) WHERE reset_token IS NOT NULL;
+
   CREATE TABLE IF NOT EXISTS kdp_sessions (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES kdp_users(id) ON DELETE CASCADE,
@@ -29,6 +56,7 @@ const SCHEMA_SQL = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS kdp_sessions_expiry_idx ON kdp_sessions (expires_at);
+
   CREATE TABLE IF NOT EXISTS kdp_book_projects (
     user_id BIGINT NOT NULL REFERENCES kdp_users(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL,
@@ -37,6 +65,7 @@ const SCHEMA_SQL = `
     PRIMARY KEY (user_id, project_id)
   );
   CREATE INDEX IF NOT EXISTS kdp_book_projects_updated_idx ON kdp_book_projects (user_id, updated_at DESC);
+
   CREATE TABLE IF NOT EXISTS kdp_user_records (
     user_id BIGINT NOT NULL REFERENCES kdp_users(id) ON DELETE CASCADE,
     collection TEXT NOT NULL,
@@ -46,6 +75,46 @@ const SCHEMA_SQL = `
     PRIMARY KEY (user_id, collection, record_id)
   );
   CREATE INDEX IF NOT EXISTS kdp_user_records_updated_idx ON kdp_user_records (user_id, collection, updated_at DESC);
+
+  CREATE TABLE IF NOT EXISTS kdp_plans (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    max_projects INT NOT NULL DEFAULT 3,
+    max_storage_mb INT NOT NULL DEFAULT 100,
+    max_api_calls_day INT NOT NULL DEFAULT 100,
+    features JSONB NOT NULL DEFAULT '[]',
+    price_monthly_cents INT NOT NULL DEFAULT 0,
+    price_yearly_cents INT NOT NULL DEFAULT 0
+  );
+  INSERT INTO kdp_plans (id, name, max_projects, max_storage_mb, max_api_calls_day, features, price_monthly_cents, price_yearly_cents)
+  VALUES 
+    ('free', 'Gratuito', 3, 100, 100, '["gerador_basico", "export_pdf"]', 0, 0),
+    ('pro', 'Profissional', 50, 5000, 5000, '["gerador_basico", "gerador_avancado", "audiobook", "coloring", "export_pdf", "export_epub", "kdp_direct", "analytics"]', 2900, 29000),
+    ('enterprise', 'Empresarial', -1, -1, -1, '["all"]', 9900, 99000)
+  ON CONFLICT (id) DO NOTHING;
+
+  CREATE TABLE IF NOT EXISTS kdp_usage (
+    user_id BIGINT NOT NULL REFERENCES kdp_users(id) ON DELETE CASCADE,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    api_calls INT NOT NULL DEFAULT 0,
+    storage_bytes BIGINT NOT NULL DEFAULT 0,
+    projects_count INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, date)
+  );
+  CREATE INDEX IF NOT EXISTS kdp_usage_date_idx ON kdp_usage (date);
+
+  CREATE TABLE IF NOT EXISTS kdp_audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT REFERENCES kdp_users(id) ON DELETE SET NULL,
+    admin_id BIGINT REFERENCES kdp_users(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    details JSONB,
+    ip TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS kdp_audit_log_user_idx ON kdp_audit_log (user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS kdp_audit_log_admin_idx ON kdp_audit_log (admin_id, created_at DESC);
 `;
 
 function sendJson(res, statusCode, payload) {
@@ -155,6 +224,34 @@ function validateSameOrigin(req) {
   } catch {
     return false;
   }
+}
+
+async function sendVerificationEmail(email, token) {
+  const verifyUrl = `${process.env.APP_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
+  console.log(`[Email Verification] Para: ${email}\nLink: ${verifyUrl}`);
+  if (process.env.SENDGRID_API_KEY || process.env.RESEND_API_KEY || process.env.SMTP_HOST) {
+    // TODO: Implementar envio real via SendGrid/Resend/SMTP
+  }
+}
+
+async function sendResetEmail(email, token) {
+  const resetUrl = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+  console.log(`[Password Reset] Para: ${email}\nLink: ${resetUrl}`);
+  if (process.env.SENDGRID_API_KEY || process.env.RESEND_API_KEY || process.env.SMTP_HOST) {
+    // TODO: Implementar envio real via SendGrid/Resend/SMTP
+  }
+}
+
+async function logAudit(userId, adminId, action, details, req) {
+  if (!pool) return;
+  try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+    const ua = req.headers['user-agent'] || 'unknown';
+    await pool.query(
+      'INSERT INTO kdp_audit_log (user_id, admin_id, action, details, ip, user_agent) VALUES ($1, $2, $3, $4, $5, $6)',
+      [userId, adminId, action, JSON.stringify(details || {}), ip, ua]
+    );
+  } catch {}
 }
 
 export async function hashPassword(password, salt = randomBytes(16)) {
@@ -386,6 +483,20 @@ export function createAuthApi(options = {}) {
           sendJson(res, 400, { success: false, code: 'INVALID_PROJECT', error: 'Os dados do projeto são inválidos.' });
           return true;
         }
+
+        const existing = await pool.query('SELECT 1 FROM kdp_book_projects WHERE user_id = $1 AND project_id = $2', [user.id, projectId]);
+        if (!existing.rows[0]) {
+          const planResult = await pool.query('SELECT plan FROM kdp_users WHERE id = $1', [user.id]);
+          const limits = getPlanLimits(planResult.rows[0]?.plan || 'free');
+          if (limits.maxProjects > 0) {
+            const count = await pool.query('SELECT COUNT(*) FROM kdp_book_projects WHERE user_id = $1', [user.id]);
+            if (parseInt(count.rows[0].count) >= limits.maxProjects) {
+              sendJson(res, 403, { success: false, code: 'PLAN_LIMIT_EXCEEDED', error: `Limite de ${limits.maxProjects} projetos atingido. Faça upgrade do plano.` });
+              return true;
+            }
+          }
+        }
+
         await pool.query(
           `INSERT INTO kdp_book_projects (user_id, project_id, project, updated_at)
            VALUES ($1, $2, $3::jsonb, NOW())
@@ -404,7 +515,7 @@ export function createAuthApi(options = {}) {
           return true;
         }
         const result = await pool.query(
-          `SELECT u.id, u.email, u.name
+          `SELECT u.id, u.email, u.name, u.plan, u.email_verified
            FROM kdp_sessions s
            JOIN kdp_users u ON u.id = s.user_id
            WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
@@ -414,7 +525,7 @@ export function createAuthApi(options = {}) {
         sendJson(res, 200, {
           success: true,
           user: result.rows[0]
-            ? { id: String(result.rows[0].id), email: result.rows[0].email, name: result.rows[0].name }
+            ? { id: String(result.rows[0].id), email: result.rows[0].email, name: result.rows[0].name, plan: result.rows[0].plan, emailVerified: result.rows[0].email_verified }
             : null
         });
         return true;
@@ -456,19 +567,22 @@ export function createAuthApi(options = {}) {
         }
 
         const credentials = await hashPassword(password);
+        const verifyToken = randomBytes(32).toString('base64url');
+        const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
           const result = await client.query(
-            `INSERT INTO kdp_users (email, name, password_salt, password_hash)
-             VALUES ($1, $2, $3, $4)
+            `INSERT INTO kdp_users (email, name, password_salt, password_hash, verification_token, verification_expires, plan)
+             VALUES ($1, $2, $3, $4, $5, $6, 'free')
              RETURNING id, email, name`,
-            [email, name, credentials.salt, credentials.passwordHash]
+            [email, name, credentials.salt, credentials.passwordHash, verifyToken, verifyExpires]
           );
           const user = result.rows[0];
           await createSession(client, req, res, user.id, rememberMe);
           await client.query('COMMIT');
-          sendJson(res, 201, { success: true, user: { id: String(user.id), email: user.email, name: user.name } });
+          await sendVerificationEmail(email, verifyToken);
+          sendJson(res, 201, { success: true, user: { id: String(user.id), email: user.email, name: user.name }, needsVerification: true });
         } catch (error) {
           clearSessionCookie(req, res);
           await client.query('ROLLBACK');
@@ -484,7 +598,7 @@ export function createAuthApi(options = {}) {
       }
 
       const result = await pool.query(
-        'SELECT id, email, name, password_salt, password_hash FROM kdp_users WHERE LOWER(email) = $1 LIMIT 1',
+        'SELECT id, email, name, password_salt, password_hash, plan, email_verified FROM kdp_users WHERE LOWER(email) = $1 LIMIT 1',
         [email]
       );
       const account = result.rows[0];
@@ -506,8 +620,221 @@ export function createAuthApi(options = {}) {
       } finally {
         client.release();
       }
-      sendJson(res, 200, { success: true, user: { id: String(account.id), email: account.email, name: account.name } });
+      sendJson(res, 200, { success: true, user: { id: String(account.id), email: account.email, name: account.name, plan: account.plan, emailVerified: account.email_verified } });
       return true;
+
+      // ========== NOVAS ROTAS ==========
+
+      if (route === '/verify-email/send') {
+        if (req.method !== 'POST') return sendJson(res, 405, { success: false, error: 'Método não permitido' });
+        const token = randomBytes(32).toString('base64url');
+        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await pool.query(
+          'UPDATE kdp_users SET verification_token = $1, verification_expires = $2 WHERE LOWER(email) = $3',
+          [token, expires, email]
+        );
+        await sendVerificationEmail(email, token);
+        sendJson(res, 200, { success: true, message: 'E-mail de verificação enviado' });
+        return true;
+      }
+
+      if (route === '/verify-email/confirm') {
+        if (req.method !== 'POST') return sendJson(res, 405, { success: false, error: 'Método não permitido' });
+        const { token } = await readRequestBody(req);
+        const result = await pool.query(
+          'SELECT id, email_verified FROM kdp_users WHERE verification_token = $1 AND verification_expires > NOW()',
+          [token]
+        );
+        if (!result.rows[0]) {
+          sendJson(res, 400, { success: false, code: 'INVALID_TOKEN', error: 'Token inválido ou expirado' });
+          return true;
+        }
+        await pool.query(
+          'UPDATE kdp_users SET email_verified = TRUE, verification_token = NULL, verification_expires = NULL WHERE id = $1',
+          [result.rows[0].id]
+        );
+        sendJson(res, 200, { success: true, message: 'E-mail verificado com sucesso' });
+        return true;
+      }
+
+      if (route === '/password/reset/request') {
+        if (req.method !== 'POST') return sendJson(res, 405, { success: false, error: 'Método não permitido' });
+        const account = await pool.query('SELECT id, email FROM kdp_users WHERE LOWER(email) = $1', [email]);
+        if (account.rows[0]) {
+          const token = randomBytes(32).toString('base64url');
+          const expires = new Date(Date.now() + 60 * 60 * 1000);
+          await pool.query(
+            'UPDATE kdp_users SET reset_token = $1, reset_expires = $2 WHERE id = $3',
+            [token, expires, account.rows[0].id]
+          );
+          await sendResetEmail(account.rows[0].email, token);
+        }
+        sendJson(res, 200, { success: true, message: 'Se o e-mail existir, você receberá instruções' });
+        return true;
+      }
+
+      if (route === '/password/reset/confirm') {
+        if (req.method !== 'POST') return sendJson(res, 405, { success: false, error: 'Método não permitido' });
+        const { token, password: newPassword } = await readRequestBody(req);
+        if (!newPassword || newPassword.length < 8 || newPassword.length > 128) {
+          sendJson(res, 400, { success: false, code: 'INVALID_PASSWORD', error: 'Senha deve ter 8-128 caracteres' });
+          return true;
+        }
+        const result = await pool.query(
+          'SELECT id FROM kdp_users WHERE reset_token = $1 AND reset_expires > NOW()',
+          [token]
+        );
+        if (!result.rows[0]) {
+          sendJson(res, 400, { success: false, code: 'INVALID_TOKEN', error: 'Token inválido ou expirado' });
+          return true;
+        }
+        const credentials = await hashPassword(newPassword);
+        await pool.query(
+          'UPDATE kdp_users SET password_salt = $1, password_hash = $2, reset_token = NULL, reset_expires = NULL WHERE id = $3',
+          [credentials.salt, credentials.passwordHash, result.rows[0].id]
+        );
+        await pool.query('DELETE FROM kdp_sessions WHERE user_id = $1', [result.rows[0].id]);
+        sendJson(res, 200, { success: true, message: 'Senha alterada. Faça login novamente.' });
+        return true;
+      }
+
+      if (route === '/plan') {
+        if (req.method !== 'GET') return sendJson(res, 405, { success: false, error: 'Método não permitido' });
+        const token = getCookie(req, SESSION_COOKIE);
+        if (!token) return sendJson(res, 401, { success: false, code: 'AUTH_REQUIRED', error: 'Entre na sua conta' });
+        const session = await pool.query(
+          `SELECT u.id, u.plan, u.plan_expires, p.max_projects, p.max_storage_mb, p.max_api_calls_day, p.features
+           FROM kdp_users u
+           JOIN kdp_plans p ON p.id = u.plan
+           JOIN kdp_sessions s ON s.user_id = u.id
+           WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
+          [hashToken(token)]
+        );
+        if (!session.rows[0]) return sendJson(res, 401, { success: false, code: 'AUTH_REQUIRED', error: 'Sessão expirada' });
+        const user = session.rows[0];
+        const usage = await pool.query(
+          'SELECT api_calls, storage_bytes, projects_count FROM kdp_usage WHERE user_id = $1 AND date = CURRENT_DATE',
+          [user.id]
+        );
+        const u = usage.rows[0] || { api_calls: 0, storage_bytes: 0, projects_count: 0 };
+        sendJson(res, 200, {
+          success: true,
+          plan: user.plan,
+          planExpires: user.plan_expires,
+          limits: { maxProjects: user.max_projects, maxStorageMB: user.max_storage_mb, maxApiCallsDay: user.max_api_calls_day, features: user.features },
+          usage: { apiCalls: u.api_calls, storageMB: Math.round(u.storage_bytes / 1024 / 1024), projectsCount: u.projects_count }
+        });
+        return true;
+      }
+
+      if (route === '/usage/increment') {
+        if (req.method !== 'POST') return sendJson(res, 405, { success: false, error: 'Método não permitido' });
+        const token = getCookie(req, SESSION_COOKIE);
+        if (!token) return sendJson(res, 401, { success: false, code: 'AUTH_REQUIRED', error: 'Entre na sua conta' });
+        const { type, amount = 1 } = await readRequestBody(req);
+        const session = await pool.query(
+          'SELECT u.id, u.plan FROM kdp_users u JOIN kdp_sessions s ON s.user_id = u.id WHERE s.token_hash = $1 AND s.expires_at > NOW()',
+          [hashToken(token)]
+        );
+        if (!session.rows[0]) return sendJson(res, 401, { success: false, code: 'AUTH_REQUIRED', error: 'Sessão expirada' });
+        const { id, plan } = session.rows[0];
+        const limits = getPlanLimits(plan);
+        if (type === 'api_call' && limits.maxApiCallsDay > 0) {
+          await pool.query(
+            `INSERT INTO kdp_usage (user_id, date, api_calls) VALUES ($1, CURRENT_DATE, $2)
+             ON CONFLICT (user_id, date) DO UPDATE SET api_calls = kdp_usage.api_calls + $2`,
+            [id, amount]
+          );
+        } else if (type === 'storage' && limits.maxStorageMB > 0) {
+          await pool.query(
+            `INSERT INTO kdp_usage (user_id, date, storage_bytes) VALUES ($1, CURRENT_DATE, $2)
+             ON CONFLICT (user_id, date) DO UPDATE SET storage_bytes = kdp_usage.storage_bytes + $2`,
+            [id, amount]
+          );
+        } else if (type === 'project' && limits.maxProjects > 0) {
+          await pool.query(
+            `INSERT INTO kdp_usage (user_id, date, projects_count) VALUES ($1, CURRENT_DATE, $2)
+             ON CONFLICT (user_id, date) DO UPDATE SET projects_count = kdp_usage.projects_count + $2`,
+            [id, amount]
+          );
+        }
+        sendJson(res, 200, { success: true });
+        return true;
+      }
+
+      if (route === '/admin/stats') {
+        if (req.method !== 'GET') return sendJson(res, 405, { success: false, error: 'Método não permitido' });
+        const token = getCookie(req, SESSION_COOKIE);
+        if (!token) return sendJson(res, 401, { success: false, code: 'AUTH_REQUIRED', error: 'Entre na sua conta' });
+        const session = await pool.query(
+          'SELECT u.is_admin FROM kdp_users u JOIN kdp_sessions s ON s.user_id = u.id WHERE s.token_hash = $1 AND s.expires_at > NOW()',
+          [hashToken(token)]
+        );
+        if (!session.rows[0]?.is_admin) return sendJson(res, 403, { success: false, code: 'ADMIN_REQUIRED', error: 'Acesso negado' });
+        const stats = await pool.query(`
+          SELECT 
+            (SELECT COUNT(*) FROM kdp_users) as total_users,
+            (SELECT COUNT(*) FROM kdp_users WHERE email_verified) as verified_users,
+            (SELECT COUNT(*) FROM kdp_users WHERE plan = 'pro') as pro_users,
+            (SELECT COUNT(*) FROM kdp_users WHERE plan = 'enterprise') as enterprise_users,
+            (SELECT COUNT(*) FROM kdp_book_projects) as total_projects,
+            (SELECT COUNT(*) FROM kdp_sessions WHERE expires_at > NOW()) as active_sessions,
+            (SELECT SUM(projects_count) FROM kdp_usage WHERE date = CURRENT_DATE) as projects_today,
+            (SELECT SUM(api_calls) FROM kdp_usage WHERE date = CURRENT_DATE) as api_calls_today
+        `);
+        sendJson(res, 200, { success: true, stats: stats.rows[0] });
+        return true;
+      }
+
+      if (route === '/admin/users') {
+        if (req.method !== 'GET') return sendJson(res, 405, { success: false, error: 'Método não permitido' });
+        const token = getCookie(req, SESSION_COOKIE);
+        if (!token) return sendJson(res, 401, { success: false, code: 'AUTH_REQUIRED', error: 'Entre na sua conta' });
+        const session = await pool.query(
+          'SELECT u.is_admin FROM kdp_users u JOIN kdp_sessions s ON s.user_id = u.id WHERE s.token_hash = $1 AND s.expires_at > NOW()',
+          [hashToken(token)]
+        );
+        if (!session.rows[0]?.is_admin) return sendJson(res, 403, { success: false, code: 'ADMIN_REQUIRED', error: 'Acesso negado' });
+        const { page = 1, limit = 50, search, plan } = Object.fromEntries(requestUrl.searchParams);
+        const offset = (page - 1) * limit;
+        let where = '1=1';
+        const params = [];
+        if (search) { where += ' AND (email ILIKE $' + (params.length + 1) + ' OR name ILIKE $' + (params.length + 1) + ')'; params.push(`%${search}%`); }
+        if (plan) { where += ' AND plan = $' + (params.length + 1); params.push(plan); }
+        params.push(limit, offset);
+        const users = await pool.query(
+          `SELECT id, email, name, plan, plan_expires, email_verified, is_admin, created_at 
+           FROM kdp_users WHERE ${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+          params
+        );
+        const total = await pool.query(`SELECT COUNT(*) FROM kdp_users WHERE ${where}`, params.slice(0, -2));
+        sendJson(res, 200, { success: true, users: users.rows, total: parseInt(total.rows[0].count), page: parseInt(page), limit: parseInt(limit) });
+        return true;
+      }
+
+      if (route.startsWith('/admin/users/') && req.method === 'PUT') {
+        const token = getCookie(req, SESSION_COOKIE);
+        if (!token) return sendJson(res, 401, { success: false, code: 'AUTH_REQUIRED', error: 'Entre na sua conta' });
+        const session = await pool.query(
+          'SELECT u.is_admin FROM kdp_users u JOIN kdp_sessions s ON s.user_id = u.id WHERE s.token_hash = $1 AND s.expires_at > NOW()',
+          [hashToken(token)]
+        );
+        if (!session.rows[0]?.is_admin) return sendJson(res, 403, { success: false, code: 'ADMIN_REQUIRED', error: 'Acesso negado' });
+        const targetId = route.split('/')[3];
+        const { plan, is_admin, email_verified } = await readRequestBody(req);
+        const updates = [];
+        const values = [];
+        if (plan) { updates.push('plan = $' + (values.length + 1)); values.push(plan); }
+        if (typeof is_admin === 'boolean') { updates.push('is_admin = $' + (values.length + 1)); values.push(is_admin); }
+        if (typeof email_verified === 'boolean') { updates.push('email_verified = $' + (values.length + 1)); values.push(email_verified); }
+        if (updates.length === 0) return sendJson(res, 400, { success: false, error: 'Nada para atualizar' });
+        values.push(targetId);
+        await pool.query(`UPDATE kdp_users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${values.length}`, values);
+        await logAudit(null, session.rows[0].id, 'admin_update_user', { targetId, changes: { plan, is_admin, email_verified } }, req);
+        sendJson(res, 200, { success: true });
+        return true;
+      }
+
     } catch (error) {
       if (error.status) {
         sendJson(res, error.status, { success: false, code: error.code || 'AUTH_REQUEST_FAILED', error: error.message });

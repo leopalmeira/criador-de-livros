@@ -10,6 +10,7 @@ import {
 
 // Modais e Componentes Principais
 import { SettingsTab } from '../../dashboard/components/SettingsTab';
+import { AdminPanelTab } from '../../dashboard/components/AdminPanelTab';
 import { BookIntelDashboard } from './BookIntelDashboard';
 import { SegmentSelectorModal } from './SegmentSelectorModal';
 import { KdpBookGeneratorPro } from './generator/KdpBookGeneratorPro';
@@ -24,7 +25,7 @@ import { CoverStyleDefinition } from '../../services/amazon-cover-styles';
 import { AuthenticatedUser, authClient } from '../../services/auth-client';
 import '../../styles/book-intel-dashboard.css';
 
-type AppMode = 'project-list' | 'settings' | 'kdp-generator';
+type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin';
 
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
@@ -401,6 +402,7 @@ export const BookStudioApp: React.FC = () => {
           onDuplicateProject={duplicateProject}
           onDeleteProject={deleteProject}
           onOpenSettings={() => setMode('settings')}
+          onOpenAdmin={() => setMode('admin')}
           onSelectOpportunity={handleSelectOpportunity}
           onOpenPublishing={handleOpenPublishing}
           onOpenKdpPublish={handleOpenKdpPublish}
@@ -536,6 +538,28 @@ export const BookStudioApp: React.FC = () => {
             <h2>Configurações da Inteligência Artificial</h2>
           </div>
           <SettingsTab />
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+  }
+
+  // ============================================================
+  // TELA 4: PAINEL ADMINISTRATIVO (APENAS ADMIN)
+  // ============================================================
+  if (mode === 'admin') {
+    return (
+      <div className="app-layout">
+        <div className="settings-page">
+          <div className="settings-header">
+            <button className="btn-back" onClick={() => setMode('project-list')}>
+              <ChevronLeft size={18} /> Voltar à Dashboard
+            </button>
+            <h2>Painel Administrativo</h2>
+          </div>
+          <AdminPanelTab />
         </div>
       </div>
     );

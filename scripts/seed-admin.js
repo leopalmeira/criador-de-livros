@@ -37,13 +37,14 @@ async function seedAdmin() {
       await client.query('BEGIN');
 
       const result = await client.query(
-        `INSERT INTO kdp_users (email, name, password_salt, password_hash)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO kdp_users (email, name, password_salt, password_hash, is_admin)
+         VALUES ($1, $2, $3, $4, TRUE)
          ON CONFLICT (email) DO UPDATE SET
            name = EXCLUDED.name,
            password_salt = EXCLUDED.password_salt,
-           password_hash = EXCLUDED.password_hash
-         RETURNING id, email, name, created_at`,
+           password_hash = EXCLUDED.password_hash,
+           is_admin = TRUE
+         RETURNING id, email, name, is_admin, created_at`,
         [email, name, credentials.salt, credentials.passwordHash]
       );
 
@@ -54,6 +55,7 @@ async function seedAdmin() {
       console.log(`   ID: ${user.id}`);
       console.log(`   Email: ${user.email}`);
       console.log(`   Nome: ${user.name}`);
+      console.log(`   Admin: ${user.is_admin ? 'SIM' : 'NÃO'}`);
       console.log(`   Criado em: ${user.created_at}`);
       console.log('');
       console.log('🔑 Credenciais de acesso:');

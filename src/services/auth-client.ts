@@ -2,6 +2,8 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string;
+  plan?: string;
+  emailVerified?: boolean;
 }
 
 export class AuthApiError extends Error {
@@ -70,5 +72,30 @@ export const authClient = {
 
   async logout(): Promise<void> {
     await request<ApiResponse>('/api/auth/logout', 'POST', {});
+  },
+
+  async sendVerificationEmail(email: string): Promise<void> {
+    await request<ApiResponse>('/api/auth/verify-email/send', 'POST', { email });
+  },
+
+  async verifyEmail(token: string): Promise<void> {
+    await request<ApiResponse>('/api/auth/verify-email/confirm', 'POST', { token });
+  },
+
+  async requestPasswordReset(email: string): Promise<void> {
+    await request<ApiResponse>('/api/auth/password/reset/request', 'POST', { email });
+  },
+
+  async confirmPasswordReset(token: string, password: string): Promise<void> {
+    await request<ApiResponse>('/api/auth/password/reset/confirm', 'POST', { token, password });
+  },
+
+  async getPlan(): Promise<{ plan: string; limits: any; usage: any } | null> {
+    const response = await request<ApiResponse & { plan: string; limits: any; usage: any }>('/api/auth/plan', 'GET');
+    return response.success ? { plan: response.plan, limits: response.limits, usage: response.usage } : null;
+  },
+
+  async incrementUsage(type: 'api_call' | 'storage' | 'project', amount?: number): Promise<void> {
+    await request<ApiResponse>('/api/auth/usage/increment', 'POST', { type, amount });
   }
 };

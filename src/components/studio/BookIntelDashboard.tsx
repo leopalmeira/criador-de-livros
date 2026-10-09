@@ -3,7 +3,7 @@ import {
   BookOpen, Plus, TrendingUp, FileText,
   HelpCircle, ChevronDown, ArrowRight,
   Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play,
-  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw
+  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw, Shield
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -22,6 +22,7 @@ interface Props {
   onDuplicateProject: (id: string, e: React.MouseEvent) => void;
   onDeleteProject: (id: string, e: React.MouseEvent) => void;
   onOpenSettings: () => void;
+  onOpenAdmin?: () => void;
   onQuickAction?: (action: 'niche' | 'keywords' | 'competition' | 'reports') => void;
   onSelectOpportunity?: (
     proposal: BookOpportunityProposal, 
@@ -192,6 +193,12 @@ export const BookIntelDashboard: React.FC<Props> = ({
             <button className="tool-round-btn" onClick={onOpenSettings} title={t('nav.help')}>
               <HelpCircle size={18} />
             </button>
+
+            {onOpenAdmin && (
+              <button className="tool-round-btn" onClick={onOpenAdmin} title="Painel Administrativo" style={{ color: '#8b5cf6' }}>
+                <Shield size={18} />
+              </button>
+            )}
 
             <div className="user-profile-widget" onClick={onOpenSettings} title="Perfil do Usuário">
               <div className="user-avatar-circle">
