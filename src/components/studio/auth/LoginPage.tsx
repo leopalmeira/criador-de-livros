@@ -110,7 +110,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
     setErrorMessage(null);
 
     try {
-      const user = await authClient.login(email, password, rememberMe);
+      const user = await authClient.login(email.trim(), password, rememberMe);
       onLoginSuccess(user);
     } catch (error) {
       setErrorMessage(localizedAuthError(error));
@@ -124,19 +124,32 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
     e.preventDefault();
     if (!email || !password) {
       if (currentLang === 'pt-BR') {
-        setErrorMessage('Preencha todos os campos para cadastrar sua conta.');
+        setErrorMessage('Preencha seu e-mail e senha.');
       } else if (currentLang === 'es-ES') {
-        setErrorMessage('Por favor, complete todos los campos para registrar su cuenta.');
+        setErrorMessage('Por favor, introduzca su correo y contraseña.');
       } else {
-        setErrorMessage('Please fill all fields to register your account.');
+        setErrorMessage('Please enter your email and password.');
       }
       return;
     }
 
+    if (password.length < 6) {
+      if (currentLang === 'pt-BR') {
+        setErrorMessage('A senha precisa ter pelo menos 6 caracteres.');
+      } else if (currentLang === 'es-ES') {
+        setErrorMessage('La contraseña debe tener al menos 6 caracteres.');
+      } else {
+        setErrorMessage('Your password must contain at least 6 characters.');
+      }
+      return;
+    }
+
+    const finalAuthorName = authorName.trim() || email.split('@')[0] || 'Autor';
+
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const user = await authClient.register(email, authorName, password, rememberMe);
+      const user = await authClient.register(email.trim(), finalAuthorName, password, rememberMe);
       onLoginSuccess(user);
     } catch (error) {
       setErrorMessage(localizedAuthError(error));
@@ -1285,7 +1298,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={t('landing.placeholderPasswordCreate')}
                       autoComplete="new-password"
-                      minLength={8}
+                      minLength={6}
                       required
                       style={{
                         width: '100%',

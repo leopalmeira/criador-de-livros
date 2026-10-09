@@ -14,6 +14,15 @@ function kdpAiBackendPlugin() {
     configureServer(server: any) {
       server.middlewares.use(async (req: any, res: any, next: any) => {
         const requestUrl = new URL(req.url || '/', 'http://localhost');
+        if (requestUrl.pathname === '/api/geo') {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          const cfCountry = req.headers['cf-ipcountry'] || req.headers['x-country-code'] || req.headers['x-vercel-ip-country'];
+          const country = cfCountry ? String(cfCountry).toUpperCase() : 'BR';
+          res.end(JSON.stringify({ country, isBrazil: country === 'BR' }));
+          return;
+        }
+
         if (
           !requestUrl.pathname.startsWith('/api/auth/') &&
           requestUrl.pathname !== '/api/projects' &&

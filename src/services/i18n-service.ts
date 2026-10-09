@@ -10,7 +10,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { detectVisitorCountry, isBrazilianCountry } from './market-region';
+import { detectVisitorCountry, isBrazilianCountry, isBrowserInBrazil } from './market-region';
 
 export type SupportedLanguage = 'pt-BR' | 'en-US' | 'es-ES' | 'fr-FR' | 'de-DE' | 'ru-RU';
 
@@ -32,9 +32,9 @@ export const SUPPORTED_LANGUAGES: LanguageOption[] = [
 ];
 
 const EVENT_NAME = 'kdp-language-changed';
-let activeLanguage: SupportedLanguage = 'en-US';
+let activeLanguage: SupportedLanguage = (typeof window !== 'undefined' && isBrowserInBrazil()) ? 'pt-BR' : 'en-US';
 let languageManuallySelected = false;
-let detectedCountryCode: string | null = null;
+let detectedCountryCode: string | null = (typeof window !== 'undefined' && isBrowserInBrazil()) ? 'BR' : null;
 
 function applyLanguage(lang: SupportedLanguage): void {
   activeLanguage = lang;
@@ -206,8 +206,43 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.btnCreateAccount': 'Criar minha conta',
     'landing.btnSubmitRegister': 'Criar Conta e Começar',
     'landing.subscriptionNotice': 'Assinatura mensal por US$ 25 para até 15 livros. Acesso imediato a todas as ferramentas.',
-    'landing.securityFootnote': 'Ambiente Editorial Seguro • Acesso Direto ao Dashboard BookEngin',
     'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
+
+    // Painel Administrativo & Gestão de Clientes
+    'admin.badge': 'Painel Admin & Clientes',
+    'admin.title': 'Painel de Controle Editorial & Clientes',
+    'admin.subtitle': 'Acompanhe todos os clientes cadastrados, planos ativos e obras criadas na plataforma',
+    'admin.btnBack': 'Voltar à Dashboard',
+    'admin.tabOverview': 'Visão Geral & Métricas',
+    'admin.tabUsers': 'Clientes Cadastrados',
+    'admin.tabProjects': 'Livros & Produção dos Clientes',
+    'admin.searchPlaceholder': 'Pesquisar por nome ou e-mail do cliente...',
+    'admin.filterAllPlans': 'Todos os Planos',
+    'admin.filterFree': 'Plano Gratuito',
+    'admin.filterPro': 'Plano Profissional',
+    'admin.filterEnterprise': 'Plano Empresarial',
+    'admin.colUser': 'Cliente',
+    'admin.colPlan': 'Plano',
+    'admin.colStatus': 'Status',
+    'admin.colProjects': 'Livros Criados',
+    'admin.colDate': 'Cadastro',
+    'admin.colActions': 'Ações',
+    'admin.btnEdit': 'Gerenciar Plano',
+    'admin.btnDelete': 'Excluir',
+    'admin.btnSave': 'Salvar Alterações',
+    'admin.btnCancel': 'Cancelar',
+    'admin.statTotalUsers': 'Total de Clientes',
+    'admin.statProUsers': 'Clientes Pro & Enterprise',
+    'admin.statTotalBooks': 'Livros Criados na Plataforma',
+    'admin.statActiveSessions': 'Sessões Ativas Agora',
+    'admin.statAiCalls': 'Chamadas de IA Hoje',
+    'admin.modalTitle': 'Gerenciar Cliente',
+    'admin.fieldPlan': 'Plano do Cliente',
+    'admin.fieldAdmin': 'Acesso de Administrador',
+    'admin.fieldVerified': 'E-mail Verificado',
+    'admin.confirmDelete': 'Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.',
+    'admin.noUsers': 'Nenhum cliente encontrado com os filtros aplicados.',
+    'admin.noProjects': 'Nenhum livro criado pelos clientes ainda.'
   },
 
   'en-US': {
@@ -371,8 +406,43 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.btnCreateAccount': 'Create my account',
     'landing.btnSubmitRegister': 'Create Account & Start',
     'landing.subscriptionNotice': 'Monthly subscription for US$ 25 for up to 15 books. Immediate access to all tools.',
-    'landing.securityFootnote': 'Secure Publishing Environment • Direct Access to BookEngin Dashboard',
     'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
+
+    // Admin Control Panel & Client Management
+    'admin.badge': 'Admin & Clients Panel',
+    'admin.title': 'Editorial & Client Management Control Panel',
+    'admin.subtitle': 'Track all registered clients, active plans, and books created on the platform',
+    'admin.btnBack': 'Back to Dashboard',
+    'admin.tabOverview': 'Overview & Metrics',
+    'admin.tabUsers': 'Registered Clients',
+    'admin.tabProjects': 'Clients Books & Projects',
+    'admin.searchPlaceholder': 'Search by client name or email...',
+    'admin.filterAllPlans': 'All Plans',
+    'admin.filterFree': 'Free Plan',
+    'admin.filterPro': 'Pro Plan',
+    'admin.filterEnterprise': 'Enterprise Plan',
+    'admin.colUser': 'Client',
+    'admin.colPlan': 'Plan',
+    'admin.colStatus': 'Status',
+    'admin.colProjects': 'Books Created',
+    'admin.colDate': 'Joined',
+    'admin.colActions': 'Actions',
+    'admin.btnEdit': 'Manage Plan',
+    'admin.btnDelete': 'Delete',
+    'admin.btnSave': 'Save Changes',
+    'admin.btnCancel': 'Cancel',
+    'admin.statTotalUsers': 'Total Clients',
+    'admin.statProUsers': 'Pro & Enterprise Clients',
+    'admin.statTotalBooks': 'Books Created on Platform',
+    'admin.statActiveSessions': 'Active Sessions Now',
+    'admin.statAiCalls': 'AI Engine Calls Today',
+    'admin.modalTitle': 'Manage Client',
+    'admin.fieldPlan': 'Client Plan',
+    'admin.fieldAdmin': 'Administrator Privileges',
+    'admin.fieldVerified': 'Email Verified',
+    'admin.confirmDelete': 'Are you sure you want to delete this client? This action cannot be undone.',
+    'admin.noUsers': 'No clients found matching the selected filters.',
+    'admin.noProjects': 'No books created by clients yet.'
   },
 
   'es-ES': {
@@ -879,10 +949,19 @@ export function useTranslation() {
       })
       .catch(() => {
         if (!mounted) return;
-        detectedCountryCode = null;
-        setCountryCode(null);
-        languageManuallySelected = false;
-        applyLanguage('en-US');
+        if (isBrowserInBrazil()) {
+          detectedCountryCode = 'BR';
+          setCountryCode('BR');
+          if (!languageManuallySelected) {
+            const preferred = localStorage.getItem('kdp_preferred_lang_BR') as SupportedLanguage | null;
+            applyLanguage(preferred && TRANSLATIONS[preferred] ? preferred : 'pt-BR');
+          }
+        } else {
+          detectedCountryCode = null;
+          setCountryCode(null);
+          languageManuallySelected = false;
+          applyLanguage('en-US');
+        }
       })
       .finally(() => {
         if (mounted) setRegionResolved(true);

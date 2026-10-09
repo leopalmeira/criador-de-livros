@@ -15,8 +15,11 @@ import { batchBackgroundRunner, BatchRunnerState } from '../../services/batch-ba
 import { useBookCredits } from '../../services/kdp-credits-service';
 import { PurchaseCreditsModal } from './credits/PurchaseCreditsModal';
 
+import { AuthenticatedUser } from '../../services/auth-client';
+
 interface Props {
   projects: BookProject[];
+  currentUser?: AuthenticatedUser | null;
   onCreateNewProject: () => void;
   onOpenProject: (id: string) => void;
   onDuplicateProject: (id: string, e: React.MouseEvent) => void;
@@ -42,11 +45,13 @@ interface Props {
 
 export const BookIntelDashboard: React.FC<Props> = ({
   projects,
+  currentUser,
   onCreateNewProject,
   onOpenProject,
   onDuplicateProject,
   onDeleteProject,
   onOpenSettings,
+  onOpenAdmin,
   onQuickAction,
   onOpenPublishing,
   onOpenKdpPublish,
@@ -190,23 +195,44 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </button>
             )}
 
+            {onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.22) 0%, rgba(109, 40, 217, 0.3) 100%)',
+                  color: '#c084fc',
+                  border: '1px solid rgba(168, 85, 247, 0.45)',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  boxShadow: '0 0 14px rgba(139, 92, 246, 0.25)',
+                  transition: 'all 0.2s'
+                }}
+                title={t('admin.title', 'Painel de Controle Editorial & Clientes')}
+              >
+                <Shield size={15} />
+                <span>{t('admin.badge', 'Painel Admin & Clientes')}</span>
+              </button>
+            )}
+
             <button className="tool-round-btn" onClick={onOpenSettings} title={t('nav.help')}>
               <HelpCircle size={18} />
             </button>
 
-            {onOpenAdmin && (
-              <button className="tool-round-btn" onClick={onOpenAdmin} title="Painel Administrativo" style={{ color: '#8b5cf6' }}>
-                <Shield size={18} />
-              </button>
-            )}
-
             <div className="user-profile-widget" onClick={onOpenSettings} title="Perfil do Usuário">
               <div className="user-avatar-circle">
-                <span>LP</span>
+                <span>{((currentUser?.name || 'Leandro Palmeira').split(' ').map(n => n[0]).slice(0, 2).join('') || 'LP').toUpperCase()}</span>
               </div>
               <div className="user-info-text">
-                <span className="user-name-bold">Leandro Palmeira</span>
-                <span className="user-plan-label">{t('nav.proPlan')}</span>
+                <span className="user-name-bold">{currentUser?.name || 'Leandro Palmeira'}</span>
+                <span className="user-plan-label">
+                  {currentUser?.plan === 'enterprise' ? 'Enterprise' : currentUser?.plan === 'pro' ? t('nav.proPlan') : 'Gratuito'}
+                </span>
               </div>
               <ChevronDown size={14} className="user-chevron" />
             </div>

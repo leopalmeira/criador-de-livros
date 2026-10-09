@@ -304,20 +304,36 @@ const server = http.createServer(async (req, res) => {
   const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = reqUrl.pathname;
 
-  if (pathname.startsWith('/api/auth/') || pathname === '/api/projects' || pathname.startsWith('/api/projects/') || pathname === '/api/user-data' || pathname.startsWith('/api/user-data/')) {
-    const handled = await handleAuthApi(req, res, reqUrl);
-    if (handled) return;
-  }
-
-  // Headers CORS para APIs
+  // Headers CORS para todas as APIs
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
     return;
+  }
+
+  if (pathname.startsWith('/api/auth/') || pathname === '/api/projects' || pathname.startsWith('/api/projects/') || pathname === '/api/user-data' || pathname.startsWith('/api/user-data/')) {
+    const handled = await handleAuthApi(req, res, reqUrl);
+    if (handled) return;
+  }
+
+  // 0.5. API de Geolocalização (/api/geo)
+  if (pathname === '/api/geo') {
+    const cfCountry = req.headers['cf-ipcountry'] || req.headers['x-country-code'] || req.headers['x-vercel-ip-country'] || req.headers['cloudfront-viewer-country'];
+    let country = cfCountry ? String(cfCountry).toUpperCase() : null;
+    if (!country) {
+      const forwardedFor = req.headers['x-forwarded-for'];
+      const host = req.headers.host || '';
+      const isLocal = !forwardedFor || host.includes('localhost') || host.includes('127.0.0.1');
+      country = isLocal ? 'BR' : 'US';
+    }
+    return sendJson(res, 200, {
+      country,
+      isBrazil: country === 'BR'
+    });
   }
 
   // 1. Health checks e Keep-Alive Ping do Render

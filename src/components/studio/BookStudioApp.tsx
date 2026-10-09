@@ -32,6 +32,7 @@ export const BookStudioApp: React.FC = () => {
   const [activeProject, setActiveProject] = useState<BookProject | null>(null);
   const authenticatedUserIdRef = useRef<string | null>(null);
 
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
@@ -56,6 +57,7 @@ export const BookStudioApp: React.FC = () => {
     authClient.getSession()
       .then(user => {
         if (!isMounted) return;
+        setCurrentUser(user);
         authenticatedUserIdRef.current = user?.id || null;
         db.setAuthenticatedUser(user?.id || null);
         setIsAuthenticated(Boolean(user));
@@ -63,6 +65,7 @@ export const BookStudioApp: React.FC = () => {
       .catch(error => {
         console.error('Não foi possível validar a sessão no servidor:', error);
         if (!isMounted) return;
+        setCurrentUser(null);
         authenticatedUserIdRef.current = null;
         db.setAuthenticatedUser(null);
         setIsAuthenticated(false);
@@ -81,6 +84,7 @@ export const BookStudioApp: React.FC = () => {
     } catch (error) {
       console.error('Não foi possível encerrar a sessão no servidor:', error);
     }
+    setCurrentUser(null);
     authenticatedUserIdRef.current = null;
     db.setAuthenticatedUser(null);
     setIsAuthenticated(false);
@@ -341,6 +345,7 @@ export const BookStudioApp: React.FC = () => {
     return (
       <LoginPage
         onLoginSuccess={(user: AuthenticatedUser) => {
+          setCurrentUser(user);
           authenticatedUserIdRef.current = user.id;
           db.setAuthenticatedUser(user.id);
           setProjects([]);
@@ -397,6 +402,7 @@ export const BookStudioApp: React.FC = () => {
       <>
         <BookIntelDashboard
           projects={projects}
+          currentUser={currentUser}
           onCreateNewProject={handleCreateNewProject}
           onOpenProject={openProject}
           onDuplicateProject={duplicateProject}
@@ -548,16 +554,8 @@ export const BookStudioApp: React.FC = () => {
   // ============================================================
   if (mode === 'admin') {
     return (
-      <div className="app-layout">
-        <div className="settings-page">
-          <div className="settings-header">
-            <button className="btn-back" onClick={() => setMode('project-list')}>
-              <ChevronLeft size={18} /> Voltar à Dashboard
-            </button>
-            <h2>Painel Administrativo</h2>
-          </div>
-          <AdminPanelTab />
-        </div>
+      <div className="app-layout" style={{ minHeight: '100vh', background: '#020617' }}>
+        <AdminPanelTab onBack={() => setMode('project-list')} />
       </div>
     );
   }
