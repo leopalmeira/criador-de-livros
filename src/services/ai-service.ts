@@ -1223,3 +1223,6 @@ Não importa se você está começando do zero ou procurando quebrar um platô d
     return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=flux&seed=${seed}`;
   }
 }
+
+export const aiService = new AiService();
+

@@ -23,9 +23,13 @@ import { AuthorAiGuideDrawer } from './ai-guide/AuthorAiGuideDrawer';
 import { BestsellerCover10StylesModal } from './cover/BestsellerCover10StylesModal';
 import { CoverStyleDefinition } from '../../services/amazon-cover-styles';
 import { AuthenticatedUser, authClient } from '../../services/auth-client';
+import { CinematicNovelWizard } from './cinematic/CinematicNovelWizard';
+import { CinematicNovelEditor } from './cinematic/CinematicNovelEditor';
+import { CinematicNovelProjectData } from '../../types/cinematic-novel';
+import { CinematicNovelService } from '../../services/cinematic-novel-service';
 import '../../styles/book-intel-dashboard.css';
 
-type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin';
+type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinematic-novel';
 
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
@@ -41,6 +45,10 @@ export const BookStudioApp: React.FC = () => {
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
   const [publishingProject, setPublishingProject] = useState<BookProject | null>(null);
+
+  // Romance Cinematográfico Realista
+  const [isCinematicWizardOpen, setIsCinematicWizardOpen] = useState(false);
+  const [activeCinematicProject, setActiveCinematicProject] = useState<CinematicNovelProjectData | null>(null);
 
   // Novos Modais KDP
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
@@ -84,12 +92,18 @@ export const BookStudioApp: React.FC = () => {
     } catch (error) {
       console.error('Não foi possível encerrar a sessão no servidor:', error);
     }
+    try {
+      localStorage.removeItem('kdp_last_active_project_id');
+      localStorage.removeItem('kdp_book_generator_state_v1');
+      localStorage.removeItem('kdp_book_generator_last_saved');
+    } catch {}
     setCurrentUser(null);
     authenticatedUserIdRef.current = null;
     db.setAuthenticatedUser(null);
     setIsAuthenticated(false);
     setProjects([]);
     setActiveProject(null);
+    setActiveCinematicProject(null);
     setProjectLoadError(null);
   };
 
@@ -140,7 +154,7 @@ export const BookStudioApp: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Abrir projeto existente diretamente no Gerador KDP Pro
+  // Abrir projeto existente diretamente no Gerador KDP Pro ou no Editor Cinematográfico
   const openProject = async (projectId: string) => {
     const requestedUserId = authenticatedUserIdRef.current;
     let found = projects.find(p => p.id === projectId);
@@ -157,8 +171,95 @@ export const BookStudioApp: React.FC = () => {
     }
     if (requestedUserId !== authenticatedUserIdRef.current) return;
     if (found) {
+      // Se for do tipo Romance Cinematográfico Realista, abre diretamente o editor especializado
+      if (found.kdpBookType === 'cinematic_illustrated_novel' || found.cinematicNovelData) {
+        if (found.cinematicNovelData) {
+          setActiveCinematicProject(found.cinematicNovelData);
+        } else {
+          const fallbackData = CinematicNovelService.createInitialProject({
+            title: found.title,
+            subtitle: found.subtitle,
+            author: found.author,
+            genre: (found.genre as any) || 'suspense-psicologico',
+            subgenre: found.categories?.[0] || 'Romance Cinematográfico',
+            language: found.language || 'Português',
+            targetAudience: found.targetAudience || 'Adulto',
+            premise: found.description || found.title,
+            totalChaptersPlanned: 3,
+            approximatePages: 12,
+            visualStyle: 'Fotografia Cinematográfica 35mm Realista',
+            emotionalTone: 'Tenso e envolvente',
+            endingType: 'Plot twist',
+            narrativePov: 'Terceira pessoa'
+          });
+          setActiveCinematicProject(fallbackData);
+        }
+        setMode('cinematic-novel');
+        return;
+      }
+
       setActiveProject(found);
       setMode('kdp-generator');
+    }
+  };
+
+  // Concluir criação do Romance Cinematográfico no Wizard
+  const handleCinematicWizardComplete = async (cinematicData: CinematicNovelProjectData) => {
+    setIsCinematicWizardOpen(false);
+    const bookProj: BookProject = {
+      id: cinematicData.id,
+      createdAt: cinematicData.createdAt,
+      updatedAt: cinematicData.updatedAt,
+      status: 'ESCREVENDO',
+      priority: 'ALTA',
+      executionMode: 'assisted',
+      title: cinematicData.title,
+      subtitle: cinematicData.subtitle,
+      author: cinematicData.author || currentUser?.name || 'Leandro Palmeira',
+      genre: cinematicData.genre,
+      description: cinematicData.storyBible.synopsis || cinematicData.premise,
+      language: cinematicData.language,
+      format: 'Capa Comum',
+      trimSize: '7x10',
+      paperType: 'color',
+      estimatedPages: cinematicData.approximatePages,
+      actualPages: cinematicData.pages.length,
+      targetPrice: 39.90,
+      currency: 'BRL',
+      targetMarketplace: 'Amazon KDP',
+      categories: ['Ficção / Romance Cinematográfico', cinematicData.genre],
+      keywords: ['Romance Cinematográfico', 'Foto Livro Realista', 'Graphic Novel'],
+      targetAudience: cinematicData.targetAudience,
+      topic: cinematicData.premise,
+      kdpBookType: 'cinematic_illustrated_novel',
+      pipelineStage: 'writing',
+      pipelineProgress: 85,
+      pipelineLog: ['Criado via Módulo Exclusivo Romance Cinematográfico Realista'],
+      coverImageUrl: cinematicData.coverImageUrl,
+      cinematicNovelData: cinematicData
+    };
+
+    await db.saveBookProject(bookProj);
+    setActiveCinematicProject(cinematicData);
+    setMode('cinematic-novel');
+    reloadProjects();
+  };
+
+  // Atualizar dados do Romance Cinematográfico no Editor
+  const handleUpdateCinematicProject = async (updated: CinematicNovelProjectData) => {
+    setActiveCinematicProject(updated);
+    const existing = await db.getBookProject(updated.id);
+    if (existing) {
+      const merged: BookProject = {
+        ...existing,
+        title: updated.title,
+        subtitle: updated.subtitle,
+        updatedAt: Date.now(),
+        coverImageUrl: updated.coverImageUrl || existing.coverImageUrl,
+        cinematicNovelData: updated
+      };
+      await db.saveBookProject(merged);
+      reloadProjects();
     }
   };
 
@@ -404,6 +505,12 @@ export const BookStudioApp: React.FC = () => {
           projects={projects}
           currentUser={currentUser}
           onCreateNewProject={handleCreateNewProject}
+          onCreateCinematicNovel={() => setIsCinematicWizardOpen(true)}
+          onCreateColoringBook={() => {
+            setActiveProject(null);
+            setNewSessionId(`sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+            setMode('kdp-generator');
+          }}
           onOpenProject={openProject}
           onDuplicateProject={duplicateProject}
           onDeleteProject={deleteProject}
@@ -504,6 +611,14 @@ export const BookStudioApp: React.FC = () => {
             setIsCover10StylesOpen(true);
           }}
         />
+
+        {/* WIZARD EXCLUSIVO DO ROMANCE CINEMATOGRÁFICO REALISTA */}
+        {isCinematicWizardOpen && (
+          <CinematicNovelWizard
+            onComplete={handleCinematicWizardComplete}
+            onCancel={() => setIsCinematicWizardOpen(false)}
+          />
+        )}
       </>
     );
   }
@@ -531,7 +646,24 @@ export const BookStudioApp: React.FC = () => {
   }
 
   // ============================================================
-  // TELA 3: CONFIGURAÇÕES DA IA
+  // TELA 3: EDITOR EXCLUSIVO DO ROMANCE CINEMATOGRÁFICO REALISTA
+  // ============================================================
+  if (mode === 'cinematic-novel' && activeCinematicProject) {
+    return (
+      <CinematicNovelEditor
+        project={activeCinematicProject}
+        onUpdateProject={handleUpdateCinematicProject}
+        onBackToDashboard={() => {
+          setActiveCinematicProject(null);
+          setMode('project-list');
+          reloadProjects();
+        }}
+      />
+    );
+  }
+
+  // ============================================================
+  // TELA 4: CONFIGURAÇÕES DA IA
   // ============================================================
   if (mode === 'settings') {
     return (
@@ -550,7 +682,7 @@ export const BookStudioApp: React.FC = () => {
   }
 
   // ============================================================
-  // TELA 4: PAINEL ADMINISTRATIVO (APENAS ADMIN)
+  // TELA 5: PAINEL ADMINISTRATIVO (APENAS ADMIN)
   // ============================================================
   if (mode === 'admin') {
     return (

@@ -2,6 +2,7 @@
 // Arquitetura baseada nas referências ShonP/kdp-book, wesleyscholl/book-generator, libriscribe e Velith
 
 import type { StageId, StageStatus, StageDataMap } from './stages';
+import type { CinematicNovelProjectData } from './cinematic-novel';
 
 export type ProjectStatus = 'IDEIA' | 'CONCEITO' | 'OUTLINE' | 'BIBLE' | 'ESCREVENDO' | 'REVISÃO' | 'DIAGRAMAÇÃO' | 'VALIDAÇÃO' | 'PUBLICADO' | 'ARQUIVADO' | 'RASCUNHO' | 'FINALIZADO';
 export type ProjectPriority = 'ALTA' | 'MÉDIA' | 'BAIXA';
@@ -36,6 +37,7 @@ export type BookType =
   | 'planner'
   | 'diary'
   | 'puzzle-book'
+  | 'cinematic_illustrated_novel'
   | 'other';
 
 export type TrimSize = '8.5x8.5' | '6x9' | '5.5x8.5' | '5x8' | '5.25x8' | '8x10' | '8.5x11' | '7x10' | '7.5x9.25' | 'custom';
@@ -660,6 +662,32 @@ export const BOOK_TYPE_CONFIGS: Record<BookType, IBookTypeConfig> = {
     hasFactCheck: false,
     description: 'Formato personalizado pelo autor, sem template predefinido.',
     editorialRules: ['Defina suas próprias regras editoriais']
+  },
+  'cinematic_illustrated_novel': {
+    id: 'cinematic_illustrated_novel',
+    label: 'Romance Cinematográfico Realista',
+    category: 'Ficção',
+    trimSize: '7x10',
+    paperType: 'color',
+    targetPages: 48,
+    chapterCount: [4, 10],
+    wordsPerChapter: [400, 1500],
+    scenesPerChapter: [3, 6],
+    illustrationsPerChapter: 6,
+    coverArt: true,
+    fullBleed: true,
+    imageSize: '2048x2048',
+    hasCharacters: true,
+    hasWorldbuilding: true,
+    hasArtBible: true,
+    hasFactCheck: false,
+    description: 'Crie histórias com personagens realistas, imagens cinematográficas, narração e diálogos integrados em cada página.',
+    editorialRules: [
+      'Imagens fotorrealistas estilo fotografia de cinema',
+      'Narração e diálogos integrados diretamente nas ilustrações sem caixas brancas genéricas',
+      'Consistência física estrita de personagens através de Character Bible',
+      'Pipeline de prompts visuais individuais por página'
+    ]
   }
 };
 
@@ -1270,6 +1298,9 @@ export interface BookProject {
   
   // Ativos de Audiobook (Narração, Master e Timeline Multi-track para Remix)
   audiobook?: BookAudiobookAsset;
+  
+  // Romance Cinematográfico Realista (Módulo Especializado Foto Livro com Narração Integrada)
+  cinematicNovelData?: CinematicNovelProjectData;
 
   // 13-Stage Editorial Pipeline Tracking
   stageStatuses?: Record<StageId, StageStatus>;

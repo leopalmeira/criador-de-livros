@@ -3,7 +3,7 @@ import {
   BookOpen, Plus, TrendingUp, FileText,
   HelpCircle, ChevronDown, ArrowRight,
   Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play,
-  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw, Shield
+  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw, Shield, Film
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -21,6 +21,8 @@ interface Props {
   projects: BookProject[];
   currentUser?: AuthenticatedUser | null;
   onCreateNewProject: () => void;
+  onCreateCinematicNovel?: () => void;
+  onCreateColoringBook?: () => void;
   onOpenProject: (id: string) => void;
   onDuplicateProject: (id: string, e: React.MouseEvent) => void;
   onDeleteProject: (id: string, e: React.MouseEvent) => void;
@@ -47,6 +49,8 @@ export const BookIntelDashboard: React.FC<Props> = ({
   projects,
   currentUser,
   onCreateNewProject,
+  onCreateCinematicNovel,
+  onCreateColoringBook,
   onOpenProject,
   onDuplicateProject,
   onDeleteProject,
@@ -486,6 +490,229 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     <div className="mockup-book book-mid" />
                     <div className="mockup-book book-bot" />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3 CARDS EXCLUSIVOS DE MODALIDADES DE CRIAÇÃO EDITORIAL */}
+            <div style={{ marginTop: 20, marginBottom: 26 }}>
+              <div style={{ marginBottom: 14 }}>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: '#f59e0b',
+                  display: 'block',
+                  marginBottom: 3
+                }}>
+                  MODALIDADES DE CRIAÇÃO EDITORIAL
+                </span>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+                  Escolha o Formato da sua Nova Obra
+                </h2>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 16
+              }}>
+                {/* CARD 1 — LIVRO TRADICIONAL */}
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: '20px 22px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: 14,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                  transition: 'all 0.2s ease'
+                }}>
+                  <div>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 12
+                    }}>
+                      <BookOpen size={22} color="#0284c7" />
+                    </div>
+                    <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                      Livro Tradicional
+                    </h3>
+                    <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                      Criação convencional de ficção e não-ficção com texto estruturado, capítulos completos, pesquisa de mercado Amazon e diagramação para capa comum e Kindle.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={onCreateNewProject}
+                    style={{
+                      width: '100%',
+                      background: '#0f172a',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Plus size={15} /> Criar livro
+                  </button>
+                </div>
+
+                {/* CARD 2 — LIVRO DE COLORIR */}
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: '20px 22px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: 14,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                  transition: 'all 0.2s ease'
+                }}>
+                  <div>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 12
+                    }}>
+                      <Palette size={22} color="#059669" />
+                    </div>
+                    <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                      Livro de Colorir
+                    </h3>
+                    <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                      Ilustrações em preto e branco com traços vetoriais grossos, impressão em um único lado da folha, personagens consistentes e formato 8.5x11 pol KDP.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (onCreateColoringBook) onCreateColoringBook();
+                      else onCreateNewProject();
+                    }}
+                    style={{
+                      width: '100%',
+                      background: '#059669',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Palette size={15} /> Criar livro
+                  </button>
+                </div>
+
+                {/* CARD 3 — ROMANCE CINEMATOGRÁFICO REALISTA (EXCLUSIVO) */}
+                <div style={{
+                  background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)',
+                  border: '2px solid #f59e0b',
+                  borderRadius: 14,
+                  padding: '20px 22px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: 14,
+                  boxShadow: '0 8px 24px rgba(245, 158, 11, 0.18)',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  {/* SELO / BADGE EXCLUSIVO */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#0f172a',
+                    fontSize: 10,
+                    fontWeight: 900,
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    letterSpacing: '0.04em',
+                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)'
+                  }}>
+                    ★ MÓDULO EXCLUSIVO COM IA
+                  </div>
+
+                  <div>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: 'rgba(245, 158, 11, 0.2)',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 12
+                    }}>
+                      <Film size={22} color="#f59e0b" />
+                    </div>
+                    <h3 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 900, color: '#ffffff' }}>
+                      Romance Cinematográfico Realista
+                    </h3>
+                    <div style={{ fontSize: 12, color: '#fcd34d', fontWeight: 600, fontStyle: 'italic', marginBottom: 8 }}>
+                      Crie histórias com personagens realistas, imagens cinematográficas, narração e diálogos integrados em cada página.
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>
+                      Produza foto-livros com fotografia fotorrealista estilo cinema, continuidade estrita de personagens, narração densa e diálogos integrados visualmente sem fundos brancos genéricos.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (onCreateCinematicNovel) onCreateCinematicNovel();
+                      else onCreateNewProject();
+                    }}
+                    style={{
+                      width: '100%',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: '#0f172a',
+                      border: 'none',
+                      padding: '11px 16px',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 14px rgba(245, 158, 11, 0.4)'
+                    }}
+                  >
+                    <Sparkles size={16} /> Criar livro
+                  </button>
                 </div>
               </div>
             </div>
