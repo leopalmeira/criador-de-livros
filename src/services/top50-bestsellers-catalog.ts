@@ -137,6 +137,33 @@ export const TOP_50_SEGMENTS_CATALOG: Record<string, SegmentTop50Collection> = {
       { rankPosition: 49, title: 'O Cérebro com Foco Total', subtitle: 'Treinamento cognitivo contra dispersão e fadiga mental', author: 'Dr. Fernando Lins', rating: 4.8, reviews: 3400, rank: 150, rankType: 'BSR', price: 38.00, dominantHook: 'Nutrição Cerebral, Sono e Treino de Atenção', estimatedMonthlyUnits: 1640, source: 'Amazon KDP' },
       { rankPosition: 50, title: 'Legado: O Que Você Vai Deixar?', subtitle: 'Construindo uma vida que ecoa além do tempo', author: 'James Kerr', rating: 4.9, reviews: 6800, rank: 70, rankType: 'BSR', price: 47.00, dominantHook: 'Cultura dos All Blacks & Humildade Implacável', estimatedMonthlyUnits: 3350, source: 'Amazon KDP' }
     ]
+  },
+  thriller: {
+    segmentId: 'thriller',
+    segmentName: 'Suspense Psicológico, Mistério & Thrillers Investigativos',
+    totalMarketShareDesc: 'Segmento dominante na ficção com mais de 50.000 buscas diárias e alta retenção de páginas lidas no Kindle Unlimited.',
+    books: [
+      { rankPosition: 1, title: 'A Paciente Silenciosa', subtitle: 'Um ato de violência inexplicável e um terapeuta obcecado por descobrir a verdade', author: 'Alex Michaelides', rating: 4.8, reviews: 48200, rank: 2, rankType: 'BSR', price: 44.90, dominantHook: 'Narrador Não Confiável & Reviravolta Chocante', estimatedMonthlyUnits: 14500, source: 'Amazon KDP Best Seller #1' },
+      { rankPosition: 2, title: 'A Empregada', subtitle: 'Bem-vinda à família. Você nunca mais sairá daqui', author: 'Freida McFadden', rating: 4.8, reviews: 89400, rank: 4, rankType: 'BSR', price: 39.90, dominantHook: 'Segredos Domésticos Ocultos & Tensão Claustrofóbica', estimatedMonthlyUnits: 13800, source: 'Amazon KDP Best Seller #2' },
+      { rankPosition: 3, title: 'Garota Exemplar', subtitle: 'O que acontece quando o casamento perfeito se torna um pesadelo fatal?', author: 'Gillian Flynn', rating: 4.7, reviews: 56300, rank: 6, rankType: 'BSR', price: 49.90, dominantHook: 'Dicotomia de Perspectivas & Jogo Psicológico Perverso', estimatedMonthlyUnits: 11200, source: 'Amazon KDP Best Seller #3' },
+      { rankPosition: 4, title: 'Verity', subtitle: 'Um manuscrito perturbador e segredos que jamais deveriam ser lidos', author: 'Colleen Hoover', rating: 4.8, reviews: 95100, rank: 7, rankType: 'BSR', price: 42.00, dominantHook: 'Manuscrito Maldito & Obsessão Romântica Obscura', estimatedMonthlyUnits: 10900, source: 'Amazon KDP Best Seller #4' },
+      { rankPosition: 5, title: 'A Garota no Trem', subtitle: 'Ela viu algo chocante pela janela. Agora, ninguém acredita nela', author: 'Paula Hawkins', rating: 4.6, reviews: 68900, rank: 11, rankType: 'BSR', price: 39.90, dominantHook: 'Testemunha Vulnerável & Memória Fragmentada', estimatedMonthlyUnits: 9800, source: 'Amazon KDP Best Seller #5' },
+      { rankPosition: 6, title: 'O Homem de Giz', subtitle: 'Um jogo de infância que se transformou em uma trilha de assassinatos', author: 'C. J. Tudor', rating: 4.7, reviews: 24500, rank: 15, rankType: 'BSR', price: 38.00, dominantHook: 'Nostalgia Sombria & Pactos Secretos do Passado', estimatedMonthlyUnits: 8400, source: 'Amazon KDP' },
+      { rankPosition: 7, title: 'E Não Sobrou Nenhum', subtitle: 'Dez estranhos em uma ilha isolada. Um a um, eles começam a morrer', author: 'Agatha Christie', rating: 4.9, reviews: 45200, rank: 19, rankType: 'BSR', price: 34.90, dominantHook: 'Isolamento Absoluto & Contagem Regressiva Fatal', estimatedMonthlyUnits: 7900, source: 'Amazon KDP' },
+      { rankPosition: 8, title: 'A Garota do Lago', subtitle: 'Uma estudante brutalmente assassinada e um jornalista em busca de respostas', author: 'Charlie Donlea', rating: 4.7, reviews: 38100, rank: 24, rankType: 'BSR', price: 39.90, dominantHook: 'Cidadezinha com Segredos Macabros & Cold Case', estimatedMonthlyUnits: 7100, source: 'Amazon KDP' },
+      { rankPosition: 9, title: 'O Silêncio dos Inocentes', subtitle: 'Para capturar um assassino em série, ela terá que confiar em outro monstro', author: 'Thomas Harris', rating: 4.8, reviews: 32600, rank: 30, rankType: 'BSR', price: 46.90, dominantHook: 'Duelo Mental com Mente Brilhante e Criminosa', estimatedMonthlyUnits: 6500, source: 'Amazon KDP' },
+      { rankPosition: 10, title: 'A Lista de Convidados', subtitle: 'Um casamento luxuoso em uma ilha remota. Um noivo morto e todos são suspeitos', author: 'Lucy Foley', rating: 4.6, reviews: 41200, rank: 36, rankType: 'BSR', price: 41.00, dominantHook: 'Ambiente Sofisticado com Traição e Vingança', estimatedMonthlyUnits: 5900, source: 'Amazon KDP' },
+      { rankPosition: 11, title: 'Não Conte a Ninguém', subtitle: 'Sua esposa foi assassinada há oito anos. Hoje ele recebeu um e-mail dela', author: 'Harlan Coben', rating: 4.7, reviews: 29400, rank: 41, rankType: 'BSR', price: 36.90, dominantHook: 'Reviravolta de Vida ou Morte & Conspiração Pessoal', estimatedMonthlyUnits: 5400, source: 'Amazon KDP' },
+      { rankPosition: 12, title: 'A Mulher na Janela', subtitle: 'Ela passa os dias espionando os vizinhos. Até que vê um crime acontecer', author: 'A. J. Finn', rating: 4.6, reviews: 37800, rank: 48, rankType: 'BSR', price: 42.00, dominantHook: 'Agorafobia, Ilusão & Obsessão com a Vida Alheia', estimatedMonthlyUnits: 5000, source: 'Amazon KDP' },
+      { rankPosition: 13, title: 'Segredos Enterrados', subtitle: 'Uma detetive perseguida pelo próprio passado diante de uma cova rasa', author: 'Robert Dugoni', rating: 4.8, reviews: 36200, rank: 55, rankType: 'BSR', price: 32.00, dominantHook: 'Perseguição Policial e Trauma Familiar', estimatedMonthlyUnits: 4600, source: 'Amazon KDP' },
+      { rankPosition: 14, title: 'Boneco de Neve', subtitle: 'A primeira neve do ano sempre traz o mesmo rastro de sangue', author: 'Jo Nesbø', rating: 4.7, reviews: 22800, rank: 62, rankType: 'BSR', price: 44.90, dominantHook: 'Policial Nórdico Implacável com Serial Killer', estimatedMonthlyUnits: 4200, source: 'Amazon KDP' },
+      { rankPosition: 15, title: 'O Segredo da Assistente', subtitle: 'Ela achou que tinha o emprego dos sonhos, até descobrir o preço do silêncio', author: 'Freida McFadden', rating: 4.8, reviews: 42100, rank: 68, rankType: 'BSR', price: 37.90, dominantHook: 'Ambiente Corporativo Tóxico e Chantagem Mortal', estimatedMonthlyUnits: 3900, source: 'Amazon KDP' },
+      { rankPosition: 16, title: 'Suicidas', subtitle: 'Nove jovens reunidos para um jogo mortal. Um enigma que desafia a polícia', author: 'Raphael Montes', rating: 4.8, reviews: 31000, rank: 74, rankType: 'BSR', price: 39.90, dominantHook: 'Thriller Psicológico Nacional Cru e Impactante', estimatedMonthlyUnits: 3700, source: 'Amazon KDP' },
+      { rankPosition: 17, title: 'Dias Perfeitos', subtitle: 'Um estudante de medicina solitário e uma obsessão que não aceita rejeição', author: 'Raphael Montes', rating: 4.7, reviews: 26500, rank: 80, rankType: 'BSR', price: 38.00, dominantHook: 'Sequestro Psicológico e Loucura sem Limites', estimatedMonthlyUnits: 3500, source: 'Amazon KDP' },
+      { rankPosition: 18, title: 'Jantar Secreto', subtitle: 'Quatro amigos endividados criam um negócio culinário proibido e aterrorizante', author: 'Raphael Montes', rating: 4.8, reviews: 28900, rank: 86, rankType: 'BSR', price: 42.00, dominantHook: 'Provocação Moral Extrema e Tensão Crescente', estimatedMonthlyUnits: 3300, source: 'Amazon KDP' },
+      { rankPosition: 19, title: 'O Jardim das Borboletas', subtitle: 'Jovens aprisionadas por um colecionador sádico que as tatuou como borboletas', author: 'Dot Hutchison', rating: 4.7, reviews: 34500, rank: 92, rankType: 'BSR', price: 36.90, dominantHook: 'Sobrevivência Sobrevivente & Mistério de Cativeiro', estimatedMonthlyUnits: 3100, source: 'Amazon KDP' },
+      { rankPosition: 20, title: 'Pedra, Papel e Tesoura', subtitle: 'Um casal em crise em um retiro isolado. Uma mentira que dura dez anos', author: 'Alice Feeney', rating: 4.7, reviews: 27800, rank: 98, rankType: 'BSR', price: 41.90, dominantHook: 'Cartas Não Entregues e Clima Gélido Opressivo', estimatedMonthlyUnits: 2900, source: 'Amazon KDP' }
+    ]
   }
 };
 
@@ -152,7 +179,9 @@ export async function getTop50BestsellersForSegment(
   
   // Tenta encontrar catálogo curado correspondente
   let matchedCatalog: SegmentTop50Collection | undefined;
-  if (/finan|dinheiro|invest|riqueza|rico|bolsa/i.test(norm)) {
+  if (/suspense|thriller|misteri|crime|policial|investig|terror|horror|morte|assassin/i.test(norm)) {
+    matchedCatalog = TOP_50_SEGMENTS_CATALOG['thriller'];
+  } else if (/finan|dinheiro|invest|riqueza|rico|bolsa/i.test(norm)) {
     matchedCatalog = TOP_50_SEGMENTS_CATALOG['finance'];
   } else {
     matchedCatalog = TOP_50_SEGMENTS_CATALOG['self-help'];

@@ -85,8 +85,20 @@ export const BOOK_THEMES: BookTheme[] = [
   t('Ficção histórica', 'ficcao', ['Antiguidade', 'Renascimento', 'Revoluções', 'Guerras']),
 ];
 
-export function getTheme(id: string): BookTheme | undefined {
-  return BOOK_THEMES.find(x => x.id === id);
+export function getTheme(identifier: string): BookTheme | undefined {
+  if (!identifier) return undefined;
+  const raw = identifier.trim();
+  const slug = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const lower = raw.toLowerCase();
+
+  return BOOK_THEMES.find(x => 
+    x.id === raw || 
+    x.id === slug || 
+    x.label.toLowerCase() === lower ||
+    x.label === raw ||
+    x.id.includes(slug) ||
+    slug.includes(x.id)
+  );
 }
 
 export function isChildrenTheme(id: string): boolean {

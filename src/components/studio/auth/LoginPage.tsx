@@ -42,7 +42,7 @@ interface Props {
 
 export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   const { t, currentLang, setLanguage, isBrazil } = useTranslation();
-  const subscriptionPrice = formatPlatformPrice(25, isBrazil);
+  const subscriptionPrice = formatPlatformPrice(25, isBrazil, currentLang);
 
   // Estados de formulário
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');

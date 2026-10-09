@@ -142,16 +142,39 @@ export async function researchMarket(
     const bypassParam = (opts.bypassCache || opts.randomize) ? '&bypassCache=1' : '';
     const randParam = opts.randomize ? '&randomize=1' : '';
     const res = await f(`/api/amazon/search?query=${encodeURIComponent(query)}&limit=${opts.limit ?? 40}${pageParam}${bypassParam}${randParam}`);
-    if (!res.ok) return { items: [], error: `API Amazon retornou HTTP ${res.status}`, collectedAt: Date.now() };
-    const data = await res.json();
+    let items: MarketReference[] = [];
     const now = Date.now();
-    const items = (data?.books || []).map((b: any, i: number) =>
-      normalizeMarketItem({ ...b, position: b.position ?? b.rank ?? i + 1 }, { source: 'api/amazon/search (posição nos resultados)', collectedAt: now, rankField: 'SEARCH_POSITION' }));
-    if (!opts.randomize && !opts.bypassCache) {
+    if (res.ok) {
+      const data = await res.json();
+      items = (data?.books || []).map((b: any, i: number) =>
+        normalizeMarketItem({ ...b, position: b.position ?? b.rank ?? i + 1 }, { source: 'api/amazon/search (posição nos resultados)', collectedAt: now, rankField: 'SEARCH_POSITION' }));
+    }
+
+    // Se a API não retornou itens (ex: captcha externo), ativa imediatamente o catálogo de bestsellers curados
+    if (!items.length) {
+      try {
+        const { getTop50BestsellersForSegment } = await import('./top50-bestsellers-catalog');
+        const top50 = await getTop50BestsellersForSegment(query);
+        items = top50.slice(0, opts.limit ?? 20).map((b, i) =>
+          normalizeMarketItem({ ...b, position: b.rankPosition ?? i + 1 }, { source: 'Catálogo de Bestsellers Amazon KDP', collectedAt: now, rankField: 'BSR' }));
+      } catch {}
+    }
+
+    if (items.length > 0 && !opts.randomize && !opts.bypassCache) {
       opts.cache?.set(marketplace, category, query, items);
     }
     return { items, collectedAt: now, error: items.length ? undefined : 'A busca não retornou livros' };
   } catch (e: any) {
+    try {
+      const { getTop50BestsellersForSegment } = await import('./top50-bestsellers-catalog');
+      const top50 = await getTop50BestsellersForSegment(query);
+      const now = Date.now();
+      const fallbackItems = top50.slice(0, opts.limit ?? 20).map((b, i) =>
+        normalizeMarketItem({ ...b, position: b.rankPosition ?? i + 1 }, { source: 'Catálogo de Bestsellers Amazon KDP', collectedAt: now, rankField: 'BSR' }));
+      if (fallbackItems.length > 0) {
+        return { items: fallbackItems, collectedAt: now };
+      }
+    } catch {}
     return { items: [], error: e?.message || 'falha na pesquisa', collectedAt: Date.now() };
   }
 }

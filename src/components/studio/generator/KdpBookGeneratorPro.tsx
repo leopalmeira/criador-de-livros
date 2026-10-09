@@ -825,9 +825,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   };
 
   // Análise de Mercado Amazon KDP (TOP 1-200) com sorteio dinâmico e randômico
-  const handleAnalisarMercado = async (forceRandom = false) => {
+  const handleAnalisarMercado = async (forceRandom = false, customQuery?: string) => {
     const temaObj = getTheme(temaSelecionado);
-    const query = subtemaSelecionado || temaObj?.marketQuery || temaSelecionado || genero || 'livros';
+    const query = customQuery || subtemaSelecionado || temaObj?.marketQuery || temaSelecionado || genero || 'livros';
     setIsAnalyzingMarket(true);
     setMarketFeedback(null);
     logDiag(`Iniciando análise de mercado na Amazon para "${query}"...`);
@@ -2744,6 +2744,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
     setCreationSelectorValue(`theme:${theme.id}`);
     setGenero(theme.label);
     if (theme.childrenBook) setFaixaEtaria('6-8');
+
+    // Dispara a consulta dos bestsellers bem avaliados daquele tema imediatamente
+    const marketQuery = theme.subthemes[0] || theme.marketQuery || theme.label;
+    handleAnalisarMercado(false, marketQuery);
   };
 
   return (
@@ -2858,12 +2862,26 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   const selection = event.currentTarget.value;
                   setCreationSelectorValue(selection);
                   if (selection.startsWith('theme:')) {
-                    const theme = BOOK_THEMES.find(item => `theme:${item.id}` === selection);
+                    const themeId = selection.replace('theme:', '');
+                    const theme = getTheme(themeId) || BOOK_THEMES.find(item => `theme:${item.id}` === selection);
                     if (theme) selectEditorialTheme(theme.label);
                     return;
                   }
                   const selectedType = selection.replace('format:', '') as BookType;
-                  if (BOOK_TYPE_CONFIGS[selectedType]) applyBookType(selectedType);
+                  if (BOOK_TYPE_CONFIGS[selectedType]) {
+                    applyBookType(selectedType);
+                    const matchingTheme = BOOK_THEMES.find(t =>
+                      t.label.toLowerCase().includes(BOOK_TYPE_CONFIGS[selectedType].label.toLowerCase()) ||
+                      BOOK_TYPE_CONFIGS[selectedType].label.toLowerCase().includes(t.label.toLowerCase())
+                    );
+                    if (matchingTheme) {
+                      setTemaSelecionado(matchingTheme.label);
+                      setSubtemaSelecionado(matchingTheme.subthemes[0] || '');
+                      setGenero(matchingTheme.label);
+                      const q = matchingTheme.subthemes[0] || matchingTheme.marketQuery || matchingTheme.label;
+                      handleAnalisarMercado(false, q);
+                    }
+                  }
                 }}
                 style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #c7d2fe', fontSize: 12, background: '#ffffff', color: '#0f172a' }}
               >

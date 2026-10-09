@@ -151,9 +151,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.featAllInOneTitle': 'Tudo em um só lugar',
     'landing.featAllInOneDesc': 'Do planejamento ao livro final',
 
-    // Assinatura e Preço (US$ 25 / mês - até 15 livros)
+    // Assinatura e Preço (R$ 25,00 / mês - até 15 livros)
     'landing.pricingTag': 'PLANO MENSAL',
-    'landing.pricingPrice': 'US$ 25',
+    'landing.pricingPrice': 'R$ 25,00',
     'landing.pricingPeriod': '/ mês',
     'landing.pricingBadge': 'Até 15 Livros / Mês',
     'landing.pricingCancelAnytime': 'Cancele quando quiser',
@@ -161,7 +161,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.pricingBenefit2': 'Capas em altíssima resolução com IA',
     'landing.pricingBenefit3': 'PDF diagramado pronto para o KDP',
     'landing.pricingImpact': 'Mais produtividade. Mais qualidade. Mais resultados.',
-    'landing.pricingCallout': 'Assine agora por apenas US$ 25/mês para até 15 livros e publique sem limites!',
+    'landing.pricingCallout': 'Assine agora por apenas R$ 25,00/mês para até 15 livros e publique sem limites!',
 
     // Capas em HTML (renderizadas e traduzidas em tempo real)
     'landing.cover1.badge': 'BESTSELLER KDP',
@@ -205,7 +205,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.registerBoxDesc': 'Crie sua conta e aproveite o acesso completo à plataforma.',
     'landing.btnCreateAccount': 'Criar minha conta',
     'landing.btnSubmitRegister': 'Criar Conta e Começar',
-    'landing.subscriptionNotice': 'Assinatura mensal por US$ 25 para até 15 livros. Acesso imediato a todas as ferramentas.',
+    'landing.subscriptionNotice': 'Assinatura mensal por R$ 25,00 para até 15 livros. Acesso imediato a todas as ferramentas.',
+    'landing.securityFootnote': 'Ambiente Editorial Seguro • Acesso Direto ao Dashboard BookEngin',
     'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
 
     // Painel Administrativo & Gestão de Clientes
@@ -351,9 +352,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.featAllInOneTitle': 'All-in-One Studio',
     'landing.featAllInOneDesc': 'From topic ideation to finalized release',
 
-    // Subscription & Pricing (US$ 25 / mo - up to 15 books)
+    // Subscription & Pricing ($25.00 / mo - up to 15 books)
     'landing.pricingTag': 'MONTHLY PLAN',
-    'landing.pricingPrice': 'US$ 25',
+    'landing.pricingPrice': '$25.00',
     'landing.pricingPeriod': '/ month',
     'landing.pricingBadge': 'Up to 15 Books / Month',
     'landing.pricingCancelAnytime': 'Cancel anytime',
@@ -361,7 +362,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.pricingBenefit2': 'Ultra high-definition AI book covers',
     'landing.pricingBenefit3': 'Print-ready formatted KDP PDFs',
     'landing.pricingImpact': 'Accelerated book production powered by state-of-the-art AI.',
-    'landing.pricingCallout': 'Subscribe now for just US$ 25/mo for up to 15 books and publish without limits!',
+    'landing.pricingCallout': 'Subscribe now for just $25/month for up to 15 books and publish without limits!',
 
     // HTML Book Covers (Dynamic Real-Time Translation)
     'landing.cover1.badge': 'KDP BESTSELLER',
@@ -405,7 +406,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.registerBoxDesc': 'Create your account and get full unlimited access to the suite.',
     'landing.btnCreateAccount': 'Create my account',
     'landing.btnSubmitRegister': 'Create Account & Start',
-    'landing.subscriptionNotice': 'Monthly subscription for US$ 25 for up to 15 books. Immediate access to all tools.',
+    'landing.subscriptionNotice': 'Monthly subscription for $25 for up to 15 books. Immediate access to all tools.',
+    'landing.securityFootnote': 'Secure Publishing Environment • Direct Access to BookEngin Dashboard',
     'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
 
     // Admin Control Panel & Client Management

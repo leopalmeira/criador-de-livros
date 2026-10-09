@@ -99,16 +99,29 @@ export function isBrazilianCountry(countryCode: string | null): boolean {
   return false;
 }
 
-export function formatPlatformPrice(amount: number, isBrazil: boolean): string {
-  if (isBrazil) {
+export function formatPlatformPrice(amount: number, isBrazil: boolean, lang?: string): string {
+  // O valor só é em Reais (BRL) se for acessado do Brasil E o idioma estiver em português (pt-BR).
+  // Sempre que acessado de outro país OU quando virar para o público americano (en-US) / internacional, o valor DEVE ser em dólar americano.
+  const isBrl = isBrazil && (!lang || lang === 'pt-BR');
+  if (isBrl) {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
     }).format(amount);
   }
+
+  // Público americano nativo (en-US): formato $25.00
+  if (lang === 'en-US') {
+    return `$${amount.toFixed(2)}`;
+  }
+
+  // Acessos fora do Brasil ou outros idiomas internacionais: formato em dólar americano
   return `US$ ${amount.toFixed(2)}`;
 }
 
 export function replacePlatformPrice(text: string, formattedPrice: string): string {
-  return text.replace(/R\$\s*49,90|US\$\s*49\.90|49,90\s*€|US\$\s*25(?:\.00)?/g, formattedPrice);
+  return text.replace(
+    /R\$\s*25(?:[,.]00)?|R\$\s*49[,.]90|US\$\s*25(?:\.00)?|\$25(?:\.00)?|US\$\s*49\.90|49[,.]90\s*€/gi,
+    formattedPrice
+  );
 }

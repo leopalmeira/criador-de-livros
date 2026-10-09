@@ -18,7 +18,7 @@ interface Props {
 export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, motivo }) => {
   const { balance, purchaseCredits } = useBookCredits();
   const { t, currentLang, isBrazil } = useTranslation();
-  const subscriptionPrice = formatPlatformPrice(25, isBrazil);
+  const subscriptionPrice = formatPlatformPrice(25, isBrazil, currentLang);
   const ui = (portuguese: string, english: string) => currentLang === 'pt-BR' ? portuguese : english;
   const packageName = (pkg: CreditPackage) => {
     if (currentLang === 'pt-BR') return pkg.name;
