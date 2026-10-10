@@ -28,6 +28,7 @@ import { CinematicNovelEditor } from './cinematic/CinematicNovelEditor';
 import { CinematicNovelProjectData } from '../../types/cinematic-novel';
 import { CinematicNovelService } from '../../services/cinematic-novel-service';
 const CourseEbookStudio = React.lazy(() => import('./course/CourseEbookStudio').then(m => ({ default: m.CourseEbookStudio })));
+const CourseDigitalReader = React.lazy(() => import('./course/CourseDigitalReader').then(m => ({ default: m.CourseDigitalReader })));
 import '../../styles/book-intel-dashboard.css';
 
 type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinematic-novel' | 'course-generator';
@@ -63,6 +64,49 @@ export const BookStudioApp: React.FC = () => {
   // Estado para Publicação Direta KDP In-App
   const [isKdpPublishOpen, setIsKdpPublishOpen] = useState(false);
   const [kdpPublishTarget, setKdpPublishTarget] = useState<BookProject | null>(null);
+
+  // Link Compartilhado Público do E-book de Curso (?viewCourse=<id>)
+  const [sharedCourseProject, setSharedCourseProject] = useState<BookProject | null>(null);
+  const [isSharedCourseLoading, setIsSharedCourseLoading] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const urlParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash || '';
+    return Boolean(urlParams.get('viewCourse') || urlParams.get('shareCourse') || hash.includes('viewCourse='));
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    let targetId = urlParams.get('viewCourse') || urlParams.get('shareCourse');
+    if (!targetId && window.location.hash.includes('viewCourse=')) {
+      const match = window.location.hash.match(/viewCourse=([^&]+)/);
+      if (match) targetId = match[1];
+    }
+
+    if (!targetId) {
+      setIsSharedCourseLoading(false);
+      return;
+    }
+
+    (async () => {
+      try {
+        let proj = await db.getBookProject(targetId!);
+        if (!proj) {
+          const rawLocal = localStorage.getItem(`course_ebook_shared_${targetId}`) || localStorage.getItem('course_ebook_last_active');
+          if (rawLocal) {
+            proj = JSON.parse(rawLocal);
+          }
+        }
+        if (proj && (proj.courseData?.pedagogicalPlan || proj.courseData)) {
+          setSharedCourseProject(proj);
+        }
+      } catch (err) {
+        console.warn('[BookStudioApp] Erro ao carregar e-book público compartilhado:', err);
+      } finally {
+        setIsSharedCourseLoading(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -495,6 +539,42 @@ export const BookStudioApp: React.FC = () => {
     }
     setIsPublishingModalOpen(true);
   };
+
+  // ============================================================
+  // LEITOR DIGITAL PÚBLICO (LINK COMPARTILHÁVEL PARA CLIENTES)
+  // Permite abrir e ler o e-book digital sem necessidade de login!
+  // ============================================================
+  if (isSharedCourseLoading) {
+    return (
+      <div className="auth-loading" role="status" aria-live="polite">
+        <span className="auth-loading-spinner" />
+        <span>Abrindo seu E-book Digital Interativo…</span>
+      </div>
+    );
+  }
+
+  if (sharedCourseProject && sharedCourseProject.courseData?.pedagogicalPlan) {
+    return (
+      <React.Suspense fallback={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0b132b', color: '#10b981', fontWeight: 700 }}>
+          <span>Carregando Leitor Digital...</span>
+        </div>
+      }>
+        <CourseDigitalReader
+          plan={sharedCourseProject.courseData.pedagogicalPlan}
+          coverImageUrl={sharedCourseProject.courseData.coverImageDataUrl || sharedCourseProject.courseData.coverImageUrl || sharedCourseProject.coverImageUrl}
+          authorName={sharedCourseProject.author || 'Especialista BookEngin'}
+          onClose={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('viewCourse');
+            url.searchParams.delete('shareCourse');
+            window.history.replaceState({}, '', url.pathname);
+            setSharedCourseProject(null);
+          }}
+        />
+      </React.Suspense>
+    );
+  }
 
   // ============================================================
   // TELA 0: AUTENTICAÇÃO OBRIGATÓRIA (LOGIN DIRETO SEM LANDING PAGE)

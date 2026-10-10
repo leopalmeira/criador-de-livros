@@ -131,6 +131,21 @@ export interface CourseLesson {
     expectedOutcome: string;
   };
   completionCriteria: string[];
+  beforeAfterComparison?: {
+    enabled?: boolean;
+    title?: string;
+    beforeImageUrl?: string;
+    beforeImageDataUrl?: string;
+    beforeDescription?: string;
+    afterImageUrl?: string;
+    afterImageDataUrl?: string;
+    afterDescription?: string;
+  };
+  audioNarration?: {
+    audioUrl?: string;
+    durationSeconds?: number;
+    voiceName?: string;
+  };
 }
 
 export interface CourseModule {

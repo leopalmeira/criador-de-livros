@@ -165,8 +165,8 @@ OBJETIVO DA AULA: ${params.lessonObjective}
 NÍVEL: ${params.difficultyLevel}
 ${params.previousLessonSummary ? `CONTEXTO DA AULA ANTERIOR: ${params.previousLessonSummary}` : ''}
 
-A aula DEVE ser prática e progressiva para ensinar a executar fisicamente a tarefa.
-Não seja genérico ou raso. Forneça medidas, posições de ferramentas, precauções e explicações claras.
+A aula DEVE ser altamente aprofundada, prática e progressiva para ensinar a executar fisicamente a tarefa com excelência.
+Forneça textos longos, detalhados e substanciais. Inclua medidas, ângulos de empunhadura, pressões, tempos de reação, especificações de ferramentas, precauções e explicações claras.
 
 Retorne EXCLUSIVAMENTE um objeto JSON válido com esta estrutura exata:
 {
@@ -174,8 +174,8 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido com esta estrutura exata:
   "lessonNumber": ${params.lessonNumber},
   "title": "${params.lessonTitle}",
   "objective": "${params.lessonObjective}",
-  "introduction": "2 parágrafos conectando a importância desta aula ao dia a dia profissional.",
-  "didacticExplanation": "3 a 4 parágrafos explicando os princípios técnicos essenciais com clareza.",
+  "introduction": "3 parágrafos densos e completos conectando a importância desta aula ao dia a dia profissional e aos ganhos comerciais do aluno.",
+  "didacticExplanation": "4 a 5 parágrafos longos e minuciosos explicando os princípios técnicos essenciais, anatomia/materiais, técnicas de manuseio e critérios de excelência.",
   "requiredMaterials": ["item 1 com especificação", "item 2", "ferramenta necessária"],
   "stepByStepInstructions": [
     {
@@ -200,6 +200,12 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido com esta estrutura exata:
       "safetyCaution": "Descarte seguro de resíduos"
     }
   ],
+  "beforeAfterComparison": {
+    "enabled": true,
+    "title": "Comparação de Resultado: Antes e Depois de ${params.lessonTitle}",
+    "beforeDescription": "Descrição técnica do estado inicial da peça ou superfície antes do procedimento.",
+    "afterDescription": "Descrição técnica do resultado final transformado com alto padrão profissional."
+  },
   "practicalExamples": [
     "Exemplo de aplicação em um caso real do mercado",
     "Exemplo de adaptação para quando não se tem uma ferramenta de bancada"
@@ -239,6 +245,14 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido com esta estrutura exata:
       const parsed = this.cleanAndParseJson<CourseLesson>(response.texto);
       if (parsed && parsed.title && Array.isArray(parsed.stepByStepInstructions) && parsed.stepByStepInstructions.length > 0) {
         parsed.images = [];
+        if (!parsed.beforeAfterComparison) {
+          parsed.beforeAfterComparison = {
+            enabled: true,
+            title: `Comparação: ${params.lessonTitle}`,
+            beforeDescription: `Estado inicial antes do procedimento técnico de ${params.lessonTitle.toLowerCase()}.`,
+            afterDescription: `Resultado transformado com acabamento profissional e precisão técnica.`
+          };
+        }
         return parsed;
       }
     } catch (err) {
@@ -515,6 +529,12 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido com esta estrutura exata:
         }
       ],
       images: [],
+      beforeAfterComparison: {
+        enabled: true,
+        title: `Comparação de ${params.lessonTitle}`,
+        beforeDescription: `Estado inicial antes do procedimento técnico de ${params.lessonTitle.toLowerCase()}.`,
+        afterDescription: `Resultado final com acabamento técnico impecável, alinhamento preciso e durabilidade comercial.`
+      },
       practicalExamples: [
         'Exemplo prático de aplicação em peças com medidas comerciais padrão.',
         'Como compensar pequenas variações na matéria-prima sem comprometer a estrutura.'

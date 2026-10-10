@@ -85,7 +85,7 @@ export class CourseVisualDirector {
   ): CourseImagePlan {
     const styleModifiers = this.getStyleModifiers(visualStyle, category);
 
-    const prompt = `Professional masterclass educational course book cover photograph representing "${courseTitle}". Beautiful, clean, realistic workshop or studio environment related to ${category}. Showcase authentic tools and materials neatly arranged, warm professional studio lighting, depth of field, premium editorial composition, high detail, 8k resolution. ${styleModifiers}. NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BADGES, NO LOGOS, NO WATERMARKS.`;
+    const prompt = `Professional masterclass educational course book clean background photograph representing "${courseTitle}". Beautiful, clean, realistic workshop or studio environment related to ${category}. Showcase authentic tools and materials neatly arranged, warm professional studio lighting, depth of field, premium editorial composition, high detail, 8k resolution. ${styleModifiers}. PURE CLEAN PHOTOGRAPHY, NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BADGES, NO LOGOS, NO SEALS, NO RIBBONS, NO GOLD MEDALS, NO WATERMARKS.`;
 
     return {
       id: `cover_plan_${Date.now()}`,
@@ -97,10 +97,28 @@ export class CourseVisualDirector {
       actionExecuted: 'Apresentação visual da capacitação profissional',
       materialsAndTools: [],
       visualPrompt: prompt,
-      negativePrompt: 'text, letters, words, typography, logo, watermark, badge, blurry, deformed, cartoon',
+      negativePrompt: 'text, letters, words, typography, logo, watermark, badge, seal, medal, gold badge, ribbon, sticker, label, blurry, deformed, cartoon, low quality',
       aspectRatio: '3:4',
       status: 'pending'
     };
+  }
+
+  /**
+   * Constrói prompt para imagem comparativa de Antes ou Depois
+   */
+  static buildBeforeAfterPrompt(params: {
+    courseTitle: string;
+    category: string;
+    lessonTitle: string;
+    isBefore: boolean;
+    procedureDescription?: string;
+  }): string {
+    const categoryGuidance = this.getCategoryVisualGuidance(params.category);
+    if (params.isBefore) {
+      return `Detailed close-up realistic educational macro photograph showing the INITIAL UNTREATED CONDITION BEFORE PROCEDURE for "${params.lessonTitle}" in ${params.category}. Authentic raw surface, natural texture needing care or professional processing. Environment: ${categoryGuidance}. Clean neutral studio lighting, sharp focus, 8k, photorealistic. PURE PHOTOGRAPHY, NO TEXT, NO LETTERS, NO BADGES, NO LOGOS, NO WATERMARKS.`;
+    } else {
+      return `Detailed close-up realistic educational macro photograph showing the FLAWLESS FINISHED PROFESSIONAL OUTCOME AFTER PROCEDURE for "${params.lessonTitle}" in ${params.category}. Perfect clean alignment, polished execution, pristine craftsmanship. Environment: ${categoryGuidance}. Clean neutral studio lighting, sharp focus, 8k, photorealistic. PURE PHOTOGRAPHY, NO TEXT, NO LETTERS, NO BADGES, NO LOGOS, NO WATERMARKS.`;
+    }
   }
 
   /**

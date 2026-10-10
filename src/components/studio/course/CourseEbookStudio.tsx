@@ -3,7 +3,8 @@ import {
   GraduationCap, Search, Filter, ArrowRight, ArrowLeft,
   CheckCircle2, AlertTriangle, AlertCircle, Sparkles, RefreshCw,
   Download, Eye, Edit3, Plus, Trash2, Shield, Wrench, BookOpen,
-  Image as ImageIcon, DollarSign, ExternalLink, Play, Layers, HelpCircle
+  Image as ImageIcon, DollarSign, ExternalLink, Play, Layers, HelpCircle,
+  Volume2, VolumeX, Pause, Share2, Copy, Check, Upload, Camera
 } from 'lucide-react';
 import {
   CourseTheme,
@@ -30,6 +31,8 @@ import { CoursePedagogicalService } from '../../../services/course-pedagogical-s
 import { CourseVisualDirector } from '../../../services/course-visual-director';
 import { CourseAuditorService } from '../../../services/course-auditor-service';
 import { CoursePdfExporter } from '../../../services/course-pdf-exporter';
+import { CourseNarrationService } from '../../../services/course-narration-service';
+import { CourseDigitalReader } from './CourseDigitalReader';
 import './course-studio.css';
 
 interface Props {
@@ -118,6 +121,13 @@ export const CourseEbookStudio: React.FC<Props> = ({
   // Estado da Auditoria (Etapa 9)
   const [auditReport, setAuditReport] = useState<CourseAuditReport | null>(courseData.auditReport || null);
 
+  // Estado de Leitor Digital e Compartilhamento
+  const [isReaderModalOpen, setIsReaderModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
+  const [generatingBeforeAfter, setGeneratingBeforeAfter] = useState<'before' | 'after' | null>(null);
+
   // Salvar automaticamente alterações no banco de dados local
   const persistCourseProject = async (updatedData: CourseEbookData) => {
     setCourseData(updatedData);
@@ -182,6 +192,12 @@ export const CourseEbookStudio: React.FC<Props> = ({
 
     try {
       await db.saveBookProject(bookProject);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`course_ebook_shared_${updatedData.id}`, JSON.stringify(bookProject));
+          localStorage.setItem('course_ebook_last_active', JSON.stringify(bookProject));
+        } catch {}
+      }
       if (onProjectSaved) onProjectSaved(bookProject);
     } catch (err) {
       console.warn('[CourseEbookStudio] Erro ao persistir projeto no banco:', err);
@@ -463,6 +479,126 @@ export const CourseEbookStudio: React.FC<Props> = ({
     });
   };
 
+  // 11. Narração de Aula com Voz Feminina
+  const handleToggleLessonAudio = (lesson: CourseLesson) => {
+    if (isAudioPlaying) {
+      CourseNarrationService.stop();
+      setIsAudioPlaying(false);
+    } else {
+      const text = CourseNarrationService.composeLessonNarrationText(lesson);
+      CourseNarrationService.speak(text, {
+        onStart: () => setIsAudioPlaying(true),
+        onEnd: () => setIsAudioPlaying(false),
+        onError: () => setIsAudioPlaying(false)
+      });
+    }
+  };
+
+  // 12. Upload de Imagem de Antes ou Depois do Computador
+  const handleUploadBeforeAfter = (
+    moduleIdx: number,
+    lessonIdx: number,
+    type: 'before' | 'after',
+    file: File
+  ) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (!courseData.pedagogicalPlan) return;
+      const newPlan = { ...courseData.pedagogicalPlan };
+      const les = newPlan.modules[moduleIdx]?.lessons[lessonIdx];
+      if (!les) return;
+      if (!les.beforeAfterComparison) {
+        les.beforeAfterComparison = { enabled: true };
+      }
+      if (type === 'before') {
+        les.beforeAfterComparison.beforeImageDataUrl = dataUrl;
+        les.beforeAfterComparison.beforeImageUrl = dataUrl;
+      } else {
+        les.beforeAfterComparison.afterImageDataUrl = dataUrl;
+        les.beforeAfterComparison.afterImageUrl = dataUrl;
+      }
+      persistCourseProject({
+        ...courseData,
+        pedagogicalPlan: newPlan,
+        updatedAt: Date.now()
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 13. Geração de Foto de Antes ou Depois com Replicate
+  const handleGenerateBeforeAfterWithAi = async (
+    moduleIdx: number,
+    lessonIdx: number,
+    type: 'before' | 'after'
+  ) => {
+    if (!courseData.pedagogicalPlan) return;
+    const les = courseData.pedagogicalPlan.modules[moduleIdx]?.lessons[lessonIdx];
+    if (!les) return;
+
+    setGeneratingBeforeAfter(type);
+    try {
+      const prompt = CourseVisualDirector.buildBeforeAfterPrompt({
+        courseTitle: courseData.themeTitle,
+        category: courseData.category,
+        lessonTitle: les.title,
+        isBefore: type === 'before'
+      });
+
+      const tempPlan: CourseImagePlan = {
+        id: `ba_${type}_${Date.now()}`,
+        lessonId: les.id,
+        stepNumber: type === 'before' ? 901 : 902,
+        title: type === 'before' ? `Antes: ${les.title}` : `Depois: ${les.title}`,
+        pedagogicalObjective: `Demonstração visual do ${type === 'before' ? 'estado inicial' : 'resultado final'}`,
+        sceneDescription: prompt,
+        actionExecuted: `Comparação prática de ${les.title}`,
+        materialsAndTools: [],
+        visualPrompt: prompt,
+        negativePrompt: 'text, letters, words, typography, logo, watermark, badge, seal, medal, gold sticker, ribbon, label, blurry, deformed, cartoon, low quality',
+        aspectRatio: '3:4',
+        status: 'pending'
+      };
+
+      const result = await CourseVisualDirector.generateImage(tempPlan);
+      if (result.success && result.imageDataUrl) {
+        const newPlan = { ...courseData.pedagogicalPlan };
+        const targetLesson = newPlan.modules[moduleIdx]?.lessons[lessonIdx];
+        if (targetLesson) {
+          if (!targetLesson.beforeAfterComparison) {
+            targetLesson.beforeAfterComparison = { enabled: true };
+          }
+          if (type === 'before') {
+            targetLesson.beforeAfterComparison.beforeImageDataUrl = result.imageDataUrl;
+            targetLesson.beforeAfterComparison.beforeImageUrl = result.imageDataUrl;
+          } else {
+            targetLesson.beforeAfterComparison.afterImageDataUrl = result.imageDataUrl;
+            targetLesson.beforeAfterComparison.afterImageUrl = result.imageDataUrl;
+          }
+          persistCourseProject({
+            ...courseData,
+            pedagogicalPlan: newPlan,
+            updatedAt: Date.now()
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao gerar imagem de antes/depois:', err);
+    } finally {
+      setGeneratingBeforeAfter(null);
+    }
+  };
+
+  // 14. Copiar Link Público do E-book
+  const handleCopyShareLink = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://book-intel-kdp.onrender.com';
+    const link = `${origin}/?viewCourse=${courseData.id}`;
+    navigator.clipboard.writeText(link);
+    setCopiedShareLink(true);
+    setTimeout(() => setCopiedShareLink(false), 2500);
+  };
+
   // Stepper Config
   const stepsConfig = [
     { num: 1, label: 'Tema' },
@@ -498,7 +634,15 @@ export const CourseEbookStudio: React.FC<Props> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="btn-course-secondary"
+            onClick={() => setIsShareModalOpen(true)}
+            style={{ padding: '8px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, background: '#1e293b', color: '#ffffff', borderColor: '#334155' }}
+          >
+            <Share2 size={14} /> Compartilhar Link
+          </button>
           <span className="course-badge-pill">FLUX.1 Schnell & Hotmart</span>
           <button
             className="btn-course-cta"
@@ -1155,12 +1299,92 @@ export const CourseEbookStudio: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* Capa Gerada (Prévia) */}
+            {/* Capa Gerada Oficial com Título Diagramado e Sem Selos Artificiais */}
             {courseData.coverImageUrl && (
               <div style={{ marginBottom: 24 }}>
-                <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 800 }}>Capa Oficial Gerada:</h4>
-                <div style={{ maxWidth: 280, borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.1)' }}>
-                  <img src={courseData.coverImageUrl} alt="Capa do Curso" style={{ width: '100%', display: 'block' }} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>Capa Oficial com Título Diagramado:</h4>
+                  <span style={{ fontSize: 12, color: '#10b981', fontWeight: 700 }}>
+                    ✓ Título oficial incluso • Sem selos enganosos
+                  </span>
+                </div>
+                
+                <div style={{
+                  position: 'relative',
+                  maxWidth: 320,
+                  height: 440,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  border: '2px solid #0f172a',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}>
+                  {/* Foto de Fundo Replicate */}
+                  <img
+                    src={courseData.coverImageUrl}
+                    alt="Capa do Curso"
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+
+                  {/* Faixa Superior Escura com Título em Alto Contraste */}
+                  <div style={{
+                    position: 'relative',
+                    zIndex: 2,
+                    background: 'linear-gradient(to bottom, rgba(15,23,42,0.96) 0%, rgba(15,23,42,0.9) 80%, rgba(15,23,42,0) 100%)',
+                    padding: '18px 16px 28px',
+                    color: '#ffffff'
+                  }}>
+                    <div style={{
+                      display: 'inline-block',
+                      background: '#f59e0b',
+                      color: '#0f172a',
+                      fontSize: 8.5,
+                      fontWeight: 900,
+                      padding: '2px 8px',
+                      borderRadius: 3,
+                      marginBottom: 8,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5
+                    }}>
+                      CURSO TÉCNICO PROFISSIONAL
+                    </div>
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: 16,
+                      fontWeight: 900,
+                      lineHeight: 1.25,
+                      color: '#ffffff',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+                    }}>
+                      {courseData.pedagogicalPlan?.courseTitle || courseData.themeTitle}
+                    </h3>
+                    <p style={{
+                      margin: '4px 0 0',
+                      fontSize: 11,
+                      color: '#cbd5e1',
+                      lineHeight: 1.3
+                    }}>
+                      {courseData.pedagogicalPlan?.courseSubtitle || 'Manual Técnico Prático Passo a Passo'}
+                    </p>
+                  </div>
+
+                  {/* Faixa Inferior Escura com Autor e Categoria */}
+                  <div style={{
+                    position: 'relative',
+                    zIndex: 2,
+                    background: 'linear-gradient(to top, rgba(15,23,42,0.96) 0%, rgba(15,23,42,0.9) 70%, rgba(15,23,42,0) 100%)',
+                    padding: '24px 16px 14px',
+                    color: '#ffffff'
+                  }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase' }}>
+                      {courseData.category}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#ffffff' }}>
+                      Instrutor: {initialProject?.author || 'Especialista BookEngin'}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -1235,6 +1459,24 @@ export const CourseEbookStudio: React.FC<Props> = ({
                             {activeLes.title}
                           </h3>
                         </div>
+
+                        {/* Botão de Áudio com Voz Feminina */}
+                        <button
+                          type="button"
+                          className="btn-course-cta"
+                          onClick={() => handleToggleLessonAudio(activeLes)}
+                          style={{
+                            background: isAudioPlaying ? '#ef4444' : '#10b981',
+                            padding: '8px 16px',
+                            fontSize: 12,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6
+                          }}
+                        >
+                          {isAudioPlaying ? <Pause size={14} /> : <Volume2 size={14} />}
+                          {isAudioPlaying ? 'Pausar Áudio' : 'Ouvir Aula (Voz Feminina)'}
+                        </button>
                       </div>
 
                       {/* Objetivo */}
@@ -1249,6 +1491,219 @@ export const CourseEbookStudio: React.FC<Props> = ({
                         <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
                           {activeLes.didacticExplanation}
                         </p>
+                      </div>
+
+                      {/* ========================================================= */}
+                      {/* COMPARAÇÃO DE RESULTADO: ANTES E DEPOIS (REQUISITO EXPLÍCITO) */}
+                      {/* ========================================================= */}
+                      <div style={{
+                        marginBottom: 24,
+                        background: '#f8fafc',
+                        border: '2px solid #e2e8f0',
+                        borderRadius: 12,
+                        padding: 18
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Sparkles size={16} color="#f59e0b" />
+                              Comparação de Resultado: Antes e Depois
+                            </h4>
+                            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                              Insira duas fotos comparativas para o aluno visualizar o estado inicial e o acabamento final profissional.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                          {/* CARD 1: FOTO DO ANTES COM SELO VERMELHO */}
+                          <div style={{ border: '1px solid #cbd5e1', borderRadius: 10, overflow: 'hidden', background: '#ffffff' }}>
+                            <div style={{ position: 'relative', height: 200, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {activeLes.beforeAfterComparison?.beforeImageDataUrl || activeLes.beforeAfterComparison?.beforeImageUrl ? (
+                                <img
+                                  src={activeLes.beforeAfterComparison.beforeImageDataUrl || activeLes.beforeAfterComparison.beforeImageUrl}
+                                  alt="Foto do Antes"
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+                                  <Camera size={28} style={{ margin: '0 auto 6px', display: 'block', opacity: 0.5 }} />
+                                  Nenhuma foto do "Antes" inserida
+                                </div>
+                              )}
+
+                              {/* SELO NO CANTO SUPERIOR ESQUERDO COM FUNDO VERMELHO */}
+                              <div style={{
+                                position: 'absolute',
+                                top: 10,
+                                left: 10,
+                                background: '#dc2626',
+                                color: '#ffffff',
+                                fontSize: 11,
+                                fontWeight: 900,
+                                letterSpacing: 0.8,
+                                padding: '3px 10px',
+                                borderRadius: 4,
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                                textTransform: 'uppercase'
+                              }}>
+                                ANTES
+                              </div>
+                            </div>
+
+                            <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <label style={{
+                                  flex: 1,
+                                  background: '#f1f5f9',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: 6,
+                                  padding: '6px 10px',
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  textAlign: 'center',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 4
+                                }}>
+                                  <Upload size={13} /> Upload Foto
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleUploadBeforeAfter(activeModuleIndex, activeLessonIndex, 'before', file);
+                                    }}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  className="btn-course-secondary"
+                                  style={{ padding: '6px 10px', fontSize: 11.5 }}
+                                  disabled={generatingBeforeAfter === 'before'}
+                                  onClick={() => handleGenerateBeforeAfterWithAi(activeModuleIndex, activeLessonIndex, 'before')}
+                                >
+                                  {generatingBeforeAfter === 'before' ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                                  {generatingBeforeAfter === 'before' ? 'Gerando...' : 'Gerar IA'}
+                                </button>
+                              </div>
+
+                              <input
+                                type="text"
+                                placeholder="Descrição do estado antes do procedimento..."
+                                value={activeLes.beforeAfterComparison?.beforeDescription || ''}
+                                onChange={(e) => {
+                                  if (!courseData.pedagogicalPlan) return;
+                                  const newPlan = { ...courseData.pedagogicalPlan };
+                                  const l = newPlan.modules[activeModuleIndex]?.lessons[activeLessonIndex];
+                                  if (l) {
+                                    if (!l.beforeAfterComparison) l.beforeAfterComparison = { enabled: true };
+                                    l.beforeAfterComparison.beforeDescription = e.target.value;
+                                    persistCourseProject({ ...courseData, pedagogicalPlan: newPlan });
+                                  }
+                                }}
+                                style={{ width: '100%', padding: '6px 8px', fontSize: 11.5, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* CARD 2: FOTO DO DEPOIS COM SELO VERDE */}
+                          <div style={{ border: '1px solid #cbd5e1', borderRadius: 10, overflow: 'hidden', background: '#ffffff' }}>
+                            <div style={{ position: 'relative', height: 200, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {activeLes.beforeAfterComparison?.afterImageDataUrl || activeLes.beforeAfterComparison?.afterImageUrl ? (
+                                <img
+                                  src={activeLes.beforeAfterComparison.afterImageDataUrl || activeLes.beforeAfterComparison.afterImageUrl}
+                                  alt="Foto do Depois"
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+                                  <Camera size={28} style={{ margin: '0 auto 6px', display: 'block', opacity: 0.5 }} />
+                                  Nenhuma foto do "Depois" inserida
+                                </div>
+                              )}
+
+                              {/* SELO NO CANTO SUPERIOR ESQUERDO COM FUNDO VERDE */}
+                              <div style={{
+                                position: 'absolute',
+                                top: 10,
+                                left: 10,
+                                background: '#16a34a',
+                                color: '#ffffff',
+                                fontSize: 11,
+                                fontWeight: 900,
+                                letterSpacing: 0.8,
+                                padding: '3px 10px',
+                                borderRadius: 4,
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                                textTransform: 'uppercase'
+                              }}>
+                                DEPOIS
+                              </div>
+                            </div>
+
+                            <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <label style={{
+                                  flex: 1,
+                                  background: '#f1f5f9',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: 6,
+                                  padding: '6px 10px',
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  textAlign: 'center',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 4
+                                }}>
+                                  <Upload size={13} /> Upload Foto
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleUploadBeforeAfter(activeModuleIndex, activeLessonIndex, 'after', file);
+                                    }}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  className="btn-course-secondary"
+                                  style={{ padding: '6px 10px', fontSize: 11.5 }}
+                                  disabled={generatingBeforeAfter === 'after'}
+                                  onClick={() => handleGenerateBeforeAfterWithAi(activeModuleIndex, activeLessonIndex, 'after')}
+                                >
+                                  {generatingBeforeAfter === 'after' ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                                  {generatingBeforeAfter === 'after' ? 'Gerando...' : 'Gerar IA'}
+                                </button>
+                              </div>
+
+                              <input
+                                type="text"
+                                placeholder="Descrição do resultado final profissional..."
+                                value={activeLes.beforeAfterComparison?.afterDescription || ''}
+                                onChange={(e) => {
+                                  if (!courseData.pedagogicalPlan) return;
+                                  const newPlan = { ...courseData.pedagogicalPlan };
+                                  const l = newPlan.modules[activeModuleIndex]?.lessons[activeLessonIndex];
+                                  if (l) {
+                                    if (!l.beforeAfterComparison) l.beforeAfterComparison = { enabled: true };
+                                    l.beforeAfterComparison.afterDescription = e.target.value;
+                                    persistCourseProject({ ...courseData, pedagogicalPlan: newPlan });
+                                  }
+                                }}
+                                style={{ width: '100%', padding: '6px 8px', fontSize: 11.5, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Imagens Associadas à Aula */}
@@ -1445,9 +1900,27 @@ export const CourseEbookStudio: React.FC<Props> = ({
                 O e-book de <strong>"{courseData.themeTitle}"</strong> foi compilado com diagramação técnica, sumário multi-passe, ilustrações do Replicate e critérios pedagógicos completos.
               </p>
 
-              <button className="btn-course-cta" style={{ margin: '0 auto' }} onClick={handleExportPdf}>
-                <Download size={16} /> Baixar Arquivo em PDF
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginTop: 10 }}>
+                <button className="btn-course-cta" onClick={handleExportPdf}>
+                  <Download size={16} /> Baixar Arquivo em PDF
+                </button>
+                <button
+                  type="button"
+                  className="btn-course-secondary"
+                  onClick={() => setIsShareModalOpen(true)}
+                  style={{ background: '#0284c7', color: '#ffffff', border: 'none', fontWeight: 700 }}
+                >
+                  <Share2 size={16} /> Compartilhar Link do E-book Digital
+                </button>
+                <button
+                  type="button"
+                  className="btn-course-secondary"
+                  onClick={() => setIsReaderModalOpen(true)}
+                  style={{ background: '#0f172a', color: '#ffffff', border: 'none', fontWeight: 700 }}
+                >
+                  <BookOpen size={16} /> Abrir no Leitor Digital
+                </button>
+              </div>
             </div>
 
             <div className="course-actions-footer">
@@ -1461,6 +1934,113 @@ export const CourseEbookStudio: React.FC<Props> = ({
           </div>
         )}
       </main>
+
+      {/* MODAL DE COMPARTILHAMENTO DE LINK DO E-BOOK */}
+      {isShareModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110, padding: 20 }}>
+          <div style={{ background: '#ffffff', borderRadius: 16, width: '100%', maxWidth: 560, padding: 28, boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Share2 size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Compartilhar Link do E-book Digital</h3>
+                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Envie este link para seu cliente ler e ouvir o e-book em qualquer dispositivo.</p>
+              </div>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', margin: '16px 0' }}>
+              <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                Link Público do E-book:
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${typeof window !== 'undefined' ? window.location.origin : 'https://book-intel-kdp.onrender.com'}/?viewCourse=${courseData.id}`}
+                  style={{ flex: 1, padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12.5, background: '#ffffff', color: '#0f172a' }}
+                />
+                <button
+                  type="button"
+                  className="btn-course-cta"
+                  onClick={handleCopyShareLink}
+                  style={{ padding: '8px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {copiedShareLink ? <Check size={14} /> : <Copy size={14} />}
+                  {copiedShareLink ? 'Copiado!' : 'Copiar'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Confira o e-book do curso "${courseData.pedagogicalPlan?.courseTitle || courseData.themeTitle}": ${typeof window !== 'undefined' ? window.location.origin : 'https://book-intel-kdp.onrender.com'}/?viewCourse=${courseData.id}`)}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  flex: 1,
+                  background: '#22c55e',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6
+                }}
+              >
+                Enviar pelo WhatsApp
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsShareModalOpen(false);
+                  setIsReaderModalOpen(true);
+                }}
+                style={{
+                  flex: 1,
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6
+                }}
+              >
+                <BookOpen size={16} /> Abrir Leitor Digital
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn-course-secondary" onClick={() => setIsShareModalOpen(false)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DO LEITOR DIGITAL EM TELA CHEIA */}
+      {isReaderModalOpen && courseData.pedagogicalPlan && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: '#ffffff', overflowY: 'auto' }}>
+          <CourseDigitalReader
+            plan={courseData.pedagogicalPlan}
+            coverImageUrl={courseData.coverImageDataUrl || courseData.coverImageUrl}
+            authorName={initialProject?.author || 'Especialista BookEngin'}
+            onClose={() => setIsReaderModalOpen(false)}
+          />
+        </div>
+      )}
 
       {/* MODAL PARA INSERIR TEMA PERSONALIZADO */}
       {isCustomThemeModalOpen && (
