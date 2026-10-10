@@ -1,102 +1,219 @@
-# BookIntel & KDP Studio • Plataforma Profissional de Inteligência e Criação de Livros KDP
+# 📚 BookEngin • Plataforma Editorial com IA & Estúdio de E-books de Cursos
 
-O **BookIntel & KDP Studio** é uma extensão Chromium (Manifest V3) e uma plataforma web para pesquisa de livros na Amazon e organização de projetos editoriais voltados ao **Kindle Direct Publishing (KDP)**. Na plataforma web, cada cliente usa uma conta individual; projetos, livros finalizados, arquivos PDF e revisões editoriais são associados à conta no PostgreSQL. A extensão Chromium continua usando os dados locais do navegador.
+> **A plataforma definitiva para pesquisa de mercado, escrita com inteligência artificial, geração de ilustrações realistas, narração por voz e publicação digital profissional.**
 
-O aplicativo reúne estimativas de mercado, projetos editoriais, ferramentas de capa e exportação. Estimativas não são dados oficiais da Amazon, conteúdo gerado por IA requer revisão e os arquivos exportados devem ser conferidos no Previewer do KDP antes de qualquer publicação.
-
-### Contas individuais da plataforma web
-
-O servidor usa PostgreSQL por meio de `DATABASE_URL`. Para implantação no Render, crie ou selecione um banco PostgreSQL e configure `DATABASE_URL` no serviço web com a URL interna do banco. O Blueprint não provisiona um banco automaticamente nem escolhe um plano com custo. As tabelas de contas, sessões, projetos, livros finalizados e trabalhos editoriais são criadas pelo servidor quando usadas. Senhas são armazenadas com hash scrypt; sessões usam cookie `HttpOnly`, e os registros editoriais são isolados pelo identificador da conta autenticada. Chaves de provedores de IA permanecem nas configurações locais do navegador, separadas por conta. Projetos antigos que ainda não tinham proprietário não são atribuídos automaticamente a uma conta; continuam preservados no armazenamento local até serem importados explicitamente.
-
----
-
-## 🚀 Principais Módulos
-
-### 1. Estúdio editorial
-- **Fluxo por etapas**: Ajuda a organizar uma ideia em conceito, estrutura, capítulos, metadados e exportações. O resultado precisa de revisão editorial e validação técnica antes de ser publicado.
-- **10 Agentes Especializados de IA**:
-  1. *Idea Analyst*: Mapeamento de nicho, tamanho e formato.
-  2. *Concept Agent*: Proposta de valor e seleção de 3 a 5 opções de títulos.
-  3. *Outline Architect*: Estrutura capitular com objetivos pedagógicos e metas de palavras.
-  4. *Book Bible*: Memória canônica (personagens/regras para ficção; conceitos/fontes para não-ficção).
-  5. *Chapter Writer*: Escrita contextual com base na Bíblia e capítulos anteriores.
-  6. *Continuity Auditor*: Detecção automática de inconsistências temporais, físicas ou conceituais.
-  7. *Editor & Style*: Revisão de ritmo, concisão, clareza e eliminação de clichês.
-  8. *Cover Geometry*: Cálculo paramétrico da lombada KDP (`páginas × espessura + sangria`).
-  9. *Metadata & SEO*: Descrição comercial persuasiva em HTML e 7 palavras-chave oficiais.
-  10. *Quality Gate*: Checklist editorial básico; não substitui os validadores oficiais nem garante aprovação do KDP.
-- **Editor de 3 Colunas**: Navegação estrutural à esquerda, editor Markdown no centro e assistente de IA com versionamento e restauração à direita.
-- **Retomada de Projetos**: Projetos da plataforma web são sincronizados com a conta no PostgreSQL e mantidos também no IndexedDB como cache local; projetos interrompidos podem ser continuados em outros dispositivos.
-- **Controle de Custos e Tokens**: Exibição transparente de tokens consumidos, chamadas realizadas e custo estimado em R$ (BRL) e $ (USD).
-- **Provedores de IA Desacoplados**: Suporte para Ollama (100% local, offline e gratuito), OpenAI (GPT-4o/mini), Anthropic (Claude 3.5 Sonnet) e OpenRouter.
-
-### 2. Format Engine (Compilação e Pacote KDP)
-- **EPUB 3 Validado**: Geração estruturada com sumário interativo (`toc.ncx` e `nav.xhtml`) e folha de estilos limpa.
-- **PDF Interior Diagramado**: Páginas numeradas, cabeçalhos alternados e cálculo automático de margem interna (*Gutter*).
-- **PDF Capa Full-Wrap**: Arquivo aberto contendo Contracapa + Lombada Paramétrica + Capa Frontal + Sangria de 0.125".
-- **Exportação do Pacote KDP (.ZIP)**: Criação instantânea da pasta padronizada:
-  ```
-  [NOME-DO-LIVRO]-KDP/
-  ├── ebook/ ([slug].epub)
-  ├── paperback/ (interior.pdf & cover-full-wrap.pdf)
-  ├── manuscript/ (.pdf, .md, .html)
-  ├── cover/ (full-wrap.pdf & cover-prompts.txt)
-  ├── metadata/ (metadata.json, description.txt, keywords.txt, categories.txt)
-  └── validation/ (quality-report.html)
-  ```
-
-### 3. Inteligência de Mercado e Análise da Amazon (Todas as 22 Lojas Globais)
-- Cobertura global: `amazon.com.br`, `amazon.com`, `amazon.co.uk`, `amazon.de`, `amazon.fr`, `amazon.es`, `amazon.it`, `amazon.ca`, `amazon.co.jp`, `amazon.com.mx`, `amazon.in`, `amazon.com.au`, `amazon.nl`, `amazon.pl`, `amazon.se`, `amazon.com.be`, `amazon.ae`, `amazon.sa`, `amazon.sg`, `amazon.eg`, `amazon.com.tr`, `amazon.co.za`.
-- **Estimate Box TOTVS**: Box compacto injetado diretamente nos cards de busca sem poluição visual ou cascatas infinitas.
-- **Cálculo de BSR em Vendas e Faturamento**: Converte o ranking de vendas em média diária/mensal e royalties líquidos estimados (Kindle 70%/35% e Capa Comum).
-- **Barra de Nicho**: Visão panorâmica da primeira página com nível de concorrência, concentração de vendas nos Top 3/5/10 e exportação em CSV.
+[![Status em Produção](https://img.shields.io/badge/Produção-Online-10b981?style=for-the-badge&logo=render)](https://book-intel-kdp.onrender.com/)
+[![React 18](https://img.shields.io/badge/Frontend-React%2018%20%7C%20TypeScript-3b82f6?style=for-the-badge&logo=react)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Build-Vite%208-646cff?style=for-the-badge&logo=vite)](https://vitejs.dev/)
+[![AI Models](https://img.shields.io/badge/IA-Gemini%20%7C%20Replicate%20%7C%20Claude%20%7C%20OpenAI-ec4899?style=for-the-badge&logo=openai)](https://replicate.com/)
+[![Testes Automatizados](https://img.shields.io/badge/Testes-32%20Aprovados%20%28Vitest%29-10b981?style=for-the-badge&logo=vitest)](https://vitest.dev/)
 
 ---
 
-## 📂 Documentação do Projeto
+## 🌟 Visão Geral do Produto
 
-| Documento | Descrição |
-| :--- | :--- |
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Arquitetura técnica da extensão, camadas, runtime e segurança |
-| **[AI_AGENTS.md](AI_AGENTS.md)** | Especificação dos 10 agentes de IA, prompts e contratos de dados |
-| **[BOOK_PIPELINE.md](BOOK_PIPELINE.md)** | Fluxo editorial detalhado, persistência de estado e retomada |
-| **[KDP_PIPELINE.md](KDP_PIPELINE.md)** | Normas técnicas KDP, margens, cálculo de lombada e formatos |
-| **[ENVIRONMENT.md](ENVIRONMENT.md)** | Configuração de APIs, Ollama local e compilação da extensão |
-| **[DATABASE.md](DATABASE.md)** | Modelagem de dados, IndexedDB, versionamento e retenção de custos |
-| **[TESTING.md](TESTING.md)** | Guia da suíte de 24 testes automatizados e validação KDP |
+O **BookEngin** é uma solução completa de engenharia editorial que transforma ideias brutas e demandas reais de mercado em **e-books didáticos de alto padrão, romances cinematográficos ilustrados e livros prontos para o Amazon KDP**.
+
+A plataforma opera simultaneamente como:
+1. **SaaS Web Completo:** com autenticação segura, persistência em PostgreSQL, cache local IndexedDB (offline-first) e dashboard financeiro.
+2. **Estúdio de Cursos Profissionais:** criador de apostilas e e-books didáticos ilustrados passo a passo, com áudio de voz feminina e link de leitura para clientes.
+3. **Estúdio de Romance Cinematográfico:** motor de narrativa fotográfica 35mm com roteiro visual e consistência de personagens.
+4. **Extensão Chromium (Manifest V3):** inteligência de mercado integrada às 22 lojas globais da Amazon com estimativa de BSR, vendas e royalties.
 
 ---
 
-## 🛠️ Instalação Rápida no Google Chrome
+## 🚀 Principais Módulos & Recursos
 
-1. Clone o repositório ou acesse a pasta do projeto:
-   ```bash
-   cd c:\Users\User\Desktop\criador-de-livros
-   ```
-2. Instale as dependências e compile:
-   ```bash
-   npm install
-   npm run build
-   ```
-3. No Google Chrome, abra `chrome://extensions/`;
-4. Ative a opção **"Modo do desenvolvedor"** no canto superior direito;
-5. Clique em **"Carregar sem compactação"** e selecione a pasta **`dist`** gerada.
+### 1. 🎓 Estúdio de E-books de Cursos Profissionais (Novo)
+O módulo mais avançado para criadores de conteúdo, instrutores e infoprodutores que desejam lançar materiais didáticos impecáveis.
+
+* **Catálogo de +2.000 Temas Profissionais:** Navegue por 24 nichos técnicos (Beleza & Estética, Culinária & Confeitaria, Marcenaria, Marketing, Saúde, Programação, etc.) com níveis iniciante a avançado.
+* **Pesquisa de Mercado Hotmart & Amazon:** Validação automática da demanda do público, público-alvo, dores reais e análise de concorrentes de mercado.
+* **Engenharia Pedagógica Inteligente:** Estruturação automática em módulos didáticos, aulas sequenciais, introdução densa, explicações aprofundadas e 4 passos operacionais por aula.
+* **Tipografia Otimizada (+10% Maior):** Fontes 10% maiores (11pt no corpo) com entrelinhamento generoso para máxima legibilidade em telas e impressão.
+* **Diagramação em PDF Blindada:** Sistema de paginação dinâmica (`splitTextToSize` e `ensureSpace`) que impede corte de textos em margens, caixas adaptativas de dicas e avisos de segurança.
+* **Capa Editorial Real com Título em Alto Contraste:** Título oficial em 26pt bold, subtítulo e autor/instrutor, com bloqueio rígido de selos e medalhas falsas.
+* **Comparativo de "Antes e Depois" com Selos Coloridos:**
+  * **Primeira Foto (Antes):** Selo sobreposto no canto superior esquerdo com **fundo vermelho** (`ANTES`).
+  * **Segunda Foto (Depois):** Selo sobreposto no canto superior esquerdo com **fundo verde** (`DEPOIS`).
+  * Suporte a upload local do computador ou geração automática com Inteligência Artificial (Replicate API).
+* **Narração Didática com Voz Feminina:**
+  * Síntese vocal integrada em português (`pt-BR`) com entonação suave e pedagógica.
+  * O aluno ou cliente pode ouvir a narração de qualquer aula com um clique.
+* **Leitor Digital Interativo com Link Público:**
+  * Geração instantânea de link compartilhável (`https://book-intel-kdp.onrender.com/?viewCourse=<ID>`).
+  * **Acesso Livre sem Login:** Permite enviar o link via WhatsApp, Instagram ou E-mail para alunos e clientes abrirem o e-book digital completo no celular ou computador sem precisar de cadastro prévio.
+  * Inclui leitor responsivo, áudio integrado, cards de antes/depois e download do PDF em um clique.
 
 ---
 
-## 🧪 Testes Automatizados
+### 2. 🎬 Estúdio de Romance Cinematográfico Realista
+Para autores de ficção e histórias visuais:
+* **Estilo Visual 35mm Fotográfico Realista:** Prompts parametrizados para estética cinematográfica anamórfica f/1.4, iluminação volumétrica e realismo fotográfico humano sem traços de desenho animado.
+* **Bíblia da Narrativa (Story Bible):** Manutenção estrita da coerência física dos personagens (etnia, cabelo, vestimenta, idade) ao longo de todos os quadros.
+* **Editor Multi-Painel:** Cada página é composta por quadros fotográficos, narração poética e diálogos formatados.
 
-O projeto inclui uma suíte completa de **24 testes unitários e de ponta a ponta**:
+---
 
-```bash
-# Executar toda a suíte de testes
-npm test
+### 3. 📖 Motor Editorial Master KDP & Formatação
+Para autores independentes publicando na Amazon:
+* **10 Estilos de Capas de Best-Sellers:** Capas tipográficas, minimalistas, ilustradas e técnicas baseadas nos livros mais vendidos do mundo, com renderização de mockup 3D.
+* **Cálculo de Lombada Paramétrica:** Cálculo exato em milímetros e polegadas baseado na gramatura do papel (`páginas × espessura + sangria de 0.125"`).
+* **Exportação do Pacote KDP Completo (.ZIP):**
+  * `ebook/` (arquivo `.epub` 3 validado com sumário interativo);
+  * `paperback/` (`interior.pdf` com margem interna/Gutter correta e `cover-full-wrap.pdf` pronto para impressão);
+  * `metadata/` (`metadata.json`, descrição comercial persuasiva em HTML, palavras-chave KDP e categorias BISAC);
+  * `validation/` (relatório de auditoria e conformidade).
+* **Gerador em Lote (Batch Generator):** Criação e estruturação automática de 1 a 20 livros simultâneos com auditoria de coerência em paralelo.
 
-# Executar o teste E2E do livro completo KDP (Item 47)
-npx vitest run tests/e2e-book-generator.test.ts
+---
+
+### 4. 🔍 Inteligência de Mercado & Extensão de BSR (22 Lojas da Amazon)
+* **Cobertura em Todas as Lojas Oficiais:** Brasil, Estados Unidos, Reino Unido, Alemanha, França, Espanha, Itália, Japão, Canadá, Austrália, México, Índia, Holanda, Polônia, Suécia, Bélgica, Emirados Árabes, Arábia Saudita, Singapura, Egito, Turquia e África do Sul.
+* **Estimate Box TOTVS:** Injeção não invasiva de cards com estimativa de vendas diárias/mensais e faturamento líquido de royalties (70% e 35%).
+* **Análise de Densidade de Nicho:** Avaliação da barreira de entrada, concorrência no Top 10 e exportação de dados para CSV.
+
+---
+
+## 🏗️ Arquitetura do Sistema
+
+```mermaid
+graph TD
+    User([Usuário / Autor / Aluno]) --> Frontend[Interface Web React 18 + Vite]
+    
+    subgraph "Camada de Apresentação"
+        Frontend --> Dashboard[BookIntel Dashboard]
+        Frontend --> CourseStudio[Estúdio de E-books de Cursos]
+        Frontend --> DigitalReader[Leitor Digital Público sem Login]
+        Frontend --> CinematicStudio[Editor de Romance Cinematográfico]
+        Frontend --> KdpGenerator[Gerador KDP Pro]
+    end
+
+    subgraph "Serviços e Inteligência"
+        CourseStudio --> Pedagogical[CoursePedagogicalService]
+        CourseStudio --> VisualDirector[CourseVisualDirector]
+        CourseStudio --> Narration[CourseNarrationService - Voz Feminina]
+        CourseStudio --> PdfExporter[CoursePdfExporter - PDF Blindado]
+        DigitalReader --> Narration
+        DigitalReader --> PdfExporter
+    end
+
+    subgraph "Provedores de IA & Mídia"
+        Pedagogical --> LLMs[Google Gemini / Anthropic Claude / OpenAI]
+        VisualDirector --> Replicate[Replicate API - FLUX Schnell & Pro]
+        Narration --> WebSpeech[Web Speech API Neural pt-BR]
+    end
+
+    subgraph "Armazenamento & Persistência"
+        Frontend --> LocalDB[(IndexedDB Offline Cache)]
+        Frontend --> PostgresDB[(PostgreSQL - Render)]
+    end
 ```
 
 ---
 
-## ⚖️ Conformidade e Isenção de Responsabilidade
-O sistema organiza, gera e formata os arquivos de acordo com os padrões técnicos do **Amazon Kindle Direct Publishing**. A responsabilidade editorial final, revisão ortográfica, conferência de direitos autorais e submissão na conta KDP é estritamente do autor/usuário.
+## 📊 Fluxo de Criação do E-book de Curso (Passo a Passo)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Autor as Autor / Instrutor
+    participant Studio as BookEngin Studio
+    participant IA as Motor de Inteligência Artificial
+    participant Replicate as Replicate API
+    participant Aluno as Cliente / Aluno Final
+
+    Autor->>Studio: Escolhe tema do catálogo (+2.000 temas) ou digita personalizado
+    Studio->>IA: Analisa demanda de mercado (Hotmart / Amazon)
+    IA-->>Studio: Retorna público-alvo, dores e proposta de valor
+    Studio->>IA: Gera grade pedagógica (Módulos, Aulas, 4 Passos e Exercícios)
+    IA-->>Studio: Conteúdo detalhado com letras 10% maiores
+    Autor->>Studio: Adiciona fotos de "Antes e Depois" (Upload ou Gera com IA)
+    Studio->>Replicate: Solicita imagem foto-realista sem texto alucinado
+    Replicate-->>Studio: Imagem gerada com perfeição
+    Studio->>Studio: Aplica selo vermelho (ANTES) e selo verde (DEPOIS)
+    Autor->>Studio: Gera PDF diagramado oficial e Link Compartilhável
+    Autor->>Aluno: Envia link do e-book via WhatsApp
+    Aluno->>Studio: Abre o link direto no celular (Sem login)
+    Aluno->>Aluno: Lê as aulas, ouve a narração feminina e baixa o PDF
+```
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+| Camada | Tecnologias |
+| :--- | :--- |
+| **Frontend** | React 18, TypeScript, Lucide React, HTML5 Audio, Canvas API, CSS3 Moderno |
+| **Build & Bundler** | Vite 8, Rolldown Runtime, Code Splitting Dinâmico |
+| **Geração de PDF** | jsPDF com algoritmo próprio de paginação adaptativa e caixas fluidas |
+| **Áudio & Voz** | Web Speech API (Síntese vocal pt-BR com modulação feminina) |
+| **Modelos de Linguagem** | Google Gemini 1.5/2.0, Claude 3.5 Sonnet, OpenAI GPT-4o, Ollama Local |
+| **Geração de Imagens** | Replicate API (Modelos FLUX Schnell e FLUX Pro) com prompts anti-alucinação |
+| **Banco de Dados** | PostgreSQL (em produção no Render) + Dexie / IndexedDB no navegador |
+| **Testes** | Vitest (32 testes unitários e de integração cobrindo fluxos críticos) |
+
+---
+
+## ⚡ Instalação e Execução Local
+
+### Pré-requisitos
+* Node.js 18 ou superior instalado.
+* NPM ou Yarn.
+
+### Passos para Rodar:
+
+1. **Clone o repositório:**
+   ```bash
+   git clone https://github.com/leopalmeira/criador-de-livros.git
+   cd criador-de-livros
+   ```
+
+2. **Instale as dependências:**
+   ```bash
+   npm install
+   ```
+
+3. **Inicie o servidor de desenvolvimento:**
+   ```bash
+   npm run dev
+   ```
+   Acesse no navegador: `http://localhost:5173/`
+
+4. **Executar a suíte de testes:**
+   ```bash
+   npm test
+   ```
+
+5. **Gerar pacote de produção:**
+   ```bash
+   npm run build
+   ```
+
+---
+
+## 🧪 Estrutura de Testes Automatizados
+
+A plataforma possui cobertura completa via Vitest:
+
+```bash
+✓ tests/course-ebook-feedback-fixes.test.ts (4 testes)  # PDF sem cortes, capa com título, antes/depois, áudio e link
+✓ tests/course-ebook-generator.test.ts (10 testes)      # Catálogo de temas, planejamento didático e fallback
+✓ tests/master-editorial-restructure.test.ts (18 testes)# Motor editorial KDP, capas 3D e validações técnicas
+```
+
+---
+
+## 🌐 Deploy em Produção (Render)
+
+A aplicação está configurada com build automatizado conectado ao branch `main` do GitHub.
+* **URL Oficial:** [https://book-intel-kdp.onrender.com/](https://book-intel-kdp.onrender.com/)
+* **Keep-Alive:** Sistema com ping integrado a cada 5 minutos para manter a aplicação ágil e ativa.
+* **Links Públicos:** Qualquer visitante pode acessar e-books compartilhados adicionando o parâmetro `?viewCourse=<ID>` à URL base.
+
+---
+
+## ⚖️ Licença e Responsabilidade
+O **BookEngin** organiza, diagrama e gera arquivos em conformidade com as diretrizes do **Amazon Kindle Direct Publishing** e do mercado de infoprodutos digitais. A revisão final, escolha de preços e direitos comerciais sobre o material criado pertencem integralmente ao autor/usuário.
+
+Desenvolvido com foco em alta performance editorial e experiência didática de excelência.
