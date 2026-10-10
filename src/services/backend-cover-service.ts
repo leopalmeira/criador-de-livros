@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getReplicateToken } from './replicate-service';
+import { SmartCoverArtDirector } from './smart-cover-art-director';
 
 export interface BookCoverJobPayload {
   projectId: string;
@@ -668,88 +669,21 @@ COMPOSITION REQUIREMENTS:
   }
 
   /**
-   * Gera uma imagem SVG/PNG de alta resolução de padrão comercial
-   * com o título, subtítulo e autor embutidos na imagem
+   * Gera uma imagem SVG de alta resolução de padrão comercial
+   * com direção de arte exclusiva, tipografia de revista e elementos adaptativos ao gênero
    */
   private static generateFallbackCoverBuffer(payload: BookCoverJobPayload, versionNumber: number): Buffer {
-    const title = (payload.title || 'LIVRO SEM TÍTULO').toUpperCase();
-    const subtitle = payload.subtitle || '';
-    const author = (payload.author || 'Autor da Obra').toUpperCase();
-    const genre = payload.genre || 'Não-Ficção';
+    const brief = SmartCoverArtDirector.generateArtDirectionBrief({
+      title: payload.title || 'LIVRO SEM TÍTULO',
+      subtitle: payload.subtitle || '',
+      author: payload.author || 'Autor da Obra',
+      genre: payload.genre || 'Não-Ficção',
+      synopsis: payload.synopsis || payload.topic || payload.title,
+      audience: payload.targetAudience,
+      tone: payload.tone
+    });
 
-    // Paletas sofisticadas de capas de best sellers por versão
-    const palettes = [
-      { bg1: '#090d16', bg2: '#1e293b', accent: '#f59e0b', text: '#ffffff', sub: '#cbd5e1' },
-      { bg1: '#111827', bg2: '#064e3b', accent: '#34d399', text: '#ffffff', sub: '#a7f3d0' },
-      { bg1: '#1e1b4b', bg2: '#312e81', accent: '#e0e7ff', text: '#ffffff', sub: '#c7d2fe' },
-      { bg1: '#1c1917', bg2: '#451a03', accent: '#fbbf24', text: '#ffffff', sub: '#fde68a' }
-    ];
-
-    const p = palettes[(versionNumber - 1) % palettes.length];
-
-    // SVG 2:3 vertical (800x1200) de alta fidelidade editorial
-    const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1200" width="800" height="1200">
-      <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="${p.bg1}" />
-          <stop offset="50%" stop-color="${p.bg2}" />
-          <stop offset="100%" stop-color="${p.bg1}" />
-        </linearGradient>
-        <radialGradient id="glow" cx="50%" cy="40%" r="50%">
-          <stop offset="0%" stop-color="${p.accent}" stop-opacity="0.28" />
-          <stop offset="100%" stop-color="${p.accent}" stop-opacity="0" />
-        </radialGradient>
-      </defs>
-
-      <!-- Fundo Gradiente Editorial -->
-      <rect width="800" height="1200" fill="url(#bg)" />
-      <rect width="800" height="1200" fill="url(#glow)" />
-
-      <!-- Moldura sutil de acabamento KDP -->
-      <rect x="30" y="30" width="740" height="1140" fill="none" stroke="${p.accent}" stroke-width="1.5" stroke-opacity="0.35" />
-      <rect x="36" y="36" width="728" height="1128" fill="none" stroke="${p.accent}" stroke-width="0.7" stroke-opacity="0.2" />
-
-      <!-- Selo de Categoria no Topo -->
-      <text x="400" y="90" font-family="'Cinzel', 'Georgia', serif" font-size="14" font-weight="700" fill="${p.accent}" text-anchor="middle" letter-spacing="4">
-        ${genre.toUpperCase()} • EDIÇÃO ESPECIAL KDP
-      </text>
-
-      <!-- Título Principal do Livro dentro da Capa -->
-      <text x="400" y="220" font-family="'Cinzel', 'Georgia', 'Times New Roman', serif" font-size="44" font-weight="800" fill="${p.text}" text-anchor="middle" letter-spacing="3">
-        ${this.wrapText(title, 24).map((line, i) => `<tspan x="400" dy="${i === 0 ? 0 : 54}">${this.escapeXml(line)}</tspan>`).join('')}
-      </text>
-
-      <!-- Elemento Gráfico Central da Composição -->
-      <g transform="translate(400, 580)">
-        <circle r="120" fill="none" stroke="${p.accent}" stroke-width="2" stroke-opacity="0.4" />
-        <circle r="100" fill="none" stroke="${p.accent}" stroke-width="1" stroke-dasharray="6,6" stroke-opacity="0.3" />
-        <polygon points="0,-70 60,35 -60,35" fill="none" stroke="${p.accent}" stroke-width="2" stroke-opacity="0.5" />
-        <circle r="16" fill="${p.accent}" opacity="0.85" />
-      </g>
-
-      <!-- Subtítulo -->
-      ${subtitle ? `
-      <text x="400" y="860" font-family="'Montserrat', 'Helvetica', sans-serif" font-size="18" font-weight="500" fill="${p.sub}" text-anchor="middle" letter-spacing="1.5">
-        ${this.wrapText(subtitle, 38).map((line, i) => `<tspan x="400" dy="${i === 0 ? 0 : 28}">${this.escapeXml(line)}</tspan>`).join('')}
-      </text>
-      ` : ''}
-
-      <!-- Linha Divisória de Acabamento -->
-      <line x1="320" y1="1020" x2="480" y2="1020" stroke="${p.accent}" stroke-width="1.5" stroke-opacity="0.5" />
-
-      <!-- Nome do Autor -->
-      <text x="400" y="1070" font-family="'Cinzel', 'Georgia', serif" font-size="22" font-weight="700" fill="${p.text}" text-anchor="middle" letter-spacing="4">
-        ${this.escapeXml(author)}
-      </text>
-
-      <!-- Selo Editorial na Base -->
-      <text x="400" y="1115" font-family="'Montserrat', sans-serif" font-size="11" font-weight="600" fill="${p.accent}" text-anchor="middle" letter-spacing="2">
-        EDIÇÃO AUTORAL • AMAZON PUBLISHING
-      </text>
-    </svg>
-    `;
-
+    const svg = SmartCoverArtDirector.generateSvgCover(brief, versionNumber);
     return Buffer.from(svg, 'utf8');
   }
 

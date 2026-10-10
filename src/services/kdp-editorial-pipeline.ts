@@ -34,6 +34,7 @@ import {
 import { buildKdpPdf, inspectCover } from './kdp-pdf-builder';
 import { validatePdf } from './kdp-pdf-validator';
 import { ManuscriptIntegrityEngine } from './manuscript-integrity-engine';
+import { StoryContextAuditor } from './story-context-auditor';
 
 // ---------------------------------------------------------------
 // ARMAZENAMENTO
@@ -186,6 +187,8 @@ export function newJob(livro: PipelineLivro, premissa?: string): EditorialJob {
     originalHash: hashChapters(original.capitulos),
     chapters: [],
     continuity: createContinuityRegistry([]),
+    storyBibleStructured: StoryContextAuditor.buildStoryBible(livro, premissa),
+    snapshots: [StoryContextAuditor.createSnapshot(livro, 'Manuscrito Original')],
     toc: [],
     tocIssues: [],
     cover: emptyCover(),
@@ -246,6 +249,11 @@ export function buildEditorialReport(job: EditorialJob): EditorialReport {
     notVerified,
     aiFullyVerified: aiFully,
     summary: '',
+    overallAuditScore: job.auditResult?.overallScore,
+    auditStatus: job.auditResult?.status,
+    narrativeIntegrityScore: job.auditResult?.narrativeIntegrityScore,
+    endingResolutionOk: job.auditResult?.endingAssessment.approved,
+    aiContaminationCleaned: job.auditResult?.aiContaminationCleaned,
   };
   rep.summary = `${rep.chaptersCorrected}/${rep.chaptersIdentified} capítulo(s) processado(s); ${totalFixed} correção(ões) automática(s) aplicada(s) ` +
     `(${rep.spellingErrors} ortografia/acentuação, ${rep.grammarErrors} gramática, ${rep.punctuationFixes} pontuação/espaço, ${rep.paragraphFixes} parágrafo, ${rep.dialogueFixes} diálogo, ${rep.styleChanges} estilo); ` +
@@ -443,12 +451,32 @@ export async function runEditorialPipeline(inp: PipelineInput): Promise<Pipeline
     return { outcome: 'sem_trabalho', message: msg, job: J };
   }
 
-  // --- 10) consolidação ------------------------------------------
-  progress(70, 'consolidacao', 'Consolidando o livro corrigido…');
-  const livroCorrigido: PipelineLivro = {
+  // --- 10) consolidação e auditoria global contextual 7 passagens ----
+  progress(70, 'consolidacao', 'Consolidando o livro corrigido e executando auditoria global contextual…');
+  let livroCorrigido: PipelineLivro = {
     ...livroMeta,
     capitulos: J.chapters.map(c => ({ titulo: c.title, texto: c.correctedText })),
   };
+
+  const audit = StoryContextAuditor.auditManuscript(livroCorrigido, J.original.topico);
+  J.auditResult = audit;
+  J.storyBibleStructured = audit.bible;
+
+  // Aplica as limpezas estruturais de texto nos capítulos consolidados
+  if (audit.sanitizedManuscript && audit.sanitizedManuscript.capitulos) {
+    audit.sanitizedManuscript.capitulos.forEach((sc, idx) => {
+      if (J.chapters[idx] && sc.texto !== J.chapters[idx].correctedText) {
+        J.chapters[idx].correctedText = sc.texto;
+      }
+    });
+    livroCorrigido = audit.sanitizedManuscript;
+  }
+
+  if (!J.snapshots) J.snapshots = [];
+  J.snapshots.push(StoryContextAuditor.createSnapshot(livroCorrigido, 'Consolidação e Auditoria Editorial'));
+
+  addLog(J, `Auditoria Global Editorial: Nota ${audit.overallScore}/100 (${audit.status}). Resíduos de IA limpos: ${audit.aiContaminationCleaned}. Integridade Narrativa: ${audit.narrativeIntegrityScore}/100.`);
+
   J.consolidatedHash = hashChapters(livroCorrigido.capitulos);
   await persist();
 

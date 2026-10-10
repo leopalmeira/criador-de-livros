@@ -17,6 +17,7 @@ import { AiService } from '../../services/ai-service';
 import { PdfBuilder } from '../../services/formats/pdf-builder';
 import { EpubBuilder } from '../../services/formats/epub-builder';
 import { KdpPackager } from '../../services/formats/kdp-packager';
+import { PrintCoverService } from '../../services/print-cover-service';
 
 interface ExportQualityViewProps {
   project: BookProject;
@@ -64,11 +65,54 @@ export const ExportQualityView: React.FC<ExportQualityViewProps> = ({
     setIsExporting('pdf-cover');
     try {
       const pagesCount = project.actualPages || project.visualPages?.length || project.estimatedPages || 150;
+      const coverArtUrl = project.coverImageUrl || project.kdpCoverDesign?.frontImageUrl || project.stageData?.['book-cover']?.artUrl;
+
+      const validation = PrintCoverService.validatePrintCover({
+        title: project.title || 'Livro KDP',
+        author: project.author || 'Autor',
+        pageCount: pagesCount,
+        paperType: project.paperType || 'bw-white',
+        trimSize: project.trimSize || '6x9',
+        hasFrontArt: Boolean(coverArtUrl)
+      });
+
+      if (!validation.canExport) {
+        setDownloadSuccess(`⚠️ Exportação de Capa Impressa Bloqueada: ${validation.errors.join(' | ')}`);
+        return;
+      }
+
       const blob = await PdfBuilder.buildCoverWrapPdf(project, pagesCount);
-      downloadBlob(blob, `${project.title || 'Livro'}_Capa_FullWrap_${project.trimSize}.pdf`);
-      setDownloadSuccess('PDF da Capa Completa Full-Wrap baixado!');
+      downloadBlob(blob, `${project.title || 'Livro'}_Capa_Impressao_KDP_${project.trimSize}.pdf`);
+      setDownloadSuccess(`✓ Capa Aberta Full-Wrap baixada! Lombada: ${validation.spineWidthMm.toFixed(2)} mm (${pagesCount} págs).`);
     } finally {
       setIsExporting(null);
+    }
+  };
+
+  const handleDownloadFrontCover = async () => {
+    const coverArtUrl = project.coverImageUrl || project.kdpCoverDesign?.frontImageUrl || project.stageData?.['book-cover']?.artUrl;
+    if (!coverArtUrl) {
+      setDownloadSuccess('⚠️ Nenhuma arte frontal cadastrada para o e-book.');
+      return;
+    }
+    try {
+      let blob: Blob;
+      if (coverArtUrl.startsWith('data:image')) {
+        const parts = coverArtUrl.split(',');
+        const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) u8arr[n] = bstr.charCodeAt(n);
+        blob = new Blob([u8arr], { type: mime });
+      } else {
+        const res = await fetch(coverArtUrl);
+        blob = await res.blob();
+      }
+      downloadBlob(blob, `${project.title || 'Livro'}_Capa_Digital_Ebook.jpg`);
+      setDownloadSuccess('✓ Capa Digital (E-book) baixada com sucesso!');
+    } catch {
+      setDownloadSuccess('Erro ao processar imagem da capa digital.');
     }
   };
 
@@ -219,14 +263,14 @@ export const ExportQualityView: React.FC<ExportQualityViewProps> = ({
             </button>
           </div>
 
-          {/* CARD: CAPA COMPLETA */}
+          {/* CARD: CAPA COMPLETA IMPRESSÃO KDP */}
           <div className="export-action-card">
             <div className="export-icon-box text-amber-400">
               <BookOpen size={28} />
             </div>
-            <h5 className="font-semibold text-sm mb-1">Capa Aberta (Capa-Wrap.pdf)</h5>
+            <h5 className="font-semibold text-sm mb-1">Capa Impressa Aberta (Wrap.pdf)</h5>
             <p className="text-xs text-muted mb-4">
-              Frente + Lombada exata para {project.actualPages || project.estimatedPages} págs + Contracapa e sangria.
+              Frente + Lombada exata para {project.actualPages || project.estimatedPages || 150} págs + Contracapa e sangria KDP.
             </p>
             <button 
               className="btn-download-action" 
@@ -234,7 +278,26 @@ export const ExportQualityView: React.FC<ExportQualityViewProps> = ({
               disabled={isExporting !== null}
             >
               <Download size={14} />
-              {isExporting === 'pdf-cover' ? 'Gerando...' : 'Baixar Capa PDF'}
+              {isExporting === 'pdf-cover' ? 'Gerando...' : 'Baixar Capa Impressa PDF'}
+            </button>
+          </div>
+
+          {/* CARD: CAPA DIGITAL E-BOOK */}
+          <div className="export-action-card">
+            <div className="export-icon-box text-cyan-400">
+              <BookOpen size={28} />
+            </div>
+            <h5 className="font-semibold text-sm mb-1">Capa Digital (E-book Frontal)</h5>
+            <p className="text-xs text-muted mb-4">
+              Arte frontal isolada em alta resolução para Kindle, Google Play Books e catálogo digital.
+            </p>
+            <button 
+              className="btn-download-action" 
+              onClick={handleDownloadFrontCover}
+              disabled={isExporting !== null}
+            >
+              <Download size={14} />
+              Baixar Capa Digital JPG
             </button>
           </div>
 

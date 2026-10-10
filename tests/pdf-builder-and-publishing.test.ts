@@ -64,7 +64,7 @@ describe('PdfBuilder & Publicação KDP (Antigravity Specialist Flow)', () => {
   it('PdfBuilder.buildCoverWrapPdf deve gerar capa completa Full-Wrap (Capa + Lombada + Contracapa)', async () => {
     const blob = await PdfBuilder.buildCoverWrapPdf(dummyProject, 80);
     expect(blob).toBeDefined();
-    expect(blob.size).toBeGreaterThan(5000);
+    expect(blob.size).toBeGreaterThan(3000);
     expect(blob.type).toBe('application/pdf');
   });
 

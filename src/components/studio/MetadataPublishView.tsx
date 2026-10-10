@@ -9,11 +9,13 @@ import {
   ShieldCheck, 
   HelpCircle,
   Save,
-  Wand2
+  Wand2,
+  AlertTriangle
 } from 'lucide-react';
 import { BookProject, IBookMetadataKdp } from '../../types/book-project';
 import { KdpBookPipeline } from '../../services/kdp-pipeline';
 import { AiService } from '../../services/ai-service';
+import { PublishingMetadataService } from '../../services/publishing-metadata-service';
 
 interface MetadataPublishViewProps {
   project: BookProject;
@@ -91,13 +93,28 @@ export const MetadataPublishView: React.FC<MetadataPublishViewProps> = ({
         project.language
       );
 
-      if (generated) {
+      if (generated && generated.keywords7?.some(k => k.trim().length > 0)) {
         setMeta(generated);
         onUpdateProject({
           ...project,
           kdpMetadata: generated
         });
+      } else {
+        // Fallback determinístico profissional que respeita as 7 regras KDP
+        const pack = PublishingMetadataService.generateKdpMetadataPack(project);
+        setMeta(pack);
+        onUpdateProject({
+          ...project,
+          kdpMetadata: pack
+        });
       }
+    } catch {
+      const pack = PublishingMetadataService.generateKdpMetadataPack(project);
+      setMeta(pack);
+      onUpdateProject({
+        ...project,
+        kdpMetadata: pack
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -218,7 +235,7 @@ export const MetadataPublishView: React.FC<MetadataPublishViewProps> = ({
             </p>
 
             <div className="keywords-grid-inputs">
-              {meta.keywords7.map((kw, idx) => (
+              {meta.keywords7.map((kw: string, idx: number) => (
                 <div key={idx} className="keyword-row-field">
                   <span className="kw-badge">#{idx + 1}</span>
                   <input 
@@ -235,6 +252,37 @@ export const MetadataPublishView: React.FC<MetadataPublishViewProps> = ({
                 </div>
               ))}
             </div>
+
+            {/* STATUS E VALIDAÇÃO DAS 7 PALAVRAS-CHAVE SEGUNDO AS REGRAS KDP */}
+            {(() => {
+              const val = PublishingMetadataService.validateKdpKeywords(meta.keywords7, meta.title, meta.author);
+              return (
+                <div className="mt-3 pt-3 border-t border-slate-700/60">
+                  {val.warnings.length > 0 ? (
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        <AlertTriangle size={14} className="text-amber-400" />
+                        <span>Atenção às diretrizes de busca da Amazon KDP:</span>
+                      </div>
+                      <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-amber-200/90">
+                        {val.warnings.map((w, wi) => (
+                          <li key={wi}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : val.validCount === 7 ? (
+                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+                      <ShieldCheck size={15} />
+                      <span>7 Caixas preenchidas e 100% compatíveis com as normas da Amazon KDP.</span>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-slate-400">
+                      {val.validCount} de 7 caixas preenchidas ({7 - val.validCount} restantes).
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* PREÇO SUGERIDO & CATEGORIAS */}

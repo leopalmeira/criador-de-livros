@@ -27,9 +27,10 @@ import { CinematicNovelWizard } from './cinematic/CinematicNovelWizard';
 import { CinematicNovelEditor } from './cinematic/CinematicNovelEditor';
 import { CinematicNovelProjectData } from '../../types/cinematic-novel';
 import { CinematicNovelService } from '../../services/cinematic-novel-service';
+import { CourseEbookStudio } from './course/CourseEbookStudio';
 import '../../styles/book-intel-dashboard.css';
 
-type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinematic-novel';
+type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinematic-novel' | 'course-generator';
 
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
@@ -49,6 +50,9 @@ export const BookStudioApp: React.FC = () => {
   // Romance Cinematográfico Realista
   const [isCinematicWizardOpen, setIsCinematicWizardOpen] = useState(false);
   const [activeCinematicProject, setActiveCinematicProject] = useState<CinematicNovelProjectData | null>(null);
+
+  // E-book de Curso Profissional
+  const [activeCourseProject, setActiveCourseProject] = useState<BookProject | null>(null);
 
   // Novos Modais KDP
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
@@ -104,6 +108,7 @@ export const BookStudioApp: React.FC = () => {
     setProjects([]);
     setActiveProject(null);
     setActiveCinematicProject(null);
+    setActiveCourseProject(null);
     setProjectLoadError(null);
   };
 
@@ -195,6 +200,13 @@ export const BookStudioApp: React.FC = () => {
           setActiveCinematicProject(fallbackData);
         }
         setMode('cinematic-novel');
+        return;
+      }
+
+      // Se for do tipo E-book de Curso Profissional, abre diretamente o estúdio especializado
+      if (found.kdpBookType === 'course-ebook' || found.courseData) {
+        setActiveCourseProject(found);
+        setMode('course-generator');
         return;
       }
 
@@ -318,6 +330,12 @@ export const BookStudioApp: React.FC = () => {
     setActiveProject(null);
     setNewSessionId(`sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
     setMode('kdp-generator');
+  };
+
+  // Iniciar criação de E-book de Curso Profissional
+  const handleCreateCourseEbook = () => {
+    setActiveCourseProject(null);
+    setMode('course-generator');
   };
 
   // Criar novo livro com seleção de segmento e modelo guiado da Amazon
@@ -553,6 +571,7 @@ export const BookStudioApp: React.FC = () => {
           projects={projects}
           currentUser={currentUser}
           onCreateNewProject={handleCreateNewProject}
+          onCreateCourseEbook={handleCreateCourseEbook}
           onCreateCinematicNovel={() => setIsCinematicWizardOpen(true)}
           onCreateColoringBook={() => {
             setActiveProject(null);
@@ -704,6 +723,25 @@ export const BookStudioApp: React.FC = () => {
         onBackToDashboard={() => {
           setActiveCinematicProject(null);
           setMode('project-list');
+          reloadProjects();
+        }}
+      />
+    );
+  }
+
+  // ============================================================
+  // TELA: ESTÚDIO DE CRIAÇÃO DE E-BOOKS DE CURSOS PROFISSIONAIS
+  // ============================================================
+  if (mode === 'course-generator') {
+    return (
+      <CourseEbookStudio
+        initialProject={activeCourseProject}
+        onBackToDashboard={() => {
+          setActiveCourseProject(null);
+          setMode('project-list');
+          reloadProjects();
+        }}
+        onProjectSaved={() => {
           reloadProjects();
         }}
       />

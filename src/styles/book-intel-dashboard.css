@@ -3123,6 +3123,118 @@
   color: #8b5cf6;
 }
 
+/* NAVEGAÇÃO LATERAL ESQUERDA - SEÇÃO 2 DO BOOKENGIN */
+.book-intel-wrapper {
+  display: flex;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.book-intel-sidebar {
+  width: 250px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  position: sticky;
+  top: 80px;
+}
+
+.sidebar-nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-nav-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  padding: 0 8px;
+  margin-bottom: 6px;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.sidebar-nav-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.sidebar-nav-item.highlight-course {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(14, 165, 233, 0.08) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #047857;
+  font-weight: 700;
+}
+
+.sidebar-nav-item.highlight-course:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(14, 165, 233, 0.16) 100%);
+  border-color: #10b981;
+}
+
+.sidebar-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.sidebar-badge.new {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.sidebar-badge.soon {
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.book-intel-main-area {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 1080px) {
+  .book-intel-wrapper {
+    flex-direction: column;
+  }
+  .book-intel-sidebar {
+    width: 100%;
+    position: static;
+  }
+}
+
+
 
 
 

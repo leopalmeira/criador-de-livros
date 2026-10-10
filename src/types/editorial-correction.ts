@@ -193,6 +193,9 @@ export interface EditorialJob {
   layout?: LayoutSummary;
   pdfValidation?: PdfValidationResult;
   finalBookId?: string;
+  storyBibleStructured?: import('../services/story-context-auditor').StoryBibleStructured;
+  snapshots?: import('../services/story-context-auditor').BookSnapshotItem[];
+  auditResult?: import('../services/story-context-auditor').ComprehensiveAuditResult;
   log: string[];
 }
 
@@ -223,6 +226,11 @@ export interface EditorialReport {
   notVerified: PendingItem[];
   aiFullyVerified: boolean;
   summary: string;
+  overallAuditScore?: number;
+  auditStatus?: 'APROVADO' | 'APROVADO_COM_OBSERVACOES' | 'CORRECAO_NECESSARIA' | 'BLOQUEADO_PARA_EXPORTACAO';
+  narrativeIntegrityScore?: number;
+  endingResolutionOk?: boolean;
+  aiContaminationCleaned?: number;
 }
 
 export interface FinalBookRecord {

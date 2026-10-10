@@ -8,6 +8,7 @@ import * as cheerio from 'cheerio';
 import { handleAudiobookApi } from './server/audiobook/api.js';
 import { handleReplicateApi } from './server/replicate/api.js';
 import { handleAuthApi } from './server/auth/api.js';
+import { handleCourseMarketApi } from './server/courses/market-api.js';
 
 function decodeKey(b64) {
   try {
@@ -464,6 +465,12 @@ const server = http.createServer(async (req, res) => {
   // 1.6. APIs do Motor Replicate FLUX e LLaMA 3 (/api/replicate/...)
   if (pathname.startsWith('/api/replicate')) {
     const handled = await handleReplicateApi(req, res, reqUrl);
+    if (handled) return;
+  }
+
+  // 1.7. APIs de Pesquisa de Mercado de Cursos Hotmart (/api/courses/...)
+  if (pathname.startsWith('/api/courses')) {
+    const handled = await handleCourseMarketApi(req, res, reqUrl);
     if (handled) return;
   }
 

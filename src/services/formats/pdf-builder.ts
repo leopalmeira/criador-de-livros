@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import { BookProject, TrimSize, PaperType } from '../../types/book-project';
 import { ShowMeTheStoryEngine } from '../show-me-the-story-engine';
 import { ManuscriptIntegrityEngine } from '../manuscript-integrity-engine';
+import { PrintCoverService } from '../print-cover-service';
 
 export class PdfBuilder {
   /**
@@ -58,13 +59,23 @@ export class PdfBuilder {
       format: [widthMm, heightMm]
     });
 
-    // Margens KDP oficiais:
-    // Gutter (margem interna de encadernação): 19mm a 22mm
-    // Margem externa: 13mm
-    const marginInside = targetPages > 150 ? 21 : 19;
-    const marginOutside = 13;
-    const marginTop = 18;
-    const marginBottom = 18;
+    // Margens KDP oficiais progressivas (conforme contagem de páginas):
+    // 24 a 150 páginas = 0.375" (9.525 mm)
+    // 151 a 300 páginas = 0.500" (12.7 mm)
+    // 301 a 500 páginas = 0.625" (15.875 mm)
+    // 501 a 700 páginas = 0.750" (19.05 mm)
+    // 701+ páginas = 0.875" (22.225 mm)
+    let minGutterMm = 9.525;
+    if (targetPages > 700) minGutterMm = 22.225;
+    else if (targetPages > 500) minGutterMm = 19.05;
+    else if (targetPages > 300) minGutterMm = 15.875;
+    else if (targetPages > 150) minGutterMm = 12.7;
+
+    const userMargins = activeProject.pageSettings?.margins;
+    const marginInside = Math.max(minGutterMm, userMargins?.inside ? userMargins.inside * 25.4 : (targetPages > 150 ? 21 : 19));
+    const marginOutside = Math.max(6.35, userMargins?.outside ? userMargins.outside * 25.4 : 13);
+    const marginTop = Math.max(6.35, userMargins?.top ? userMargins.top * 25.4 : 18);
+    const marginBottom = Math.max(6.35, userMargins?.bottom ? userMargins.bottom * 25.4 : 18);
     const printableWidth = widthMm - marginInside - marginOutside;
 
     // Rastreia quais páginas são aberturas de capítulo para omitir cabeçalho corrente
@@ -534,14 +545,14 @@ export class PdfBuilder {
           }
 
           // Aplica recuo apenas na primeira linha do parágrafo
-          const lineX = lineIdx === 0 ? leftMargin + firstLineIndent : leftMargin;
-          doc.text(line, lineX, currentY);
           currentY += lineHeight;
         });
 
         currentY += 3.5; // Espaçamento suave entre parágrafos
       }
     });
+
+    return doc.output('blob');
   }
 
   /**
@@ -549,142 +560,33 @@ export class PdfBuilder {
    * em alta fidelidade e rigor dimensional.
    */
   public static async buildCoverWrapPdf(project: BookProject, actualPagesCount: number = 150): Promise<Blob> {
-    const [trimWidthMm, trimHeightMm] = this.getTrimDimensionsMm(project.trimSize);
-    const spineWidthMm = this.calculateSpineWidthMm(actualPagesCount, project.paperType);
-    const bleedMm = 3.175; // 0.125 polegadas de sangria padrão KDP
-
-    const totalWidthMm = (trimWidthMm * 2) + spineWidthMm + (bleedMm * 2);
-    const totalHeightMm = trimHeightMm + (bleedMm * 2);
-
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: [totalWidthMm, totalHeightMm]
-    });
-
-    // 1. Fundo Geral da Capa (Slate escuro elegante)
-    doc.setFillColor(15, 23, 42); // Slate 900
-    doc.rect(0, 0, totalWidthMm, totalHeightMm, 'F');
-
-    // 2. Coordenadas dos Painéis
-    const backCoverX = bleedMm;
-    const spineX = bleedMm + trimWidthMm;
-    const frontCoverX = spineX + spineWidthMm;
-
-    // --- PAINEL FRONTAL (CAPA DIREITA) ---
+    const pagesCount = Math.max(24, actualPagesCount || project.actualPages || project.estimatedPages || 150);
     const coverArtUrl = project.coverImageUrl || project.kdpCoverDesign?.frontImageUrl || project.stageData?.['book-cover']?.artUrl;
 
-    if (coverArtUrl) {
-      try {
-        let imgData = coverArtUrl;
-        if (imgData.startsWith('http')) {
-          try {
-            const resp = await fetch(imgData);
-            if (resp.ok) {
-              const blob = await resp.blob();
-              imgData = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(blob);
-              });
-            }
-          } catch {
-            // Continua com background padrão caso falhe o fetch de URL externa
-          }
-        }
-        if (imgData && imgData.startsWith('data:image')) {
-          const format = imgData.includes('image/png') ? 'PNG' : 'JPEG';
-          doc.addImage(imgData, format, frontCoverX, 0, trimWidthMm + bleedMm, totalHeightMm, undefined, 'FAST');
-        }
-      } catch (imgErr) {
-        console.warn('[PdfBuilder] Erro ao embutir imagem de capa:', imgErr);
-      }
-    }
+    const result = await PrintCoverService.generatePrintCoverWrapPdf({
+      title: project.title || 'Livro KDP',
+      subtitle: project.subtitle,
+      author: project.author || 'Autor',
+      genre: project.genre || 'Não-Ficção',
+      pageCount: pagesCount,
+      paperType: project.paperType || 'bw-white',
+      trimSize: project.trimSize || '6x9',
+      frontArtDataUrl: coverArtUrl,
+      backCoverContent: PrintCoverService.generateSmartBackCover({
+        title: project.title || 'Livro KDP',
+        subtitle: project.subtitle,
+        author: project.author || 'Autor',
+        genre: project.genre || 'Não-Ficção',
+        synopsis: project.kdpConcept?.longSynopsis || project.description || '',
+        audience: project.targetAudience
+      })
+    });
 
-    // Caixa de título elegante na Capa Frontal com semitransparência escura para contraste
-    doc.setFillColor(15, 23, 42);
-    doc.setDrawColor(234, 179, 8); // Gold 500
-    doc.setLineWidth(0.6);
-    doc.rect(frontCoverX + 10, bleedMm + 24, trimWidthMm - 20, 52, 'F');
-    doc.rect(frontCoverX + 10, bleedMm + 24, trimWidthMm - 20, 52, 'S');
+    const pdfBuffer = result.pdfBytes.buffer.slice(
+      result.pdfBytes.byteOffset,
+      result.pdfBytes.byteOffset + result.pdfBytes.byteLength
+    ) as ArrayBuffer;
 
-    // Título Principal
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('times', 'bold');
-    doc.setFontSize(22);
-    const titleLines = doc.splitTextToSize(project.title || 'Título do Livro', trimWidthMm - 26);
-    doc.text(titleLines, frontCoverX + (trimWidthMm / 2), bleedMm + 42, { align: 'center' });
-
-    // Subtítulo
-    if (project.subtitle) {
-      doc.setTextColor(226, 232, 240); // Slate 200
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10.5);
-      const subLines = doc.splitTextToSize(project.subtitle, trimWidthMm - 30);
-      doc.text(subLines, frontCoverX + (trimWidthMm / 2), bleedMm + 44 + (titleLines.length * 8), { align: 'center' });
-    }
-
-    // Autor na Capa Frontal
-    doc.setFillColor(15, 23, 42);
-    doc.rect(frontCoverX + 15, totalHeightMm - bleedMm - 38, trimWidthMm - 30, 20, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('times', 'bold');
-    doc.setFontSize(13);
-    doc.text(project.author || 'Autor', frontCoverX + (trimWidthMm / 2), totalHeightMm - bleedMm - 25, { align: 'center' });
-
-    // --- PAINEL CENTRAL (LOMBADA / SPINE) ---
-    doc.setDrawColor(51, 65, 85);
-    doc.setLineWidth(0.3);
-    doc.line(spineX, 0, spineX, totalHeightMm);
-    doc.line(spineX + spineWidthMm, 0, spineX + spineWidthMm, totalHeightMm);
-
-    // Texto da lombada (se a lombada tiver mais de 6mm)
-    if (spineWidthMm >= 6) {
-      doc.saveGraphicsState();
-      const spineCenterX = spineX + (spineWidthMm / 2);
-      const spineCenterY = totalHeightMm / 2;
-
-      doc.setTextColor(241, 245, 249);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(Math.min(9, spineWidthMm * 0.8));
-
-      const spineText = `${project.title || 'Livro KDP'}   •   ${project.author || 'Autor'}`;
-      doc.text(spineText, spineCenterX, spineCenterY, { align: 'center', angle: 270 });
-      doc.restoreGraphicsState();
-    }
-
-    // --- PAINEL TRASEIRO (CONTRACAPA ESQUERDA) ---
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.text('SOBRE ESTA OBRA', backCoverX + 15, bleedMm + 28);
-
-    doc.setDrawColor(234, 179, 8);
-    doc.setLineWidth(0.4);
-    doc.line(backCoverX + 15, bleedMm + 31, backCoverX + 60, bleedMm + 31);
-
-    // Texto de Sinopse / Blurb na contracapa
-    doc.setTextColor(203, 213, 225); // Slate 300
-    doc.setFont('times', 'normal');
-    doc.setFontSize(10);
-    const blurb = project.kdpConcept?.longSynopsis || project.description || 'Uma obra transformadora desenvolvida com rigor editorial e pronta para o leitor moderno.';
-    const blurbLines = doc.splitTextToSize(blurb, trimWidthMm - 30);
-    doc.text(blurbLines, backCoverX + 15, bleedMm + 40);
-
-    // Placeholder oficial de código de barras KDP (KDP barcode safe zone 50.8mm x 30.5mm)
-    const barcodeWidth = 50.8;
-    const barcodeHeight = 30.5;
-    const barcodeX = backCoverX + 15;
-    const barcodeY = totalHeightMm - bleedMm - barcodeHeight - 12;
-
-    doc.setFillColor(255, 255, 255);
-    doc.rect(barcodeX, barcodeY, barcodeWidth, barcodeHeight, 'F');
-    doc.setTextColor(100, 116, 139);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.text('Área Reservada KDP', barcodeX + (barcodeWidth / 2), barcodeY + (barcodeHeight / 2) - 2, { align: 'center' });
-    doc.text('(Código de barras impresso pela Amazon)', barcodeX + (barcodeWidth / 2), barcodeY + (barcodeHeight / 2) + 3, { align: 'center' });
-
-    return doc.output('blob');
+    return new Blob([pdfBuffer], { type: 'application/pdf' });
   }
 }

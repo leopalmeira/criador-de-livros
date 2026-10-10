@@ -3,6 +3,7 @@
 
 import type { StageId, StageStatus, StageDataMap } from './stages';
 import type { CinematicNovelProjectData } from './cinematic-novel';
+import type { CourseEbookData } from './course-ebook';
 
 export type ProjectStatus = 'IDEIA' | 'CONCEITO' | 'OUTLINE' | 'BIBLE' | 'ESCREVENDO' | 'REVISÃO' | 'DIAGRAMAÇÃO' | 'VALIDAÇÃO' | 'PUBLICADO' | 'ARQUIVADO' | 'RASCUNHO' | 'FINALIZADO';
 export type ProjectPriority = 'ALTA' | 'MÉDIA' | 'BAIXA';
@@ -38,6 +39,7 @@ export type BookType =
   | 'diary'
   | 'puzzle-book'
   | 'cinematic_illustrated_novel'
+  | 'course-ebook'
   | 'other';
 
 export type TrimSize = '8.5x8.5' | '6x9' | '5.5x8.5' | '5x8' | '5.25x8' | '8x10' | '8.5x11' | '7x10' | '7.5x9.25' | 'custom';
@@ -688,6 +690,32 @@ export const BOOK_TYPE_CONFIGS: Record<BookType, IBookTypeConfig> = {
       'Consistência física estrita de personagens através de Character Bible',
       'Pipeline de prompts visuais individuais por página'
     ]
+  },
+  'course-ebook': {
+    id: 'course-ebook',
+    label: 'E-book de Curso Profissional',
+    category: 'Técnico & Guias',
+    trimSize: '8.5x11',
+    paperType: 'color',
+    targetPages: 80,
+    chapterCount: [4, 12],
+    wordsPerChapter: [1200, 3000],
+    scenesPerChapter: [2, 5],
+    illustrationsPerChapter: 4,
+    coverArt: true,
+    fullBleed: false,
+    imageSize: '1024x1024',
+    hasCharacters: false,
+    hasWorldbuilding: false,
+    hasArtBible: true,
+    hasFactCheck: true,
+    description: 'Curso profissionalizante com módulos, aulas práticas passo a passo, ilustrações técnicas Replicate, checklists e exercícios.',
+    editorialRules: [
+      'Didática prática progressiva orientada à habilidade',
+      'Passo a passo instrucional com imagens Replicate de cada etapa prática',
+      'Cuidados rigorosos de segurança técnica e prevenção de erros comuns',
+      'Exercícios práticos com critérios claros de conclusão'
+    ]
   }
 };
 
@@ -1302,6 +1330,9 @@ export interface BookProject {
   
   // Foto Livro Realista (Módulo Especializado Foto Livro com Narração Integrada)
   cinematicNovelData?: CinematicNovelProjectData;
+
+  // Gerador de E-book de Curso Profissional (Módulo Pedagógico Ilustrado com Replicate e Hotmart)
+  courseData?: CourseEbookData;
 
   // 13-Stage Editorial Pipeline Tracking
   stageStatuses?: Record<StageId, StageStatus>;

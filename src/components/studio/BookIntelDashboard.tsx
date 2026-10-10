@@ -3,7 +3,8 @@ import {
   BookOpen, Plus, TrendingUp, FileText,
   HelpCircle, ChevronDown, ArrowRight,
   Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play,
-  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw, Shield, Film
+  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw, Shield, Film,
+  GraduationCap, Headphones, FolderKanban, CheckCircle, Download, Layers
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -21,6 +22,7 @@ interface Props {
   projects: BookProject[];
   currentUser?: AuthenticatedUser | null;
   onCreateNewProject: () => void;
+  onCreateCourseEbook?: () => void;
   onCreateCinematicNovel?: () => void;
   onCreateColoringBook?: () => void;
   onOpenProject: (id: string) => void;
@@ -49,6 +51,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
   projects,
   currentUser,
   onCreateNewProject,
+  onCreateCourseEbook,
   onCreateCinematicNovel,
   onCreateColoringBook,
   onOpenProject,
@@ -84,6 +87,10 @@ export const BookIntelDashboard: React.FC<Props> = ({
   // Identifica projetos em andamento / rascunhos (não finalizados)
   const draftProjects = projects.filter(p => 
     p.status !== 'FINALIZADO' && p.pipelineStage !== 'final'
+  );
+
+  const finalizedProjects = projects.filter(p => 
+    p.status === 'FINALIZADO' || p.pipelineStage === 'final'
   );
 
   const projetoEmAndamento = draftProjects.find(p => 
@@ -266,9 +273,126 @@ export const BookIntelDashboard: React.FC<Props> = ({
         </div>
       </header>
 
-      {/* 2. CORPO PRINCIPAL COM GRID DE DUAS COLUNAS */}
+      {/* 2. CORPO PRINCIPAL COM NAVEGAÇÃO LATERAL ESQUERDA E GRID DE DUAS COLUNAS */}
       <main className="book-intel-body">
-        <div className="book-intel-grid">
+        <div className="book-intel-wrapper">
+          {/* NAVEGAÇÃO LATERAL ESQUERDA - SEÇÃO 2 DO BOOKENGIN */}
+          <aside className="book-intel-sidebar" aria-label="Navegação lateral BookEngin">
+            {/* SEÇÃO 1: ESTÚDIO DE CRIAÇÃO */}
+            <div className="sidebar-nav-section">
+              <span className="sidebar-nav-title">Estúdio de Criação</span>
+              <button
+                className="sidebar-nav-item"
+                onClick={onCreateNewProject}
+                title="Criar Livro Editorial Tradicional"
+              >
+                <BookOpen size={16} color="#0284c7" />
+                <span>Criar Livro</span>
+              </button>
+
+              <button
+                className="sidebar-nav-item highlight-course"
+                onClick={() => {
+                  if (onCreateCourseEbook) onCreateCourseEbook();
+                  else onCreateNewProject();
+                }}
+                title="Criar E-book de Curso Profissionalizante com IA e Replicate"
+              >
+                <GraduationCap size={16} color="#059669" />
+                <span>Criar E-book de Curso</span>
+                <span className="sidebar-badge new">NOVO</span>
+              </button>
+            </div>
+
+            {/* SEÇÃO 2: PROJETOS */}
+            <div className="sidebar-nav-section">
+              <span className="sidebar-nav-title">Projetos</span>
+              <button
+                className="sidebar-nav-item"
+                onClick={() => {
+                  const el = document.getElementById('section-projetos') || document.querySelector('.existing-projects-sublist') || document.querySelector('.final-shelf-container');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                title="Ver todos os projetos"
+              >
+                <FolderKanban size={16} color="#64748b" />
+                <span>Meus Projetos</span>
+                <span className="sidebar-badge">{projects.length}</span>
+              </button>
+
+              <button
+                className="sidebar-nav-item"
+                onClick={() => {
+                  const el = document.querySelector('.existing-projects-sublist');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  else if (projects.length > 0) onOpenProject(projects[0].id);
+                }}
+                title="Projetos em andamento"
+              >
+                <Clock size={16} color="#d97706" />
+                <span>Em andamento</span>
+                <span className="sidebar-badge">{draftProjects.length}</span>
+              </button>
+
+              <button
+                className="sidebar-nav-item"
+                onClick={() => {
+                  const el = document.querySelector('.final-shelf-container');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                title="Projetos concluídos na estante"
+              >
+                <CheckCircle2 size={16} color="#059669" />
+                <span>Concluídos</span>
+                <span className="sidebar-badge">{finalizedProjects.length}</span>
+              </button>
+            </div>
+
+            {/* SEÇÃO 3: FERRAMENTAS */}
+            <div className="sidebar-nav-section">
+              <span className="sidebar-nav-title">Ferramentas</span>
+              <button
+                className="sidebar-nav-item"
+                onClick={() => onQuickAction ? onQuickAction('niche') : setActiveModalAction('niche')}
+                title="Pesquisa de Mercado & Nichos"
+              >
+                <Search size={16} color="#0284c7" />
+                <span>Pesquisa de Mercado</span>
+              </button>
+
+              <button
+                className="sidebar-nav-item"
+                onClick={() => onOpenCover10Styles ? onOpenCover10Styles() : null}
+                title="Estúdio de Capas & Ilustrações"
+              >
+                <Palette size={16} color="#f59e0b" />
+                <span>Capas e Ilustrações</span>
+              </button>
+
+              <button
+                className="sidebar-nav-item"
+                onClick={() => alert('Audiobook Studio: conversão neural de capítulos em áudio imersivo está em fase final de testes.')}
+                title="Audiobook Studio (Em breve)"
+              >
+                <Headphones size={16} color="#8b5cf6" />
+                <span>Audiobook Studio</span>
+                <span className="sidebar-badge soon">Em breve</span>
+              </button>
+
+              <button
+                className="sidebar-nav-item"
+                onClick={() => onOpenPublishing ? onOpenPublishing() : (onOpenKdpPublish ? onOpenKdpPublish() : null)}
+                title="Central de Exportações & Publicação"
+              >
+                <Download size={16} color="#10b981" />
+                <span>Exportações</span>
+              </button>
+            </div>
+          </aside>
+
+          {/* ÁREA DE TRABALHO PRINCIPAL */}
+          <div className="book-intel-main-area">
+            <div className="book-intel-grid">
           
           {/* COLUNA ESQUERDA */}
           <div className="intel-left-column">
@@ -714,6 +838,88 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     <Sparkles size={16} /> Criar livro
                   </button>
                 </div>
+
+                {/* CARD 4 — CRIAR E-BOOK DE CURSO PROFISSIONALIZANTE COM IA E REPLICATE */}
+                <div style={{
+                  background: '#ffffff',
+                  border: '2px solid #10b981',
+                  borderRadius: 14,
+                  padding: '20px 22px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: 14,
+                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.12)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.2s ease'
+                }}>
+                  {/* SELO / BADGE EXCLUSIVO */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
+                    fontSize: 10,
+                    fontWeight: 900,
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    letterSpacing: '0.04em',
+                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                  }}>
+                    ★ NOVO: CURSOS COM REPLICATE
+                  </div>
+
+                  <div>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 12
+                    }}>
+                      <GraduationCap size={24} color="#059669" />
+                    </div>
+                    <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 900, color: '#0f172a' }}>
+                      Criar E-book de Curso
+                    </h3>
+                    <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, fontStyle: 'italic', marginBottom: 8 }}>
+                      Mais de 2.000 temas, dados reais da Hotmart e tutoriais passo a passo.
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                      Crie materiais didáticos completos para cursos livres e profissionalizantes com módulos, aulas detalhadas, lista de ferramentas, precauções de segurança, exercícios e ilustrações geradas pelo Replicate.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (onCreateCourseEbook) onCreateCourseEbook();
+                      else onCreateNewProject();
+                    }}
+                    style={{
+                      width: '100%',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '11px 16px',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)'
+                    }}
+                  >
+                    <GraduationCap size={16} /> Criar E-book de Curso
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1118,7 +1324,9 @@ export const BookIntelDashboard: React.FC<Props> = ({
 
           </div>
         </div>
-      </main>
+      </div>
+    </div>
+  </main>
 
       {/* 3. FOOTER CENTRALIZADO E VALORIZADO */}
       <footer className="book-intel-footer">
