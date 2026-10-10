@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: bookengin
+    name: Book Intel KDP
     runtime: node
     plan: free
     region: oregon
@@ -10,14 +10,3 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.14.0
-      - key: FISH_API_KEY
-        sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: bookengin-db
-          property: connectionString
-
-  - type: pserv
-    name: bookengin-db
-    plan: free
-    region: oregon

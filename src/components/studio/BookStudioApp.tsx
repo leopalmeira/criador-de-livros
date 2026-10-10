@@ -27,7 +27,7 @@ import { CinematicNovelWizard } from './cinematic/CinematicNovelWizard';
 import { CinematicNovelEditor } from './cinematic/CinematicNovelEditor';
 import { CinematicNovelProjectData } from '../../types/cinematic-novel';
 import { CinematicNovelService } from '../../services/cinematic-novel-service';
-import { CourseEbookStudio } from './course/CourseEbookStudio';
+const CourseEbookStudio = React.lazy(() => import('./course/CourseEbookStudio').then(m => ({ default: m.CourseEbookStudio })));
 import '../../styles/book-intel-dashboard.css';
 
 type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinematic-novel' | 'course-generator';
@@ -734,17 +734,23 @@ export const BookStudioApp: React.FC = () => {
   // ============================================================
   if (mode === 'course-generator') {
     return (
-      <CourseEbookStudio
-        initialProject={activeCourseProject}
-        onBackToDashboard={() => {
-          setActiveCourseProject(null);
-          setMode('project-list');
-          reloadProjects();
-        }}
-        onProjectSaved={() => {
-          reloadProjects();
-        }}
-      />
+      <React.Suspense fallback={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: '#10b981', fontWeight: 700, gap: 10 }}>
+          <span>Carregando Estúdio de Cursos Profissionais...</span>
+        </div>
+      }>
+        <CourseEbookStudio
+          initialProject={activeCourseProject}
+          onBackToDashboard={() => {
+            setActiveCourseProject(null);
+            setMode('project-list');
+            reloadProjects();
+          }}
+          onProjectSaved={() => {
+            reloadProjects();
+          }}
+        />
+      </React.Suspense>
     );
   }
 

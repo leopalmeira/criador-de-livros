@@ -514,6 +514,28 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     <Plus size={18} /> {t('hero.btnNewBook')}
                   </button>
 
+                  {/* NOVO: BOTÃO DE DESTAQUE CRIAR E-BOOK DE CURSO */}
+                  <button
+                    className="btn-hero-cta"
+                    onClick={() => {
+                      if (onCreateCourseEbook) onCreateCourseEbook();
+                      else onCreateNewProject();
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      color: '#ffffff',
+                      fontWeight: 800,
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8
+                    }}
+                    title="Criar E-book de Curso Profissionalizante com IA, pesquisa de mercado e Replicate"
+                  >
+                    <GraduationCap size={18} /> Criar E-book de Curso
+                  </button>
+
                   {/* BOTÃO DE GERAR EM LOTE (1 A 20 LIVROS) */}
                   {onOpenBatchGenerator && (
                     <button
