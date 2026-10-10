@@ -59,13 +59,13 @@ export class CourseVisualDirector {
         id: planId,
         lessonId: lesson.id,
         stepNumber: stepNum,
-        title: `${step.title || `Passo ${stepNum}`}`,
+        title: `Passo ${stepNum}: ${step.title || 'Demonstração Técnica'}`,
         pedagogicalObjective: `Demonstração visual precisa de ${step.title.toLowerCase()}`,
         sceneDescription: step.instruction,
         actionExecuted: `Execução física do passo ${stepNum}: ${step.title}`,
         materialsAndTools: lesson.requiredMaterials.slice(0, 4),
         visualPrompt: prompt,
-        negativePrompt: 'blurry, low resolution, distorted hands, extra fingers, cartoon, 3d render, watermark, text, typography, letters, signature, amateur lighting',
+        negativePrompt: 'text, letters, words, font, typography, watermark, logo, badge, seal, ribbon, label, callout, arrow, diagram, infographic, speech bubble, caption, subtitle, writing, handwriting, signature, distorted letters, pseudo-text, gibberish, poster, schematic, instructions, blurry, low quality, deformed hands, extra fingers, cartoon, 3d render',
         aspectRatio: '3:4',
         status: 'pending'
       });
@@ -122,7 +122,7 @@ export class CourseVisualDirector {
   }
 
   /**
-   * Compõe um prompt visual específico, altamente detalhado para o Replicate FLUX.1 Schnell
+   * Compõe um prompt visual estritamente fotográfico, sem texto alucinado ou palavras
    */
   static composeReplicatePrompt(params: {
     courseTitle: string;
@@ -139,7 +139,7 @@ export class CourseVisualDirector {
     const styleModifier = this.getStyleModifiers(params.visualStyle, params.category);
     const toolsContext = params.materials.slice(0, 3).join(', ');
 
-    return `Create a highly detailed educational instructional photograph for a professional course on "${params.courseTitle}". Show STEP ${params.stepNumber}: ${params.stepTitle}. Scene action: ${params.instruction.slice(0, 180)}. Authentic environment: ${categoryGuidance}. Relevant tools and materials in frame: ${toolsContext || 'standard professional tools'}. Three-quarter overhead camera angle, realistic texture, accurate tool proportions, clean composition, crisp focus, neutral studio lighting. This image represents practical step ${params.stepNumber}. ${styleModifier}. Avoid floating objects, avoid distorted hands, avoid incorrect geometry, avoid logos, watermarks, decorative text, letters, badges or stickers. Suitable for a printed technical manual.`;
+    return `Authentic educational documentary photograph demonstrating physical technique for ${params.category}. Professional hands and posture working with ${toolsContext || 'standard professional trade tools'}. Setting: ${categoryGuidance}. Natural ergonomic angle, realistic tactile textures, accurate tool proportions, clean composition, crisp focus, neutral studio lighting. ${styleModifier}. PURE PHOTOGRAPHY ONLY. STRICTLY NO TEXT, NO LETTERS, NO WORDS, NO NUMBERS, NO INFOGRAPHICS, NO DIAGRAMS, NO ARROWS, NO CALLOUTS, NO LABELS, NO WATERMARKS, NO LOGOS, NO BADGES, NO POSTER ELEMENTS.`;
   }
 
   /**

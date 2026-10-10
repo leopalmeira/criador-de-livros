@@ -31,10 +31,12 @@ export class CoursePdfExporter {
     const author = options.authorName || 'Especialista BookEngin';
     const pageWidth = 8.5;
     const pageHeight = 11;
-    const marginX = 0.75;
-    const marginY = 0.75;
+    // Margens ampliadas para 0.85" (21.6mm) garantindo que nenhum texto corte na impressão ou tela
+    const marginX = 0.85;
+    const marginY = 0.85;
     const contentWidth = pageWidth - (marginX * 2);
-    const bottomLimit = pageHeight - marginY; // 10.25 polegadas
+    // Limite inferior com folga de segurança acima do rodapé
+    const bottomLimit = pageHeight - marginY - 0.25;
 
     let currentPage = 1;
     let y = marginY;
@@ -48,16 +50,16 @@ export class CoursePdfExporter {
       // Cabeçalho discreto superior
       if (headerText) {
         doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(148, 163, 184);
-        const cleanHeader = doc.splitTextToSize(headerText, contentWidth)[0] || headerText;
-        doc.text(cleanHeader, marginX, 0.45);
+        const cleanHeader = doc.splitTextToSize(headerText, contentWidth - 0.3)[0] || headerText;
+        doc.text(cleanHeader, marginX, 0.50);
         doc.setDrawColor(226, 232, 240);
         doc.setLineWidth(0.01);
-        doc.line(marginX, 0.52, pageWidth - marginX, 0.52);
+        doc.line(marginX, 0.58, pageWidth - marginX, 0.58);
       }
 
       // Rodapé com número de página
       doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(100, 116, 139);
-      doc.text(String(currentPage), pageWidth / 2, 10.55, { align: 'center' });
+      doc.text(String(currentPage), pageWidth / 2, pageHeight - 0.45, { align: 'center' });
     };
 
     // Helper para checar se há espaço vertical antes de renderizar um bloco
@@ -70,7 +72,7 @@ export class CoursePdfExporter {
     // Helper para imprimir blocos de texto multilinha divididos com segurança de quebra de página
     const printParagraph = (
       text: string,
-      fontSize: number = 11,
+      fontSize: number = 10.5,
       lineHeight: number = 0.22,
       textColor: [number, number, number] = [51, 65, 85],
       fontStyle: 'normal' | 'bold' | 'italic' = 'normal',
@@ -79,7 +81,9 @@ export class CoursePdfExporter {
     ) => {
       if (!text || !text.trim()) return;
       doc.setFont('helvetica', fontStyle).setFontSize(fontSize).setTextColor(...textColor);
-      const lines = doc.splitTextToSize(text, contentWidth - indentX);
+      // Largura com folga extra para garantir que nenhuma letra toque a borda direita
+      const safeWidth = Math.max(2.0, contentWidth - indentX - 0.20);
+      const lines = doc.splitTextToSize(text, safeWidth);
       for (const line of lines) {
         ensureSpace(lineHeight, headerText);
         doc.text(line, marginX + indentX, y);
@@ -279,26 +283,35 @@ export class CoursePdfExporter {
 
         // Explicação Didática Substancial
         if (lesson.didacticExplanation) {
-          printParagraph(lesson.didacticExplanation, 11, 0.22, [51, 65, 85], 'normal', lesHeader);
+          printParagraph(lesson.didacticExplanation, 10.5, 0.22, [51, 65, 85], 'normal', lesHeader);
         }
 
         // Imagem Principal da Aula (se gerada)
         const lessonImage = (lesson.images || []).find(img => Boolean(img.imageDataUrl || img.imageUrl));
         if (lessonImage && lessonImage.imageDataUrl) {
-          ensureSpace(3.6, lesHeader);
+          const imgWidth = 4.2;
+          const imgHeight = 2.8;
+          // Folga vertical ampla para nunca cortar imagem na borda inferior
+          ensureSpace(imgHeight + 0.65, lesHeader);
           try {
-            const imgWidth = 4.6;
-            const imgHeight = 3.2;
             const imgX = marginX + (contentWidth - imgWidth) / 2;
 
             doc.addImage(lessonImage.imageDataUrl, 'PNG', imgX, y, imgWidth, imgHeight, undefined, 'FAST');
             
-            // Legenda técnica da imagem
+            // Legenda técnica da imagem com "Passo" em português
             doc.setFont('helvetica', 'italic').setFontSize(9).setTextColor(100, 116, 139);
-            const caption = `Figura ${mod.moduleNumber}.${lesson.lessonNumber} — ${lessonImage.title || 'Demonstração do procedimento técnico'}`;
-            doc.text(caption, pageWidth / 2, y + imgHeight + 0.20, { align: 'center' });
+            const cleanTitle = (lessonImage.title || 'Demonstração do procedimento técnico')
+              .replace(/\bstep\s*(\d+)/gi, 'Passo $1')
+              .replace(/\bstep\b/gi, 'Passo');
+            const caption = `Figura ${mod.moduleNumber}.${lesson.lessonNumber} — ${cleanTitle}`;
+            const capLines = doc.splitTextToSize(caption, contentWidth - 0.4);
+            let capY = y + imgHeight + 0.18;
+            for (const capLine of capLines) {
+              doc.text(capLine, pageWidth / 2, capY, { align: 'center' });
+              capY += 0.16;
+            }
             
-            y += imgHeight + 0.40;
+            y = capY + 0.15;
           } catch (e) {
             console.warn('[CoursePdfExporter] Erro ao renderizar imagem da aula:', e);
           }
@@ -337,7 +350,7 @@ export class CoursePdfExporter {
           doc.setFillColor(220, 38, 38); // Red-600
           doc.rect(beforeX, y, 0.9, 0.28, 'F');
           doc.setFont('helvetica', 'bold').setFontSize(8.5).setTextColor(255, 255, 255);
-          doc.text('ANTES', beforeX + 0.15, y + 0.19);
+          doc.text('ANTES', beforeX + 0.16, y + 0.19);
 
           // 2. FOTO DO DEPOIS COM SELO VERDE
           if (ba.afterImageDataUrl || ba.afterImageUrl) {
@@ -372,54 +385,72 @@ export class CoursePdfExporter {
         }
 
         // -------------------------------------------------------------
-        // INSTRUÇÕES PASSO A PASSO (TEXTO NUNCA CORTADO)
+        // INSTRUÇÕES PASSO A PASSO (TEXTO 100% BLINDADO CONTRA CORTES)
         // -------------------------------------------------------------
         if (lesson.stepByStepInstructions && lesson.stepByStepInstructions.length > 0) {
           ensureSpace(0.5, lesHeader);
           doc.setFont('helvetica', 'bold').setFontSize(12.5).setTextColor(15, 23, 42);
           doc.text('Instruções Passo a Passo:', marginX, y);
-          y += 0.26;
+          y += 0.28;
 
           lesson.stepByStepInstructions.forEach((step) => {
-            // Calcula altura exata necessária para este passo
-            doc.setFont('helvetica', 'normal').setFontSize(11);
-            const instLines = doc.splitTextToSize(step.instruction, contentWidth - 0.3);
-            const techLines = step.technicalNote ? doc.splitTextToSize(`Nota técnica: ${step.technicalNote}`, contentWidth - 0.4) : [];
-            const safeLines = step.safetyCaution ? doc.splitTextToSize(`Atenção de segurança: ${step.safetyCaution}`, contentWidth - 0.4) : [];
+            // 1. Título do Passo com helvetica bold 11
+            doc.setFont('helvetica', 'bold').setFontSize(11);
+            const titleLines = doc.splitTextToSize(`[Passo ${step.stepNumber}] ${step.title}`, contentWidth - 0.25);
 
-            const stepHeight = 0.28 + (instLines.length * 0.22) + (techLines.length * 0.20) + (safeLines.length * 0.20) + 0.25;
+            // 2. Instrução do Passo com helvetica normal 10.5
+            doc.setFont('helvetica', 'normal').setFontSize(10.5);
+            const instLines = doc.splitTextToSize(step.instruction, contentWidth - 0.35);
+
+            // 3. Nota Técnica com helvetica italic 9.5
+            doc.setFont('helvetica', 'italic').setFontSize(9.5);
+            const techLines = step.technicalNote 
+              ? doc.splitTextToSize(`Nota técnica: ${step.technicalNote}`, contentWidth - 0.55) 
+              : [];
+
+            // 4. Atenção de Segurança com helvetica bold 9.5 (FONTE BOLD SETADA ANTES DO SPLIT!)
+            doc.setFont('helvetica', 'bold').setFontSize(9.5);
+            const safeLines = step.safetyCaution 
+              ? doc.splitTextToSize(`Atenção de segurança: ${step.safetyCaution}`, contentWidth - 0.55) 
+              : [];
+
+            const stepHeight = 0.28 + (titleLines.length * 0.22) + (instLines.length * 0.22) + (techLines.length * 0.20) + (safeLines.length * 0.20) + 0.20;
 
             ensureSpace(stepHeight, lesHeader);
 
-            // Título do Passo
+            // Desenhar Título do Passo
             doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(15, 23, 42);
-            doc.text(`[Passo ${step.stepNumber}] ${step.title}`, marginX + 0.15, y);
-            y += 0.22;
-
-            // Texto da Instrução
-            doc.setFont('helvetica', 'normal').setFontSize(11).setTextColor(51, 65, 85);
-            for (const line of instLines) {
-              doc.text(line, marginX + 0.15, y);
+            for (const line of titleLines) {
+              doc.text(line, marginX + 0.10, y);
               y += 0.22;
             }
 
-            // Nota Técnica (Totalmente dividida para não vazar a margem direita)
+            // Desenhar Texto da Instrução
+            doc.setFont('helvetica', 'normal').setFontSize(10.5).setTextColor(51, 65, 85);
+            for (const line of instLines) {
+              doc.text(line, marginX + 0.10, y);
+              y += 0.22;
+            }
+
+            // Desenhar Nota Técnica (Azul)
             if (techLines.length > 0) {
               y += 0.04;
               doc.setFont('helvetica', 'italic').setFontSize(9.5).setTextColor(2, 132, 199);
               for (const line of techLines) {
-                doc.text(line, marginX + 0.25, y);
-                y += 0.18;
+                ensureSpace(0.20, lesHeader);
+                doc.text(line, marginX + 0.20, y);
+                y += 0.20;
               }
             }
 
-            // Atenção de Segurança (Totalmente dividida para não vazar a margem direita)
+            // Desenhar Atenção de Segurança (Vermelho) - Margem livre garantida de 0.35"
             if (safeLines.length > 0) {
               y += 0.04;
               doc.setFont('helvetica', 'bold').setFontSize(9.5).setTextColor(220, 38, 38);
               for (const line of safeLines) {
-                doc.text(line, marginX + 0.25, y);
-                y += 0.18;
+                ensureSpace(0.20, lesHeader);
+                doc.text(line, marginX + 0.20, y);
+                y += 0.20;
               }
             }
 

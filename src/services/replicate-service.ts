@@ -111,10 +111,11 @@ export async function gerarImagemReplicate(
   const aspectRatio = normalizeAspectRatio(options.aspectRatio || '3:4');
   const model = options.model || REPLICATE_IMAGE_MODELS.FLUX_SCHNELL;
 
-  // Sanitização anti-bestseller rigorosa para geração de arte
+  // Sanitização anti-bestseller, anti-step e anti-texto rigorosa para geração de fotografia limpa
   const cleanPrompt = prompt
     .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
-    .trim() + ', clean art, NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON';
+    .replace(/\b(show\s+)?(step|passo)\s*\d+[:\-]?/gi, '')
+    .trim() + ', PURE CLEAN PHOTOGRAPHY, NO TEXT, NO LETTERS, NO WORDS, NO NUMBERS, NO INFOGRAPHICS, NO DIAGRAMS, NO ARROWS, NO CALLOUTS, NO LABELS, NO WATERMARKS, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON';
 
   // 1. Tentar via backend proxy local /api/replicate/generate-image
   try {

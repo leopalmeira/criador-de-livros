@@ -147,10 +147,11 @@ export async function handleReplicateApi(req, res, reqUrl) {
         return sendJson(res, 400, { success: false, error: 'O prompt é obrigatório.' });
       }
 
-      // Sanitização anti-bestseller rigorosa
+      // Sanitização anti-bestseller, anti-step e anti-alucinação rigorosa
       const cleanPrompt = prompt
         .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
-        .trim() + ', clean art, NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON, NO FAKE LABELS';
+        .replace(/\b(show\s+)?(step|passo)\s*\d+[:\-]?/gi, '')
+        .trim() + ', PURE CLEAN PHOTOGRAPHY, NO TEXT, NO LETTERS, NO WORDS, NO NUMBERS, NO INFOGRAPHICS, NO DIAGRAMS, NO ARROWS, NO CALLOUTS, NO LABELS, NO WATERMARKS, NO BESTSELLER BADGE, NO STICKER, NO AWARDS RIBBON';
 
       console.log(`[Replicate Backend] Gerando imagem com modelo ${model}...`);
 

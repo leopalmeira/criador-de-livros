@@ -123,8 +123,10 @@ describe('BookEngin — Gerador de E-books de Cursos Profissionais', () => {
         'equilibrado'
       );
       expect(visualPlan.length).toBeGreaterThan(0);
+      expect(visualPlan[0].title).toContain('Passo');
       expect(visualPlan[0].visualPrompt).toBeDefined();
-      expect(visualPlan[0].visualPrompt).toContain('STEP');
+      expect(visualPlan[0].visualPrompt).toContain('PURE PHOTOGRAPHY');
+      expect(visualPlan[0].visualPrompt).not.toContain('STEP');
     });
 
     it('Exemplo 2: Curso de Confeitaria — medidas, técnicas e higiene', async () => {
