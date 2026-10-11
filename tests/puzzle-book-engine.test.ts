@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { SudokuEngine } from '../src/modules/puzzles/sudoku-engine';
-import { WordSearchEngine, PRESET_WORD_THEMES } from '../src/modules/puzzles/wordsearch-engine';
+import { WordSearchEngine, PRESET_WORD_THEMES, WORD_THEMES_BY_LANG } from '../src/modules/puzzles/wordsearch-engine';
 import { MazeEngine } from '../src/modules/puzzles/maze-engine';
 import { PuzzleCoverBuilder } from '../src/modules/puzzles/puzzle-cover-builder';
 import { PuzzleInteriorPdfBuilder } from '../src/modules/puzzles/puzzle-interior-pdf-builder';
+import { PuzzleCoverAiService } from '../src/modules/puzzles/puzzle-cover-ai-service';
 import { PuzzleBookConfig } from '../src/modules/puzzles/types';
 
-describe('Puzzle & Sudoku Book Engine', () => {
+describe('Puzzle & Sudoku Book Engine Pro', () => {
   describe('SudokuEngine', () => {
     it('gera um tabuleiro 9x9 completo válido com todos os números de 1 a 9', () => {
       const board = SudokuEngine.generateCompleteBoard();
@@ -45,10 +46,24 @@ describe('Puzzle & Sudoku Book Engine', () => {
     });
   });
 
-  describe('WordSearchEngine', () => {
+  describe('WordSearchEngine (Trilíngue: PT, EN, ES)', () => {
     it('normaliza e remove acentos das palavras', () => {
       expect(WordSearchEngine.cleanWord('Maçã & Açaí!')).toBe('MACAACAI');
       expect(WordSearchEngine.cleanWord('Árvore-Grande')).toBe('ARVOREGRANDE');
+    });
+
+    it('fornece temas nativos em Português, Inglês e Espanhol', () => {
+      const ptThemes = WordSearchEngine.getThemesForLanguage('pt');
+      const enThemes = WordSearchEngine.getThemesForLanguage('en');
+      const esThemes = WordSearchEngine.getThemesForLanguage('es');
+
+      expect(ptThemes.length).toBeGreaterThanOrEqual(8);
+      expect(enThemes.length).toBeGreaterThanOrEqual(8);
+      expect(esThemes.length).toBeGreaterThanOrEqual(8);
+
+      expect(ptThemes.some(t => t.themeName.includes('Animais'))).toBe(true);
+      expect(enThemes.some(t => t.themeName.includes('Animals'))).toBe(true);
+      expect(esThemes.some(t => t.themeName.includes('Animales'))).toBe(true);
     });
 
     it('gera grade adaptada e posiciona palavras no Caça-Palavras', () => {
@@ -61,14 +76,12 @@ describe('Puzzle & Sudoku Book Engine', () => {
       expect(puzzle.grid).toHaveLength(15);
       expect(puzzle.grid[0]).toHaveLength(15);
 
-      // Todas as células devem conter letras maiúsculas
       for (let r = 0; r < 15; r++) {
         for (let c = 0; c < 15; c++) {
           expect(puzzle.grid[r][c]).toMatch(/^[A-Z]$/);
         }
       }
 
-      // Deve ter posicionado palavras e registrado no gabarito
       expect(puzzle.words.length).toBeGreaterThan(0);
       expect(puzzle.placements.length).toBe(puzzle.words.length);
       expect(puzzle.placements[0]).toHaveProperty('startRow');
@@ -86,11 +99,9 @@ describe('Puzzle & Sudoku Book Engine', () => {
       expect(maze.width).toBe(13);
       expect(maze.height).toBe(13);
 
-      // Entrada e saída abertas
       expect(maze.grid[0][0].top).toBe(false);
       expect(maze.grid[maze.height - 1][maze.width - 1].bottom).toBe(false);
 
-      // Deve ter caminho de solução válido conectando início e fim
       expect(maze.solutionPath.length).toBeGreaterThan(1);
       expect(maze.solutionPath[0]).toEqual({ row: 0, col: 0 });
       expect(maze.solutionPath[maze.solutionPath.length - 1]).toEqual({
@@ -100,11 +111,12 @@ describe('Puzzle & Sudoku Book Engine', () => {
     });
   });
 
-  describe('PuzzleCoverBuilder (Cálculo KDP da Capa Aberta)', () => {
+  describe('PuzzleCoverBuilder (Cálculo KDP da Capa Aberta & Bestseller)', () => {
     const baseConfig: PuzzleBookConfig = {
-      title: 'Livro de Puzzles',
-      subtitle: 'Passatempos Inteligentes',
-      author: 'Autor Teste',
+      title: 'NEW WORD SEARCH & PUZZLE BOOK',
+      subtitle: 'Large Print Puzzles for Adults and Seniors',
+      author: 'Author Name',
+      language: 'en',
       trimSize: '8.5x11',
       paperColor: 'white',
       sudokuFacilCount: 10,
@@ -112,27 +124,26 @@ describe('Puzzle & Sudoku Book Engine', () => {
       sudokuDificilCount: 10,
       sudokuExtremoCount: 5,
       wordSearchCount: 10,
-      wordSearchThemes: ['Animais Selvagens'],
+      wordSearchThemes: ['Wild Animals'],
       wordSearchGridSize: 15,
       mazeCount: 10,
       mazeDifficulty: 'medio',
       puzzlesPerPage: 2,
       solutionsPerPage: 6,
-      coverPrimaryColor: '#0f172a',
-      coverSecondaryColor: '#1e3a8a',
-      coverAccentColor: '#38bdf8',
+      coverPrimaryColor: '#7f1d1d',
+      coverSecondaryColor: '#991b1b',
+      coverAccentColor: '#fbbf24',
       coverTextColor: '#ffffff',
       coverStyleTheme: 'modern-bold',
       coverBadgeText: 'KDP PRINT-READY',
-      backCoverSynopsis: 'Sinopse teste',
-      backCoverBulletPoints: ['Ponto 1', 'Ponto 2']
+      backCoverSynopsis: 'Great synopsis',
+      backCoverBulletPoints: ['Feature 1', 'Feature 2']
     };
 
     it('calcula a lombada (spine width) e dimensões totais com sangria de 0.125"', () => {
       const pageCount = 100;
       const specs = PuzzleCoverBuilder.calculateCoverSpecs(baseConfig, pageCount);
 
-      // Papel branco: 100 * 0.002252 = 0.2252 polegadas
       expect(specs.spineWidth).toBeCloseTo(0.2252, 4);
       expect(specs.bleed).toBe(0.125);
       expect(specs.trimWidth).toBe(8.5);
@@ -140,14 +151,9 @@ describe('Puzzle & Sudoku Book Engine', () => {
 
       // Largura Total: 0.125 + 8.5 + 0.2252 + 8.5 + 0.125 = 17.4752"
       expect(specs.totalWidth).toBeCloseTo(17.4752, 3);
-
-      // Altura Total: 0.125 + 11.0 + 0.125 = 11.25"
       expect(specs.totalHeight).toBe(11.25);
-
-      // Se >= 79 páginas, tem texto na lombada
       expect(specs.hasSpineText).toBe(true);
 
-      // Área do código de barras deve ser 2" x 1.2"
       expect(specs.barcodeArea.width).toBe(2.0);
       expect(specs.barcodeArea.height).toBe(1.2);
     });
@@ -157,6 +163,14 @@ describe('Puzzle & Sudoku Book Engine', () => {
       const specs = PuzzleCoverBuilder.calculateCoverSpecs(creamConfig, 100);
       expect(specs.spineWidth).toBeCloseTo(0.25, 4);
     });
+
+    it('gera prompt refinado para a IA Replicate sem artefatos ou tipografia distorcida', () => {
+      const prompt = PuzzleCoverAiService.buildReplicatePrompt(baseConfig);
+      expect(prompt).toContain('Commercial Amazon KDP bestseller cover illustration');
+      expect(prompt).toContain('open paperback activity book');
+      expect(prompt).toContain('sharpened wooden graphite pencils');
+      expect(prompt).toContain('without any typography');
+    });
   });
 
   describe('PuzzleInteriorPdfBuilder (Estimativa e Gutter KDP)', () => {
@@ -165,6 +179,7 @@ describe('Puzzle & Sudoku Book Engine', () => {
         title: 'Mini Livro',
         subtitle: '',
         author: 'Autor',
+        language: 'pt',
         trimSize: '8.5x11',
         paperColor: 'white',
         sudokuFacilCount: 2,
@@ -194,11 +209,8 @@ describe('Puzzle & Sudoku Book Engine', () => {
     });
 
     it('calcula o gutter dinamicamente baseado no total de páginas', () => {
-      // <= 150 páginas: 0.375" (27 pt)
       expect(PuzzleInteriorPdfBuilder.calculateGutterPoints(100)).toBeCloseTo(27, 1);
-      // 151 a 300 páginas: 0.500" (36 pt)
       expect(PuzzleInteriorPdfBuilder.calculateGutterPoints(200)).toBeCloseTo(36, 1);
-      // > 300 páginas: 0.625" (45 pt)
       expect(PuzzleInteriorPdfBuilder.calculateGutterPoints(350)).toBeCloseTo(45, 1);
     });
   });

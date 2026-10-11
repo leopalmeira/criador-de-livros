@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft, ArrowRight, ArrowLeft, CheckCircle2, Download,
   Layers, Palette, Sparkles, RefreshCw, AlertCircle, FileText,
-  Sliders, BookOpen, Grid3X3, Eye, ShieldCheck, Check
+  Sliders, BookOpen, Grid3X3, Eye, ShieldCheck, Check, Globe, Wand2
 } from 'lucide-react';
 import {
   PuzzleBookConfig,
@@ -11,64 +11,82 @@ import {
   PuzzlesPerPage,
   SolutionsPerPage,
   TRIM_DIMENSIONS,
-  CompilationResult
+  CompilationResult,
+  PuzzleLanguage
 } from '../../../modules/puzzles/types';
-import { PRESET_WORD_THEMES } from '../../../modules/puzzles/wordsearch-engine';
+import { WordSearchEngine, WORD_THEMES_BY_LANG } from '../../../modules/puzzles/wordsearch-engine';
 import { PuzzleInteriorPdfBuilder } from '../../../modules/puzzles/puzzle-interior-pdf-builder';
-import { PuzzleCoverBuilder } from '../../../modules/puzzles/puzzle-cover-builder';
+import { PuzzleCoverBuilder, I18N_COVER } from '../../../modules/puzzles/puzzle-cover-builder';
 import { PuzzleBookCoordinator } from '../../../modules/puzzles/puzzle-book-coordinator';
+import { PuzzleCoverAiService, PRESET_COVER_STYLES } from '../../../modules/puzzles/puzzle-cover-ai-service';
 
 interface Props {
   onBackToDashboard: () => void;
 }
 
-const COVER_PALETTES = [
-  {
-    name: 'Azul Meia-Noite Real',
-    primary: '#0f172a',
-    secondary: '#1e3a8a',
-    accent: '#38bdf8',
-    text: '#ffffff'
+const TEMPLATES_BY_LANG: Record<PuzzleLanguage, {
+  title: string;
+  subtitle: string;
+  yearBadge: string;
+  heroCountText: string;
+  bannerTagText: string;
+  backCoverSynopsis: string;
+  backCoverBulletPoints: string[];
+}> = {
+  pt: {
+    title: 'SUPER LIVRO DE PASSATEMPOS',
+    subtitle: 'Sudoku, Caça-Palavras e Labirintos para Adultos e Idosos',
+    yearBadge: 'NOVO 2026',
+    heroCountText: '100+ DESAFIOS',
+    bannerTagText: 'TEMAS VARIADOS PARA EXPLORAR',
+    backCoverSynopsis: 'Estimule sua mente, aprimore o raciocínio lógico e divirta-se por horas com esta coletânea completa de Sudoku, Caça-Palavras e Labirintos. Diagramação em letras grandes para leitura confortável.',
+    backCoverBulletPoints: [
+      '✓ Mais de 100 desafios lógicos exclusivos',
+      '✓ Letras grandes com máxima legibilidade',
+      '✓ Sudoku com verificação de solução única',
+      '✓ Respostas completas no final do livro'
+    ]
   },
-  {
-    name: 'Laranja Energia & Foco',
-    primary: '#431407',
-    secondary: '#9a3412',
-    accent: '#f97316',
-    text: '#ffffff'
+  en: {
+    title: 'NEW WORD SEARCH & PUZZLE BOOK',
+    subtitle: 'Large Print Word Find, Sudoku & Mazes for Adults & Seniors',
+    yearBadge: 'NEW 2026',
+    heroCountText: '10,000 UNIQUE WORDS',
+    bannerTagText: 'ENDLESS THEMES TO EXPLORE',
+    backCoverSynopsis: 'Challenge your brain, improve memory and cognitive focus, and relax with this premium collection of Word Searches, Sudokus, and Mazes. Specially formatted with clear large print.',
+    backCoverBulletPoints: [
+      '✓ 100+ high-quality logic puzzles & games',
+      '✓ Large print formatting for easy reading',
+      '✓ Tested and verified unique Sudoku solutions',
+      '✓ Complete answer keys in the back of the book'
+    ]
   },
-  {
-    name: 'Verde Esmeralda Zen',
-    primary: '#064e3b',
-    secondary: '#047857',
-    accent: '#34d399',
-    text: '#ffffff'
-  },
-  {
-    name: 'Púrpura Criativo',
-    primary: '#3b0764',
-    secondary: '#6b21a8',
-    accent: '#c084fc',
-    text: '#ffffff'
-  },
-  {
-    name: 'Dark Minimalista',
-    primary: '#111827',
-    secondary: '#1f2937',
-    accent: '#f59e0b',
-    text: '#ffffff'
+  es: {
+    title: 'GRAN LIBRO DE PASATIEMPOS',
+    subtitle: 'Sopa de Letras, Sudoku y Laberintos para Adultos y Mayores',
+    yearBadge: 'NUEVO 2026',
+    heroCountText: '10.000 PALABRAS ÚNICAS',
+    bannerTagText: 'TEMAS ILIMITADOS PARA EXPLORAR',
+    backCoverSynopsis: 'Estimula tu mente, mejora la memoria y relájate durante horas con esta cuidada selección de Sopas de Letras, Sudokus y Laberintos. Diagramado con letra grande para una lectura cómoda.',
+    backCoverBulletPoints: [
+      '✓ Más de 100 pasatiempos lógicos seleccionados',
+      '✓ Tipografía en letra grande para máxima comodidad',
+      '✓ Sudokus con garantía de solución única',
+      '✓ Todas las respuestas y soluciones al final'
+    ]
   }
-];
+};
 
 export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Configuração Geral do Livro
   const [config, setConfig] = useState<PuzzleBookConfig>({
-    title: 'Super Livro de Passatempos & Sudoku',
-    subtitle: 'Mais de 100 Desafios Lógicos com Gabarito Completo',
+    title: TEMPLATES_BY_LANG.pt.title,
+    subtitle: TEMPLATES_BY_LANG.pt.subtitle,
     author: 'Leandro Palmeira',
     description: 'Livro de passatempos com Sudoku, Caça-Palavras e Labirintos para treino cognitivo e relaxamento.',
+    language: 'pt',
 
     trimSize: '8.5x11',
     paperColor: 'white',
@@ -79,7 +97,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     sudokuExtremoCount: 5,
 
     wordSearchCount: 20,
-    wordSearchThemes: PRESET_WORD_THEMES.slice(0, 6).map(t => t.themeName),
+    wordSearchThemes: WORD_THEMES_BY_LANG.pt.slice(0, 6).map(t => t.themeName),
     wordSearchGridSize: 15,
 
     mazeCount: 20,
@@ -88,32 +106,61 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     puzzlesPerPage: 2,
     solutionsPerPage: 6,
 
-    coverPrimaryColor: COVER_PALETTES[0].primary,
-    coverSecondaryColor: COVER_PALETTES[0].secondary,
-    coverAccentColor: COVER_PALETTES[0].accent,
-    coverTextColor: COVER_PALETTES[0].text,
+    // Estilo Amazon Bestseller (Vinho Carmim com iluminação de estúdio)
+    coverPrimaryColor: PRESET_COVER_STYLES[0].palettePrimary,
+    coverSecondaryColor: PRESET_COVER_STYLES[0].paletteSecondary,
+    coverAccentColor: PRESET_COVER_STYLES[0].paletteAccent,
+    coverTextColor: '#ffffff',
     coverStyleTheme: 'modern-bold',
     coverBadgeText: '★ EDIÇÃO ESPECIAL KDP • GABARITO INCLUÍDO ★',
-    backCoverSynopsis:
-      'Estimule sua mente, aprimore o raciocínio lógico e divirta-se por horas com esta coletânea completa de Sudoku, Caça-Palavras e Labirintos. Projetado com números grandes e diagramação confortável.',
-    backCoverBulletPoints: [
-      '✓ Mais de 100 passatempos categorizados por nível',
-      '✓ Sudoku com verificação de solução única',
-      '✓ Seção final com gabarito e respostas completas',
-      '✓ Impressão nítida em alta definição Amazon KDP'
-    ]
+    yearBadge: TEMPLATES_BY_LANG.pt.yearBadge,
+    heroCountText: TEMPLATES_BY_LANG.pt.heroCountText,
+    bannerTagText: TEMPLATES_BY_LANG.pt.bannerTagText,
+    largePrintBadge: true,
+    coverIllustrationUrl: undefined,
+    coverPrompt: undefined,
+
+    backCoverSynopsis: TEMPLATES_BY_LANG.pt.backCoverSynopsis,
+    backCoverBulletPoints: TEMPLATES_BY_LANG.pt.backCoverBulletPoints
   });
 
-  // Estado da Capa e Canvas
+  // Estado do Canvas e Preview da Capa
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [showCoverGuides, setShowCoverGuides] = useState(false);
 
-  // Estado da Compilação
+  // Estado da Geração de Capa com IA (Replicate)
+  const [isGeneratingAiCover, setIsGeneratingAiCover] = useState(false);
+  const [aiPromptCustom, setAiPromptCustom] = useState(() => PuzzleCoverAiService.buildReplicatePrompt(config));
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Estado da Compilação Final
   const [isCompiling, setIsCompiling] = useState(false);
   const [compilationProgress, setCompilationProgress] = useState(0);
   const [compilationStatus, setCompilationStatus] = useState('');
   const [compilationResult, setCompilationResult] = useState<CompilationResult | null>(null);
   const [compilationError, setCompilationError] = useState<string | null>(null);
+
+  // Troca de Idioma e Atualização de Metadados
+  const handleLanguageChange = (newLang: PuzzleLanguage) => {
+    const t = TEMPLATES_BY_LANG[newLang] || TEMPLATES_BY_LANG.pt;
+    const langThemes = WORD_THEMES_BY_LANG[newLang] || WORD_THEMES_BY_LANG.pt;
+
+    const updatedConfig: PuzzleBookConfig = {
+      ...config,
+      language: newLang,
+      title: t.title,
+      subtitle: t.subtitle,
+      yearBadge: t.yearBadge,
+      heroCountText: t.heroCountText,
+      bannerTagText: t.bannerTagText,
+      backCoverSynopsis: t.backCoverSynopsis,
+      backCoverBulletPoints: t.backCoverBulletPoints,
+      wordSearchThemes: langThemes.slice(0, 6).map(th => th.themeName)
+    };
+
+    setConfig(updatedConfig);
+    setAiPromptCustom(PuzzleCoverAiService.buildReplicatePrompt(updatedConfig));
+  };
 
   // Cálculo de páginas estimadas em tempo real
   const totalPuzzles =
@@ -127,7 +174,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
   const estimatedPages = PuzzleInteriorPdfBuilder.estimateTotalPages(config);
   const isKdpCompliant = estimatedPages >= 24;
 
-  // Atualização do Canvas de Preview quando a configuração da capa muda
+  // Renderiza o Canvas de Preview da Capa
   useEffect(() => {
     if (currentStep === 3 && canvasRef.current) {
       const specs = PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages);
@@ -135,11 +182,26 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     }
   }, [currentStep, config, estimatedPages, showCoverGuides]);
 
-  // Função para compilar o livro completo
+  // Função para Gerar Arte de Fundo com IA Replicate
+  const handleGenerateReplicateCover = async () => {
+    setIsGeneratingAiCover(true);
+    setAiError(null);
+    try {
+      const imageUrl = await PuzzleCoverAiService.generateCoverArtWithReplicate(config, aiPromptCustom);
+      setConfig(prev => ({ ...prev, coverIllustrationUrl: imageUrl }));
+    } catch (err: any) {
+      console.error('Erro na geração da capa com Replicate:', err);
+      setAiError(err?.message || 'Falha ao conectar à API do Replicate.');
+    } finally {
+      setIsGeneratingAiCover(false);
+    }
+  };
+
+  // Compilação do Livro Completo
   const handleStartCompilation = async () => {
     setIsCompiling(true);
     setCompilationProgress(0);
-    setCompilationStatus('Iniciando motores de geração...');
+    setCompilationStatus('Iniciando compilação matemática e vetorial KDP...');
     setCompilationError(null);
     setCompilationResult(null);
 
@@ -157,7 +219,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     }
   };
 
-  // Funções de Download
+  // Downloads
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -236,17 +298,32 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
             </div>
             <div>
               <h1 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: '#ffffff' }}>
-                Puzzle & Sudoku Book Engine
+                Puzzle & Sudoku Book Engine Pro
               </h1>
               <span style={{ fontSize: 12, color: '#38bdf8', fontWeight: 600 }}>
-                Gerador de Miolo & Capa Aberta para Amazon KDP
+                Capas com IA Replicate & Miolo Trilíngue (PT / EN / ES)
               </span>
             </div>
           </div>
         </div>
 
-        {/* BADGES DE CONFORMIDADE KDP */}
+        {/* BADGES DE CONFORMIDADE KDP & REPLICATE */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            background: 'rgba(245, 158, 11, 0.15)',
+            color: '#fbbf24',
+            border: '1px solid rgba(245, 158, 11, 0.4)',
+            padding: '4px 10px',
+            borderRadius: 6,
+            fontSize: 11,
+            fontWeight: 800,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5
+          }}>
+            <Sparkles size={14} /> REPLICATE AI COVERS
+          </span>
+
           <span style={{
             background: 'rgba(16, 185, 129, 0.15)',
             color: '#34d399',
@@ -260,18 +337,6 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
             gap: 5
           }}>
             <ShieldCheck size={14} /> KDP PRINT-READY
-          </span>
-
-          <span style={{
-            background: 'rgba(56, 189, 248, 0.12)',
-            color: '#38bdf8',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            padding: '4px 10px',
-            borderRadius: 6,
-            fontSize: 11,
-            fontWeight: 800
-          }}>
-            VETORIAL 300 DPI
           </span>
         </div>
       </header>
@@ -288,9 +353,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
         overflowX: 'auto'
       }}>
         {[
-          { step: 1, label: '1. Formato & Título' },
-          { step: 2, label: '2. Seleção de Puzzles' },
-          { step: 3, label: '3. Design da Capa' },
+          { step: 1, label: '1. Idioma & Formato KDP' },
+          { step: 2, label: '2. Puzzles & Estimativa' },
+          { step: 3, label: '3. Capa Bestseller & Replicate' },
           { step: 4, label: '4. Compilação & Download' }
         ].map(item => {
           const isActive = currentStep === item.step;
@@ -324,21 +389,76 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
       {/* 3. CONTEÚDO PRINCIPAL DO PASSO */}
       <main style={{ flex: 1, padding: '28px', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
         {/* ======================================================== */}
-        {/* PASSO 1: FORMATO E TÍTULO */}
+        {/* PASSO 1: IDIOMA, FORMATO E METADADOS */}
         {/* ======================================================== */}
         {currentStep === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>
-                Passo 1: Tipo de Livro & Formato Físico KDP
+                Passo 1: Idioma do Livro & Formato Físico KDP
               </h2>
               <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-                Selecione as dimensões nominais da Amazon KDP, cor do papel e os metadados principais da sua obra.
+                Selecione o idioma de publicação (Português, Inglês ou Espanhol). O miolo e a capa serão gerados 100% no idioma escolhido.
               </p>
             </div>
 
+            {/* SELETOR DE IDIOMA EM DESTAQUE */}
+            <div style={{
+              background: 'linear-gradient(145deg, #131b2e 0%, #1e293b 100%)',
+              border: '2px solid #38bdf8',
+              borderRadius: 14,
+              padding: 22,
+              boxShadow: '0 4px 20px rgba(56, 189, 248, 0.15)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <Globe size={20} color="#38bdf8" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#ffffff' }}>
+                  Escolha o Idioma do Livro (Miolo + Capa + Puzzles):
+                </h3>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                {[
+                  { code: 'pt' as PuzzleLanguage, flag: '🇧🇷', name: 'Português (Brasil)', desc: 'Caça-palavras e regras em Português' },
+                  { code: 'en' as PuzzleLanguage, flag: '🇺🇸', name: 'English (US / UK)', desc: 'Word search and instructions in English' },
+                  { code: 'es' as PuzzleLanguage, flag: '🇪🇸', name: 'Español', desc: 'Sopa de letras e instrucciones en Español' }
+                ].map(lang => {
+                  const isSelected = config.language === lang.code;
+                  return (
+                    <div
+                      key={lang.code}
+                      onClick={() => handleLanguageChange(lang.code)}
+                      style={{
+                        border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
+                        background: isSelected ? 'rgba(56, 189, 248, 0.15)' : '#0f172a',
+                        padding: '14px 18px',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 28 }}>{lang.flag}</span>
+                        <div>
+                          <strong style={{ display: 'block', fontSize: 14, color: isSelected ? '#38bdf8' : '#ffffff' }}>
+                            {lang.name}
+                          </strong>
+                          <span style={{ fontSize: 11, color: '#94a3b8' }}>{lang.desc}</span>
+                        </div>
+                      </div>
+                      {isSelected && <CheckCircle2 size={20} color="#38bdf8" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* FORMATO FÍSICO E COR DO PAPEL */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
-              {/* Formato de Acabamento (Trim Size) */}
+              {/* Trim Size */}
               <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
                 <label style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 10 }}>
                   Dimensões de Impressão (Trim Size):
@@ -421,7 +541,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
             {/* Metadados: Título, Subtítulo e Autor */}
             <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 22 }}>
               <h3 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 16px' }}>
-                Metadados do Livro para Amazon KDP
+                Metadados do Livro para Amazon KDP ({config.language.toUpperCase()})
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
                 <div>
@@ -432,16 +552,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     type="text"
                     value={config.title}
                     onChange={e => setConfig({ ...config, title: e.target.value })}
-                    style={{
-                      width: '100%',
-                      background: '#0f172a',
-                      border: '1px solid #334155',
-                      borderRadius: 8,
-                      padding: '10px 14px',
-                      color: '#ffffff',
-                      fontSize: 14,
-                      outline: 'none'
-                    }}
+                    style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', color: '#ffffff', fontSize: 14, outline: 'none' }}
                   />
                 </div>
 
@@ -453,16 +564,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     type="text"
                     value={config.subtitle}
                     onChange={e => setConfig({ ...config, subtitle: e.target.value })}
-                    style={{
-                      width: '100%',
-                      background: '#0f172a',
-                      border: '1px solid #334155',
-                      borderRadius: 8,
-                      padding: '10px 14px',
-                      color: '#ffffff',
-                      fontSize: 14,
-                      outline: 'none'
-                    }}
+                    style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', color: '#ffffff', fontSize: 14, outline: 'none' }}
                   />
                 </div>
 
@@ -474,16 +576,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     type="text"
                     value={config.author}
                     onChange={e => setConfig({ ...config, author: e.target.value })}
-                    style={{
-                      width: '100%',
-                      background: '#0f172a',
-                      border: '1px solid #334155',
-                      borderRadius: 8,
-                      padding: '10px 14px',
-                      color: '#ffffff',
-                      fontSize: 14,
-                      outline: 'none'
-                    }}
+                    style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', color: '#ffffff', fontSize: 14, outline: 'none' }}
                   />
                 </div>
               </div>
@@ -515,21 +608,21 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
         )}
 
         {/* ======================================================== */}
-        {/* PASSO 2: SELEÇÃO DE PUZZLES E DIAGRAMAÇÃO */}
+        {/* PASSO 2: SELEÇÃO DE PUZZLES E TEMAS POR IDIOMA */}
         {/* ======================================================== */}
         {currentStep === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>
-                Passo 2: Configuração dos Puzzles & Estimativa de Páginas
+                Passo 2: Configuração dos Puzzles no Idioma {config.language === 'en' ? 'Inglês' : (config.language === 'es' ? 'Espanhol' : 'Português')}
               </h2>
               <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-                Personalize a quantidade de desafios por dificuldade e confira o cálculo de páginas e conformidade KDP em tempo real.
+                Personalize a quantidade de Sudokus, Caça-Palavras com temas no idioma correto e Labirintos.
               </p>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
-              {/* LADO ESQUERDO: CONTROLES DOS PUZZLES */}
+              {/* CONTROLES DOS PUZZLES */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* 1. Sudoku Controls */}
                 <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
@@ -590,7 +683,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                     <FileText size={18} color="#34d399" />
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Caça-Palavras (8 Direções com Temas)</h3>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+                      Caça-Palavras ({config.language === 'en' ? 'Word Search' : (config.language === 'es' ? 'Sopa de Letras' : 'Caça-Palavras')})
+                    </h3>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
@@ -619,12 +714,12 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     </div>
                   </div>
 
-                  {/* Temas selecionáveis */}
+                  {/* Temas selecionáveis no idioma corrente */}
                   <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 8 }}>
-                    Temas Incluídos na Rotação:
+                    Temas Disponíveis em {config.language === 'en' ? 'Inglês' : (config.language === 'es' ? 'Espanhol' : 'Português')}:
                   </label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {PRESET_WORD_THEMES.map(theme => {
+                    {(WORD_THEMES_BY_LANG[config.language] || WORD_THEMES_BY_LANG.pt).map(theme => {
                       const isSelected = config.wordSearchThemes.includes(theme.themeName);
                       return (
                         <button
@@ -703,7 +798,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                         style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
                       >
                         <option value={1}>1 por página (Letras Grandes / Máxima Legibilidade)</option>
-                        <option value={2}>2 por página (Mais Econômico e Compacto)</option>
+                        <option value={2}>2 por página (Mais Econômico e Equilibrado)</option>
                         <option value={4}>4 por página (Ultra Compacto / Minibook)</option>
                       </select>
                     </div>
@@ -724,7 +819,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 </div>
               </div>
 
-              {/* LADO DIREITO: RESUMO EM TEMPO REAL & VALIDAÇÃO KDP */}
+              {/* RESUMO EM TEMPO REAL */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{
                   background: '#131b2e',
@@ -767,7 +862,6 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     </div>
                   </div>
 
-                  {/* Status KDP */}
                   {isKdpCompliant ? (
                     <div style={{
                       background: 'rgba(16, 185, 129, 0.15)',
@@ -798,7 +892,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       fontWeight: 700
                     }}>
                       <AlertCircle size={16} />
-                      <span>A Amazon KDP exige no mínimo 24 páginas. O sistema complementará com páginas de anotações.</span>
+                      <span>Mínimo 24 páginas KDP complementado com páginas de anotações.</span>
                     </div>
                   )}
                 </div>
@@ -843,46 +937,125 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)'
                 }}
               >
-                Avançar para Design da Capa <ArrowRight size={16} />
+                Avançar para Capa Bestseller com IA <ArrowRight size={16} />
               </button>
             </div>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* PASSO 3: DESIGN DA CAPA COM PREVIEW INTERATIVO */}
+        {/* PASSO 3: DESIGN DA CAPA BESTSELLER & IA REPLICATE */}
         {/* ======================================================== */}
         {currentStep === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>
-                Passo 3: Personalização e Pré-Visualização da Capa KDP
+                Passo 3: Capa Bestseller Amazon KDP & Geração com IA (Replicate)
               </h2>
               <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-                Cálculo automático de lombada, sangrias de 0.125" e área do código de barras conforme regras da Amazon KDP.
+                Layout profissional inspirado nos maiores best-sellers da Amazon com tipografia hierárquica, efeito de livro aberto 3D e renderização via Replicate.
               </p>
             </div>
 
-            {/* CONTROLES DE PALETA & TEXTOS */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.9fr', gap: 24 }}>
+              {/* CONTROLES DA CAPA */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Paletas de Cor Pré-definidas */}
+                {/* 1. MÓDULO REPLICATE AI */}
+                <div style={{
+                  background: 'linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%)',
+                  border: '2px solid #818cf8',
+                  borderRadius: 12,
+                  padding: 18,
+                  boxShadow: '0 4px 18px rgba(129, 140, 248, 0.2)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Wand2 size={18} color="#818cf8" />
+                      <strong style={{ fontSize: 14, color: '#ffffff' }}>Arte de Fundo com IA (Replicate):</strong>
+                    </div>
+                    <span style={{ fontSize: 11, background: '#4338ca', color: '#c7d2fe', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                      FLUX.1 Schnell
+                    </span>
+                  </div>
+
+                  <p style={{ fontSize: 12, color: '#c7d2fe', margin: '0 0 12px', lineHeight: 1.4 }}>
+                    Gera fotografia 3D realista de livro aberto com lápis de madeira sobre uma superfície elegante de estúdio.
+                  </p>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                      Prompt Editorial da IA:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={aiPromptCustom}
+                      onChange={e => setAiPromptCustom(e.target.value)}
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #4338ca', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 11, resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleGenerateReplicateCover}
+                    disabled={isGeneratingAiCover}
+                    style={{
+                      width: '100%',
+                      background: isGeneratingAiCover ? '#4338ca' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '10px 16px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: isGeneratingAiCover ? 'wait' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
+                    }}
+                  >
+                    {isGeneratingAiCover ? (
+                      <>
+                        <RefreshCw size={15} className="animate-spin" />
+                        <span>Gerando Arte no Replicate (aguarde)...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={15} />
+                        <span>Gerar Arte de Capa com Replicate</span>
+                      </>
+                    )}
+                  </button>
+
+                  {aiError && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: '#fca5a5' }}>
+                      {aiError}
+                    </div>
+                  )}
+
+                  {config.coverIllustrationUrl && (
+                    <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#34d399', fontWeight: 700 }}>
+                      <Check size={14} /> Imagem gerada aplicada na capa com sucesso!
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. ESTILOS DE COR BESTSELLER AMAZON */}
                 <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
                   <label style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 12 }}>
-                    Paletas de Cores Profissionais:
+                    Estilos Cromáticos Bestseller Amazon:
                   </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {COVER_PALETTES.map(p => {
-                      const isSelected = config.coverPrimaryColor === p.primary && config.coverAccentColor === p.accent;
+                    {PRESET_COVER_STYLES.map(style => {
+                      const isSelected = config.coverPrimaryColor === style.palettePrimary;
                       return (
                         <div
-                          key={p.name}
+                          key={style.id}
                           onClick={() => setConfig({
                             ...config,
-                            coverPrimaryColor: p.primary,
-                            coverSecondaryColor: p.secondary,
-                            coverAccentColor: p.accent,
-                            coverTextColor: p.text
+                            coverPrimaryColor: style.palettePrimary,
+                            coverSecondaryColor: style.paletteSecondary,
+                            coverAccentColor: style.paletteAccent
                           })}
                           style={{
                             display: 'flex',
@@ -895,11 +1068,11 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                             cursor: 'pointer'
                           }}
                         >
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#ffffff' }}>{p.name}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#ffffff' }}>{style.name}</span>
                           <div style={{ display: 'flex', gap: 4 }}>
-                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: p.primary }} />
-                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: p.secondary }} />
-                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: p.accent }} />
+                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: style.palettePrimary }} />
+                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: style.paletteSecondary }} />
+                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: style.paletteAccent }} />
                           </div>
                         </div>
                       );
@@ -907,35 +1080,47 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   </div>
                 </div>
 
-                {/* Textos da Capa */}
+                {/* 3. TIPOGRAFIA HIERÁRQUICA DA CAPA */}
                 <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Selo / Badge da Capa:
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                      Badge de Ano / Novidade:
                     </label>
                     <input
                       type="text"
-                      value={config.coverBadgeText}
-                      onChange={e => setConfig({ ...config, coverBadgeText: e.target.value })}
-                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 13 }}
+                      value={config.yearBadge || ''}
+                      onChange={e => setConfig({ ...config, yearBadge: e.target.value })}
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 12 }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                      Texto Hero em Destaque (ex: 10,000 / 100+):
+                    </label>
+                    <input
+                      type="text"
+                      value={config.heroCountText || ''}
+                      onChange={e => setConfig({ ...config, heroCountText: e.target.value })}
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 12 }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Sinopse da Contracapa:
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                      Banner Central (Faixa Estilizada):
                     </label>
-                    <textarea
-                      rows={3}
-                      value={config.backCoverSynopsis}
-                      onChange={e => setConfig({ ...config, backCoverSynopsis: e.target.value })}
-                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 12, resize: 'vertical' }}
+                    <input
+                      type="text"
+                      value={config.bannerTagText || ''}
+                      onChange={e => setConfig({ ...config, bannerTagText: e.target.value })}
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 12 }}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* PREVIEW DO CANVAS DA CAPA ABERTA */}
+              {/* PREVIEW EM CANVAS DA CAPA ABERTA */}
               <div style={{
                 background: '#131b2e',
                 border: '1px solid #1e293b',
@@ -947,7 +1132,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 14, fontWeight: 800, color: '#cbd5e1' }}>
-                    Pré-visualização da Capa Aberta (Contracapa + Lombada + Frente):
+                    Pré-visualização da Capa Aberta Oficial KDP:
                   </span>
 
                   <button
@@ -984,7 +1169,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     ref={canvasRef}
                     style={{
                       width: '100%',
-                      maxHeight: 460,
+                      maxHeight: 480,
                       objectFit: 'contain',
                       borderRadius: 4,
                       boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)'
@@ -1002,7 +1187,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       <span style={{ width: 10, height: 10, background: '#38bdf8', display: 'inline-block', borderRadius: 2 }} /> Dobras da Lombada
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ width: 10, height: 10, background: '#ffffff', display: 'inline-block', borderRadius: 2 }} /> Reserva Código de Barras (2"x1.2")
+                      <span style={{ width: 10, height: 10, background: '#ffffff', display: 'inline-block', borderRadius: 2 }} /> Reserva Código de Barras KDP (2"x1.2")
                     </span>
                   </div>
                 )}
@@ -1027,7 +1212,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   gap: 6
                 }}
               >
-                <ArrowLeft size={16} /> Voltar
+                <ArrowLeft size={16} /> Voltar aos Puzzles
               </button>
 
               <button
@@ -1063,11 +1248,10 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 Passo 4: Compilação & Download dos Arquivos KDP
               </h2>
               <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-                Gere o Miolo em PDF vetorial 300 DPI, a Capa Aberta calculada e o Pacote Completo com metadados.
+                Gere o Miolo em PDF vetorial 300 DPI, a Capa Aberta calculada com IA e o Pacote Completo no idioma {config.language.toUpperCase()}.
               </p>
             </div>
 
-            {/* PAINEL DE AÇÃO DE COMPILAÇÃO */}
             {!compilationResult && !isCompiling && (
               <div style={{
                 background: '#131b2e',
@@ -1095,10 +1279,10 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
                 <div style={{ maxWidth: 540 }}>
                   <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 800 }}>
-                    Tudo Pronto para Compilar seu Livro KDP!
+                    Pronto para Compilar seu Livro KDP ({config.language.toUpperCase()})!
                   </h3>
                   <p style={{ margin: 0, color: '#94a3b8', fontSize: 14, lineHeight: 1.5 }}>
-                    O motor processará {totalPuzzles} puzzles matemáticos, montará as soluções cruzadas, calculará a margem Gutter e desenhará a capa aberta de acordo com as regras de impressão da Amazon KDP.
+                    O motor processará {totalPuzzles} puzzles no idioma selecionado, montará as soluções cruzadas com Gutter KDP e gerará a capa aberta com acabamento de best-seller.
                   </p>
                 </div>
 
@@ -1124,7 +1308,6 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               </div>
             )}
 
-            {/* BARRA DE PROGRESSO DURANTE A COMPILAÇÃO */}
             {isCompiling && (
               <div style={{
                 background: '#131b2e',
@@ -1140,7 +1323,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 <RefreshCw size={36} color="#38bdf8" className="animate-spin" />
                 <div>
                   <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, color: '#ffffff' }}>
-                    Compilando Livro de Passatempos...
+                    Compilando Livro de Passatempos ({config.language.toUpperCase()})...
                   </h3>
                   <span style={{ fontSize: 14, color: '#38bdf8', fontWeight: 600 }}>
                     {compilationStatus}
@@ -1162,7 +1345,6 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               </div>
             )}
 
-            {/* ERRO NA COMPILAÇÃO */}
             {compilationError && (
               <div style={{
                 background: 'rgba(239, 68, 68, 0.15)',
@@ -1176,10 +1358,8 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               </div>
             )}
 
-            {/* RESULTADO E BOTÕES DE DOWNLOAD */}
             {compilationResult && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* Resumo de Sucesso */}
                 <div style={{
                   background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 78, 59, 0.3) 100%)',
                   border: '1px solid #10b981',
@@ -1208,7 +1388,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                         Livro Pronto para Publicação Direta na Amazon KDP!
                       </h3>
                       <span style={{ fontSize: 13, color: '#a7f3d0' }}>
-                        Total de {compilationResult.pageCount} páginas • Lombada: {compilationResult.coverSpecs.spineWidth.toFixed(4)}" • Formato {config.trimSize}
+                        Idioma: {config.language.toUpperCase()} • {compilationResult.pageCount} páginas • Lombada: {compilationResult.coverSpecs.spineWidth.toFixed(4)}" • Formato {config.trimSize}
                       </span>
                     </div>
                   </div>
@@ -1233,9 +1413,8 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   </button>
                 </div>
 
-                {/* GRID DOS 3 BOTÕES DE DOWNLOAD */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-                  {/* Botão 1: Baixar Miolo */}
+                  {/* Miolo */}
                   <div style={{
                     background: '#131b2e',
                     border: '1px solid #1e293b',
@@ -1250,9 +1429,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
                         <FileText size={20} color="#38bdf8" />
                       </div>
-                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>Baixar Miolo (Interior PDF)</h4>
+                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>Baixar Miolo ({config.language.toUpperCase()})</h4>
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>
-                        Arquivo PDF com {compilationResult.pageCount} páginas, números vetoriais nítidos, gutter de encadernação e gabarito final.
+                        Arquivo PDF com {compilationResult.pageCount} páginas, números e palavras em {config.language.toUpperCase()}, margem Gutter e gabarito final.
                       </p>
                     </div>
 
@@ -1277,7 +1456,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     </button>
                   </div>
 
-                  {/* Botão 2: Baixar Capa */}
+                  {/* Capa */}
                   <div style={{
                     background: '#131b2e',
                     border: '1px solid #1e293b',
@@ -1292,9 +1471,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
                         <Palette size={20} color="#f59e0b" />
                       </div>
-                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>Baixar Capa (Cover PDF)</h4>
+                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>Baixar Capa Bestseller PDF</h4>
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>
-                        Capa aberta completa ({compilationResult.coverSpecs.totalWidth.toFixed(4)}" x {compilationResult.coverSpecs.totalHeight.toFixed(4)}") com lombada exata e área de código de barras.
+                        Capa aberta completa ({compilationResult.coverSpecs.totalWidth.toFixed(4)}" x {compilationResult.coverSpecs.totalHeight.toFixed(4)}") calculada milimetricamente para KDP.
                       </p>
                     </div>
 
@@ -1319,7 +1498,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     </button>
                   </div>
 
-                  {/* Botão 3: Pacote Completo ZIP */}
+                  {/* Pacote Completo */}
                   <div style={{
                     background: 'linear-gradient(145deg, #131b2e 0%, #1e293b 100%)',
                     border: '2px solid #10b981',
@@ -1337,7 +1516,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       </div>
                       <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 900, color: '#ffffff' }}>Pacote Completo (.ZIP)</h4>
                       <p style={{ margin: 0, color: '#cbd5e1', fontSize: 12, lineHeight: 1.5 }}>
-                        Contém Miolo PDF, Capa Aberta PDF, metadados KDP em JSON e arquivo TXT com instruções passo a passo de publicação.
+                        Contém Miolo PDF, Capa Aberta PDF, metadados KDP em JSON e arquivo TXT com instruções completas.
                       </p>
                     </div>
 
@@ -1366,7 +1545,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               </div>
             )}
 
-            {/* BOTÃO RETORNAR À DASHBOARD */}
+            {/* VOLTAR À DASHBOARD */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
               <button
                 onClick={() => setCurrentStep(3)}

@@ -93,12 +93,15 @@ export interface MazePuzzleItem {
 
 export type GeneratedPuzzleItem = SudokuPuzzleItem | WordSearchPuzzleItem | MazePuzzleItem;
 
+export type PuzzleLanguage = 'pt' | 'en' | 'es';
+
 export interface PuzzleBookConfig {
   // Metadados
   title: string;
   subtitle: string;
   author: string;
   description?: string;
+  language: PuzzleLanguage;
 
   // Formato Físico
   trimSize: TrimSize;
@@ -121,15 +124,22 @@ export interface PuzzleBookConfig {
   puzzlesPerPage: PuzzlesPerPage;
   solutionsPerPage: SolutionsPerPage;
 
-  // Estilo da Capa
+  // Estilo da Capa (Bestseller Amazon KDP com Replicate)
   coverPrimaryColor: string;
   coverSecondaryColor: string;
   coverAccentColor: string;
   coverTextColor: string;
   coverStyleTheme: 'modern-bold' | 'vibrant-gradient' | 'classic-elegant' | 'dark-neon' | 'minimal-clean';
   coverBadgeText: string;
+  yearBadge?: string;
+  heroCountText?: string;
+  bannerTagText?: string;
+  largePrintBadge?: boolean;
+  coverIllustrationUrl?: string; // Arte gerada pelo Replicate ou pré-definida
+  coverPrompt?: string;
   backCoverSynopsis: string;
   backCoverBulletPoints: string[];
+  backCoverOpenBookUrl?: string;
 }
 
 export interface KdpCoverSpecs {

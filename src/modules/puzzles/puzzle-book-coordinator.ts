@@ -60,14 +60,15 @@ export class PuzzleBookCoordinator {
       reportStep('Sudoku Extremo');
     }
 
-    // 5. Caça-Palavras
+    // 5. Caça-Palavras no idioma selecionado
+    const langThemes = WordSearchEngine.getThemesForLanguage(config.language || 'pt');
     const themes = config.wordSearchThemes && config.wordSearchThemes.length > 0
       ? config.wordSearchThemes
-      : PRESET_WORD_THEMES.map(t => t.themeName);
+      : langThemes.map(t => t.themeName);
 
     for (let i = 0; i < config.wordSearchCount; i++) {
       const themeName = themes[i % themes.length];
-      const preset = PRESET_WORD_THEMES.find(p => p.themeName === themeName) || PRESET_WORD_THEMES[0];
+      const preset = langThemes.find(p => p.themeName === themeName) || langThemes[0];
       list.push(
         WordSearchEngine.generatePuzzle(
           puzzleNumber++,
@@ -126,7 +127,7 @@ export class PuzzleBookCoordinator {
           title: config.title,
           subtitle: config.subtitle,
           author: config.author,
-          language: 'pt-BR',
+          language: config.language === 'en' ? 'en-US' : (config.language === 'es' ? 'es-ES' : 'pt-BR'),
           trimSize: config.trimSize,
           paperColor: config.paperColor === 'cream' ? 'Creme' : 'Branco',
           inkType: 'Preto e Branco',
@@ -136,20 +137,16 @@ export class PuzzleBookCoordinator {
           spineWidthInches: coverSpecs.spineWidth.toFixed(4),
           totalCoverWidthInches: coverSpecs.totalWidth.toFixed(4),
           totalCoverHeightInches: coverSpecs.totalHeight.toFixed(4),
-          categories: [
-            'Livros de Passatempos e Quebra-Cabeças',
-            'Jogos Lógicos e Sudoku',
-            'Atividades para Adultos e Terceira Idade'
-          ],
-          keywords: [
-            'livro de sudoku',
-            'caca palavras grande',
-            'passatempos logicos',
-            'labirintos adultos',
-            'estimulacao cognitiva',
-            'livro para idosos mente ativa',
-            'sudoku com gabarito'
-          ]
+          categories: config.language === 'en'
+            ? ['Puzzle & Activity Books', 'Sudoku & Logic Games', 'Word Search for Seniors & Adults']
+            : (config.language === 'es'
+              ? ['Libros de Pasatiempos y Rompecabezas', 'Sudokus y Juegos Lógicos', 'Sopas de Letras para Adultos']
+              : ['Livros de Passatempos e Quebra-Cabeças', 'Jogos Lógicos e Sudoku', 'Atividades para Adultos e Terceira Idade']),
+          keywords: config.language === 'en'
+            ? ['word search book', 'large print sudoku', 'brain puzzles for adults', 'word find for seniors', 'logic games with solutions']
+            : (config.language === 'es'
+              ? ['libro de sopa de letras', 'sudoku letra grande', 'pasatiempos adultos mayores', 'juegos logicos con respuestas']
+              : ['livro de sudoku', 'caca palavras grande', 'passatempos logicos', 'labirintos adultos', 'livro para idosos mente ativa'])
         },
         compilationDate: new Date().toISOString()
       },

@@ -5,8 +5,107 @@ import {
   SudokuPuzzleItem,
   WordSearchPuzzleItem,
   MazePuzzleItem,
-  TRIM_DIMENSIONS
+  TRIM_DIMENSIONS,
+  PuzzleLanguage
 } from './types';
+
+export const I18N_INTERIOR: Record<PuzzleLanguage, {
+  belongsTo: string;
+  createdBy: string;
+  howToPlay: string;
+  sudokuTitle: string;
+  sudokuRules: string;
+  wsTitle: string;
+  wsRules: string;
+  mazeTitle: string;
+  mazeRules: string;
+  copyrightAllRights: string;
+  kdpOptimized: string;
+  solutionsTitle: string;
+  solutionsSubtitle: string;
+  solutionsHeader: string;
+  solutionNumber: string;
+  solutionOnPage: string;
+  wordsToFind: string;
+  entry: string;
+  exit: string;
+  notesTitle: string;
+  puzzleWord: string;
+  diff: { facil: string; medio: string; dificil: string; extremo: string };
+}> = {
+  pt: {
+    belongsTo: 'ESTE LIVRO PERTENCE A:',
+    createdBy: 'Criado por:',
+    howToPlay: 'COMO JOGAR & REGRAS',
+    sudokuTitle: '• SUDOKU:',
+    sudokuRules: 'Preencha as linhas, colunas e blocos 3x3 com os números de 1 a 9 sem repetir nenhum número. Use raciocínio lógico e eliminação para descobrir as posições corretas.',
+    wsTitle: '• CAÇA-PALAVRAS:',
+    wsRules: 'Encontre as palavras listadas na grade de letras. As palavras podem estar posicionadas na horizontal, vertical ou diagonal, em ordem direta ou invertida.',
+    mazeTitle: '• LABIRINTOS:',
+    mazeRules: 'Trace um caminho contínuo desde a ENTRADA indicada no topo até a SAÍDA na base do labirinto, sem atravessar nenhuma parede.',
+    copyrightAllRights: 'Todos os direitos reservados.',
+    kdpOptimized: 'Formatado e otimizado com conformidade direta para publicação Amazon KDP.',
+    solutionsTitle: 'SOLUÇÕES',
+    solutionsSubtitle: 'Gabarito completo de todos os passatempos',
+    solutionsHeader: 'GABARITO DE SOLUÇÕES',
+    solutionNumber: 'Solução #{num}',
+    solutionOnPage: '(Solução na página {page})',
+    wordsToFind: 'PALAVRAS A ENCONTRAR:',
+    entry: 'ENTRADA ↓',
+    exit: 'SAÍDA ↓',
+    notesTitle: 'ANOTAÇÕES & RASCUNHOS',
+    puzzleWord: 'Puzzle',
+    diff: { facil: 'FÁCIL', medio: 'MÉDIO', dificil: 'DIFÍCIL', extremo: 'EXTREMO' }
+  },
+  en: {
+    belongsTo: 'THIS BOOK BELONGS TO:',
+    createdBy: 'Created by:',
+    howToPlay: 'HOW TO PLAY & INSTRUCTIONS',
+    sudokuTitle: '• SUDOKU:',
+    sudokuRules: 'Fill every row, column, and 3x3 block with numbers 1 to 9 without repeating any number. Use pure logic and elimination to discover the correct positions.',
+    wsTitle: '• WORD SEARCH:',
+    wsRules: 'Find the words hidden in the letter grid. Words can be positioned horizontally, vertically, or diagonally, forwards or backwards.',
+    mazeTitle: '• MAZES:',
+    mazeRules: 'Draw a single continuous line from the START at the top to the FINISH at the bottom of the maze without crossing any walls.',
+    copyrightAllRights: 'All rights reserved.',
+    kdpOptimized: 'Formatted and verified for direct Amazon KDP print-on-demand publishing.',
+    solutionsTitle: 'SOLUTIONS',
+    solutionsSubtitle: 'Complete answer key for all puzzle challenges',
+    solutionsHeader: 'SOLUTIONS & ANSWER KEY',
+    solutionNumber: 'Solution #{num}',
+    solutionOnPage: '(Solution on page {page})',
+    wordsToFind: 'WORDS TO FIND:',
+    entry: 'START ↓',
+    exit: 'FINISH ↓',
+    notesTitle: 'NOTES & SKETCHES',
+    puzzleWord: 'Puzzle',
+    diff: { facil: 'EASY', medio: 'MEDIUM', dificil: 'HARD', extremo: 'EXTREME' }
+  },
+  es: {
+    belongsTo: 'ESTE LIBRO PERTENECE A:',
+    createdBy: 'Creado por:',
+    howToPlay: 'CÓMO JUGAR & REGLAS',
+    sudokuTitle: '• SUDOKU:',
+    sudokuRules: 'Completa cada fila, columna y cuadrícula de 3x3 con los números del 1 al 9 sin repetir ninguno. Usa la lógica y la deducción para resolverlo.',
+    wsTitle: '• SOPA DE LETRAS:',
+    wsRules: 'Encuentra las palabras ocultas en la cuadrícula de letras. Pueden situarse en horizontal, vertical o diagonal, en orden normal o invertido.',
+    mazeTitle: '• LABERINTOS:',
+    mazeRules: 'Traza un camino continuo desde la ENTRADA arriba hasta la SALIDA abajo del laberinto sin cruzar paredes.',
+    copyrightAllRights: 'Todos los derechos reservados.',
+    kdpOptimized: 'Formateado y optimizado para publicación directa en Amazon KDP.',
+    solutionsTitle: 'SOLUCIONES',
+    solutionsSubtitle: 'Guía de respuestas completa para todos los pasatiempos',
+    solutionsHeader: 'GUÍA DE SOLUCIONES',
+    solutionNumber: 'Solución #{num}',
+    solutionOnPage: '(Solución en la página {page})',
+    wordsToFind: 'PALABRAS A ENCONTRAR:',
+    entry: 'ENTRADA ↓',
+    exit: 'SALIDA ↓',
+    notesTitle: 'NOTAS & APUNTES',
+    puzzleWord: 'Puzzle',
+    diff: { facil: 'FÁCIL', medio: 'MEDIO', dificil: 'DIFÍCIL', extremo: 'EXTREMO' }
+  }
+};
 
 export class PuzzleInteriorPdfBuilder {
   /**
@@ -39,10 +138,8 @@ export class PuzzleInteriorPdfBuilder {
     const puzzlePages = Math.ceil(totalPuzzles / config.puzzlesPerPage);
     const solutionPages = Math.ceil(totalPuzzles / config.solutionsPerPage);
 
-    // 1 (título/pertence a) + 1 (regras/copyright) + puzzlePages + 1 (divisória soluções) + solutionPages
     let total = 2 + puzzlePages + 1 + solutionPages;
 
-    // KDP exige páginas pares e no mínimo 24
     if (total % 2 !== 0) total += 1;
     if (total < 24) total = 24;
 
@@ -61,6 +158,9 @@ export class PuzzleInteriorPdfBuilder {
     const widthPt = trim.widthPoints;
     const heightPt = trim.heightPoints;
 
+    const lang = config.language || 'pt';
+    const i18n = I18N_INTERIOR[lang] || I18N_INTERIOR.pt;
+
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'pt',
@@ -69,13 +169,11 @@ export class PuzzleInteriorPdfBuilder {
 
     onProgress?.(5, 'Iniciando diagramação vetorial KDP...');
 
-    // Cálculos preliminares de páginas para referência cruzada
     const totalPuzzles = puzzles.length;
     const puzzlePagesCount = Math.ceil(totalPuzzles / config.puzzlesPerPage);
-    const dividerPageIndex = 2 + puzzlePagesCount + 1; // Página da divisória
+    const dividerPageIndex = 2 + puzzlePagesCount + 1;
     const solutionsStartPage = dividerPageIndex + 1;
 
-    // Mapa de número do puzzle -> página da solução
     const solutionPageMap = new Map<number, number>();
     for (let i = 0; i < totalPuzzles; i++) {
       const pNum = puzzles[i].number;
@@ -85,15 +183,14 @@ export class PuzzleInteriorPdfBuilder {
 
     const estimatedPages = this.estimateTotalPages(config);
     const gutterPt = this.calculateGutterPoints(estimatedPages);
-    const outerMarginPt = 0.375 * 72; // 27 pt
-    const topMarginPt = 0.45 * 72; // margem superior com espaço para cabeçalho
-    const bottomMarginPt = 0.45 * 72; // margem inferior com rodapé
+    const outerMarginPt = 0.375 * 72;
+    const topMarginPt = 0.45 * 72;
+    const bottomMarginPt = 0.45 * 72;
 
     let currentPageNumber = 1;
 
-    // Função utilitária para obter a área útil da página considerando o Gutter KDP
     const getPageContentBounds = (pageIndex: number) => {
-      const isOdd = pageIndex % 2 !== 0; // Ímpar = gutter à esquerda; Par = gutter à direita
+      const isOdd = pageIndex % 2 !== 0;
       const left = isOdd ? gutterPt : outerMarginPt;
       const right = isOdd ? widthPt - outerMarginPt : widthPt - gutterPt;
       const top = topMarginPt;
@@ -117,7 +214,6 @@ export class PuzzleInteriorPdfBuilder {
       doc.text(config.subtitle, (b1.left + b1.right) / 2, b1.top + 130, { align: 'center', maxWidth: b1.width - 40 });
     }
 
-    // Caixa estilizada "Este livro pertence a:"
     const boxY = b1.top + 240;
     const boxW = Math.min(b1.width - 60, 320);
     const boxX = (b1.left + b1.right) / 2 - boxW / 2;
@@ -128,15 +224,14 @@ export class PuzzleInteriorPdfBuilder {
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('ESTE LIVRO PERTENCE A:', (b1.left + b1.right) / 2, boxY + 30, { align: 'center' });
+    doc.text(i18n.belongsTo, (b1.left + b1.right) / 2, boxY + 30, { align: 'center' });
 
     doc.setLineWidth(0.8);
     doc.line(boxX + 25, boxY + 70, boxX + boxW - 25, boxY + 70);
 
-    // Autor no rodapé da folha de rosto
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(11);
-    doc.text(`Criado por: ${config.author || 'Autor'}`, (b1.left + b1.right) / 2, b1.bottom - 40, { align: 'center' });
+    doc.text(`${i18n.createdBy} ${config.author || 'Autor'}`, (b1.left + b1.right) / 2, b1.bottom - 40, { align: 'center' });
 
     // -------------------------------------------------------------
     // PÁGINA 2: COPYRIGHT & REGRAS / INSTRUÇÕES
@@ -148,7 +243,7 @@ export class PuzzleInteriorPdfBuilder {
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text('COMO JOGAR & REGRAS', (b2.left + b2.right) / 2, b2.top + 40, { align: 'center' });
+    doc.text(i18n.howToPlay, (b2.left + b2.right) / 2, b2.top + 40, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
@@ -156,40 +251,37 @@ export class PuzzleInteriorPdfBuilder {
 
     // Sudoku
     doc.setFont('helvetica', 'bold');
-    doc.text('• SUDOKU:', b2.left + 20, ruleY);
+    doc.text(i18n.sudokuTitle, b2.left + 20, ruleY);
     ruleY += 15;
     doc.setFont('helvetica', 'normal');
-    const sudokuText = 'Preencha as linhas, colunas e blocos 3x3 com os números de 1 a 9 sem repetir nenhum número. Use raciocínio lógico e eliminação para descobrir as posições corretas.';
-    doc.text(sudokuText, b2.left + 20, ruleY, { maxWidth: b2.width - 40 });
+    doc.text(i18n.sudokuRules, b2.left + 20, ruleY, { maxWidth: b2.width - 40 });
     ruleY += 45;
 
     // Caça-Palavras
     doc.setFont('helvetica', 'bold');
-    doc.text('• CAÇA-PALAVRAS:', b2.left + 20, ruleY);
+    doc.text(i18n.wsTitle, b2.left + 20, ruleY);
     ruleY += 15;
     doc.setFont('helvetica', 'normal');
-    const wsText = 'Encontre as palavras listadas na grade de letras. As palavras podem estar posicionadas na horizontal, vertical ou diagonal, em ordem direta ou invertida.';
-    doc.text(wsText, b2.left + 20, ruleY, { maxWidth: b2.width - 40 });
+    doc.text(i18n.wsRules, b2.left + 20, ruleY, { maxWidth: b2.width - 40 });
     ruleY += 45;
 
     // Labirintos
     doc.setFont('helvetica', 'bold');
-    doc.text('• LABIRINTOS:', b2.left + 20, ruleY);
+    doc.text(i18n.mazeTitle, b2.left + 20, ruleY);
     ruleY += 15;
     doc.setFont('helvetica', 'normal');
-    const mazeText = 'Trace um caminho contínuo desde a ENTRADA indicada no topo até a SAÍDA na base do labirinto, sem atravessar nenhuma parede.';
-    doc.text(mazeText, b2.left + 20, ruleY, { maxWidth: b2.width - 40 });
+    doc.text(i18n.mazeRules, b2.left + 20, ruleY, { maxWidth: b2.width - 40 });
     ruleY += 60;
 
     // Copyright
     doc.setFontSize(9);
     doc.setTextColor(90, 90, 90);
-    doc.text(`© ${new Date().getFullYear()} ${config.author || 'Book Engine'}. Todos os direitos reservados.`, (b2.left + b2.right) / 2, b2.bottom - 40, { align: 'center' });
-    doc.text('Formatado e otimizado com conformidade direta para publicação Amazon KDP.', (b2.left + b2.right) / 2, b2.bottom - 25, { align: 'center' });
+    doc.text(`© ${new Date().getFullYear()} ${config.author || 'Book Engine'}. ${i18n.copyrightAllRights}`, (b2.left + b2.right) / 2, b2.bottom - 40, { align: 'center' });
+    doc.text(i18n.kdpOptimized, (b2.left + b2.right) / 2, b2.bottom - 25, { align: 'center' });
     doc.setTextColor(0, 0, 0);
 
     // -------------------------------------------------------------
-    // PÁGINAS DE PUZZLES (LAYOUTS: 1, 2 OU 4 POR PÁGINA)
+    // PÁGINAS DE PUZZLES (1, 2 OU 4 POR PÁGINA)
     // -------------------------------------------------------------
     let puzzleIdx = 0;
     while (puzzleIdx < puzzles.length) {
@@ -201,22 +293,20 @@ export class PuzzleInteriorPdfBuilder {
 
       const bounds = getPageContentBounds(currentPageNumber);
 
-      // Rodapé com número de página
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.text(`${currentPageNumber}`, (bounds.left + bounds.right) / 2, bounds.bottom + 18, { align: 'center' });
 
-      // Desenha os puzzles alocados para esta página
       const perPage = config.puzzlesPerPage;
       const pagePuzzles = puzzles.slice(puzzleIdx, puzzleIdx + perPage);
 
-      this.renderPuzzlesOnPage(doc, pagePuzzles, bounds, perPage, solutionPageMap);
+      this.renderPuzzlesOnPage(doc, pagePuzzles, bounds, perPage, solutionPageMap, i18n);
 
       puzzleIdx += perPage;
     }
 
     // -------------------------------------------------------------
-    // PÁGINA DIVISÓRIA: SOLUÇÕES / RESPOSTAS
+    // PÁGINA DIVISÓRIA: SOLUÇÕES / GABARITO
     // -------------------------------------------------------------
     currentPageNumber++;
     doc.addPage([widthPt, heightPt]);
@@ -225,17 +315,17 @@ export class PuzzleInteriorPdfBuilder {
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(32);
-    doc.text('SOLUÇÕES', (bDiv.left + bDiv.right) / 2, bDiv.top + bDiv.height / 2 - 20, { align: 'center' });
+    doc.text(i18n.solutionsTitle, (bDiv.left + bDiv.right) / 2, bDiv.top + bDiv.height / 2 - 20, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(14);
-    doc.text('Gabarito completo de todos os passatempos', (bDiv.left + bDiv.right) / 2, bDiv.top + bDiv.height / 2 + 15, { align: 'center' });
+    doc.text(i18n.solutionsSubtitle, (bDiv.left + bDiv.right) / 2, bDiv.top + bDiv.height / 2 + 15, { align: 'center' });
 
     doc.setLineWidth(2);
     doc.line((bDiv.left + bDiv.right) / 2 - 80, bDiv.top + bDiv.height / 2 + 35, (bDiv.left + bDiv.right) / 2 + 80, bDiv.top + bDiv.height / 2 + 35);
 
     // -------------------------------------------------------------
-    // PÁGINAS DE SOLUÇÕES (LAYOUTS: 4, 6, 9 OU 12 POR PÁGINA)
+    // PÁGINAS DE SOLUÇÕES (4, 6, 9 OU 12 POR PÁGINA)
     // -------------------------------------------------------------
     let solIdx = 0;
     while (solIdx < puzzles.length) {
@@ -247,12 +337,10 @@ export class PuzzleInteriorPdfBuilder {
 
       const bounds = getPageContentBounds(currentPageNumber);
 
-      // Cabeçalho da página de soluções
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text('GABARITO DE SOLUÇÕES', (bounds.left + bounds.right) / 2, bounds.top - 10, { align: 'center' });
+      doc.text(i18n.solutionsHeader, (bounds.left + bounds.right) / 2, bounds.top - 10, { align: 'center' });
 
-      // Rodapé com número de página
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.text(`${currentPageNumber}`, (bounds.left + bounds.right) / 2, bounds.bottom + 18, { align: 'center' });
@@ -260,13 +348,13 @@ export class PuzzleInteriorPdfBuilder {
       const solPerPage = config.solutionsPerPage;
       const pageSolutions = puzzles.slice(solIdx, solIdx + solPerPage);
 
-      this.renderSolutionsOnPage(doc, pageSolutions, bounds, solPerPage);
+      this.renderSolutionsOnPage(doc, pageSolutions, bounds, solPerPage, i18n);
 
       solIdx += solPerPage;
     }
 
     // -------------------------------------------------------------
-    // GARANTIR CONFORMIDADE KDP: MÍNIMO 24 PÁGINAS E NÚMERO PAR
+    // GARANTIR CONFORMIDADE KDP: MÍNIMO 24 PÁGINAS
     // -------------------------------------------------------------
     while (currentPageNumber < 24 || currentPageNumber % 2 !== 0) {
       currentPageNumber++;
@@ -275,9 +363,8 @@ export class PuzzleInteriorPdfBuilder {
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
-      doc.text('ANOTAÇÕES & RASCUNHOS', (bNotes.left + bNotes.right) / 2, bNotes.top + 40, { align: 'center' });
+      doc.text(i18n.notesTitle, (bNotes.left + bNotes.right) / 2, bNotes.top + 40, { align: 'center' });
 
-      // Linhas pautadas para anotações do jogador
       doc.setLineWidth(0.5);
       doc.setDrawColor(180, 180, 180);
       let lineY = bNotes.top + 80;
@@ -299,24 +386,25 @@ export class PuzzleInteriorPdfBuilder {
   }
 
   /**
-   * Renderiza os puzzles na página conforme o layout (1, 2 ou 4 por página)
+   * Renderiza os puzzles na página conforme o layout
    */
   private static renderPuzzlesOnPage(
     doc: jsPDF,
     items: GeneratedPuzzleItem[],
     bounds: { left: number; right: number; top: number; bottom: number; width: number; height: number },
     perPage: 1 | 2 | 4,
-    solutionMap: Map<number, number>
+    solutionMap: Map<number, number>,
+    i18n: typeof I18N_INTERIOR['pt']
   ): void {
     if (perPage === 1 && items[0]) {
-      this.drawSinglePuzzle(doc, items[0], bounds.left, bounds.top, bounds.width, bounds.height, solutionMap);
+      this.drawSinglePuzzle(doc, items[0], bounds.left, bounds.top, bounds.width, bounds.height, solutionMap, i18n);
     } else if (perPage === 2) {
       const halfH = bounds.height / 2;
       if (items[0]) {
-        this.drawSinglePuzzle(doc, items[0], bounds.left, bounds.top, bounds.width, halfH - 15, solutionMap);
+        this.drawSinglePuzzle(doc, items[0], bounds.left, bounds.top, bounds.width, halfH - 15, solutionMap, i18n);
       }
       if (items[1]) {
-        this.drawSinglePuzzle(doc, items[1], bounds.left, bounds.top + halfH + 15, bounds.width, halfH - 15, solutionMap);
+        this.drawSinglePuzzle(doc, items[1], bounds.left, bounds.top + halfH + 15, bounds.width, halfH - 15, solutionMap, i18n);
       }
     } else if (perPage === 4) {
       const halfW = bounds.width / 2;
@@ -329,14 +417,14 @@ export class PuzzleInteriorPdfBuilder {
       ];
       items.forEach((item, idx) => {
         if (slots[idx]) {
-          this.drawSinglePuzzle(doc, item, slots[idx].x, slots[idx].y, halfW - 10, halfH - 10, solutionMap);
+          this.drawSinglePuzzle(doc, item, slots[idx].x, slots[idx].y, halfW - 10, halfH - 10, solutionMap, i18n);
         }
       });
     }
   }
 
   /**
-   * Desenha um puzzle individual com seu cabeçalho
+   * Desenha um puzzle individual com seu cabeçalho traduzido
    */
   private static drawSinglePuzzle(
     doc: jsPDF,
@@ -345,20 +433,23 @@ export class PuzzleInteriorPdfBuilder {
     y: number,
     w: number,
     h: number,
-    solutionMap: Map<number, number>
+    solutionMap: Map<number, number>,
+    i18n: typeof I18N_INTERIOR['pt']
   ): void {
     const solPage = solutionMap.get(puzzle.number);
 
-    // Cabeçalho do Puzzle
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    let titleStr = `Puzzle #${puzzle.number}`;
+    let titleStr = `${i18n.puzzleWord} #${puzzle.number}`;
+
     if (puzzle.type === 'sudoku') {
-      titleStr += ` - Sudoku (${puzzle.difficulty.toUpperCase()})`;
+      const diffLabel = i18n.diff[puzzle.difficulty] || puzzle.difficulty.toUpperCase();
+      titleStr += ` - Sudoku (${diffLabel})`;
     } else if (puzzle.type === 'wordsearch') {
-      titleStr += ` - Caça-Palavras: ${puzzle.theme}`;
+      titleStr += ` - ${puzzle.theme}`;
     } else if (puzzle.type === 'maze') {
-      titleStr += ` - Labirinto (${puzzle.difficulty.toUpperCase()})`;
+      const diffLabel = i18n.diff[puzzle.difficulty] || puzzle.difficulty.toUpperCase();
+      titleStr += ` - ${i18n.mazeTitle.replace('• ', '')} (${diffLabel})`;
     }
 
     doc.text(titleStr, x + w / 2, y + 16, { align: 'center', maxWidth: w - 20 });
@@ -367,7 +458,8 @@ export class PuzzleInteriorPdfBuilder {
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8.5);
       doc.setTextColor(80, 80, 80);
-      doc.text(`(Solução na página ${solPage})`, x + w / 2, y + 28, { align: 'center' });
+      const solText = i18n.solutionOnPage.replace('{page}', String(solPage));
+      doc.text(solText, x + w / 2, y + 28, { align: 'center' });
       doc.setTextColor(0, 0, 0);
     }
 
@@ -377,15 +469,12 @@ export class PuzzleInteriorPdfBuilder {
     if (puzzle.type === 'sudoku') {
       this.drawSudokuBoard(doc, puzzle.grid, x, contentTop, w, contentH);
     } else if (puzzle.type === 'wordsearch') {
-      this.drawWordSearchBoard(doc, puzzle, x, contentTop, w, contentH);
+      this.drawWordSearchBoard(doc, puzzle, x, contentTop, w, contentH, i18n);
     } else if (puzzle.type === 'maze') {
-      this.drawMazeBoard(doc, puzzle, x, contentTop, w, contentH, false);
+      this.drawMazeBoard(doc, puzzle, x, contentTop, w, contentH, false, i18n);
     }
   }
 
-  /**
-   * Desenha tabuleiro de Sudoku de forma vetorial
-   */
   private static drawSudokuBoard(
     doc: jsPDF,
     grid: number[][],
@@ -399,11 +488,9 @@ export class PuzzleInteriorPdfBuilder {
     const startY = y + (maxH - boardSize) / 2;
     const cellSize = boardSize / 9;
 
-    // Fundo limpo
     doc.setFillColor(255, 255, 255);
     doc.rect(startX, startY, boardSize, boardSize, 'F');
 
-    // Linhas finas internas
     doc.setDrawColor(120, 120, 120);
     doc.setLineWidth(0.4);
     for (let i = 1; i < 9; i++) {
@@ -413,7 +500,6 @@ export class PuzzleInteriorPdfBuilder {
       }
     }
 
-    // Linhas grossas das caixas 3x3 e borda externa
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(1.6);
     doc.rect(startX, startY, boardSize, boardSize);
@@ -423,7 +509,6 @@ export class PuzzleInteriorPdfBuilder {
       doc.line(startX, startY + i * cellSize, startX + boardSize, startY + i * cellSize);
     }
 
-    // Números das pistas
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(Math.max(9, Math.floor(cellSize * 0.65)));
 
@@ -439,16 +524,14 @@ export class PuzzleInteriorPdfBuilder {
     }
   }
 
-  /**
-   * Desenha tabuleiro de Caça-Palavras com lista de palavras embaixo
-   */
   private static drawWordSearchBoard(
     doc: jsPDF,
     puzzle: WordSearchPuzzleItem,
     x: number,
     y: number,
     maxW: number,
-    maxH: number
+    maxH: number,
+    i18n: typeof I18N_INTERIOR['pt']
   ): void {
     const listH = Math.min(80, maxH * 0.28);
     const gridMaxH = maxH - listH - 10;
@@ -457,12 +540,10 @@ export class PuzzleInteriorPdfBuilder {
     const startY = y + 5;
     const cellSize = boardSize / puzzle.gridSize;
 
-    // Borda da grade
     doc.setDrawColor(60, 60, 60);
     doc.setLineWidth(1);
     doc.rect(startX, startY, boardSize, boardSize);
 
-    // Letras da grade
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(Math.max(7.5, Math.floor(cellSize * 0.72)));
 
@@ -475,11 +556,10 @@ export class PuzzleInteriorPdfBuilder {
       }
     }
 
-    // Lista de palavras abaixo da grade
     const listTop = startY + boardSize + 15;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text('PALAVRAS A ENCONTRAR:', x + maxW / 2, listTop, { align: 'center' });
+    doc.text(i18n.wordsToFind, x + maxW / 2, listTop, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
@@ -495,9 +575,6 @@ export class PuzzleInteriorPdfBuilder {
     });
   }
 
-  /**
-   * Desenha tabuleiro de Labirinto de forma vetorial
-   */
   private static drawMazeBoard(
     doc: jsPDF,
     puzzle: MazePuzzleItem,
@@ -505,7 +582,8 @@ export class PuzzleInteriorPdfBuilder {
     y: number,
     maxW: number,
     maxH: number,
-    isSolution: boolean
+    isSolution: boolean,
+    i18n: typeof I18N_INTERIOR['pt']
   ): void {
     const mazeSize = Math.min(maxW - 30, maxH - 30, 320);
     const startX = x + (maxW - mazeSize) / 2;
@@ -513,7 +591,6 @@ export class PuzzleInteriorPdfBuilder {
     const cellW = mazeSize / puzzle.width;
     const cellH = mazeSize / puzzle.height;
 
-    // Paredes
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(1.2);
 
@@ -530,15 +607,13 @@ export class PuzzleInteriorPdfBuilder {
       }
     }
 
-    // Indicadores de Início e Fim
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.text('ENTRADA ↓', startX + cellW / 2, startY - 5, { align: 'center' });
-    doc.text('SAÍDA ↓', startX + puzzle.width * cellW - cellW / 2, startY + mazeSize + 10, { align: 'center' });
+    doc.text(i18n.entry, startX + cellW / 2, startY - 5, { align: 'center' });
+    doc.text(i18n.exit, startX + puzzle.width * cellW - cellW / 2, startY + mazeSize + 10, { align: 'center' });
 
-    // Se for o gabarito, traça a linha de solução
     if (isSolution && puzzle.solutionPath.length > 1) {
-      doc.setDrawColor(180, 0, 0); // Linha destacada (ou cinza forte para B&W KDP)
+      doc.setDrawColor(180, 0, 0);
       doc.setLineWidth(1.8);
       for (let i = 0; i < puzzle.solutionPath.length - 1; i++) {
         const p1 = puzzle.solutionPath[i];
@@ -553,14 +628,12 @@ export class PuzzleInteriorPdfBuilder {
     }
   }
 
-  /**
-   * Renderiza os gabaritos em grade compacta (4, 6, 9 ou 12 por página)
-   */
   private static renderSolutionsOnPage(
     doc: jsPDF,
     items: GeneratedPuzzleItem[],
     bounds: { left: number; right: number; top: number; bottom: number; width: number; height: number },
-    solPerPage: 4 | 6 | 9 | 12
+    solPerPage: 4 | 6 | 9 | 12,
+    i18n: typeof I18N_INTERIOR['pt']
   ): void {
     let cols = 2;
     let rows = 2;
@@ -577,10 +650,10 @@ export class PuzzleInteriorPdfBuilder {
       const slotX = bounds.left + c * cellW;
       const slotY = bounds.top + r * cellH;
 
-      // Título compacto
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
-      doc.text(`Solução #${item.number}`, slotX + cellW / 2, slotY + 12, { align: 'center' });
+      const solLabel = i18n.solutionNumber.replace('{num}', String(item.number));
+      doc.text(solLabel, slotX + cellW / 2, slotY + 12, { align: 'center' });
 
       const innerTop = slotY + 18;
       const innerH = cellH - 24;
@@ -590,14 +663,11 @@ export class PuzzleInteriorPdfBuilder {
       } else if (item.type === 'wordsearch') {
         this.drawWordSearchSolutionBoard(doc, item, slotX, innerTop, cellW, innerH);
       } else if (item.type === 'maze') {
-        this.drawMazeBoard(doc, item, slotX, innerTop, cellW, innerH, true);
+        this.drawMazeBoard(doc, item, slotX, innerTop, cellW, innerH, true, i18n);
       }
     });
   }
 
-  /**
-   * Desenha o gabarito do Caça-Palavras com destaque nas letras certas
-   */
   private static drawWordSearchSolutionBoard(
     doc: jsPDF,
     puzzle: WordSearchPuzzleItem,
@@ -611,7 +681,6 @@ export class PuzzleInteriorPdfBuilder {
     const startY = y + (maxH - boardSize) / 2;
     const cellSize = boardSize / puzzle.gridSize;
 
-    // Conjunto de coordenadas pertencentes a palavras
     const wordCoords = new Set<string>();
     puzzle.placements.forEach(p => {
       const dRow = p.endRow === p.startRow ? 0 : (p.endRow > p.startRow ? 1 : -1);
