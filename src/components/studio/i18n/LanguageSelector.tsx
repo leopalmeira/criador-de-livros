@@ -10,7 +10,7 @@ export const LanguageSelector: React.FC = () => {
   const { currentLang, currentOption, languages, setLanguage, isBrazil } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const availableLanguages = isBrazil ? languages : languages.filter(language => language.code === 'en-US');
+  const availableLanguages = languages;
 
   // Fecha o dropdown se clicar fora
   useEffect(() => {

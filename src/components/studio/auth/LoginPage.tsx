@@ -1,23 +1,22 @@
 // ============================================================================
-// BOOKENGIN — LANDING PAGE OFICIAL & PAINEL DE ACESSO SAAS
-// Transformação completa da página inicial em um SaaS comercial premium:
-// - Cabeçalho compacto azul-marinho com seletor de idioma funcional
-// - Hero equilibrado com capas realistas de livros (Sudoku discreto/secundário)
-// - Painel de autenticação limpo (fundo branco, sem dados pré-preenchidos)
-// - Cards uniformes de funcionalidades
-// - Seções "Seu livro pronto para o mundo", "Como funciona?" e temas
-// - Banner cinematográfico com depoimento de autor
-// - Rodapé profissional
-// - Localização monetária (BRL no Brasil via Intl, USD internacional)
+// BOOKENGIN — LANDING PAGE OFICIAL & PORTAL SAAS
+// Design refinado, responsivo e mobile-first de acordo com as especificações:
+// - Troca de idioma em tempo real 100% funcional (Português 🇧🇷, English 🇺🇸, Español 🇪🇸)
+// - Cabeçalho responsivo que NUNCA quebra ou corta no celular
+// - Hero com as 3 capas dos livros (Thriller, Infantil, Sudoku discreto) visíveis no mobile
+// - Plataformas em linha horizontal compacta
+// - Botão CTA com preço dinâmico pela moeda do visitante
+// - Painel de autenticação limpo (fundo branco, abas claras, campos sem preenchimento prévio)
+// - Seções de recursos, fluxo passo a passo, temas, banner e rodapé corporativo
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
   Search,
   Cpu,
   Image as ImageIcon,
-  BookMarked,
+  Palette,
   FileCheck,
   FolderKanban,
   CheckCircle2,
@@ -28,16 +27,13 @@ import {
   EyeOff,
   ArrowRight,
   ShieldCheck,
-  Clock,
   Headphones,
   Globe,
   ChevronDown,
   X,
   Sparkles,
-  Layers,
-  Palette,
-  TrendingUp,
-  Award
+  Menu,
+  TrendingUp
 } from 'lucide-react';
 import { useTranslation, SupportedLanguage } from '../../../services/i18n-service';
 import { AuthApiError, authClient } from '../../../services/auth-client';
@@ -49,14 +45,15 @@ interface Props {
 }
 
 export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
-  const { t, currentLang, setLanguage, isBrazil } = useTranslation();
-  const { formatProduct, currency, chargeCurrency, chargeDiffersFromDisplay } = usePlatformCurrency();
+  const { t, currentLang, setLanguage } = useTranslation();
+  const { formatProduct, chargeCurrency, chargeDiffersFromDisplay } = usePlatformCurrency();
   const subscriptionPrice = formatProduct('subscription_monthly');
 
-  // Estados de navegação e modal de autenticação
+  // Estados de navegação, modal e menu mobile
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register' | 'forgot'>('login');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Estados do formulário de autenticação
   const [email, setEmail] = useState('');
@@ -67,6 +64,17 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Fecha dropdowns se clicar fora
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setLangMenuOpen(false);
+    };
+    if (langMenuOpen) {
+      window.addEventListener('click', handleGlobalClick);
+      return () => window.removeEventListener('click', handleGlobalClick);
+    }
+  }, [langMenuOpen]);
 
   // Mensagens de erro de autenticação localizadas
   const localizedAuthError = (error: unknown): string => {
@@ -111,7 +119,15 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
     setAuthTab(tab);
     setErrorMessage(null);
     setSuccessMessage(null);
+    setMobileMenuOpen(false);
     setAuthModalOpen(true);
+  };
+
+  const handleSelectLanguage = (lang: SupportedLanguage, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setLanguage(lang);
+    setLangMenuOpen(false);
+    setMobileMenuOpen(false);
   };
 
   // Manipulador de Login
@@ -161,7 +177,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
     }
   };
 
-  // Manipulador de Esqueci minha senha
+  // Manipulador de Recuperação de Senha
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
@@ -186,6 +202,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   };
 
   const currentLangLabel = currentLang === 'pt-BR' ? 'Português' : currentLang === 'es-ES' ? 'Español' : 'English';
+  const currentLangShort = currentLang === 'pt-BR' ? 'PT' : currentLang === 'es-ES' ? 'ES' : 'EN';
   const currentLangFlag = currentLang === 'pt-BR' ? '🇧🇷' : currentLang === 'es-ES' ? '🇪🇸' : '🇺🇸';
 
   return (
@@ -196,21 +213,21 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       <header className="be-header">
         <div className="be-container">
           <div className="be-header-inner">
-            {/* Logotipo e Slogan à Esquerda */}
+            {/* Logotipo e Nome à Esquerda */}
             <div className="be-brand">
               <div className="be-brand-logo">
                 <BookOpen size={20} />
               </div>
-              <div>
-                <div className="be-brand-name">BookEngin</div>
-                <div className="be-brand-slogan">Your Ideas. Complete Books. One Platform.</div>
+              <div className="be-brand-text">
+                <span className="be-brand-name">BookEngin</span>
+                <span className="be-brand-slogan">{t('landing.sloganHeader', 'Your Ideas. Complete Books. One Platform.')}</span>
               </div>
             </div>
 
-            {/* Ações à Direita */}
-            <div className="be-header-actions">
-              {/* Seletor de Idioma */}
-              <div className="be-lang-dropdown">
+            {/* Ações Desktop */}
+            <div className="be-header-actions-desktop">
+              {/* Dropdown de Idioma */}
+              <div className="be-lang-dropdown" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   className="be-lang-btn"
@@ -224,45 +241,31 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
                 {langMenuOpen && (
                   <div className="be-lang-menu">
-                    {isBrazil && (
-                      <button
-                        type="button"
-                        className={`be-lang-item ${currentLang === 'pt-BR' ? 'active' : ''}`}
-                        onClick={() => {
-                          setLanguage('pt-BR');
-                          setLangMenuOpen(false);
-                        }}
-                      >
-                        <span>🇧🇷</span> Português
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className={`be-lang-item ${currentLang === 'pt-BR' ? 'active' : ''}`}
+                      onClick={(e) => handleSelectLanguage('pt-BR', e)}
+                    >
+                      <span>🇧🇷</span> Português
+                    </button>
                     <button
                       type="button"
                       className={`be-lang-item ${currentLang === 'en-US' ? 'active' : ''}`}
-                      onClick={() => {
-                        setLanguage('en-US');
-                        setLangMenuOpen(false);
-                      }}
+                      onClick={(e) => handleSelectLanguage('en-US', e)}
                     >
                       <span>🇺🇸</span> English
                     </button>
-                    {isBrazil && (
-                      <button
-                        type="button"
-                        className={`be-lang-item ${currentLang === 'es-ES' ? 'active' : ''}`}
-                        onClick={() => {
-                          setLanguage('es-ES');
-                          setLangMenuOpen(false);
-                        }}
-                      >
-                        <span>🇪🇸</span> Español
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className={`be-lang-item ${currentLang === 'es-ES' ? 'active' : ''}`}
+                      onClick={(e) => handleSelectLanguage('es-ES', e)}
+                    >
+                      <span>🇪🇸</span> Español
+                    </button>
                   </div>
                 )}
               </div>
 
-              {/* Botão Entrar */}
               <button
                 type="button"
                 className="be-btn-link"
@@ -271,7 +274,6 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 {t('landing.tabLogin', 'Entrar')}
               </button>
 
-              {/* Botão Primário Cadastrar-se */}
               <button
                 type="button"
                 className="be-btn-header-cta"
@@ -280,39 +282,174 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 {t('landing.tabRegister', 'Cadastrar-se')}
               </button>
             </div>
+
+            {/* Ações Mobile (Compacto e Elegante: Idioma + Entrar + Menu) */}
+            <div className="be-header-actions-mobile">
+              {/* Botão rápido de idioma no mobile */}
+              <button
+                type="button"
+                className="be-mobile-lang-btn"
+                onClick={() => {
+                  const nextLang: SupportedLanguage =
+                    currentLang === 'pt-BR' ? 'en-US' : currentLang === 'en-US' ? 'es-ES' : 'pt-BR';
+                  setLanguage(nextLang);
+                }}
+                title="Trocar idioma"
+              >
+                <span>{currentLangFlag}</span>
+                <span style={{ fontSize: 11, fontWeight: 700 }}>{currentLangShort}</span>
+              </button>
+
+              {/* Botão Entrar no mobile */}
+              <button
+                type="button"
+                className="be-mobile-signin-btn"
+                onClick={() => openAuth('login')}
+              >
+                {t('landing.tabLogin', 'Entrar')}
+              </button>
+
+              {/* Hambúrguer para abrir opções completas */}
+              <button
+                type="button"
+                className="be-mobile-menu-btn"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Menu"
+              >
+                {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Gaveta / Dropdown do Menu Mobile */}
+        {mobileMenuOpen && (
+          <div className="be-mobile-drawer">
+            <div className="be-mobile-drawer-inner">
+              <div className="be-mobile-drawer-section">
+                <span className="be-mobile-drawer-label">Idioma / Language:</span>
+                <div className="be-mobile-lang-options">
+                  <button
+                    type="button"
+                    className={`be-mobile-lang-choice ${currentLang === 'pt-BR' ? 'active' : ''}`}
+                    onClick={(e) => handleSelectLanguage('pt-BR', e)}
+                  >
+                    <span>🇧🇷</span> Português
+                  </button>
+                  <button
+                    type="button"
+                    className={`be-mobile-lang-choice ${currentLang === 'en-US' ? 'active' : ''}`}
+                    onClick={(e) => handleSelectLanguage('en-US', e)}
+                  >
+                    <span>🇺🇸</span> English
+                  </button>
+                  <button
+                    type="button"
+                    className={`be-mobile-lang-choice ${currentLang === 'es-ES' ? 'active' : ''}`}
+                    onClick={(e) => handleSelectLanguage('es-ES', e)}
+                  >
+                    <span>🇪🇸</span> Español
+                  </button>
+                </div>
+              </div>
+
+              <div className="be-mobile-drawer-actions">
+                <button
+                  type="button"
+                  className="be-btn-mobile-auth-primary"
+                  onClick={() => openAuth('register')}
+                >
+                  {t('landing.tabRegister', 'Cadastrar-se')}
+                </button>
+                <button
+                  type="button"
+                  className="be-btn-mobile-auth-secondary"
+                  onClick={() => openAuth('login')}
+                >
+                  {t('landing.tabLogin', 'Entrar')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ================================================================== */}
-      {/* 2. HERO SECTION                                                    */}
+      {/* 2. HERO SECTION COM CAPAS VISÍVEIS NO MOBILE E NO DESKTOP           */}
       {/* ================================================================== */}
       <section className="be-hero">
         <div className="be-container">
           <div className="be-hero-grid">
-            {/* Coluna Esquerda: Apresentação do Produto */}
+            {/* Coluna de Conteúdo Editorial */}
             <div className="be-hero-content">
               <div className="be-badge-pill">
                 <Sparkles size={13} />
-                <span>Do tema ao livro publicado</span>
+                <span>{t('landing.heroBadge', 'Do tema ao livro publicado')}</span>
               </div>
 
               <h1 className="be-hero-title">
-                Transforme suas ideias em{' '}
-                <span className="be-hero-title-highlight">livros profissionais</span>
+                {t('landing.heroTitlePrefix', 'Transforme suas ideias em')}{' '}
+                <span className="be-hero-title-highlight">
+                  {t('landing.heroTitleHighlight', 'livros profissionais')}
+                </span>
               </h1>
 
               <p className="be-hero-desc">
-                Planeje, pesquise, escreva capítulos, crie capas e prepare seus livros para publicação em uma única plataforma.
+                {t('landing.heroDesc', 'Planeje, pesquise, escreva capítulos, crie capas e prepare seus livros para publicação em uma única plataforma.')}
               </p>
 
-              {/* Plataformas Atendidas Discretas */}
+              {/* Bloco de Capas para TELAS MOBILE (Aparece logo abaixo do texto no celular) */}
+              <div className="be-hero-visual-mobile">
+                <div className="be-covers-stage-mobile">
+                  {/* Sudoku Discreto ao Fundo */}
+                  <div className="be-book-cover-card-mobile sudoku" title="Sudoku Desafio">
+                    <img
+                      src="/covers/sudoku-desafio.jpg"
+                      alt="Capa Sudoku"
+                      className="be-book-cover-img"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/covers/bg-sudoku-clean.jpg';
+                      }}
+                    />
+                  </div>
+                  {/* Livro 1: Thriller */}
+                  <div className="be-book-cover-card-mobile thriller" title="O Último Segredo">
+                    <img
+                      src="/covers/o-ultimo-segredo.jpg"
+                      alt="Capa O Último Segredo"
+                      className="be-book-cover-img"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/covers/bg-thriller-clean.jpg';
+                      }}
+                    />
+                  </div>
+                  {/* Livro 2: Ilustrado Infantil */}
+                  <div className="be-book-cover-card-mobile dino" title="Dinossauros para Colorir">
+                    <img
+                      src="/covers/dinossauros-para-colorir.jpg"
+                      alt="Capa Dinossauros"
+                      className="be-book-cover-img"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/covers/bg-dino-clean.jpg';
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Badge flutuante mobile */}
+                <div className="be-mobile-cover-feature-pill">
+                  <CheckCircle2 size={13} color="#10b981" />
+                  <span>{t('landing.cardTitle', 'Seu livro completo, gerado por IA')}</span>
+                </div>
+              </div>
+
+              {/* Plataformas Atendidas (Linha Horizontal Limpa) */}
               <div className="be-platforms-bar">
                 <div className="be-platform-pill">
                   <div className="be-platform-icon amazon">A</div>
                   <div>
                     <div className="be-platform-text-name">Amazon KDP</div>
-                    <div className="be-platform-text-desc">Publique e venda globalmente</div>
+                    <div className="be-platform-text-desc">{t('landing.platformAmazonDesc', 'Publique e venda globalmente')}</div>
                   </div>
                 </div>
 
@@ -320,7 +457,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   <div className="be-platform-icon google">G</div>
                   <div>
                     <div className="be-platform-text-name">Google Play Books</div>
-                    <div className="be-platform-text-desc">Alcance milhões de leitores</div>
+                    <div className="be-platform-text-desc">{t('landing.platformGoogleDesc', 'Alcance milhões de leitores')}</div>
                   </div>
                 </div>
 
@@ -328,42 +465,42 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   <div className="be-platform-icon apple"></div>
                   <div>
                     <div className="be-platform-text-name">Apple Books</div>
-                    <div className="be-platform-text-desc">Mais uma forma de publicar</div>
+                    <div className="be-platform-text-desc">{t('landing.platformAppleDesc', 'Mais uma forma de publicar')}</div>
                   </div>
                 </div>
               </div>
 
-              {/* Botão Primário Hero com Moeda Localizada */}
-              <div>
+              {/* Botão Primário Hero com Moeda Dinâmica */}
+              <div className="be-hero-cta-wrapper">
                 <button
                   type="button"
                   className="be-btn-primary-hero"
                   onClick={() => openAuth('register')}
                 >
-                  <span>Comece agora — {subscriptionPrice}/mês</span>
+                  <span>{t('landing.ctaStart', 'Comece agora')} — {subscriptionPrice}/mês</span>
                   <ArrowRight size={18} />
                 </button>
               </div>
 
-              {/* Micro-benefícios */}
+              {/* Micro-benefícios com Ícones */}
               <div className="be-hero-guarantees">
                 <div className="be-hero-guarantee-item">
                   <BookOpen size={15} color="#0284c7" />
-                  <span>Até 15 livros por mês</span>
+                  <span>{t('landing.guaranteeBooks', 'Até 15 livros por mês')}</span>
                 </div>
                 <div className="be-hero-guarantee-item">
                   <ShieldCheck size={15} color="#16a34a" />
-                  <span>Sem cartão de crédito (ou cancele quando quiser)</span>
+                  <span>{t('landing.guaranteeCard', 'Sem cartão de crédito (ou cancele quando quiser)')}</span>
                 </div>
                 <div className="be-hero-guarantee-item">
                   <Headphones size={15} color="#0284c7" />
-                  <span>Suporte especializado</span>
+                  <span>{t('landing.guaranteeSupport', 'Suporte especializado')}</span>
                 </div>
               </div>
             </div>
 
-            {/* Coluna Direita: Capas dos Livros com Perspectiva 3D Realista */}
-            <div className="be-hero-visual">
+            {/* Coluna Direita: Capas dos Livros para TELAS DESKTOP */}
+            <div className="be-hero-visual-desktop">
               <div className="be-covers-stage">
                 {/* Capa 3: SUDOKU (Discreta, secundária, acima ao fundo) */}
                 <div className="be-book-cover-card sudoku" title="Sudoku Desafio • Treino Cerebral">
@@ -403,23 +540,23 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
                 {/* Card Lateral Flutuante */}
                 <div className="be-floating-check-card">
-                  <div className="be-floating-check-title">Seu livro completo, gerado por IA</div>
+                  <div className="be-floating-check-title">{t('landing.cardTitle', 'Seu livro completo, gerado por IA')}</div>
                   <div className="be-floating-check-list">
                     <div className="be-floating-check-item">
                       <CheckCircle2 size={13} color="#16a34a" />
-                      <span>Capa profissional</span>
+                      <span>{t('landing.cardProCover', 'Capa profissional')}</span>
                     </div>
                     <div className="be-floating-check-item">
                       <CheckCircle2 size={13} color="#16a34a" />
-                      <span>Prefácio e capítulos</span>
+                      <span>{t('landing.cardChapters', 'Prefácio e capítulos')}</span>
                     </div>
                     <div className="be-floating-check-item">
                       <CheckCircle2 size={13} color="#16a34a" />
-                      <span>Formatação para publicação</span>
+                      <span>{t('landing.cardFormatting', 'Formatação para publicação')}</span>
                     </div>
                     <div className="be-floating-check-item">
                       <CheckCircle2 size={13} color="#16a34a" />
-                      <span>Pronto para Amazon KDP, Google Play e Apple Books</span>
+                      <span>{t('landing.cardPlatforms', 'Pronto para Amazon KDP, Google Play e Apple Books')}</span>
                     </div>
                   </div>
                 </div>
@@ -435,8 +572,8 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       <section className="be-features-section">
         <div className="be-container">
           <div className="be-section-header">
-            <h2 className="be-section-title">Tudo o que você precisa para criar seu livro</h2>
-            <p className="be-section-subtitle">Uma plataforma completa, do planejamento à publicação.</p>
+            <h2 className="be-section-title">{t('landing.featuresSectionTitle', 'Tudo o que você precisa para criar seu livro')}</h2>
+            <p className="be-section-subtitle">{t('landing.featuresSectionSubtitle', 'Uma plataforma completa, do planejamento à publicação.')}</p>
           </div>
 
           <div className="be-features-grid">
@@ -445,9 +582,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <div className="be-feature-icon-wrapper">
                 <Search size={22} />
               </div>
-              <h3 className="be-feature-card-title">Pesquisa inteligente</h3>
+              <h3 className="be-feature-card-title">{t('landing.featResearchTitle', 'Pesquisa inteligente')}</h3>
               <p className="be-feature-card-desc">
-                Descubra nichos, tendências e oportunidades para seu próximo livro.
+                {t('landing.featResearchDesc', 'Descubra nichos, tendências e oportunidades para seu próximo livro.')}
               </p>
             </div>
 
@@ -456,9 +593,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <div className="be-feature-icon-wrapper">
                 <Cpu size={22} />
               </div>
-              <h3 className="be-feature-card-title">Escrita com IA</h3>
+              <h3 className="be-feature-card-title">{t('landing.featWritingTitle', 'Escrita com IA')}</h3>
               <p className="be-feature-card-desc">
-                Desenvolva ideias, capítulos e conteúdos organizados com assistência de inteligência artificial.
+                {t('landing.featWritingDesc', 'Desenvolva ideias, capítulos e conteúdos organizados com assistência de inteligência artificial.')}
               </p>
             </div>
 
@@ -467,9 +604,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <div className="be-feature-icon-wrapper">
                 <ImageIcon size={22} />
               </div>
-              <h3 className="be-feature-card-title">Criação de capas</h3>
+              <h3 className="be-feature-card-title">{t('landing.featCoverTitle', 'Criação de capas')}</h3>
               <p className="be-feature-card-desc">
-                Crie capas profissionais alinhadas ao tema e ao posicionamento do seu livro.
+                {t('landing.featCoverDesc', 'Crie capas profissionais alinhadas ao tema e ao posicionamento do seu livro.')}
               </p>
             </div>
 
@@ -478,9 +615,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <div className="be-feature-icon-wrapper">
                 <Palette size={22} />
               </div>
-              <h3 className="be-feature-card-title">Livros ilustrados</h3>
+              <h3 className="be-feature-card-title">{t('landing.featIllustratedTitle', 'Livros ilustrados')}</h3>
               <p className="be-feature-card-desc">
-                Organize textos e ilustrações para projetos editoriais visuais.
+                {t('landing.featIllustratedDesc', 'Organize textos e ilustrações para projetos editoriais visuais.')}
               </p>
             </div>
 
@@ -489,9 +626,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <div className="be-feature-icon-wrapper">
                 <FileCheck size={22} />
               </div>
-              <h3 className="be-feature-card-title">Formatação para publicação</h3>
+              <h3 className="be-feature-card-title">{t('landing.featPdfTitle', 'Formatação para publicação')}</h3>
               <p className="be-feature-card-desc">
-                Prepare seu manuscrito para os formatos de publicação compatíveis com a plataforma.
+                {t('landing.featPdfDesc', 'Prepare seu manuscrito para os formatos de publicação compatíveis com a plataforma.')}
               </p>
             </div>
 
@@ -500,9 +637,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <div className="be-feature-icon-wrapper">
                 <FolderKanban size={22} />
               </div>
-              <h3 className="be-feature-card-title">Organização do projeto</h3>
+              <h3 className="be-feature-card-title">{t('landing.featProjectTitle', 'Organização do projeto')}</h3>
               <p className="be-feature-card-desc">
-                Acompanhe as etapas da criação do livro em um fluxo organizado.
+                {t('landing.featProjectDesc', 'Acompanhe as etapas da criação do livro em um fluxo organizado.')}
               </p>
             </div>
           </div>
@@ -524,29 +661,29 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             </div>
 
             <div className="be-showcase-content">
-              <h3>Seu livro pronto para o mundo</h3>
+              <h3>{t('landing.showcaseTitle', 'Seu livro pronto para o mundo')}</h3>
               <p>
-                Após a geração, você pode revisar, personalizar e publicar seu livro diretamente nas principais plataformas.
+                {t('landing.showcaseDesc', 'Após a geração, você pode revisar, personalizar e publicar seu livro diretamente nas principais plataformas.')}
               </p>
 
               <button
                 type="button"
                 className="be-btn-primary-hero"
                 onClick={() => openAuth('register')}
-                style={{ marginBottom: 12 }}
+                style={{ marginBottom: 16 }}
               >
-                <span>Comece agora — {subscriptionPrice}/mês</span>
+                <span>{t('landing.ctaStart', 'Comece agora')} — {subscriptionPrice}/mês</span>
                 <ArrowRight size={16} />
               </button>
 
               <div className="be-showcase-platforms">
                 <div className="be-showcase-platform-item">
                   <CheckCircle2 size={16} color="#38bdf8" />
-                  <span>Amazon KDP, Google Play Books e Apple Books</span>
+                  <span>Amazon KDP, Google Play Books, Apple Books</span>
                 </div>
                 <div className="be-showcase-platform-item">
                   <TrendingUp size={16} color="#34d399" />
-                  <span>E ainda pode gerar renda passiva com suas publicações.</span>
+                  <span>{t('landing.showcasePassive', 'E ainda pode gerar renda passiva com suas publicações.')}</span>
                 </div>
               </div>
             </div>
@@ -560,9 +697,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       <section className="be-how-it-works-section">
         <div className="be-container">
           <div className="be-section-header">
-            <h2 className="be-section-title">Como funciona?</h2>
+            <h2 className="be-section-title">{t('landing.howItWorksTitle', 'Como funciona?')}</h2>
             <p className="be-section-subtitle">
-              Em apenas alguns passos, seu livro é gerado, formatado e pronto para publicar.
+              {t('landing.howItWorksSubtitle', 'Em apenas alguns passos, seu livro é gerado, formatado e pronto para publicar.')}
             </p>
           </div>
 
@@ -575,9 +712,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 </div>
                 <div className="be-step-num">1</div>
               </div>
-              <h3 className="be-step-title">Escolha um tema ou nicho</h3>
+              <h3 className="be-step-title">{t('landing.step1Title', 'Escolha um tema ou nicho')}</h3>
               <p className="be-step-desc">
-                Informe o assunto que deseja explorar. Nossa IA pesquisa, estrutura e desenvolve o conteúdo.
+                {t('landing.step1Desc', 'Informe o assunto que deseja explorar. Nossa IA pesquisa, estrutura e desenvolve o conteúdo.')}
               </p>
             </div>
 
@@ -589,9 +726,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 </div>
                 <div className="be-step-num">2</div>
               </div>
-              <h3 className="be-step-title">Gere seu livro completo</h3>
+              <h3 className="be-step-title">{t('landing.step2Title', 'Gere seu livro completo')}</h3>
               <p className="be-step-desc">
-                Com capítulos, prefácio, capa profissional e formatação pronta para publicação.
+                {t('landing.step2Desc', 'Com capítulos, prefácio, capa profissional e formatação pronta para publicação.')}
               </p>
             </div>
 
@@ -603,9 +740,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 </div>
                 <div className="be-step-num">3</div>
               </div>
-              <h3 className="be-step-title">Revise e personalize</h3>
+              <h3 className="be-step-title">{t('landing.step3Title', 'Revise e personalize')}</h3>
               <p className="be-step-desc">
-                Faça ajustes, adicione sua identidade e deixe do seu jeito.
+                {t('landing.step3Desc', 'Faça ajustes, adicione sua identidade e deixe do seu jeito.')}
               </p>
             </div>
 
@@ -617,9 +754,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                 </div>
                 <div className="be-step-num">4</div>
               </div>
-              <h3 className="be-step-title">Publique e ganhe</h3>
+              <h3 className="be-step-title">{t('landing.step4Title', 'Publique e ganhe')}</h3>
               <p className="be-step-desc">
-                Envie para Amazon KDP, Google Play Books e Apple Books e comece a gerar renda passiva.
+                {t('landing.step4Desc', 'Envie para Amazon KDP, Google Play Books e Apple Books e comece a gerar renda passiva.')}
               </p>
             </div>
           </div>
@@ -631,9 +768,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       {/* ================================================================== */}
       <section className="be-topics-section">
         <div className="be-container">
-          <div className="be-section-header" style={{ marginBottom: 28 }}>
-            <h2 className="be-section-title">Alguns temas que você pode explorar</h2>
-            <p className="be-section-subtitle">Diversos nichos, infinitas possibilidades.</p>
+          <div className="be-section-header" style={{ marginBottom: 24 }}>
+            <h2 className="be-section-title">{t('landing.topicsTitle', 'Alguns temas que você pode explorar')}</h2>
+            <p className="be-section-subtitle">{t('landing.topicsSubtitle', 'Diversos nichos, infinitas possibilidades.')}</p>
           </div>
 
           <div className="be-topics-flex">
@@ -669,7 +806,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       </section>
 
       {/* ================================================================== */}
-      {/* 7. SEÇÃO CTA FINAL COM DEPOIMENTO (AUTOR NA MONTANHA)              */}
+      {/* 7. SEÇÃO CTA FINAL COM DEPOIMENTO (BANNER DO AUTOR NA MONTANHA)    */}
       {/* ================================================================== */}
       <section className="be-final-cta-section">
         <div className="be-container">
@@ -683,9 +820,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
             <div className="be-final-cta-content">
               <div className="be-final-cta-text">
-                <h3>Transforme suas ideias em uma fonte de renda real. Comece hoje!</h3>
+                <h3>{t('landing.finalCtaTitle', 'Transforme suas ideias em uma fonte de renda real. Comece hoje!')}</h3>
                 <p>
-                  Milhares de pessoas já estão publicando seus livros e gerando renda com o BookEngin. Agora é a sua vez.
+                  {t('landing.finalCtaDesc', 'Milhares de pessoas já estão publicando seus livros e gerando renda com o BookEngin. Agora é a sua vez.')}
                 </p>
 
                 <button
@@ -693,17 +830,17 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   className="be-btn-primary-hero"
                   onClick={() => openAuth('register')}
                 >
-                  <span>Comece agora — {subscriptionPrice}/mês</span>
+                  <span>{t('landing.ctaStart', 'Comece agora')} — {subscriptionPrice}/mês</span>
                   <ArrowRight size={18} />
                 </button>
               </div>
 
               <div className="be-testimonial-box">
                 <p className="be-testimonial-quote">
-                  “O BookEngin me deu a oportunidade de publicar meu primeiro livro e hoje já é minha principal fonte de renda.”
+                  {t('landing.testimonialQuote', '“O BookEngin me deu a oportunidade de publicar meu primeiro livro e hoje já é minha principal fonte de renda.”')}
                 </p>
                 <div className="be-testimonial-author">
-                  — Mariana S., autora parceira
+                  {t('landing.testimonialAuthor', '— Mariana S., autora parceira')}
                 </div>
               </div>
             </div>
@@ -723,18 +860,18 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               </div>
               <div>
                 <div className="be-footer-brand-name">BookEngin</div>
-                <div className="be-footer-slogan">Your Ideas. Complete Books. One Platform.</div>
+                <div className="be-footer-slogan">{t('landing.sloganHeader', 'Your Ideas. Complete Books. One Platform.')}</div>
               </div>
             </div>
 
             <div className="be-footer-links">
-              <button type="button" onClick={() => openAuth('login')}>Termos de Uso</button>
-              <button type="button" onClick={() => openAuth('login')}>Política de Privacidade</button>
-              <button type="button" onClick={() => openAuth('login')}>Ajuda e Suporte</button>
+              <button type="button" onClick={() => openAuth('login')}>{t('landing.footerTerms', 'Termos de Uso')}</button>
+              <button type="button" onClick={() => openAuth('login')}>{t('landing.footerPrivacy', 'Política de Privacidade')}</button>
+              <button type="button" onClick={() => openAuth('login')}>{t('landing.footerSupport', 'Ajuda e Suporte')}</button>
             </div>
 
             <div className="be-footer-copy">
-              © 2026 BookEngin. Todos os direitos reservados.
+              {t('landing.footerCopyright', '© 2026 BookEngin. Todos os direitos reservados.')}
             </div>
           </div>
         </div>
@@ -762,7 +899,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               </div>
               <h2 className="be-auth-title">Bem-vindo ao BookEngin</h2>
               <p className="be-auth-subtitle">
-                Acesse sua conta para continuar criando seus livros.
+                {t('landing.authSubtitle', 'Acesse sua conta para continuar criando seus livros.')}
               </p>
             </div>
 
@@ -777,7 +914,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   setSuccessMessage(null);
                 }}
               >
-                Entrar
+                {t('landing.tabLogin', 'Entrar')}
               </button>
               <button
                 type="button"
@@ -788,7 +925,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   setSuccessMessage(null);
                 }}
               >
-                Cadastrar-se
+                {t('landing.tabRegister', 'Cadastrar-se')}
               </button>
             </div>
 
@@ -811,7 +948,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <form onSubmit={handleLoginSubmit}>
                 <div className="be-form-group">
                   <label className="be-form-label" htmlFor="be-login-email">
-                    E-mail
+                    {t('landing.labelEmail', 'E-mail')}
                   </label>
                   <div className="be-input-wrapper">
                     <span className="be-input-icon">
@@ -823,7 +960,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       className="be-input"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="seu.email@exemplo.com"
+                      placeholder={t('landing.placeholderEmail', 'seu.email@exemplo.com')}
                       autoComplete="username"
                       required
                     />
@@ -832,7 +969,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
                 <div className="be-form-group">
                   <label className="be-form-label" htmlFor="be-login-password">
-                    Senha
+                    {t('landing.labelPassword', 'Senha')}
                   </label>
                   <div className="be-input-wrapper">
                     <span className="be-input-icon">
@@ -844,7 +981,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       className="be-input has-toggle"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Sua senha"
+                      placeholder={t('landing.placeholderPassword', 'Sua senha')}
                       autoComplete="current-password"
                       required
                     />
@@ -867,7 +1004,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       style={{ accentColor: '#0284c7' }}
                     />
-                    <span>Lembrar de mim</span>
+                    <span>{t('landing.rememberMe', 'Lembrar de mim')}</span>
                   </label>
 
                   <button
@@ -879,7 +1016,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       setSuccessMessage(null);
                     }}
                   >
-                    Esqueci minha senha
+                    {t('landing.forgotPassword', 'Esqueci minha senha')}
                   </button>
                 </div>
 
@@ -889,10 +1026,10 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   disabled={isLoading}
                 >
                   {isLoading ? (
-                    <span>Carregando...</span>
+                    <span>{t('landing.btnLoading', 'Carregando...')}</span>
                   ) : (
                     <>
-                      <span>Entrar</span>
+                      <span>{t('landing.tabLogin', 'Entrar')}</span>
                       <ArrowRight size={16} />
                     </>
                   )}
@@ -905,7 +1042,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <form onSubmit={handleRegisterSubmit}>
                 <div className="be-form-group">
                   <label className="be-form-label" htmlFor="be-reg-name">
-                    Nome do Autor
+                    {t('landing.labelName', 'Nome do Autor')}
                   </label>
                   <div className="be-input-wrapper">
                     <span className="be-input-icon">
@@ -917,7 +1054,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       className="be-input"
                       value={authorName}
                       onChange={(e) => setAuthorName(e.target.value)}
-                      placeholder="Ex: Leandro Palmeira"
+                      placeholder={t('landing.placeholderName', 'Ex: Leandro Palmeira')}
                       autoComplete="name"
                       required
                     />
@@ -926,7 +1063,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
                 <div className="be-form-group">
                   <label className="be-form-label" htmlFor="be-reg-email">
-                    E-mail
+                    {t('landing.labelEmail', 'E-mail')}
                   </label>
                   <div className="be-input-wrapper">
                     <span className="be-input-icon">
@@ -938,7 +1075,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       className="be-input"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="seu.email@exemplo.com"
+                      placeholder={t('landing.placeholderEmail', 'seu.email@exemplo.com')}
                       autoComplete="email"
                       required
                     />
@@ -947,7 +1084,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
                 <div className="be-form-group">
                   <label className="be-form-label" htmlFor="be-reg-password">
-                    Senha (mínimo 6 caracteres)
+                    {t('landing.labelPassword', 'Senha (mínimo 6 caracteres)')}
                   </label>
                   <div className="be-input-wrapper">
                     <span className="be-input-icon">
@@ -959,7 +1096,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       className="be-input has-toggle"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Crie sua senha segura"
+                      placeholder={t('landing.placeholderPasswordCreate', 'Crie sua senha segura')}
                       autoComplete="new-password"
                       minLength={6}
                       required
@@ -990,10 +1127,10 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                   disabled={isLoading}
                 >
                   {isLoading ? (
-                    <span>Cadastrando...</span>
+                    <span>{t('landing.btnLoading', 'Cadastrando...')}</span>
                   ) : (
                     <>
-                      <span>Criar Conta e Começar</span>
+                      <span>{t('landing.btnSubmitRegister', 'Criar Conta e Começar')}</span>
                       <ArrowRight size={16} />
                     </>
                   )}
@@ -1006,7 +1143,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               <form onSubmit={handleForgotSubmit}>
                 <div className="be-form-group">
                   <label className="be-form-label" htmlFor="be-forgot-email">
-                    E-mail cadastrado
+                    {t('landing.labelEmail', 'E-mail cadastrado')}
                   </label>
                   <div className="be-input-wrapper">
                     <span className="be-input-icon">
@@ -1018,7 +1155,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       className="be-input"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="seu.email@exemplo.com"
+                      placeholder={t('landing.placeholderEmail', 'seu.email@exemplo.com')}
                       autoComplete="email"
                       required
                     />

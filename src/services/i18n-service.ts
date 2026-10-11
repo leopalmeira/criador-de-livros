@@ -135,33 +135,59 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     // Landing Page & Divulgação
     'landing.sloganHeader': 'Your Ideas. Complete Books. One Platform.',
     'landing.subHeaderBrand': 'Your Ideas. Complete Books. One Platform.',
-    'landing.heroTitleMain': 'Crie Livros Incríveis',
-    'landing.heroTitleHighlight': 'para Amazon KDP, Google Play & Apple Books',
-    'landing.heroDesc': 'Transforme suas ideias em livros profissionais com o poder da Inteligência Artificial. Pesquise, planeje, escreva, crie capas e publique na Amazon KDP, Google Play Books e Apple Books, tudo em um só lugar!',
-    'landing.featResearchTitle': 'Pesquisa Inteligente',
-    'landing.featResearchDesc': 'Encontre os melhores nichos e oportunidades',
+    'landing.heroBadge': 'Do tema ao livro publicado',
+    'landing.heroTitlePrefix': 'Transforme suas ideias em',
+    'landing.heroTitleHighlight': 'livros profissionais',
+    'landing.heroDesc': 'Planeje, pesquise, escreva capítulos, crie capas e prepare seus livros para publicação em uma única plataforma.',
+    'landing.platformAmazonDesc': 'Publique e venda globalmente',
+    'landing.platformGoogleDesc': 'Alcance milhões de leitores',
+    'landing.platformAppleDesc': 'Mais uma forma de publicar',
+    'landing.ctaStart': 'Comece agora',
+    'landing.guaranteeBooks': 'Até 15 livros por mês',
+    'landing.guaranteeCard': 'Sem cartão de crédito (ou cancele quando quiser)',
+    'landing.guaranteeSupport': 'Suporte especializado',
+    'landing.cardTitle': 'Seu livro completo, gerado por IA',
+    'landing.cardProCover': 'Capa profissional',
+    'landing.cardChapters': 'Prefácio e capítulos',
+    'landing.cardFormatting': 'Formatação para publicação',
+    'landing.cardPlatforms': 'Pronto para Amazon KDP, Google Play e Apple Books',
+    'landing.featuresSectionTitle': 'Tudo o que você precisa para criar seu livro',
+    'landing.featuresSectionSubtitle': 'Uma plataforma completa, do planejamento à publicação.',
+    'landing.featResearchTitle': 'Pesquisa inteligente',
+    'landing.featResearchDesc': 'Descubra nichos, tendências e oportunidades para seu próximo livro.',
     'landing.featWritingTitle': 'Escrita com IA',
-    'landing.featWritingDesc': 'Crie conteúdos únicos e envolventes',
-    'landing.featCoverTitle': 'Geração de Capas',
-    'landing.featCoverDesc': 'Capas profissionais com IA (Gemini & Flux)',
-    'landing.featPdfTitle': 'PDF Pronto para KDP',
-    'landing.featPdfDesc': 'Formatação perfeita para a Amazon',
-    'landing.featMarketTitle': 'Análise de Mercado',
-    'landing.featMarketDesc': 'Dados reais da Amazon (BSR, avaliações, etc.)',
-    'landing.featAllInOneTitle': 'Tudo em um só lugar',
-    'landing.featAllInOneDesc': 'Do planejamento ao livro final',
-
-    // Assinatura e Preço (R$ 25,00 / mês - até 15 livros)
-    'landing.pricingTag': 'PLANO MENSAL',
-    'landing.pricingPrice': 'R$ 25,00',
-    'landing.pricingPeriod': '/ mês',
-    'landing.pricingBadge': 'Até 15 Livros / Mês',
-    'landing.pricingCancelAnytime': 'Cancele quando quiser',
-    'landing.pricingBenefit1': 'Até 15 livros completos por mês',
-    'landing.pricingBenefit2': 'Capas em altíssima resolução com IA',
-    'landing.pricingBenefit3': 'PDF diagramado pronto para o KDP',
-    'landing.pricingImpact': 'Mais produtividade. Mais qualidade. Mais resultados.',
-    'landing.pricingCallout': 'Assine agora por apenas R$ 25,00/mês para até 15 livros e publique sem limites!',
+    'landing.featWritingDesc': 'Desenvolva ideias, capítulos e conteúdos organizados com assistência de inteligência artificial.',
+    'landing.featCoverTitle': 'Criação de capas',
+    'landing.featCoverDesc': 'Crie capas profissionais alinhadas ao tema e ao posicionamento do seu livro.',
+    'landing.featIllustratedTitle': 'Livros ilustrados',
+    'landing.featIllustratedDesc': 'Organize textos e ilustrações para projetos editoriais visuais.',
+    'landing.featPdfTitle': 'Formatação para publicação',
+    'landing.featPdfDesc': 'Prepare seu manuscrito para os formatos de publicação compatíveis com a plataforma.',
+    'landing.featProjectTitle': 'Organização do projeto',
+    'landing.featProjectDesc': 'Acompanhe as etapas da criação do livro em um fluxo organizado.',
+    'landing.showcaseTitle': 'Seu livro pronto para o mundo',
+    'landing.showcaseDesc': 'Após a geração, você pode revisar, personalizar e publicar seu livro diretamente nas principais plataformas.',
+    'landing.showcasePassive': 'E ainda pode gerar renda passiva com suas publicações.',
+    'landing.howItWorksTitle': 'Como funciona?',
+    'landing.howItWorksSubtitle': 'Em apenas alguns passos, seu livro é gerado, formatado e pronto para publicar.',
+    'landing.step1Title': 'Escolha um tema ou nicho',
+    'landing.step1Desc': 'Informe o assunto que deseja explorar. Nossa IA pesquisa, estrutura e desenvolve o conteúdo.',
+    'landing.step2Title': 'Gere seu livro completo',
+    'landing.step2Desc': 'Com capítulos, prefácio, capa profissional e formatação pronta para publicação.',
+    'landing.step3Title': 'Revise e personalize',
+    'landing.step3Desc': 'Faça ajustes, adicione sua identidade e deixe do seu jeito.',
+    'landing.step4Title': 'Publique e ganhe',
+    'landing.step4Desc': 'Envie para Amazon KDP, Google Play Books e Apple Books e comece a gerar renda passiva.',
+    'landing.topicsTitle': 'Alguns temas que você pode explorar',
+    'landing.topicsSubtitle': 'Diversos nichos, infinitas possibilidades.',
+    'landing.finalCtaTitle': 'Transforme suas ideias em uma fonte de renda real. Comece hoje!',
+    'landing.finalCtaDesc': 'Milhares de pessoas já estão publicando seus livros e gerando renda com o BookEngin. Agora é a sua vez.',
+    'landing.testimonialQuote': '“O BookEngin me deu a oportunidade de publicar meu primeiro livro e hoje já é minha principal fonte de renda.”',
+    'landing.testimonialAuthor': '— Mariana S., autora parceira',
+    'landing.footerTerms': 'Termos de Uso',
+    'landing.footerPrivacy': 'Política de Privacidade',
+    'landing.footerSupport': 'Ajuda e Suporte',
+    'landing.footerCopyright': '© 2026 BookEngin. Todos os direitos reservados.',
 
     // Capas em HTML (renderizadas e traduzidas em tempo real)
     'landing.cover1.badge': 'BESTSELLER KDP',
@@ -207,7 +233,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.btnSubmitRegister': 'Criar Conta e Começar',
     'landing.subscriptionNotice': 'Assinatura mensal por R$ 25,00 para até 15 livros. Acesso imediato a todas as ferramentas.',
     'landing.securityFootnote': 'Ambiente Editorial Seguro • Acesso Direto ao Dashboard BookEngin',
-    'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
+    'landing.footerTagline': 'BookEngin | Your Ideas. Complete Books. One Platform.',
 
     // Painel Administrativo & Gestão de Clientes
     'admin.badge': 'Painel Admin & Clientes',
@@ -336,33 +362,59 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     // Landing Page & Divulgação
     'landing.sloganHeader': 'Your Ideas. Complete Books. One Platform.',
     'landing.subHeaderBrand': 'Your Ideas. Complete Books. One Platform.',
-    'landing.heroTitleMain': 'Create Incredible Books',
-    'landing.heroTitleHighlight': 'for Amazon KDP, Google Play & Apple Books',
-    'landing.heroDesc': 'Transform your ideas into professional books powered by Artificial Intelligence. Research, plan, write, design covers, and publish on Amazon KDP, Google Play Books, and Apple Books, all in one place!',
-    'landing.featResearchTitle': 'Smart Research',
-    'landing.featResearchDesc': 'Find the most lucrative niches and opportunities',
-    'landing.featWritingTitle': 'AI Book Writing',
-    'landing.featWritingDesc': 'Craft unique and engaging narrative content',
-    'landing.featCoverTitle': 'AI Cover Studio',
-    'landing.featCoverDesc': 'Professional book covers with AI (Gemini & Flux)',
-    'landing.featPdfTitle': 'KDP-Ready PDF',
-    'landing.featPdfDesc': 'Flawless formatting and layout for Amazon',
-    'landing.featMarketTitle': 'Market Intelligence',
-    'landing.featMarketDesc': 'Real Amazon market data (BSR, reviews, pricing)',
-    'landing.featAllInOneTitle': 'All-in-One Studio',
-    'landing.featAllInOneDesc': 'From topic ideation to finalized release',
-
-    // Subscription & Pricing ($25.00 / mo - up to 15 books)
-    'landing.pricingTag': 'MONTHLY PLAN',
-    'landing.pricingPrice': '$25.00',
-    'landing.pricingPeriod': '/ month',
-    'landing.pricingBadge': 'Up to 15 Books / Month',
-    'landing.pricingCancelAnytime': 'Cancel anytime',
-    'landing.pricingBenefit1': 'Up to 15 complete books per month',
-    'landing.pricingBenefit2': 'Ultra high-definition AI book covers',
-    'landing.pricingBenefit3': 'Print-ready formatted KDP PDFs',
-    'landing.pricingImpact': 'Accelerated book production powered by state-of-the-art AI.',
-    'landing.pricingCallout': 'Subscribe now for just $25/month for up to 15 books and publish without limits!',
+    'landing.heroBadge': 'From topic to published book',
+    'landing.heroTitlePrefix': 'Transform your ideas into',
+    'landing.heroTitleHighlight': 'professional books',
+    'landing.heroDesc': 'Plan, research, write chapters, design covers, and prepare books for publication on a single unified platform.',
+    'landing.platformAmazonDesc': 'Publish and sell worldwide',
+    'landing.platformGoogleDesc': 'Reach millions of readers',
+    'landing.platformAppleDesc': 'Expand your global catalog',
+    'landing.ctaStart': 'Get started now',
+    'landing.guaranteeBooks': 'Up to 15 books per month',
+    'landing.guaranteeCard': 'No credit card required (cancel anytime)',
+    'landing.guaranteeSupport': 'Dedicated author support',
+    'landing.cardTitle': 'Your complete book, AI-powered',
+    'landing.cardProCover': 'Professional book cover',
+    'landing.cardChapters': 'Preface and chapters',
+    'landing.cardFormatting': 'Publication-ready formatting',
+    'landing.cardPlatforms': 'Ready for Amazon KDP, Google Play and Apple Books',
+    'landing.featuresSectionTitle': 'Everything you need to create your book',
+    'landing.featuresSectionSubtitle': 'A complete end-to-end platform, from ideation to global publishing.',
+    'landing.featResearchTitle': 'Smart research',
+    'landing.featResearchDesc': 'Discover profitable niches, commercial trends, and market opportunities.',
+    'landing.featWritingTitle': 'AI writing',
+    'landing.featWritingDesc': 'Develop structured ideas, outline chapters, and write quality content with AI guidance.',
+    'landing.featCoverTitle': 'Cover creation',
+    'landing.featCoverDesc': 'Create bookstore-grade covers tailored to your book positioning and target genre.',
+    'landing.featIllustratedTitle': 'Illustrated books',
+    'landing.featIllustratedDesc': 'Organize manuscript copy and high-res artwork for visual publishing projects.',
+    'landing.featPdfTitle': 'Publication formatting',
+    'landing.featPdfDesc': 'Format your manuscript precisely for Amazon KDP and global digital distributors.',
+    'landing.featProjectTitle': 'Project management',
+    'landing.featProjectDesc': 'Track book production milestones across a streamlined, organized workflow.',
+    'landing.showcaseTitle': 'Your book ready for the world',
+    'landing.showcaseDesc': 'After generation, review, customize, and publish your book directly to top retail platforms.',
+    'landing.showcasePassive': 'And build passive income streams with your published titles.',
+    'landing.howItWorksTitle': 'How does it work?',
+    'landing.howItWorksSubtitle': 'In just a few steps, your book is drafted, formatted, and ready to publish.',
+    'landing.step1Title': 'Choose a topic or niche',
+    'landing.step1Desc': 'Select your core subject. Our AI analyzes demand, crafts outlines, and structures the draft.',
+    'landing.step2Title': 'Generate your full book',
+    'landing.step2Desc': 'Complete with preface, structured chapters, professional cover, and calibrated layout.',
+    'landing.step3Title': 'Review and customize',
+    'landing.step3Desc': 'Refine copy, inject your authorial voice, and adapt every page to your standard.',
+    'landing.step4Title': 'Publish and earn',
+    'landing.step4Desc': 'Deploy to Amazon KDP, Google Play Books, and Apple Books to unlock passive royalties.',
+    'landing.topicsTitle': 'Genres you can explore',
+    'landing.topicsSubtitle': 'Endless niches, infinite commercial possibilities.',
+    'landing.finalCtaTitle': 'Turn your ideas into a real income stream. Start today!',
+    'landing.finalCtaDesc': 'Thousands of authors are publishing titles and earning royalties with BookEngin. Now it’s your turn.',
+    'landing.testimonialQuote': '“BookEngin gave me the leverage to publish my first book, and today it has become my primary income source.”',
+    'landing.testimonialAuthor': '— Mariana S., partner author',
+    'landing.footerTerms': 'Terms of Use',
+    'landing.footerPrivacy': 'Privacy Policy',
+    'landing.footerSupport': 'Help & Support',
+    'landing.footerCopyright': '© 2026 BookEngin. All rights reserved.',
 
     // HTML Book Covers (Dynamic Real-Time Translation)
     'landing.cover1.badge': 'KDP BESTSELLER',
@@ -408,7 +460,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.btnSubmitRegister': 'Create Account & Start',
     'landing.subscriptionNotice': 'Monthly subscription for $25 for up to 15 books. Immediate access to all tools.',
     'landing.securityFootnote': 'Secure Publishing Environment • Direct Access to BookEngin Dashboard',
-    'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
+    'landing.footerTagline': 'BookEngin | Your Ideas. Complete Books. One Platform.',
 
     // Admin Control Panel & Client Management
     'admin.badge': 'Admin & Clients Panel',
@@ -537,33 +589,59 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     // Landing Page & Divulgação
     'landing.sloganHeader': 'Your Ideas. Complete Books. One Platform.',
     'landing.subHeaderBrand': 'Your Ideas. Complete Books. One Platform.',
-    'landing.heroTitleMain': 'Crea Libros Increíbles',
-    'landing.heroTitleHighlight': 'para Amazon KDP, Google Play & Apple Books',
-    'landing.heroDesc': '¡Transforma tus ideas en libros profesionales con el poder de la Inteligencia Artificial. Investiga, planifica, escribe, crea portadas y publica en Amazon KDP, Google Play Books y Apple Books, todo en un solo lugar!',
-    'landing.featResearchTitle': 'Investigación Inteligente',
-    'landing.featResearchDesc': 'Encuentra los mejores nichos y oportunidades',
+    'landing.heroBadge': 'De la idea al libro publicado',
+    'landing.heroTitlePrefix': 'Transforma tus ideas en',
+    'landing.heroTitleHighlight': 'libros profesionales',
+    'landing.heroDesc': 'Planifica, investiga, escribe capítulos, diseña portadas y prepara tus libros para publicar en una sola plataforma unificada.',
+    'landing.platformAmazonDesc': 'Publica y vende a nivel mundial',
+    'landing.platformGoogleDesc': 'Alcanza millones de lectores',
+    'landing.platformAppleDesc': 'Expande tu catálogo digital',
+    'landing.ctaStart': 'Comienza ahora',
+    'landing.guaranteeBooks': 'Hasta 15 libros por mes',
+    'landing.guaranteeCard': 'Sin tarjeta de crédito (cancela cuando quieras)',
+    'landing.guaranteeSupport': 'Soporte especializado para autores',
+    'landing.cardTitle': 'Tu libro completo, generado por IA',
+    'landing.cardProCover': 'Portada profesional',
+    'landing.cardChapters': 'Prefacio y capítulos',
+    'landing.cardFormatting': 'Maquetación lista para publicar',
+    'landing.cardPlatforms': 'Listo para Amazon KDP, Google Play y Apple Books',
+    'landing.featuresSectionTitle': 'Todo lo que necesitas para crear tu libro',
+    'landing.featuresSectionSubtitle': 'Una plataforma completa, desde la planificación hasta la publicación.',
+    'landing.featResearchTitle': 'Investigación inteligente',
+    'landing.featResearchDesc': 'Descubre nichos rentables, tendencias comerciales y oportunidades de mercado.',
     'landing.featWritingTitle': 'Escritura con IA',
-    'landing.featWritingDesc': 'Crea contenidos únicos y cautivadores',
-    'landing.featCoverTitle': 'Generación de Portadas',
-    'landing.featCoverDesc': 'Portadas profesionales con IA (Gemini & Flux)',
-    'landing.featPdfTitle': 'PDF Listo para KDP',
-    'landing.featPdfDesc': 'Maquetación perfecta para Amazon',
-    'landing.featMarketTitle': 'Análisis de Mercado',
-    'landing.featMarketDesc': 'Datos reales de Amazon (BSR, reseñas, etc.)',
-    'landing.featAllInOneTitle': 'Todo en un solo lugar',
-    'landing.featAllInOneDesc': 'Desde la planificación hasta el libro final',
-
-    // Suscripción y Precio (US$ 25 / mes - hasta 15 libros)
-    'landing.pricingTag': 'PLAN MENSUAL',
-    'landing.pricingPrice': 'US$ 25',
-    'landing.pricingPeriod': '/ mes',
-    'landing.pricingBadge': 'Hasta 15 Libros / Mes',
-    'landing.pricingCancelAnytime': 'Cancela cuando quieras',
-    'landing.pricingBenefit1': 'Hasta 15 libros completos por mes',
-    'landing.pricingBenefit2': 'Portadas de libros en alta resolución con IA',
-    'landing.pricingBenefit3': 'PDFs maquetados listos para Amazon KDP',
-    'landing.pricingImpact': 'Más productividad. Más calidad. Más resultados.',
-    'landing.pricingCallout': '¡Suscríbete ahora por solo US$ 25/mes para hasta 15 libros y publica sin límites!',
+    'landing.featWritingDesc': 'Desarrolla ideas estructuradas, esquematiza capítulos y escribe contenidos con asistencia de IA.',
+    'landing.featCoverTitle': 'Diseño de portadas',
+    'landing.featCoverDesc': 'Crea portadas profesionales alineadas al tema y posicionamiento comercial de tu libro.',
+    'landing.featIllustratedTitle': 'Libros ilustrados',
+    'landing.featIllustratedDesc': 'Organiza textos e ilustraciones en alta definición para proyectos editoriales visuales.',
+    'landing.featPdfTitle': 'Maquetación para publicación',
+    'landing.featPdfDesc': 'Prepara tu manuscrito en formatos estrictamente compatibles con Amazon KDP y distribuidores.',
+    'landing.featProjectTitle': 'Organización del proyecto',
+    'landing.featProjectDesc': 'Acompaña las etapas de producción de tu libro en un flujo ordenado y claro.',
+    'landing.showcaseTitle': 'Tu libro listo para el mundo',
+    'landing.showcaseDesc': 'Tras la generación, puedes revisar, personalizar y publicar tu libro directamente en las principales tiendas.',
+    'landing.showcasePassive': 'Y generar ingresos pasivos con tu catálogo de publicaciones.',
+    'landing.howItWorksTitle': '¿Cómo funciona?',
+    'landing.howItWorksSubtitle': 'En solo unos pasos, tu libro es redactado, formateado y listo para publicar.',
+    'landing.step1Title': 'Elige un tema o nicho',
+    'landing.step1Desc': 'Indica el asunto que deseas explorar. Nuestra IA investiga la demanda, estructura el índice y desarrolla el borrador.',
+    'landing.step2Title': 'Genera tu libro completo',
+    'landing.step2Desc': 'Con capítulos, prefacio, portada profesional y diagramación lista para publicación.',
+    'landing.step3Title': 'Revisa y personaliza',
+    'landing.step3Desc': 'Haz ajustes, añade tu voz de autor y personaliza cada detalle a tu estilo.',
+    'landing.step4Title': 'Publica y gana',
+    'landing.step4Desc': 'Publica en Amazon KDP, Google Play Books y Apple Books y empieza a generar regalías pasivas.',
+    'landing.topicsTitle': 'Algunos géneros que puedes explorar',
+    'landing.topicsSubtitle': 'Diversos nichos, infinitas posibilidades comerciales.',
+    'landing.finalCtaTitle': '¡Convierte tus ideas en una fuente de ingresos real. Empieza hoy!',
+    'landing.finalCtaDesc': 'Miles de autores ya están publicando sus libros y generando ingresos con BookEngin. Ahora es tu turno.',
+    'landing.testimonialQuote': '“BookEngin me dio la oportunidad de publicar mi primer libro y hoy ya es mi principal fuente de ingresos.”',
+    'landing.testimonialAuthor': '— Mariana S., autora asociada',
+    'landing.footerTerms': 'Términos de Uso',
+    'landing.footerPrivacy': 'Política de Privacidad',
+    'landing.footerSupport': 'Ayuda y Soporte',
+    'landing.footerCopyright': '© 2026 BookEngin. Todos los derechos reservados.',
 
     // Portadas en HTML (renderizadas y traducidas en tiempo real)
     'landing.cover1.badge': 'BESTSELLER KDP',
@@ -589,7 +667,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Autenticación
     'landing.authSubtitle': 'Inicia sesión o crea una nueva cuenta para comenzar a crear tus libros.',
-    'landing.tabLogin': 'Entrar',
+    'landing.tabLogin': 'Iniciar sesión',
     'landing.tabRegister': 'Registrarse',
     'landing.labelEmail': 'Correo del Autor / Editor',
     'landing.labelPassword': 'Contraseña de Acceso',
@@ -609,7 +687,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'landing.btnSubmitRegister': 'Crear Cuenta y Empezar',
     'landing.subscriptionNotice': 'Suscripción mensual por US$ 25 para hasta 15 libros. Acceso inmediato a todas las herramientas.',
     'landing.securityFootnote': 'Entorno Editorial Seguro • Acceso Directo al Dashboard BookEngin',
-    'landing.footerCopyright': 'BookEngin | Your Ideas. Complete Books. One Platform.',
+    'landing.footerTagline': 'BookEngin | Your Ideas. Complete Books. One Platform.',
   },
 
   'fr-FR': {
@@ -885,19 +963,20 @@ export function getCurrentLanguage(): SupportedLanguage {
 }
 
 /**
- * Define the user's language for the current visit.
+ * Define o idioma da interface.
+ * O usuário pode escolher livremente qualquer idioma suportado,
+ * e sua escolha é persistida no localStorage para as próximas visitas.
  */
 export function setLanguage(lang: SupportedLanguage): void {
   if (!TRANSLATIONS[lang]) return;
-  if (!isBrazilianCountry(detectedCountryCode) && lang !== 'en-US') {
-    applyLanguage('en-US');
-    return;
-  }
   languageManuallySelected = true;
-  applyLanguage(lang);
-  if (detectedCountryCode === 'BR') {
-    localStorage.setItem('kdp_preferred_lang_BR', lang);
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('kdp_user_language', lang);
+      localStorage.setItem('kdp_preferred_lang_BR', lang);
+    } catch {}
   }
+  applyLanguage(lang);
 }
 
 /**
@@ -936,17 +1015,32 @@ export function useTranslation() {
 
   useEffect(() => {
     let mounted = true;
+
+    // Se o usuário já escolheu um idioma anteriormente, respeita essa escolha
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = (localStorage.getItem('kdp_user_language') || localStorage.getItem('kdp_preferred_lang_BR')) as SupportedLanguage | null;
+        if (saved && TRANSLATIONS[saved]) {
+          languageManuallySelected = true;
+          applyLanguage(saved);
+        }
+      } catch {}
+    }
+
     detectVisitorCountry()
       .then(country => {
         if (!mounted) return;
         detectedCountryCode = country;
         setCountryCode(country);
-        if (!isBrazilianCountry(country)) {
-          languageManuallySelected = false;
-          applyLanguage('en-US');
-        } else if (!languageManuallySelected) {
-          const preferred = localStorage.getItem('kdp_preferred_lang_BR') as SupportedLanguage | null;
-          applyLanguage(preferred && TRANSLATIONS[preferred] ? preferred : 'pt-BR');
+        if (!languageManuallySelected) {
+          const preferred = localStorage.getItem('kdp_user_language') as SupportedLanguage | null;
+          if (preferred && TRANSLATIONS[preferred]) {
+            applyLanguage(preferred);
+          } else if (isBrazilianCountry(country)) {
+            applyLanguage('pt-BR');
+          } else {
+            applyLanguage('en-US');
+          }
         }
       })
       .catch(() => {
@@ -955,14 +1049,14 @@ export function useTranslation() {
           detectedCountryCode = 'BR';
           setCountryCode('BR');
           if (!languageManuallySelected) {
-            const preferred = localStorage.getItem('kdp_preferred_lang_BR') as SupportedLanguage | null;
-            applyLanguage(preferred && TRANSLATIONS[preferred] ? preferred : 'pt-BR');
+            applyLanguage('pt-BR');
           }
         } else {
           detectedCountryCode = null;
           setCountryCode(null);
-          languageManuallySelected = false;
-          applyLanguage('en-US');
+          if (!languageManuallySelected) {
+            applyLanguage('en-US');
+          }
         }
       })
       .finally(() => {
@@ -983,9 +1077,8 @@ export function useTranslation() {
   };
 
   const changeLanguage = (newLang: SupportedLanguage) => {
-    if (!isBrazilianCountry(countryCode) && newLang !== 'en-US') return;
     setLanguage(newLang);
-    setCurrentLang(getCurrentLanguage());
+    setCurrentLang(newLang);
   };
 
   const currentOption = SUPPORTED_LANGUAGES.find(l => l.code === currentLang) || SUPPORTED_LANGUAGES[0];

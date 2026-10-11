@@ -116,13 +116,195 @@
   white-space: nowrap;
 }
 
-.be-header-actions {
+.be-header-actions,
+.be-header-actions-desktop {
   display: flex;
   align-items: center;
   gap: 14px;
 }
 
-/* Seletor de Idioma Compacto no Cabeçalho */
+/* Header Ações Mobile (Oculto em Desktop) */
+.be-header-actions-mobile {
+  display: none;
+}
+
+/* Botão rápido de troca de idioma no celular */
+.be-mobile-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.be-mobile-lang-btn:active {
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(0.96);
+}
+
+/* Botão de Entrar compacto no celular */
+.be-mobile-signin-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.be-mobile-signin-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Botão hambúrguer no celular */
+.be-mobile-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.be-mobile-menu-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Menu Gaveta / Drawer Mobile */
+.be-mobile-drawer {
+  background: var(--be-navy-950);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+  animation: beSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes beSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.be-mobile-drawer-inner {
+  padding: 18px 20px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.be-mobile-drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.be-mobile-drawer-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--be-slate-400, #94a3b8);
+}
+
+.be-mobile-lang-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.be-mobile-lang-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--be-slate-300);
+  padding: 10px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.be-mobile-lang-choice.active {
+  background: var(--be-blue-600);
+  border-color: var(--be-blue-500);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+}
+
+.be-mobile-drawer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.be-btn-mobile-auth-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--be-blue-600);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+  transition: background 0.15s ease;
+}
+
+.be-btn-mobile-auth-primary:active {
+  background: var(--be-blue-700);
+}
+
+.be-btn-mobile-auth-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 11px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.be-btn-mobile-auth-secondary:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Seletor de Idioma Compacto no Cabeçalho Desktop */
 .be-lang-dropdown {
   position: relative;
 }
@@ -218,15 +400,6 @@
 .be-btn-header-cta:hover {
   background: var(--be-blue-700);
   box-shadow: 0 4px 12px rgba(2, 132, 199, 0.45);
-}
-
-.be-mobile-toggle {
-  display: none;
-  background: transparent;
-  border: none;
-  color: #ffffff;
-  cursor: pointer;
-  padding: 6px;
 }
 
 /* ==========================================================================
@@ -384,12 +557,83 @@
 /* ==========================================================================
    COLUNA VISUAL DAS CAPAS DOS LIVROS (REALISTA, EQUILIBRADA, SEM CÍRCULO GIGANTE)
    ========================================================================== */
-.be-hero-visual {
+.be-hero-visual,
+.be-hero-visual-desktop {
   position: relative;
   min-height: 440px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Hero Visual Mobile (Oculto em telas médias e grandes) */
+.be-hero-visual-mobile {
+  display: none;
+}
+
+.be-covers-stage-mobile {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  height: 220px;
+  margin: 0 auto;
+}
+
+.be-book-cover-card-mobile {
+  position: absolute;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 16px 32px -4px rgba(15, 23, 42, 0.35);
+  transition: transform 0.2s ease;
+}
+
+.be-book-cover-card-mobile.sudoku {
+  top: 6px;
+  left: 50%;
+  transform: translateX(-35%) rotate(-2deg);
+  width: 120px;
+  height: 175px;
+  z-index: 1;
+  opacity: 0.92;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #1e293b;
+}
+
+.be-book-cover-card-mobile.thriller {
+  top: 20px;
+  left: calc(50% - 110px);
+  width: 130px;
+  height: 190px;
+  transform: rotate(-6deg);
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0f172a;
+}
+
+.be-book-cover-card-mobile.dino {
+  top: 26px;
+  left: calc(50% - 15px);
+  width: 135px;
+  height: 196px;
+  transform: rotate(5deg);
+  z-index: 3;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #064e3b;
+}
+
+.be-mobile-cover-feature-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #ffffff;
+  border: 1px solid var(--be-slate-200);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--be-navy-950);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  margin-top: 14px;
 }
 
 .be-covers-stage {
@@ -1216,56 +1460,159 @@
   }
 }
 
-/* Telas até 768px (Tablets e Celulares Grandes) */
+/* Telas até 768px (Tablets e Celulares) */
 @media (max-width: 768px) {
   .be-brand-slogan {
     display: none;
   }
 
-  .be-header-actions {
+  /* Alternância de Ações do Cabeçalho */
+  .be-header-actions-desktop {
+    display: none !important;
+  }
+
+  .be-header-actions-mobile {
+    display: flex !important;
+    align-items: center;
     gap: 8px;
   }
 
+  .be-header-inner {
+    min-height: 56px;
+  }
+
+  .be-brand-logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .be-brand-name {
+    font-size: 17px;
+  }
+
   .be-hero {
-    padding: 36px 0 44px 0;
+    padding: 24px 0 36px 0;
+  }
+
+  .be-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .be-badge-pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    margin-bottom: 12px;
   }
 
   .be-hero-title {
-    font-size: 28px;
+    font-size: 26px;
+    line-height: 1.22;
+    letter-spacing: -0.5px;
+    margin-bottom: 12px;
   }
 
   .be-hero-desc {
     font-size: 14px;
+    line-height: 1.55;
+    margin-bottom: 18px;
+    color: var(--be-slate-600);
   }
 
-  .be-hero-visual {
-    min-height: 340px;
+  /* Alternância de Visual Hero */
+  .be-hero-visual-desktop {
+    display: none !important;
   }
 
-  .be-covers-stage {
-    max-width: 340px;
-    height: 320px;
+  .be-hero-visual-mobile {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px 0 24px 0;
+    width: 100%;
   }
 
-  .be-book-cover-card.thriller {
-    width: 140px;
-    height: 205px;
-    left: 0;
-    top: 50px;
+  .be-covers-stage-mobile {
+    max-width: 290px;
+    height: 185px;
   }
 
-  .be-book-cover-card.dino {
-    width: 145px;
-    height: 215px;
-    right: 20px;
-    top: 60px;
+  .be-book-cover-card-mobile.sudoku {
+    top: 4px;
+    left: 50%;
+    transform: translateX(-35%) rotate(-2deg);
+    width: 105px;
+    height: 152px;
   }
 
-  .be-book-cover-card.sudoku {
-    width: 115px;
+  .be-book-cover-card-mobile.thriller {
+    top: 16px;
+    left: calc(50% - 95px);
+    width: 112px;
+    height: 164px;
+    transform: rotate(-6deg);
+  }
+
+  .be-book-cover-card-mobile.dino {
+    top: 22px;
+    left: calc(50% - 15px);
+    width: 116px;
     height: 170px;
-    top: 10px;
-    right: 90px;
+    transform: rotate(5deg);
+  }
+
+  /* Plataformas Atendidas no Mobile: cards em lista profissional */
+  .be-platforms-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 22px;
+  }
+
+  .be-platform-pill {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: var(--be-radius-md);
+    background: #ffffff;
+    border: 1px solid var(--be-slate-200);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .be-platform-text-name {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .be-platform-text-desc {
+    font-size: 11px;
+    color: var(--be-slate-500);
+  }
+
+  /* Botão Hero em largura total e toque confortável */
+  .be-btn-primary-hero {
+    width: 100%;
+    min-height: 50px;
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 800;
+    border-radius: var(--be-radius-md);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .be-hero-guarantees {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+    font-size: 12px;
+  }
+
+  .be-hero-guarantee-item {
+    gap: 8px;
   }
 
   .be-floating-check-card {
@@ -1294,70 +1641,63 @@
   }
 }
 
-/* Telas estreitas até 430px (Celulares) */
+/* Telas estreitas até 430px (iPhone, Galaxy, etc.) */
 @media (max-width: 430px) {
   .be-container {
-    padding: 0 16px;
+    padding: 0 14px;
   }
 
-  .be-btn-link {
-    padding: 6px 8px;
-    font-size: 12px;
-  }
-
-  .be-btn-header-cta {
-    padding: 6px 12px;
-    font-size: 12px;
-  }
-
-  .be-hero-title {
-    font-size: 24px;
-  }
-
-  .be-btn-primary-hero {
-    width: 100%;
-    padding: 12px 18px;
-    font-size: 14px;
-  }
-
-  .be-hero-guarantees {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .be-platforms-bar {
+  .be-header-actions-mobile {
     gap: 6px;
   }
 
-  .be-platform-pill {
-    padding: 6px 10px;
+  .be-mobile-lang-btn {
+    padding: 5px 8px;
+    font-size: 12px;
   }
 
-  .be-covers-stage {
-    max-width: 290px;
-    height: 280px;
+  .be-mobile-signin-btn {
+    padding: 5px 10px;
+    font-size: 12px;
   }
 
-  .be-book-cover-card.thriller {
-    width: 120px;
-    height: 180px;
+  .be-mobile-menu-btn {
+    width: 34px;
+    height: 34px;
   }
 
-  .be-book-cover-card.dino {
-    width: 125px;
-    height: 185px;
-    right: 10px;
+  .be-hero-title {
+    font-size: 23px;
   }
 
-  .be-book-cover-card.sudoku {
-    width: 100px;
+  .be-hero-desc {
+    font-size: 13.5px;
+  }
+
+  .be-covers-stage-mobile {
+    max-width: 270px;
+    height: 175px;
+  }
+
+  .be-book-cover-card-mobile.sudoku {
+    width: 95px;
+    height: 140px;
+  }
+
+  .be-book-cover-card-mobile.thriller {
+    width: 102px;
     height: 150px;
-    right: 70px;
+    left: calc(50% - 90px);
+  }
+
+  .be-book-cover-card-mobile.dino {
+    width: 106px;
+    height: 156px;
+    left: calc(50% - 15px);
   }
 
   .be-auth-panel {
-    padding: 24px 18px;
+    padding: 22px 16px;
   }
 }
 
