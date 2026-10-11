@@ -53,9 +53,24 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [showCanvasHd, setShowCanvasHd] = useState<boolean>(false);
 
-  const currentPage: CinematicPagePlan | undefined = project.pages[currentPageIndex] || project.pages[0];
+  // Garante que as páginas e personagens sempre sejam arrays válidos
+  const safePages = (project?.pages && Array.isArray(project.pages) && project.pages.length > 0)
+    ? project.pages
+    : CinematicNovelService.createDefaultInitialPages(project);
 
-  // Sincroniza rascunhos quando muda de página
+  const safePageIndex = Math.max(0, Math.min(currentPageIndex, safePages.length - 1));
+  const currentPage: CinematicPagePlan = safePages[safePageIndex] || safePages[0];
+
+  // Se o projeto recebido não tinha páginas, salva com as páginas seguras
+  useEffect(() => {
+    if (!project?.pages || !Array.isArray(project.pages) || project.pages.length === 0) {
+      onUpdateProject({
+        ...project,
+        pages: safePages,
+        updatedAt: Date.now()
+      });
+    }
+  }, []);
   useEffect(() => {
     if (currentPage) {
       setNarrationDraft(currentPage.narrationText || '');
@@ -85,7 +100,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
   };
 
   const goToPage = (idx: number) => {
-    if (idx >= 0 && idx < project.pages.length) {
+    if (idx >= 0 && idx < safePages.length) {
       setCurrentPageIndex(idx);
     }
   };
@@ -109,8 +124,8 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
       const currentHistory = currentPage.imageHistory || (currentPage.imageUrl ? [currentPage.imageUrl] : []);
       const updatedHistory = [newImageUrl, ...currentHistory.filter(url => url !== newImageUrl)];
 
-      const updatedPages = [...project.pages];
-      updatedPages[currentPageIndex] = {
+      const updatedPages = [...safePages];
+      updatedPages[safePageIndex] = {
         ...currentPage,
         imageUrl: newImageUrl,
         imageHistory: updatedHistory,
@@ -136,8 +151,8 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
   // Alterna para uma fotografia anterior do histórico da página
   const handleSelectHistoryImage = (imageUrl: string) => {
     if (!currentPage) return;
-    const updatedPages = [...project.pages];
-    updatedPages[currentPageIndex] = {
+    const updatedPages = [...safePages];
+    updatedPages[safePageIndex] = {
       ...currentPage,
       imageUrl,
       updatedAt: Date.now()
@@ -196,8 +211,8 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
   // ============================================================
   const handleSaveNarration = () => {
     if (!currentPage) return;
-    const updatedPages = [...project.pages];
-    updatedPages[currentPageIndex] = {
+    const updatedPages = [...safePages];
+    updatedPages[safePageIndex] = {
       ...currentPage,
       narrationText: narrationDraft,
       updatedAt: Date.now()
@@ -223,8 +238,8 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
     };
 
     const currentDialogues = currentPage.dialogues || [];
-    const updatedPages = [...project.pages];
-    updatedPages[currentPageIndex] = {
+    const updatedPages = [...safePages];
+    updatedPages[safePageIndex] = {
       ...currentPage,
       dialogues: [...currentDialogues, newDialogue],
       updatedAt: Date.now()
@@ -244,8 +259,8 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
   const handleRemoveDialogue = (dialId: string) => {
     if (!currentPage) return;
     const updatedDialogues = (currentPage.dialogues || []).filter(d => d.id !== dialId);
-    const updatedPages = [...project.pages];
-    updatedPages[currentPageIndex] = {
+    const updatedPages = [...safePages];
+    updatedPages[safePageIndex] = {
       ...currentPage,
       dialogues: updatedDialogues,
       updatedAt: Date.now()
@@ -260,8 +275,8 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
 
   const handleSavePrompt = () => {
     if (!currentPage) return;
-    const updatedPages = [...project.pages];
-    updatedPages[currentPageIndex] = {
+    const updatedPages = [...safePages];
+    updatedPages[safePageIndex] = {
       ...currentPage,
       visualPrompt: promptDraft,
       updatedAt: Date.now()
@@ -279,7 +294,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
   // 4. ADICIONAR / EXCLUIR PÁGINA
   // ============================================================
   const handleAddNewPage = () => {
-    const newPageNumber = project.pages.length + 1;
+    const newPageNumber = safePages.length + 1;
     const newPage: CinematicPagePlan = {
       id: `page_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       bookId: project.id,
@@ -316,7 +331,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
       updatedAt: Date.now()
     };
 
-    const updatedPages = [...project.pages, newPage];
+    const updatedPages = [...safePages, newPage];
     onUpdateProject({
       ...project,
       pages: updatedPages,
@@ -329,13 +344,13 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
   };
 
   const handleDeletePage = (pageIdx: number) => {
-    if (project.pages.length <= 1) {
+    if (safePages.length <= 1) {
       alert('O Foto Livro precisa ter no mínimo 1 página.');
       return;
     }
     if (!confirm(`Tem certeza que deseja excluir a página ${pageIdx + 1}?`)) return;
 
-    const remainingPages = project.pages.filter((_, idx) => idx !== pageIdx).map((p, idx) => ({
+    const remainingPages = safePages.filter((_, idx) => idx !== pageIdx).map((p, idx) => ({
       ...p,
       pageNumber: idx + 1
     }));
@@ -360,7 +375,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
     setIsExporting(true);
     setStatusMessage('Compilando Foto Livro Realista em PDF Full Bleed 300 DPI (sem caixas brancas)...');
     try {
-      const blob = await CinematicNovelService.exportPdfFullBleed(project);
+      const blob = await CinematicNovelService.exportPdfFullBleed({ ...project, pages: safePages });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -381,7 +396,7 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
     setIsExporting(true);
     setStatusMessage('Compilando Capa Aberta KDP (Full-Wrap Cover) com lombada calculada...');
     try {
-      const blob = await CinematicNovelService.exportCoverPdf(project);
+      const blob = await CinematicNovelService.exportCoverPdf({ ...project, pages: safePages });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -405,11 +420,11 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
       const zip = new JSZip();
 
       // 1. Miolo PDF
-      const interiorBlob = await CinematicNovelService.exportPdfFullBleed(project);
+      const interiorBlob = await CinematicNovelService.exportPdfFullBleed({ ...project, pages: safePages });
       zip.file(`${project.title.replace(/[^a-zA-Z0-9]/g, '_')}_MIOLO_KDP.pdf`, interiorBlob);
 
       // 2. Capa PDF
-      const coverBlob = await CinematicNovelService.exportCoverPdf(project);
+      const coverBlob = await CinematicNovelService.exportCoverPdf({ ...project, pages: safePages });
       zip.file(`${project.title.replace(/[^a-zA-Z0-9]/g, '_')}_CAPA_ABERTA_KDP.pdf`, coverBlob);
 
       // 3. Ficha Técnica e Palavras-Chave Amazon KDP
@@ -464,17 +479,6 @@ CATEGORIAS RECOMENDADAS:
       setIsExporting(false);
     }
   };
-
-  if (!currentPage) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: '#fff', background: '#020617', minHeight: '100vh' }}>
-        <h2>Nenhuma página encontrada no projeto.</h2>
-        <button onClick={onBackToDashboard} style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, cursor: 'pointer' }}>
-          Voltar ao Dashboard
-        </button>
-      </div>
-    );
-  }
 
   // Fallback seguro de imagem fotográfica que nunca quebra
   const fallbackSvg = getRealisticCinematicSvgDataUrl(
@@ -545,7 +549,7 @@ CATEGORIAS RECOMENDADAS:
               </h2>
             </div>
             <span style={{ fontSize: 12, color: '#94a3b8' }}>
-              {project.genre} • {project.pages.length} Páginas Fotográficas • Formato KDP 7x10" Full-Bleed Colorido
+              {project.genre} • {safePages.length} Páginas Fotográficas • Formato KDP 7x10" Full-Bleed Colorido
             </span>
           </div>
         </div>
@@ -625,7 +629,7 @@ CATEGORIAS RECOMENDADAS:
               gap: 6
             }}
           >
-            <Layers size={14} /> 👥 Personagens ({project.characters.length})
+            <Layers size={14} /> 👥 Personagens ({project.characters?.length || 0})
           </button>
 
           <button
@@ -880,25 +884,25 @@ CATEGORIAS RECOMENDADAS:
                 </button>
 
                 <span style={{ fontSize: 13, fontWeight: 800, color: '#94a3b8' }}>
-                  Página {currentPageIndex + 1} de {project.pages.length}
+                  Página {safePageIndex + 1} de {safePages.length}
                 </span>
 
                 <button
-                  onClick={() => goToPage(currentPageIndex + 1)}
-                  disabled={currentPageIndex === project.pages.length - 1}
+                  onClick={() => goToPage(safePageIndex + 1)}
+                  disabled={safePageIndex >= safePages.length - 1}
                   style={{
                     background: 'rgba(255, 255, 255, 0.08)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
                     color: '#fff',
                     padding: '8px 16px',
                     borderRadius: 8,
-                    cursor: currentPageIndex === project.pages.length - 1 ? 'not-allowed' : 'pointer',
+                    cursor: safePageIndex >= safePages.length - 1 ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
                     fontSize: 12,
                     fontWeight: 600,
-                    opacity: currentPageIndex === project.pages.length - 1 ? 0.35 : 1
+                    opacity: safePageIndex >= safePages.length - 1 ? 0.35 : 1
                   }}
                 >
                   Próxima <ChevronRight size={16} />
@@ -1387,11 +1391,11 @@ CATEGORIAS RECOMENDADAS:
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8', fontWeight: 800 }}>
-                    Grade de Páginas ({project.pages.length})
+                    Grade de Páginas ({safePages.length})
                   </span>
-                  {project.pages.length > 1 && (
+                  {safePages.length > 1 && (
                     <button
-                      onClick={() => handleDeletePage(currentPageIndex)}
+                      onClick={() => handleDeletePage(safePageIndex)}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -1409,15 +1413,15 @@ CATEGORIAS RECOMENDADAS:
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))', gap: 8 }}>
-                  {project.pages.map((p, idx) => (
+                  {safePages.map((p, idx) => (
                     <button
                       key={p.id}
                       onClick={() => goToPage(idx)}
                       style={{
                         height: 52,
                         borderRadius: 6,
-                        border: idx === currentPageIndex ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                        background: idx === currentPageIndex ? '#2563eb' : '#1e293b',
+                        border: idx === safePageIndex ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                        background: idx === safePageIndex ? '#2563eb' : '#1e293b',
                         color: '#fff',
                         fontWeight: 800,
                         fontSize: 13,
@@ -1889,7 +1893,7 @@ CATEGORIAS RECOMENDADAS:
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(440px, 1fr))', gap: 18 }}>
-                {project.characters.map((char) => (
+                {(project.characters || []).map((char) => (
                   <div
                     key={char.id}
                     style={{

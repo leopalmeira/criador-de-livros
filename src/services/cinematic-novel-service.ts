@@ -69,8 +69,41 @@ export class CinematicNovelService {
         activeConflicts: [],
         upcomingEvents: []
       },
-      characters: [],
-      pages: [],
+      characters: [
+        {
+          id: 'char_1',
+          name: 'Helena Vance',
+          role: 'protagonista',
+          age: 34,
+          heightAndBuild: '1,68m, porte elegante e esguio',
+          faceShape: 'Oval com maçãs do rosto marcadas',
+          skinTone: 'Clara com textura natural',
+          eyes: 'Castanhos escuros expressivos e tensos',
+          hair: 'Castanho ondulado até os ombros',
+          distinctiveMarks: 'Pequeno sinal discreto na clavícula esquerda',
+          costumes: ['Roupão de lã cinza amarrado na cintura', 'Sobretudo preto'],
+          personality: 'Determinada, perceptiva e assombrada por lapsos de memória',
+          voiceTone: 'Voz pausada e suave',
+          referenceImageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80'
+        },
+        {
+          id: 'char_2',
+          name: 'Dr. Arthur Miller',
+          role: 'antagonista',
+          age: 42,
+          heightAndBuild: '1,82m, postura ereta e formal',
+          faceShape: 'Mandíbula quadrada e fronte alta',
+          skinTone: 'Clara',
+          eyes: 'Cinzentos e analíticos',
+          hair: 'Grisalho curto penteado para trás',
+          distinctiveMarks: 'Óculos de armação fina metálica',
+          costumes: ['Jaleco branco impecável sobre camisa azul', 'Terno grafite'],
+          personality: 'Racional, controlador e guardião de segredos perigosos',
+          voiceTone: 'Grave, clínico e firme',
+          referenceImageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80'
+        }
+      ],
+      pages: CinematicNovelService.createDefaultInitialPages({ id, title: params.title }),
       checklist: JSON.parse(JSON.stringify(INITIAL_CINEMATIC_CHECKLIST)),
       status: 'ideia',
       createdAt: Date.now(),
@@ -616,11 +649,12 @@ Você DEVE responder ESTRITAMENTE em formato JSON válido, sem texto fora do JSO
   /**
    * Cria páginas fotográficas padrão com cenas fotorrealistas e textos ricos integrados
    */
-  static createDefaultInitialPages(project: CinematicNovelProjectData): CinematicPagePlan[] {
+  static createDefaultInitialPages(project?: Partial<CinematicNovelProjectData>): CinematicPagePlan[] {
+    const bookId = project?.id || `cinematic_${Date.now()}`;
     return [
       {
         id: `page_1_${Date.now()}`,
-        bookId: project.id,
+        bookId,
         chapterNumber: 1,
         chapterTitle: 'O Despertar no Quarto Cinza',
         pageNumber: 1,
@@ -663,7 +697,7 @@ Você DEVE responder ESTRITAMENTE em formato JSON válido, sem texto fora do JSO
       },
       {
         id: `page_2_${Date.now() + 1}`,
-        bookId: project.id,
+        bookId,
         chapterNumber: 1,
         chapterTitle: 'O Envelope Pardo',
         pageNumber: 2,
@@ -706,7 +740,7 @@ Você DEVE responder ESTRITAMENTE em formato JSON válido, sem texto fora do JSO
       },
       {
         id: `page_3_${Date.now() + 2}`,
-        bookId: project.id,
+        bookId,
         chapterNumber: 2,
         chapterTitle: 'O Consultório do Dr. Arthur',
         pageNumber: 3,

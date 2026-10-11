@@ -223,7 +223,7 @@ export const BookStudioApp: React.FC = () => {
     if (found) {
       // Se for do tipo Romance Cinematográfico Realista, abre diretamente o editor especializado
       if (found.kdpBookType === 'cinematic_illustrated_novel' || found.cinematicNovelData) {
-        if (found.cinematicNovelData) {
+        if (found.cinematicNovelData && found.cinematicNovelData.pages?.length > 0) {
           setActiveCinematicProject(found.cinematicNovelData);
         } else {
           const fallbackData = CinematicNovelService.createInitialProject({
@@ -261,18 +261,22 @@ export const BookStudioApp: React.FC = () => {
   };
 
   // Abrir ou Iniciar diretamente o Estúdio do Foto Livro Realista
-  const handleOpenCinematicStudio = async () => {
-    if (activeCinematicProject) {
+  const handleOpenCinematicStudio = () => {
+    // 1. Se já tem projeto ativo carregado com páginas válidas, abre imediatamente
+    if (activeCinematicProject && activeCinematicProject.pages?.length > 0) {
       setMode('cinematic-novel');
       return;
     }
+
+    // 2. Se tem projeto nos projetos existentes com páginas válidas, abre imediatamente
     const existing = projects.find(p => p.kdpBookType === 'cinematic_illustrated_novel' && p.cinematicNovelData);
-    if (existing && existing.cinematicNovelData) {
+    if (existing && existing.cinematicNovelData && existing.cinematicNovelData.pages?.length > 0) {
       setActiveCinematicProject(existing.cinematicNovelData);
       setMode('cinematic-novel');
       return;
     }
-    const defaultPages = CinematicNovelService.createDefaultInitialPages();
+
+    // 3. Cria um novo projeto completo com páginas e personagens já preenchidos
     const newProject = CinematicNovelService.createInitialProject({
       title: 'O Enigma do Farol Solitário',
       subtitle: 'Foto Livro Realista',
@@ -283,14 +287,18 @@ export const BookStudioApp: React.FC = () => {
       targetAudience: 'Adulto',
       premise: 'Em uma ilha isolada pelo nevoeiro, um investigador descobre fotografias antigas esquecidas em um farol desativado que revelam o segredo de desaparecimentos inexplicáveis.',
       totalChaptersPlanned: 3,
-      approximatePages: defaultPages.length,
+      approximatePages: 12,
       visualStyle: 'Fotografia Cinematográfica 35mm Realista',
       emotionalTone: 'Tenso, misterioso e atmosférico',
       endingType: 'Revelação psicológica surpreendente',
       narrativePov: 'Terceira pessoa'
     });
-    newProject.pages = defaultPages;
 
+    // 4. ATIVA A TELA SINCRONAMENTE NO MESMO FRAME
+    setActiveCinematicProject(newProject);
+    setMode('cinematic-novel');
+
+    // 5. Salva no banco em segundo plano sem bloquear a interface
     const bookProj: BookProject = {
       id: newProject.id,
       createdAt: newProject.createdAt,
@@ -307,8 +315,8 @@ export const BookStudioApp: React.FC = () => {
       format: 'Capa Comum',
       trimSize: '7x10',
       paperType: 'color',
-      estimatedPages: defaultPages.length,
-      actualPages: defaultPages.length,
+      estimatedPages: newProject.pages.length,
+      actualPages: newProject.pages.length,
       targetPrice: 39.90,
       currency: 'BRL',
       targetMarketplace: 'Amazon KDP',
@@ -327,10 +335,11 @@ export const BookStudioApp: React.FC = () => {
       cinematicNovelData: newProject
     };
 
-    await db.saveBookProject(bookProj);
-    setProjects(prev => [bookProj, ...prev]);
-    setActiveCinematicProject(newProject);
-    setMode('cinematic-novel');
+    db.saveBookProject(bookProj).then(() => {
+      setProjects(prev => [bookProj, ...prev.filter(p => p.id !== bookProj.id)]);
+    }).catch(err => {
+      console.warn('[BookStudioApp] Erro ao salvar Foto Livro no banco em background:', err);
+    });
   };
 
   // Concluir criação do Foto Livro Realista no Wizard
@@ -870,10 +879,29 @@ export const BookStudioApp: React.FC = () => {
   // ============================================================
   // TELA 3: EDITOR EXCLUSIVO DO ROMANCE CINEMATOGRÁFICO REALISTA
   // ============================================================
-  if (mode === 'cinematic-novel' && activeCinematicProject) {
+  if (mode === 'cinematic-novel') {
+    const projectToRender = (activeCinematicProject && activeCinematicProject.pages?.length > 0)
+      ? activeCinematicProject
+      : CinematicNovelService.createInitialProject({
+          title: 'O Enigma do Farol Solitário',
+          subtitle: 'Foto Livro Realista',
+          author: currentUser?.name || 'Leandro Palmeira',
+          genre: 'suspense-psicologico' as any,
+          subgenre: 'Thriller Costeiro Noir',
+          language: 'Português',
+          targetAudience: 'Adulto',
+          premise: 'Em uma ilha isolada pelo nevoeiro, um investigador descobre fotografias antigas esquecidas em um farol desativado que revelam o segredo de desaparecimentos inexplicáveis.',
+          totalChaptersPlanned: 3,
+          approximatePages: 12,
+          visualStyle: 'Fotografia Cinematográfica 35mm Realista',
+          emotionalTone: 'Tenso, misterioso e atmosférico',
+          endingType: 'Revelação psicológica surpreendente',
+          narrativePov: 'Terceira pessoa'
+        });
+
     return (
       <CinematicNovelEditor
-        project={activeCinematicProject}
+        project={projectToRender}
         onUpdateProject={handleUpdateCinematicProject}
         onBackToDashboard={() => {
           setActiveCinematicProject(null);
