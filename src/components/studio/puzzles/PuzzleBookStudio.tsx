@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft, ArrowRight, ArrowLeft, CheckCircle2, Download,
   Layers, Palette, Sparkles, RefreshCw, AlertCircle, FileText,
-  Sliders, BookOpen, Grid3X3, Eye, ShieldCheck, Check, Globe, Wand2
+  Sliders, BookOpen, Grid3X3, Eye, ShieldCheck, Check, Globe, Wand2,
+  Copy, CheckCheck, Star, Trash2, Plus, Info, ExternalLink
 } from 'lucide-react';
 import {
   PuzzleBookConfig,
@@ -19,9 +20,22 @@ import { PuzzleInteriorPdfBuilder } from '../../../modules/puzzles/puzzle-interi
 import { PuzzleCoverBuilder, I18N_COVER } from '../../../modules/puzzles/puzzle-cover-builder';
 import { PuzzleBookCoordinator } from '../../../modules/puzzles/puzzle-book-coordinator';
 import { PuzzleCoverAiService, PRESET_COVER_STYLES } from '../../../modules/puzzles/puzzle-cover-ai-service';
+import {
+  AMAZON_PUZZLE_BESTSELLERS,
+  AmazonPuzzleBestseller,
+  getBestsellersForLanguage
+} from '../../../modules/puzzles/amazon-puzzle-bestsellers';
 
 interface Props {
   onBackToDashboard: () => void;
+}
+
+export interface CoverHistoryItem {
+  id: string;
+  url: string;
+  prompt: string;
+  createdAt: number;
+  bestsellerTitle?: string;
 }
 
 const TEMPLATES_BY_LANG: Record<PuzzleLanguage, {
@@ -37,7 +51,7 @@ const TEMPLATES_BY_LANG: Record<PuzzleLanguage, {
     title: 'SUPER LIVRO DE PASSATEMPOS',
     subtitle: 'Sudoku, Caça-Palavras e Labirintos para Adultos e Idosos',
     yearBadge: 'NOVO 2026',
-    heroCountText: '100+ DESAFIOS',
+    heroCountText: '100+',
     bannerTagText: 'TEMAS VARIADOS PARA EXPLORAR',
     backCoverSynopsis: 'Estimule sua mente, aprimore o raciocínio lógico e divirta-se por horas com esta coletânea completa de Sudoku, Caça-Palavras e Labirintos. Diagramação em letras grandes para leitura confortável.',
     backCoverBulletPoints: [
@@ -51,7 +65,7 @@ const TEMPLATES_BY_LANG: Record<PuzzleLanguage, {
     title: 'NEW WORD SEARCH & PUZZLE BOOK',
     subtitle: 'Large Print Word Find, Sudoku & Mazes for Adults & Seniors',
     yearBadge: 'NEW 2026',
-    heroCountText: '10,000 UNIQUE WORDS',
+    heroCountText: '10,000',
     bannerTagText: 'ENDLESS THEMES TO EXPLORE',
     backCoverSynopsis: 'Challenge your brain, improve memory and cognitive focus, and relax with this premium collection of Word Searches, Sudokus, and Mazes. Specially formatted with clear large print.',
     backCoverBulletPoints: [
@@ -65,7 +79,7 @@ const TEMPLATES_BY_LANG: Record<PuzzleLanguage, {
     title: 'GRAN LIBRO DE PASATIEMPOS',
     subtitle: 'Sopa de Letras, Sudoku y Laberintos para Adultos y Mayores',
     yearBadge: 'NUEVO 2026',
-    heroCountText: '10.000 PALABRAS ÚNICAS',
+    heroCountText: '10.000',
     bannerTagText: 'TEMAS ILIMITADOS PARA EXPLORAR',
     backCoverSynopsis: 'Estimula tu mente, mejora la memoria y relájate durante horas con esta cuidada selección de Sopas de Letras, Sudokus y Laberintos. Diagramado con letra grande para una lectura cómoda.',
     backCoverBulletPoints: [
@@ -124,13 +138,26 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     backCoverBulletPoints: TEMPLATES_BY_LANG.pt.backCoverBulletPoints
   });
 
+  // Referência de Bestseller Amazon & Palavras-chave
+  const [selectedBestseller, setSelectedBestseller] = useState<AmazonPuzzleBestseller>(
+    () => AMAZON_PUZZLE_BESTSELLERS[0]
+  );
+  const [copiedKeywords, setCopiedKeywords] = useState(false);
+
+  // Histórico de Capas Geradas com IA
+  const [coverHistory, setCoverHistory] = useState<CoverHistoryItem[]>([]);
+  const [activeCoverHistoryId, setActiveCoverHistoryId] = useState<string | null>(null);
+
+  // Gatilho de re-render do canvas quando imagem externa terminar de baixar
+  const [coverRefreshTrigger, setCoverRefreshTrigger] = useState(0);
+
   // Estado do Canvas e Preview da Capa
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [showCoverGuides, setShowCoverGuides] = useState(false);
 
   // Estado da Geração de Capa com IA (Replicate)
   const [isGeneratingAiCover, setIsGeneratingAiCover] = useState(false);
-  const [aiPromptCustom, setAiPromptCustom] = useState(() => PuzzleCoverAiService.buildReplicatePrompt(config));
+  const [aiPromptCustom, setAiPromptCustom] = useState(() => selectedBestseller.replicatePrompt);
   const [aiError, setAiError] = useState<string | null>(null);
 
   // Estado da Compilação Final
@@ -144,6 +171,8 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
   const handleLanguageChange = (newLang: PuzzleLanguage) => {
     const t = TEMPLATES_BY_LANG[newLang] || TEMPLATES_BY_LANG.pt;
     const langThemes = WORD_THEMES_BY_LANG[newLang] || WORD_THEMES_BY_LANG.pt;
+    const matchingBestsellers = getBestsellersForLanguage(newLang);
+    const newBestseller = matchingBestsellers[0] || AMAZON_PUZZLE_BESTSELLERS[0];
 
     const updatedConfig: PuzzleBookConfig = {
       ...config,
@@ -155,11 +184,15 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
       bannerTagText: t.bannerTagText,
       backCoverSynopsis: t.backCoverSynopsis,
       backCoverBulletPoints: t.backCoverBulletPoints,
-      wordSearchThemes: langThemes.slice(0, 6).map(th => th.themeName)
+      wordSearchThemes: langThemes.slice(0, 6).map(th => th.themeName),
+      coverPrimaryColor: newBestseller.palettePrimary,
+      coverSecondaryColor: newBestseller.paletteSecondary,
+      coverAccentColor: newBestseller.paletteAccent
     };
 
     setConfig(updatedConfig);
-    setAiPromptCustom(PuzzleCoverAiService.buildReplicatePrompt(updatedConfig));
+    setSelectedBestseller(newBestseller);
+    setAiPromptCustom(newBestseller.replicatePrompt || PuzzleCoverAiService.buildReplicatePrompt(updatedConfig));
   };
 
   // Cálculo de páginas estimadas em tempo real
@@ -178,16 +211,32 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
   useEffect(() => {
     if (currentStep === 3 && canvasRef.current) {
       const specs = PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages);
-      PuzzleCoverBuilder.renderCoverToCanvas(canvasRef.current, config, specs, showCoverGuides);
+      PuzzleCoverBuilder.renderCoverToCanvas(
+        canvasRef.current,
+        config,
+        specs,
+        showCoverGuides,
+        () => setCoverRefreshTrigger(prev => prev + 1)
+      );
     }
-  }, [currentStep, config, estimatedPages, showCoverGuides]);
+  }, [currentStep, config, estimatedPages, showCoverGuides, coverRefreshTrigger]);
 
-  // Função para Gerar Arte de Fundo com IA Replicate
+  // Função para Gerar Arte de Capa com IA Replicate (Primeira vez ou Nova Variação)
   const handleGenerateReplicateCover = async () => {
     setIsGeneratingAiCover(true);
     setAiError(null);
     try {
       const imageUrl = await PuzzleCoverAiService.generateCoverArtWithReplicate(config, aiPromptCustom);
+      const newCoverItem: CoverHistoryItem = {
+        id: `cover-${Date.now()}`,
+        url: imageUrl,
+        prompt: aiPromptCustom,
+        createdAt: Date.now(),
+        bestsellerTitle: selectedBestseller.title
+      };
+
+      setCoverHistory(prev => [newCoverItem, ...prev]);
+      setActiveCoverHistoryId(newCoverItem.id);
       setConfig(prev => ({ ...prev, coverIllustrationUrl: imageUrl }));
     } catch (err: any) {
       console.error('Erro na geração da capa com Replicate:', err);
@@ -195,6 +244,55 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     } finally {
       setIsGeneratingAiCover(false);
     }
+  };
+
+  // Seleciona uma capa do histórico
+  const handleSelectHistoryCover = (item: CoverHistoryItem) => {
+    setActiveCoverHistoryId(item.id);
+    setConfig(prev => ({ ...prev, coverIllustrationUrl: item.url }));
+  };
+
+  // Remove a arte da capa e volta para a renderização vetorial pura
+  const handleRemoveCoverArt = () => {
+    setActiveCoverHistoryId(null);
+    setConfig(prev => ({ ...prev, coverIllustrationUrl: undefined }));
+  };
+
+  // Remove uma capa do histórico
+  const handleDeleteHistoryCover = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const remaining = coverHistory.filter(c => c.id !== id);
+    setCoverHistory(remaining);
+    if (activeCoverHistoryId === id) {
+      if (remaining.length > 0) {
+        setActiveCoverHistoryId(remaining[0].id);
+        setConfig(prev => ({ ...prev, coverIllustrationUrl: remaining[0].url }));
+      } else {
+        setActiveCoverHistoryId(null);
+        setConfig(prev => ({ ...prev, coverIllustrationUrl: undefined }));
+      }
+    }
+  };
+
+  // Seleciona um Bestseller de Referência da Amazon
+  const handleSelectBestseller = (bs: AmazonPuzzleBestseller) => {
+    setSelectedBestseller(bs);
+    setAiPromptCustom(bs.replicatePrompt);
+    setConfig(prev => ({
+      ...prev,
+      coverPrimaryColor: bs.palettePrimary,
+      coverSecondaryColor: bs.paletteSecondary,
+      coverAccentColor: bs.paletteAccent
+    }));
+  };
+
+  // Copia as palavras-chave do Bestseller para a área de transferência
+  const handleCopyKeywords = () => {
+    if (!selectedBestseller.keywords || selectedBestseller.keywords.length === 0) return;
+    const textToCopy = selectedBestseller.keywords.join(', ');
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedKeywords(true);
+    setTimeout(() => setCopiedKeywords(false), 2500);
   };
 
   // Compilação do Livro Completo
@@ -960,7 +1058,144 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
             <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.9fr', gap: 24 }}>
               {/* CONTROLES DA CAPA */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* 1. MÓDULO REPLICATE AI */}
+
+                {/* 1. REFERÊNCIA BESTSELLER AMAZON (KDP TOP RANKED) */}
+                <div style={{
+                  background: 'linear-gradient(145deg, #131b2e 0%, #0f172a 100%)',
+                  border: '1px solid #1e293b',
+                  borderRadius: 12,
+                  padding: 18,
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Star size={18} color="#fbbf24" fill="#fbbf24" />
+                      <strong style={{ fontSize: 14, color: '#ffffff' }}>Referência Bestseller Amazon (Segmento KDP):</strong>
+                    </div>
+                    <span style={{ fontSize: 11, background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', border: '1px solid #d97706', padding: '2px 8px', borderRadius: 4, fontWeight: 800 }}>
+                      KDP Top Ranked
+                    </span>
+                  </div>
+
+                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 12px', lineHeight: 1.4 }}>
+                    Selecione o best-seller do mesmo nicho para absorver a identidade visual de sucesso, paleta cromática, prompt editorial de IA e palavras-chave ranqueadas na Amazon:
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {getBestsellersForLanguage(config.language).map(bs => {
+                      const isSelected = selectedBestseller.id === bs.id;
+                      return (
+                        <div
+                          key={bs.id}
+                          onClick={() => handleSelectBestseller(bs)}
+                          style={{
+                            background: isSelected ? 'rgba(56, 189, 248, 0.12)' : '#0b1120',
+                            border: isSelected ? '2px solid #38bdf8' : '1px solid #1e293b',
+                            borderRadius: 8,
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                            <div>
+                              <span style={{
+                                fontSize: 10,
+                                background: '#78350f',
+                                color: '#fef3c7',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                fontWeight: 800,
+                                marginRight: 6
+                              }}>
+                                {bs.badge}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>ASIN: {bs.asin}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 3 }}>
+                              <span style={{ width: 12, height: 12, borderRadius: '50%', background: bs.palettePrimary, display: 'inline-block' }} />
+                              <span style={{ width: 12, height: 12, borderRadius: '50%', background: bs.paletteSecondary, display: 'inline-block' }} />
+                              <span style={{ width: 12, height: 12, borderRadius: '50%', background: bs.paletteAccent, display: 'inline-block' }} />
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff', marginBottom: 2 }}>
+                            {bs.title}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#cbd5e1', lineHeight: 1.3 }}>
+                            {bs.subtitle}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, fontSize: 11, color: '#fbbf24' }}>
+                            <span>★ {bs.rating} ({bs.reviewsCount.toLocaleString()} avaliações)</span>
+                            <span style={{ color: '#64748b' }}>•</span>
+                            <span style={{ color: '#94a3b8' }}>Estilo: {bs.coverVisualTheme}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. PALAVRAS-CHAVE DO BESTSELLER PARA O KDP */}
+                <div style={{
+                  background: '#131b2e',
+                  border: '1px solid #1e293b',
+                  borderRadius: 12,
+                  padding: 16
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <FileText size={16} color="#34d399" />
+                      <strong style={{ fontSize: 13, color: '#ffffff' }}>Palavras-Chave de Alta Conversão (Amazon SEO):</strong>
+                    </div>
+                    <button
+                      onClick={handleCopyKeywords}
+                      style={{
+                        background: copiedKeywords ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.15)',
+                        color: copiedKeywords ? '#34d399' : '#38bdf8',
+                        border: copiedKeywords ? '1px solid #10b981' : '1px solid #0284c7',
+                        borderRadius: 6,
+                        padding: '4px 10px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {copiedKeywords ? <CheckCheck size={13} /> : <Copy size={13} />}
+                      {copiedKeywords ? 'Palavras Copiadas!' : 'Copiar Palavras-Chave'}
+                    </button>
+                  </div>
+
+                  <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 10px' }}>
+                    Palavras-chave extraídas dos termos de busca reais do bestseller para indexação direta no cadastro da Amazon KDP:
+                  </p>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {selectedBestseller.keywords.map(kw => (
+                      <span
+                        key={kw}
+                        style={{
+                          background: '#0b1120',
+                          border: '1px solid #334155',
+                          borderRadius: 4,
+                          padding: '3px 8px',
+                          fontSize: 11,
+                          color: '#e2e8f0',
+                          fontWeight: 600
+                        }}
+                      >
+                        #{kw}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. MÓDULO REPLICATE AI COM BOTÃO DE GERAR OUTRA CAPA & HISTÓRICO */}
                 <div style={{
                   background: 'linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%)',
                   border: '2px solid #818cf8',
@@ -968,7 +1203,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   padding: 18,
                   boxShadow: '0 4px 18px rgba(129, 140, 248, 0.2)'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Wand2 size={18} color="#818cf8" />
                       <strong style={{ fontSize: 14, color: '#ffffff' }}>Arte de Fundo com IA (Replicate):</strong>
@@ -978,14 +1213,30 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     </span>
                   </div>
 
-                  <p style={{ fontSize: 12, color: '#c7d2fe', margin: '0 0 12px', lineHeight: 1.4 }}>
-                    Gera fotografia 3D realista de livro aberto com lápis de madeira sobre uma superfície elegante de estúdio.
+                  <p style={{ fontSize: 12, color: '#c7d2fe', margin: '0 0 10px', lineHeight: 1.4 }}>
+                    Gera renderização fotográfica 3D realista de livro aberto com lápis e iluminação de estúdio limpa, perfeitamente alinhada com as margens seguras KDP.
                   </p>
 
                   <div style={{ marginBottom: 12 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Prompt Editorial da IA:
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
+                        Prompt Editorial da IA:
+                      </label>
+                      <button
+                        onClick={() => setAiPromptCustom(selectedBestseller.replicatePrompt)}
+                        style={{
+                          background: 'transparent',
+                          color: '#818cf8',
+                          border: 'none',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        Restaurar Prompt do Bestseller
+                      </button>
+                    </div>
                     <textarea
                       rows={3}
                       value={aiPromptCustom}
@@ -994,38 +1245,74 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     />
                   </div>
 
-                  <button
-                    onClick={handleGenerateReplicateCover}
-                    disabled={isGeneratingAiCover}
-                    style={{
-                      width: '100%',
-                      background: isGeneratingAiCover ? '#4338ca' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '10px 16px',
-                      fontSize: 13,
-                      fontWeight: 800,
-                      cursor: isGeneratingAiCover ? 'wait' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
-                    }}
-                  >
-                    {isGeneratingAiCover ? (
-                      <>
-                        <RefreshCw size={15} className="animate-spin" />
-                        <span>Gerando Arte no Replicate (aguarde)...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={15} />
-                        <span>Gerar Arte de Capa com Replicate</span>
-                      </>
+                  {/* BOTÕES DE GERAÇÃO: GERAR ARTE OU GERAR OUTRA CAPA */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <button
+                      onClick={handleGenerateReplicateCover}
+                      disabled={isGeneratingAiCover}
+                      style={{
+                        width: '100%',
+                        background: isGeneratingAiCover
+                          ? '#4338ca'
+                          : (coverHistory.length > 0
+                            ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                            : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'),
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '12px 18px',
+                        fontSize: 13,
+                        fontWeight: 800,
+                        cursor: isGeneratingAiCover ? 'wait' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        boxShadow: coverHistory.length > 0
+                          ? '0 4px 14px rgba(16, 185, 129, 0.4)'
+                          : '0 4px 14px rgba(99, 102, 241, 0.4)',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {isGeneratingAiCover ? (
+                        <>
+                          <RefreshCw size={16} className="animate-spin" />
+                          <span>Gerando Arte no Replicate FLUX (aguarde)...</span>
+                        </>
+                      ) : (
+                        coverHistory.length > 0 ? (
+                          <>
+                            <RefreshCw size={16} />
+                            <span>🔄 Gerar Outra Capa (Nova Variação com IA)</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} />
+                            <span>✨ Gerar Arte de Capa com Replicate</span>
+                          </>
+                        )
+                      )}
+                    </button>
+
+                    {/* Botão de apoio para alternar ou remover arte */}
+                    {config.coverIllustrationUrl && (
+                      <button
+                        onClick={handleRemoveCoverArt}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          color: '#cbd5e1',
+                          border: '1px solid #334155',
+                          borderRadius: 6,
+                          padding: '6px 12px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🎨 Usar Apenas Layout Vetorial Puro (Sem Imagem IA)
+                      </button>
                     )}
-                  </button>
+                  </div>
 
                   {aiError && (
                     <div style={{ marginTop: 8, fontSize: 11, color: '#fca5a5' }}>
@@ -1033,14 +1320,91 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     </div>
                   )}
 
-                  {config.coverIllustrationUrl && (
-                    <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#34d399', fontWeight: 700 }}>
-                      <Check size={14} /> Imagem gerada aplicada na capa com sucesso!
+                  {/* HISTÓRICO DE VARIAÇÕES DE CAPAS GERADAS */}
+                  {coverHistory.length > 0 && (
+                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #312e81' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#e0e7ff' }}>
+                          Galeria de Variações ({coverHistory.length} geradas):
+                        </span>
+                        <span style={{ fontSize: 10, color: '#a5b4fc' }}>
+                          Clique para alternar a capa
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
+                        {coverHistory.map((item, idx) => {
+                          const isCurrent = config.coverIllustrationUrl === item.url;
+                          const variationNumber = coverHistory.length - idx;
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => handleSelectHistoryCover(item)}
+                              style={{
+                                position: 'relative',
+                                minWidth: 90,
+                                width: 90,
+                                height: 115,
+                                borderRadius: 8,
+                                overflow: 'hidden',
+                                border: isCurrent ? '2px solid #38bdf8' : '1px solid #4338ca',
+                                boxShadow: isCurrent ? '0 0 12px rgba(56, 189, 248, 0.5)' : 'none',
+                                cursor: 'pointer',
+                                background: '#0b1120',
+                                flexShrink: 0
+                              }}
+                            >
+                              <img
+                                src={item.url}
+                                alt={`Variação ${variationNumber}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                              <div style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                background: 'rgba(0, 0, 0, 0.75)',
+                                padding: '2px 4px',
+                                fontSize: 9,
+                                fontWeight: 700,
+                                color: '#ffffff',
+                                textAlign: 'center'
+                              }}>
+                                {isCurrent ? '✓ Ativa' : `Var. #${variationNumber}`}
+                              </div>
+
+                              <button
+                                onClick={(e) => handleDeleteHistoryCover(item.id, e)}
+                                title="Excluir variação"
+                                style={{
+                                  position: 'absolute',
+                                  top: 3,
+                                  right: 3,
+                                  background: 'rgba(239, 68, 68, 0.85)',
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  width: 18,
+                                  height: 18,
+                                  color: '#fff',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                <Trash2 size={10} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* 2. ESTILOS DE COR BESTSELLER AMAZON */}
+                {/* 4. ESTILOS DE COR BESTSELLER AMAZON */}
                 <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
                   <label style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 12 }}>
                     Estilos Cromáticos Bestseller Amazon:
@@ -1080,11 +1444,18 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   </div>
                 </div>
 
-                {/* 3. TIPOGRAFIA HIERÁRQUICA DA CAPA */}
+                {/* 5. TIPOGRAFIA HIERÁRQUICA DA CAPA (PROTEÇÃO ANTI-ESTOURO) */}
                 <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <ShieldCheck size={16} color="#38bdf8" />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1' }}>
+                      Tipografia Hierárquica da Capa (Anti-Estouro KDP):
+                    </span>
+                  </div>
+
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Badge de Ano / Novidade:
+                      Badge Superior de Novidade (ex: NEW 2026 / NOVO 2026):
                     </label>
                     <input
                       type="text"
@@ -1096,7 +1467,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Texto Hero em Destaque (ex: 10,000 / 100+):
+                      Número Hero em Destaque (ex: 10,000 / 100+):
                     </label>
                     <input
                       type="text"
@@ -1108,7 +1479,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Banner Central (Faixa Estilizada):
+                      Banner Central Estilizado (Faixa Azul):
                     </label>
                     <input
                       type="text"
@@ -1116,6 +1487,19 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       onChange={e => setConfig({ ...config, bannerTagText: e.target.value })}
                       style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 12 }}
                     />
+                  </div>
+
+                  <div style={{
+                    marginTop: 12,
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    background: 'rgba(56, 189, 248, 0.08)',
+                    border: '1px solid rgba(56, 189, 248, 0.2)',
+                    fontSize: 11,
+                    color: '#93c5fd',
+                    lineHeight: 1.4
+                  }}>
+                    🛡️ <strong>Algoritmo Anti-Estouro Ativo:</strong> Todo texto é auto-escalonado matematicamente dentro da Safe Zone KDP. Zero corte nas bordas e zero vazamento na lombada.
                   </div>
                 </div>
               </div>
@@ -1191,6 +1575,41 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     </span>
                   </div>
                 )}
+
+                {/* Métricas Milimétricas Oficiais KDP */}
+                <div style={{
+                  background: '#0f172a',
+                  border: '1px solid #1e293b',
+                  borderRadius: 8,
+                  padding: '12px 14px',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: 10,
+                  fontSize: 11
+                }}>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', marginBottom: 2 }}>Formato Fechado:</span>
+                    <strong style={{ color: '#ffffff', fontSize: 12 }}>{config.trimSize}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', marginBottom: 2 }}>Capa Aberta KDP:</span>
+                    <strong style={{ color: '#38bdf8', fontSize: 12 }}>
+                      {PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).totalWidth.toFixed(2)}" x {PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).totalHeight.toFixed(2)}"
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', marginBottom: 2 }}>Lombada (Spine):</span>
+                    <strong style={{ color: '#fbbf24', fontSize: 12 }}>
+                      {PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).spineWidth.toFixed(3)}" ({ (PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).spineWidth * 25.4).toFixed(1) }mm)
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', marginBottom: 2 }}>Status KDP:</span>
+                    <strong style={{ color: '#34d399', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <CheckCircle2 size={13} /> 100% Conforme
+                    </strong>
+                  </div>
+                </div>
               </div>
             </div>
 

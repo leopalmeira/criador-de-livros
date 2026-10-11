@@ -75,19 +75,16 @@ export class PuzzleCoverBuilder {
     const trim = TRIM_DIMENSIONS[config.trimSize];
     const trimWidth = trim.widthInches;
     const trimHeight = trim.heightInches;
-    const bleed = 0.125; // 0.125 polegadas de sangria padrão KDP
+    const bleed = 0.125; // 0.125" sangria padrão KDP
 
-    // Multiplicador de espessura de página KDP
     const spineMultiplier = config.paperColor === 'cream' ? 0.0025 : 0.002252;
     const spineWidth = Math.max(0.06, pageCount * spineMultiplier);
 
     const totalWidth = bleed + trimWidth + spineWidth + trimWidth + bleed;
     const totalHeight = bleed + trimHeight + bleed;
 
-    // Regra oficial KDP: texto na lombada apenas se >= 79 páginas
     const hasSpineText = pageCount >= 79;
 
-    // Código de barras: 2" x 1.2" na contracapa (lado esquerdo)
     const barcodeWidth = 2.0;
     const barcodeHeight = 1.2;
     const backCoverRight = bleed + trimWidth;
@@ -113,13 +110,21 @@ export class PuzzleCoverBuilder {
   }
 
   /**
-   * Desenha a capa completa em um HTMLCanvasElement com estética Amazon Bestseller 3D
+   * Desenha a capa completa em um HTMLCanvasElement com auto-fit rigoroso
+   * Garantia total anti-estouro: nenhum texto ultrapassa as margens de segurança KDP!
+   */
+  private static imageCache = new Map<string, HTMLImageElement>();
+
+  /**
+   * Desenha a capa completa em um HTMLCanvasElement com auto-fit rigoroso
+   * Garantia total anti-estouro: nenhum texto ultrapassa as margens de segurança KDP!
    */
   public static renderCoverToCanvas(
     canvas: HTMLCanvasElement,
     config: PuzzleBookConfig,
     specs: KdpCoverSpecs,
-    showGuides = false
+    showGuides = false,
+    onImageLoaded?: () => void
   ): void {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -142,45 +147,68 @@ export class PuzzleCoverBuilder {
     const frontCoverX = spineX + spineWPx;
     const contentTop = bleedPx;
 
+    // MARGEM DE SEGURANÇA KDP: 0.375" (56px) para dentro das bordas
+    const safeMarginPx = toPx(0.375);
+    const safeContentWidth = trimWPx - 2 * safeMarginPx;
+
     const lang = config.language || 'pt';
     const i18n = I18N_COVER[lang] || I18N_COVER.pt;
 
     // -------------------------------------------------------------
-    // 1. FUNDO GERAL COM ILUMINAÇÃO EDITORIAL
+    // 1. FUNDO GERAL COM GRADIENTE EDITORIAL
     // -------------------------------------------------------------
-    const primaryColor = config.coverPrimaryColor || '#7f1d1d'; // Tom padrão carmim bestseller
-    const secondaryColor = config.coverSecondaryColor || '#991b1b';
+    const primaryColor = config.coverPrimaryColor || '#5f1212';
+    const secondaryColor = config.coverSecondaryColor || '#7f1d1d';
 
     const bgGrad = ctx.createLinearGradient(0, 0, w, h);
     bgGrad.addColorStop(0, primaryColor);
     bgGrad.addColorStop(0.5, secondaryColor);
-    bgGrad.addColorStop(1, '#450a0a');
+    bgGrad.addColorStop(1, '#3b0a0a');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // Efeito de vinheta e iluminação suave no topo
-    const radGlow = ctx.createRadialGradient(frontCoverX + trimWPx / 2, contentTop + toPx(3), 10, frontCoverX + trimWPx / 2, contentTop + toPx(3), trimWPx);
-    radGlow.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
-    radGlow.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+    // Efeito de vinheta suave
+    const radGlow = ctx.createRadialGradient(
+      frontCoverX + trimWPx / 2,
+      contentTop + toPx(3),
+      10,
+      frontCoverX + trimWPx / 2,
+      contentTop + toPx(3),
+      trimWPx
+    );
+    radGlow.addColorStop(0, 'rgba(255, 255, 255, 0.10)');
+    radGlow.addColorStop(1, 'rgba(0, 0, 0, 0.40)');
     ctx.fillStyle = radGlow;
     ctx.fillRect(0, 0, w, h);
 
-    // Se houver imagem gerada pelo Replicate, desenha na metade inferior
+    // Se houver imagem gerada pelo Replicate, desenha com carregamento seguro e crossOrigin
     if (config.coverIllustrationUrl) {
       try {
-        const img = new Image();
-        img.src = config.coverIllustrationUrl;
-        if (img.complete && img.naturalWidth > 0) {
-          const imgH = trimWPx * 1.1;
-          const imgY = h - bleedPx - imgH;
-          ctx.drawImage(img, frontCoverX, imgY, trimWPx, imgH);
+        let img = this.imageCache.get(config.coverIllustrationUrl);
+        if (!img) {
+          img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = config.coverIllustrationUrl;
+          this.imageCache.set(config.coverIllustrationUrl, img);
+          img.onload = () => {
+            if (onImageLoaded) onImageLoaded();
+          };
+        }
 
-          // Gradiente de transição suave sobre a imagem
-          const fadeGrad = ctx.createLinearGradient(0, imgY, 0, imgY + toPx(1.5));
-          fadeGrad.addColorStop(0, primaryColor);
-          fadeGrad.addColorStop(1, 'transparent');
-          ctx.fillStyle = fadeGrad;
-          ctx.fillRect(frontCoverX, imgY, trimWPx, toPx(1.5));
+        if (img.complete && img.naturalWidth > 0) {
+          const imgH = trimWPx * 0.92;
+          const imgY = h - bleedPx - imgH - toPx(0.35);
+          const imgX = frontCoverX + safeMarginPx + toPx(0.1);
+          const imgW = safeContentWidth - toPx(0.2);
+
+          ctx.save();
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+          ctx.shadowBlur = 18;
+          ctx.shadowOffsetY = 8;
+          this.roundRect(ctx, imgX, imgY, imgW, imgH, toPx(0.12));
+          ctx.clip();
+          ctx.drawImage(img, imgX, imgY, imgW, imgH);
+          ctx.restore();
         }
       } catch (err) {
         console.warn('Erro ao desenhar imagem do Replicate no canvas:', err);
@@ -188,24 +216,23 @@ export class PuzzleCoverBuilder {
     }
 
     // -------------------------------------------------------------
-    // 2. CAPA FRONTAL (LADO DIREITO) - ESTILO BESTSELLER AMAZON
+    // 2. CAPA FRONTAL (LADO DIREITO) - TEXTO RIGOROSAMENTE SEM ESTOURO
     // -------------------------------------------------------------
     const frontCenterX = frontCoverX + trimWPx / 2;
 
-    // A) BADGE SUPERIOR ESTILIZADO ("NEW 2026 / NOVO 2026")
+    // A) BADGE SUPERIOR ESTILIZADO ("NEW 2026 | WORD SEARCH & SUDOKU")
     const yearText = config.yearBadge || i18n.yearBadge;
     const catText = i18n.categoryTag;
 
-    const topBadgeW = Math.min(trimWPx - toPx(1.4), toPx(5.2));
-    const topBadgeH = toPx(0.85);
-    const topBadgeY = contentTop + toPx(0.65);
+    const topBadgeW = Math.min(safeContentWidth - toPx(0.4), toPx(5.4));
+    const topBadgeH = toPx(0.72);
+    const topBadgeY = contentTop + safeMarginPx + toPx(0.2);
     const topBadgeX = frontCenterX - topBadgeW / 2;
 
-    // Fundo do badge superior (azul marinho profundo / roxo meia-noite)
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 4;
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 3;
     ctx.fillStyle = '#1e1b4b';
     this.roundRect(ctx, topBadgeX, topBadgeY, topBadgeW, topBadgeH, toPx(0.12));
     ctx.fill();
@@ -216,68 +243,104 @@ export class PuzzleCoverBuilder {
 
     // Ano em destaque (esquerda do badge)
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${Math.round(toPx(0.34))}px sans-serif`;
+    ctx.font = `900 ${Math.round(toPx(0.28))}px sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(yearText, topBadgeX + toPx(0.25), topBadgeY + topBadgeH / 2);
+    ctx.fillText(yearText, topBadgeX + toPx(0.22), topBadgeY + topBadgeH / 2);
 
-    // Divisor vertical sutil
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    // Divisor vertical
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(topBadgeX + toPx(2.0), topBadgeY + toPx(0.15));
-    ctx.lineTo(topBadgeX + toPx(2.0), topBadgeY + topBadgeH - toPx(0.15));
+    ctx.moveTo(topBadgeX + toPx(1.85), topBadgeY + toPx(0.12));
+    ctx.lineTo(topBadgeX + toPx(1.85), topBadgeY + topBadgeH - toPx(0.12));
     ctx.stroke();
 
-    // Categoria do puzzle (direita do badge)
+    // Categoria auto-ajustada dentro do espaço restante do badge
     ctx.fillStyle = '#fde68a';
-    ctx.font = `800 ${Math.round(toPx(0.18))}px sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.fillText(catText, topBadgeX + toPx(2.2), topBadgeY + topBadgeH / 2);
+    this.drawAutoFitText(
+      ctx,
+      catText,
+      topBadgeX + toPx(2.0),
+      topBadgeY + topBadgeH / 2,
+      topBadgeW - toPx(2.2),
+      Math.round(toPx(0.18)),
+      Math.round(toPx(0.11)),
+      '800',
+      'left',
+      'middle'
+    );
 
-    // B) TEXTO HERO GIGANTE EM DESTAQUE ("10 000 / 100+ DESAFIOS")
-    const heroNum = config.heroCountText || i18n.heroNumber;
-    const heroTxt = i18n.heroText;
+    // B) TEXTO HERO EM DESTAQUE COM AUTO-FIT TOTALMENTE SEGURO
+    // Extrai número e sufixo para evitar duplicações como "10,000 UNIQUE WORDS" seguido de "UNIQUE WORDS"
+    const rawHero = (config.heroCountText || i18n.heroNumber).trim();
+    let displayHeroNum = rawHero;
+    let displayHeroTxt = i18n.heroText;
 
-    const heroY = topBadgeY + topBadgeH + toPx(0.5);
+    // Se o usuário digitou número + palavras no campo heroCountText (ex: "10,000 UNIQUE WORDS" ou "100+ DESAFIOS")
+    const matchHeroSplit = rawHero.match(/^([0-9.,+]+)\s*(.*)$/i);
+    if (matchHeroSplit && matchHeroSplit[2]) {
+      displayHeroNum = matchHeroSplit[1].trim();
+      displayHeroTxt = matchHeroSplit[2].trim();
+    } else if (rawHero.toUpperCase().includes(i18n.heroText.toUpperCase())) {
+      displayHeroNum = rawHero.replace(new RegExp(i18n.heroText, 'gi'), '').trim() || i18n.heroNumber;
+      displayHeroTxt = i18n.heroText;
+    }
 
-    // Número gigante branco com sombra 3D profunda
+    const heroY = topBadgeY + topBadgeH + toPx(0.35);
+
+    // 1. Número Hero (Branco com sombra 3D, restrito a safeContentWidth)
     ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetY = 6;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 5;
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${Math.round(toPx(0.92))}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(heroNum, frontCenterX, heroY);
+    const usedHeroNumSize = this.drawAutoFitText(
+      ctx,
+      displayHeroNum,
+      frontCenterX,
+      heroY,
+      safeContentWidth - toPx(0.3), // Espaço com folga segura
+      Math.round(toPx(0.75)),       // Tamanho inicial proporcional seguro
+      Math.round(toPx(0.30)),       // Mínimo seguro
+      '900',
+      'center',
+      'top'
+    );
     ctx.restore();
 
-    // Texto hero secundário em amarelo ouro vibrante
-    const heroTxtY = heroY + toPx(0.95);
+    // 2. Texto Hero Secundário (Amarelo Dourado com sombra 3D)
+    const heroTxtY = heroY + usedHeroNumSize + toPx(0.08);
     ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 4;
     ctx.fillStyle = '#fbbf24';
-    ctx.font = `900 ${Math.round(toPx(0.48))}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(heroTxt, frontCenterX, heroTxtY);
+    const usedHeroTxtSize = this.drawAutoFitText(
+      ctx,
+      displayHeroTxt,
+      frontCenterX,
+      heroTxtY,
+      safeContentWidth - toPx(0.3),
+      Math.round(toPx(0.38)),
+      Math.round(toPx(0.18)),
+      '900',
+      'center',
+      'top'
+    );
     ctx.restore();
 
-    // C) BANNER / FITA ESTILIZADA ("ENDLESS THEMES TO EXPLORE")
+    // C) BANNER / FITA ESTILIZADA (ENDLESS THEMES TO EXPLORE)
     const bannerText = config.bannerTagText || i18n.bannerTag;
-    const bannerW = Math.min(trimWPx - toPx(1.2), toPx(5.6));
-    const bannerH = toPx(0.48);
-    const bannerY = heroTxtY + toPx(0.65);
+    const bannerW = Math.min(safeContentWidth - toPx(0.2), toPx(5.4));
+    const bannerH = toPx(0.44);
+    const bannerY = heroTxtY + usedHeroTxtSize + toPx(0.20);
     const bannerX = frontCenterX - bannerW / 2;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 3;
-    // Gradiente da faixa azul escuro
     const bannerGrad = ctx.createLinearGradient(bannerX, 0, bannerX + bannerW, 0);
     bannerGrad.addColorStop(0, '#1e3a8a');
     bannerGrad.addColorStop(0.5, '#2563eb');
@@ -291,53 +354,77 @@ export class PuzzleCoverBuilder {
     ctx.restore();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `800 ${Math.round(toPx(0.18))}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(bannerText, frontCenterX, bannerY + bannerH / 2);
+    this.drawAutoFitText(
+      ctx,
+      bannerText,
+      frontCenterX,
+      bannerY + bannerH / 2,
+      bannerW - toPx(0.4),
+      Math.round(toPx(0.17)),
+      Math.round(toPx(0.11)),
+      '800',
+      'center',
+      'middle'
+    );
 
-    // D) METADE INFERIOR: RENDER DO LIVRO ABERTO 3D (SE NÃO HOUVER IMAGEM DO REPLICATE)
-    const bookY = bannerY + bannerH + toPx(0.5);
+    // D) METADE INFERIOR: LIVRO ABERTO REALISTA (SE NÃO HOUVER ARTE REPLICATE)
+    const bookY = bannerY + bannerH + toPx(0.35);
     if (!config.coverIllustrationUrl) {
-      this.drawRealisticOpenBookGraphic(ctx, frontCenterX, bookY, trimWPx - toPx(1.6), toPx(2.8));
+      this.drawCleanOpenBookSpread(ctx, frontCenterX, bookY, safeContentWidth - toPx(0.6), toPx(2.5));
     }
 
     // E) PÍLULA DE DESTAQUE: "LARGE PRINT / LETRAS GRANDES"
     const pillText = i18n.largePrint;
-    const pillW = toPx(2.4);
-    const pillH = toPx(0.46);
-    const pillY = bookY + toPx(2.3);
+    const pillW = Math.min(safeContentWidth * 0.55, toPx(2.5));
+    const pillH = toPx(0.42);
+    const pillY = bookY + toPx(2.1);
     const pillX = frontCenterX - pillW / 2;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 4;
     ctx.fillStyle = '#1e1b4b';
-    this.roundRect(ctx, pillX, pillY, pillW, pillH, toPx(0.23));
+    this.roundRect(ctx, pillX, pillY, pillW, pillH, toPx(0.21));
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.restore();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${Math.round(toPx(0.20))}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(pillText, frontCenterX, pillY + pillH / 2);
+    this.drawAutoFitText(
+      ctx,
+      pillText,
+      frontCenterX,
+      pillY + pillH / 2,
+      pillW - toPx(0.3),
+      Math.round(toPx(0.18)),
+      Math.round(toPx(0.11)),
+      '900',
+      'center',
+      'middle'
+    );
 
     // F) CRÉDITO DE AUTOR NO RODAPÉ
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.round(toPx(0.20))}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(`${i18n.byAuthor} ${config.author || 'Author'}`, frontCenterX, h - bleedPx - toPx(0.4));
+    const authorLine = `${i18n.byAuthor} ${config.author || 'Author'}`;
+    this.drawAutoFitText(
+      ctx,
+      authorLine,
+      frontCenterX,
+      h - bleedPx - safeMarginPx,
+      safeContentWidth,
+      Math.round(toPx(0.19)),
+      Math.round(toPx(0.12)),
+      'bold',
+      'center',
+      'bottom'
+    );
 
     // -------------------------------------------------------------
-    // 3. LOMBADA (SPINE) COM EFEITO DE DOBRA 3D
+    // 3. LOMBADA (SPINE) COM RELEVO E TEXTO VERTICAL SE >= 79 PÁGINAS
     // -------------------------------------------------------------
-    // Sombra das dobras da lombada
     const spineGrad = ctx.createLinearGradient(spineX, 0, spineX + spineWPx, 0);
     spineGrad.addColorStop(0, 'rgba(0, 0, 0, 0.45)');
     spineGrad.addColorStop(0.2, 'rgba(0, 0, 0, 0.1)');
@@ -351,60 +438,111 @@ export class PuzzleCoverBuilder {
       ctx.translate(spineX + spineWPx / 2, h / 2);
       ctx.rotate(Math.PI / 2);
       ctx.fillStyle = '#ffffff';
-      ctx.font = `bold ${Math.min(spineWPx * 0.55, toPx(0.22))}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       const spineText = `${config.title.toUpperCase()}  •  ${(config.author || '').toUpperCase()}`;
-      ctx.fillText(spineText, 0, 0);
+      const spineMaxW = h - 2 * bleedPx - 2 * safeMarginPx;
+      this.drawAutoFitText(
+        ctx,
+        spineText,
+        0,
+        0,
+        spineMaxW,
+        Math.min(spineWPx * 0.55, toPx(0.20)),
+        Math.min(spineWPx * 0.35, toPx(0.10)),
+        'bold',
+        'center',
+        'middle'
+      );
       ctx.restore();
     }
 
     // -------------------------------------------------------------
-    // 4. CONTRACAPA (LADO ESQUERDO) - PADRÃO BESTSELLER DA REFERÊNCIA
+    // 4. CONTRACAPA (LADO ESQUERDO) - 100% CONTIDA NA SAFE ZONE
     // -------------------------------------------------------------
     const backCenterX = backCoverX + trimWPx / 2;
 
     // A) Cabeçalho da Contracapa
     ctx.fillStyle = '#fbbf24';
-    ctx.font = `900 ${Math.round(toPx(0.36))}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(i18n.backTitle, backCenterX, contentTop + toPx(0.8));
+    const backTitleY = contentTop + safeMarginPx;
+    this.drawAutoFitText(
+      ctx,
+      i18n.backTitle,
+      backCenterX,
+      backTitleY,
+      safeContentWidth - toPx(0.2),
+      Math.round(toPx(0.34)),
+      Math.round(toPx(0.18)),
+      '900',
+      'center',
+      'top'
+    );
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `700 ${Math.round(toPx(0.22))}px sans-serif`;
-    ctx.fillText(i18n.backSubtitle, backCenterX, contentTop + toPx(1.3));
+    const backSubY = backTitleY + toPx(0.42);
+    this.drawAutoFitText(
+      ctx,
+      i18n.backSubtitle,
+      backCenterX,
+      backSubY,
+      safeContentWidth - toPx(0.2),
+      Math.round(toPx(0.21)),
+      Math.round(toPx(0.13)),
+      '700',
+      'center',
+      'top'
+    );
 
-    // Pílula central na contracapa ("LARGE PRINT")
-    const backPillW = toPx(2.2);
-    const backPillH = toPx(0.36);
-    const backPillY = contentTop + toPx(1.75);
+    // Pílula Central ("LARGE PRINT")
+    const backPillW = Math.min(safeContentWidth * 0.5, toPx(2.2));
+    const backPillH = toPx(0.34);
+    const backPillY = backSubY + toPx(0.36);
     const backPillX = backCenterX - backPillW / 2;
 
     ctx.fillStyle = '#1e3a8a';
-    this.roundRect(ctx, backPillX, backPillY, backPillW, backPillH, toPx(0.18));
+    this.roundRect(ctx, backPillX, backPillY, backPillW, backPillH, toPx(0.17));
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${Math.round(toPx(0.16))}px sans-serif`;
-    ctx.textBaseline = 'middle';
-    ctx.fillText(i18n.largePrint, backCenterX, backPillY + backPillH / 2);
+    this.drawAutoFitText(
+      ctx,
+      i18n.largePrint,
+      backCenterX,
+      backPillY + backPillH / 2,
+      backPillW - toPx(0.2),
+      Math.round(toPx(0.15)),
+      Math.round(toPx(0.10)),
+      '900',
+      'center',
+      'middle'
+    );
 
-    // Texto de Destaque
+    // Linha de Destaque Sem Estouro (quebrada em 2 linhas se necessário)
     ctx.fillStyle = '#ffffff';
-    ctx.font = `800 ${Math.round(toPx(0.22))}px sans-serif`;
-    ctx.fillText(`${i18n.heroNumber} ${i18n.heroText} • ${i18n.bannerTag}`, backCenterX, backPillY + backPillH + toPx(0.25));
+    const subHighlightY = backPillY + backPillH + toPx(0.18);
+    const highlightText = `${i18n.heroNumber} ${i18n.heroText} • ${i18n.bannerTag}`;
+    this.drawAutoFitText(
+      ctx,
+      highlightText,
+      backCenterX,
+      subHighlightY,
+      safeContentWidth - toPx(0.2),
+      Math.round(toPx(0.18)),
+      Math.round(toPx(0.12)),
+      '800',
+      'center',
+      'top'
+    );
 
     // B) 3 Caixas de Bônus / Destaques com Moldura Elegante
-    const bonusW = (trimWPx - toPx(1.8)) / 3;
-    const bonusH = toPx(1.2);
-    const bonusY = backPillY + backPillH + toPx(0.55);
+    const bonusGap = toPx(0.12);
+    const bonusW = (safeContentWidth - 2 * bonusGap) / 3;
+    const bonusH = toPx(1.05);
+    const bonusY = subHighlightY + toPx(0.42);
 
     i18n.bonusCards.forEach((b, idx) => {
-      const bx = backCoverX + toPx(0.9) + idx * (bonusW + toPx(0.15));
+      const bx = backCoverX + safeMarginPx + idx * (bonusW + bonusGap);
 
       ctx.fillStyle = '#ffffff';
       this.roundRect(ctx, bx, bonusY, bonusW, bonusH, toPx(0.08));
@@ -413,23 +551,48 @@ export class PuzzleCoverBuilder {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Mini grade representativa dentro da caixinha
+      // Topo do card
       ctx.fillStyle = '#0f172a';
-      ctx.fillRect(bx + toPx(0.15), bonusY + toPx(0.15), bonusW - toPx(0.3), toPx(0.5));
+      ctx.fillRect(bx + toPx(0.1), bonusY + toPx(0.1), bonusW - toPx(0.2), toPx(0.42));
 
       ctx.fillStyle = '#ffffff';
-      ctx.font = `bold ${Math.round(toPx(0.12))}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText(b.tag, bx + bonusW / 2, bonusY + toPx(0.4));
+      this.drawAutoFitText(
+        ctx,
+        b.tag,
+        bx + bonusW / 2,
+        bonusY + toPx(0.31),
+        bonusW - toPx(0.25),
+        Math.round(toPx(0.12)),
+        Math.round(toPx(0.08)),
+        'bold',
+        'center',
+        'middle'
+      );
 
-      // Texto do benefício
+      // Texto descritivo
       ctx.fillStyle = '#0f172a';
-      ctx.font = `bold ${Math.round(toPx(0.11))}px sans-serif`;
-      ctx.fillText(b.title, bx + bonusW / 2, bonusY + toPx(0.85));
+      this.drawAutoFitText(
+        ctx,
+        b.title,
+        bx + bonusW / 2,
+        bonusY + toPx(0.75),
+        bonusW - toPx(0.15),
+        Math.round(toPx(0.11)),
+        Math.round(toPx(0.08)),
+        'bold',
+        'center',
+        'middle'
+      );
     });
 
-    // C) Ilustração do Livro Aberto com Miolo na Base da Contracapa
-    this.drawOpenBookPagesSpread(ctx, backCenterX, bonusY + bonusH + toPx(0.3), trimWPx - toPx(1.8), toPx(2.2));
+    // C) Ilustração Limpa das Páginas Abertas
+    this.drawCleanOpenBookSpread(
+      ctx,
+      backCenterX,
+      bonusY + bonusH + toPx(0.25),
+      safeContentWidth - toPx(0.6),
+      toPx(2.0)
+    );
 
     // D) Reserva do Código de Barras KDP (2" x 1.2")
     const bcPx = {
@@ -446,12 +609,30 @@ export class PuzzleCoverBuilder {
     ctx.strokeRect(bcPx.x, bcPx.y, bcPx.w, bcPx.h);
 
     ctx.fillStyle = '#64748b';
-    ctx.font = `bold ${Math.round(toPx(0.11))}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(i18n.barcodeText, bcPx.x + bcPx.w / 2, bcPx.y + bcPx.h / 2 - toPx(0.1));
-    ctx.font = `normal ${Math.round(toPx(0.09))}px sans-serif`;
-    ctx.fillText('(Amazon KDP Barcode)', bcPx.x + bcPx.w / 2, bcPx.y + bcPx.h / 2 + toPx(0.15));
+    this.drawAutoFitText(
+      ctx,
+      i18n.barcodeText,
+      bcPx.x + bcPx.w / 2,
+      bcPx.y + bcPx.h / 2 - toPx(0.1),
+      bcPx.w - 10,
+      Math.round(toPx(0.11)),
+      Math.round(toPx(0.08)),
+      'bold',
+      'center',
+      'middle'
+    );
+    this.drawAutoFitText(
+      ctx,
+      '(Amazon KDP Barcode)',
+      bcPx.x + bcPx.w / 2,
+      bcPx.y + bcPx.h / 2 + toPx(0.14),
+      bcPx.w - 10,
+      Math.round(toPx(0.09)),
+      Math.round(toPx(0.07)),
+      'normal',
+      'center',
+      'middle'
+    );
 
     // -------------------------------------------------------------
     // 5. LINHAS GUIA KDP (OPCIONAL)
@@ -463,6 +644,22 @@ export class PuzzleCoverBuilder {
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 2;
       ctx.strokeRect(bleedPx, bleedPx, w - 2 * bleedPx, h - 2 * bleedPx);
+
+      // Margem Segura (Safe Zone KDP)
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(
+        frontCoverX + safeMarginPx,
+        contentTop + safeMarginPx,
+        safeContentWidth,
+        h - 2 * bleedPx - 2 * safeMarginPx
+      );
+      ctx.strokeRect(
+        backCoverX + safeMarginPx,
+        contentTop + safeMarginPx,
+        safeContentWidth,
+        h - 2 * bleedPx - 2 * safeMarginPx
+      );
 
       // Dobras da lombada
       ctx.strokeStyle = '#38bdf8';
@@ -482,100 +679,63 @@ export class PuzzleCoverBuilder {
   }
 
   /**
-   * Desenha uma renderização vetorial 3D de livro aberto com páginas e lápis de madeira
+   * Função utilitária anti-estouro: ajusta dinamicamente a fonte até que caiba rigorosamente na largura máxima sem cortar
    */
-  private static drawRealisticOpenBookGraphic(
+  private static drawAutoFitText(
     ctx: CanvasRenderingContext2D,
-    centerX: number,
-    topY: number,
-    width: number,
-    height: number
-  ): void {
-    ctx.save();
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    idealFontSize: number,
+    minFontSize: number = 8,
+    fontWeight: string = 'bold',
+    textAlign: CanvasTextAlign = 'center',
+    textBaseline: CanvasTextBaseline = 'middle',
+    fontFamily: string = 'Impact, "Montserrat", "Arial Black", sans-serif'
+  ): number {
+    ctx.textAlign = textAlign;
+    ctx.textBaseline = textBaseline;
 
-    // Sombra do livro
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-    ctx.shadowBlur = 24;
-    ctx.shadowOffsetY = 12;
+    let fontSize = idealFontSize;
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    let measuredWidth = ctx.measureText(text).width;
 
-    const bookW = width * 0.95;
-    const bookH = height * 0.85;
-    const bookX = centerX - bookW / 2;
-    const bookY = topY + 10;
-
-    // Páginas brancas do livro aberto (Folha Esquerda e Direita)
-    ctx.fillStyle = '#ffffff';
-    this.roundRect(ctx, bookX, bookY, bookW, bookH, 8);
-    ctx.fill();
-
-    // Vinco central da encadernação
-    const spineGrad = ctx.createLinearGradient(centerX - 15, 0, centerX + 15, 0);
-    spineGrad.addColorStop(0, 'rgba(0, 0, 0, 0.25)');
-    spineGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.05)');
-    spineGrad.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
-    ctx.fillStyle = spineGrad;
-    ctx.fillRect(centerX - 12, bookY, 24, bookH);
-
-    // Linhas simuladas de Caça-Palavras e Sudoku nas duas páginas
-    ctx.fillStyle = '#334155';
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1;
-
-    // Grade Página Esquerda (Sudoku / Caça-Palavras)
-    const p1X = bookX + 15;
-    const p1W = bookW / 2 - 30;
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        const dotX = p1X + c * (p1W / 8) + 4;
-        const dotY = bookY + 15 + r * (bookH / 9);
-        ctx.fillRect(dotX, dotY, 4, 4);
-      }
+    // Redução proporcional rápida e exata com folga de segurança de 3%
+    const targetWidth = maxWidth * 0.97;
+    if (measuredWidth > targetWidth && measuredWidth > 0) {
+      const scale = targetWidth / measuredWidth;
+      fontSize = Math.max(minFontSize, Math.floor(fontSize * scale));
+      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+      measuredWidth = ctx.measureText(text).width;
     }
 
-    // Grade Página Direita
-    const p2X = centerX + 15;
-    const p2W = bookW / 2 - 30;
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        const dotX = p2X + c * (p2W / 8) + 4;
-        const dotY = bookY + 15 + r * (bookH / 9);
-        ctx.fillRect(dotX, dotY, 4, 4);
-      }
+    // Loop fino caso o kerning ou fonte não linear precise de ajuste de 1px
+    while (measuredWidth > targetWidth && fontSize > minFontSize) {
+      fontSize -= 1;
+      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+      measuredWidth = ctx.measureText(text).width;
     }
 
-    // Desenho de 2 Lápis de Madeira com Grafite repousando sobre o livro
-    ctx.restore();
-    ctx.save();
+    // Garantia absoluta: se no minFontSize o texto ainda exceder maxWidth, comprime suavemente no eixo horizontal
+    if (measuredWidth > maxWidth && measuredWidth > 0) {
+      ctx.save();
+      const compressFactor = targetWidth / measuredWidth;
+      ctx.translate(x, y);
+      ctx.scale(compressFactor, 1);
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.fillText(text, x, y);
+    }
 
-    // Lápis 1 (Inclinado)
-    ctx.translate(centerX - 40, bookY + bookH / 2);
-    ctx.rotate(-0.35);
-
-    // Corpo de madeira
-    ctx.fillStyle = '#d97706';
-    ctx.fillRect(-60, -5, 120, 10);
-    // Ponta apontada
-    ctx.fillStyle = '#fde68a';
-    ctx.beginPath();
-    ctx.moveTo(60, -5);
-    ctx.lineTo(75, 0);
-    ctx.lineTo(60, 5);
-    ctx.fill();
-    // Grafite preto
-    ctx.fillStyle = '#1e293b';
-    ctx.beginPath();
-    ctx.moveTo(70, -2);
-    ctx.lineTo(75, 0);
-    ctx.lineTo(70, 2);
-    ctx.fill();
-
-    ctx.restore();
+    return fontSize;
   }
 
   /**
-   * Desenha a abertura dupla de páginas no verso da capa
+   * Desenha representação limpa de livro aberto sem traços tortos ou fora de escala
    */
-  private static drawOpenBookPagesSpread(
+  private static drawCleanOpenBookSpread(
     ctx: CanvasRenderingContext2D,
     centerX: number,
     topY: number,
@@ -583,26 +743,27 @@ export class PuzzleCoverBuilder {
     height: number
   ): void {
     ctx.save();
-    const w = width * 0.9;
-    const h = height * 0.9;
+    const w = width * 0.92;
+    const h = height * 0.82;
     const x = centerX - w / 2;
 
     ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 14;
-    ctx.shadowOffsetY = 6;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 8;
     this.roundRect(ctx, x, topY, w, h, 6);
     ctx.fill();
 
     // Vinco central
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-    ctx.fillRect(centerX - 6, topY, 12, h);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    ctx.fillRect(centerX - 8, topY, 16, h);
 
-    // Simulação de texto impresso nas duas páginas
+    // Linhas representativas nítidas
     ctx.fillStyle = '#64748b';
-    for (let i = 0; i < 6; i++) {
-      ctx.fillRect(x + 12, topY + 15 + i * 14, w / 2 - 25, 4);
-      ctx.fillRect(centerX + 12, topY + 15 + i * 14, w / 2 - 25, 4);
+    const colW = w / 2 - 24;
+    for (let i = 0; i < 7; i++) {
+      ctx.fillRect(x + 12, topY + 14 + i * (h / 8), colW, 3);
+      ctx.fillRect(centerX + 12, topY + 14 + i * (h / 8), colW, 3);
     }
 
     ctx.restore();
