@@ -3198,6 +3198,18 @@
   border-color: #10b981;
 }
 
+.sidebar-nav-item.highlight-puzzle {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(56, 189, 248, 0.08) 100%);
+  border: 1px solid rgba(2, 132, 199, 0.4);
+  color: #0284c7;
+  font-weight: 700;
+}
+
+.sidebar-nav-item.highlight-puzzle:hover {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.16) 0%, rgba(56, 189, 248, 0.16) 100%);
+  border-color: #0284c7;
+}
+
 .sidebar-badge {
   margin-left: auto;
   font-size: 11px;

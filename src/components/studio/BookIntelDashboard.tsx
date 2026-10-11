@@ -4,7 +4,7 @@ import {
   HelpCircle, ChevronDown, ArrowRight,
   Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play,
   Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw, Shield, Film,
-  GraduationCap, Headphones, FolderKanban, CheckCircle, Download, Layers
+  GraduationCap, Headphones, FolderKanban, CheckCircle, Download, Layers, Grid3X3
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -25,6 +25,7 @@ interface Props {
   onCreateCourseEbook?: () => void;
   onCreateCinematicNovel?: () => void;
   onCreateColoringBook?: () => void;
+  onCreatePuzzleBook?: () => void;
   onOpenProject: (id: string) => void;
   onDuplicateProject: (id: string, e: React.MouseEvent) => void;
   onDeleteProject: (id: string, e: React.MouseEvent) => void;
@@ -54,6 +55,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onCreateCourseEbook,
   onCreateCinematicNovel,
   onCreateColoringBook,
+  onCreatePuzzleBook,
   onOpenProject,
   onDuplicateProject,
   onDeleteProject,
@@ -301,6 +303,19 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <GraduationCap size={16} color="#059669" />
                 <span>Criar E-book de Curso</span>
                 <span className="sidebar-badge new">NOVO</span>
+              </button>
+
+              <button
+                className="sidebar-nav-item highlight-puzzle"
+                onClick={() => {
+                  if (onCreatePuzzleBook) onCreatePuzzleBook();
+                  else onCreateNewProject();
+                }}
+                title="Criar Livro de Passatempos, Sudoku e Puzzles KDP"
+              >
+                <Grid3X3 size={16} color="#0284c7" />
+                <span>Criar Livro de Puzzles</span>
+                <span className="sidebar-badge new" style={{ background: '#0284c7', color: '#fff' }}>KDP</span>
               </button>
             </div>
 
@@ -940,6 +955,88 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     }}
                   >
                     <GraduationCap size={16} /> Criar E-book de Curso
+                  </button>
+                </div>
+
+                {/* CARD 5 — GERADOR DE PUZZLES & SUDOKU KDP (NOVO) */}
+                <div style={{
+                  background: '#ffffff',
+                  border: '2px solid #0284c7',
+                  borderRadius: 14,
+                  padding: '20px 22px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: 14,
+                  boxShadow: '0 4px 16px rgba(2, 132, 199, 0.12)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.2s ease'
+                }}>
+                  {/* SELO / BADGE EXCLUSIVO */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                    color: '#ffffff',
+                    fontSize: 10,
+                    fontWeight: 900,
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    letterSpacing: '0.04em',
+                    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)'
+                  }}>
+                    ★ KDP PRINT-READY
+                  </div>
+
+                  <div>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: 'rgba(2, 132, 199, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 12
+                    }}>
+                      <Grid3X3 size={24} color="#0284c7" />
+                    </div>
+                    <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 900, color: '#0f172a' }}>
+                      Gerador de Puzzles & Sudoku KDP
+                    </h3>
+                    <div style={{ fontSize: 12, color: '#0284c7', fontWeight: 600, fontStyle: 'italic', marginBottom: 8 }}>
+                      Sudoku, Caça-Palavras e Labirintos com gabarito automático.
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                      Crie livros completos de Sudoku, Caça-palavras e Labirintos com gabarito automático e capa calculada para a Amazon KDP.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (onCreatePuzzleBook) onCreatePuzzleBook();
+                      else onCreateNewProject();
+                    }}
+                    style={{
+                      width: '100%',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '11px 16px',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
+                    }}
+                  >
+                    <Grid3X3 size={16} /> Criar livro de puzzles
                   </button>
                 </div>
               </div>

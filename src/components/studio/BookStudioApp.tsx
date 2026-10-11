@@ -29,9 +29,10 @@ import { CinematicNovelProjectData } from '../../types/cinematic-novel';
 import { CinematicNovelService } from '../../services/cinematic-novel-service';
 const CourseEbookStudio = React.lazy(() => import('./course/CourseEbookStudio').then(m => ({ default: m.CourseEbookStudio })));
 const CourseDigitalReader = React.lazy(() => import('./course/CourseDigitalReader').then(m => ({ default: m.CourseDigitalReader })));
+const PuzzleBookStudio = React.lazy(() => import('./puzzles/PuzzleBookStudio').then(m => ({ default: m.PuzzleBookStudio })));
 import '../../styles/book-intel-dashboard.css';
 
-type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinematic-novel' | 'course-generator';
+type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinematic-novel' | 'course-generator' | 'puzzle-generator';
 
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
@@ -658,6 +659,7 @@ export const BookStudioApp: React.FC = () => {
             setNewSessionId(`sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
             setMode('kdp-generator');
           }}
+          onCreatePuzzleBook={() => setMode('puzzle-generator')}
           onOpenProject={openProject}
           onDuplicateProject={duplicateProject}
           onDeleteProject={deleteProject}
@@ -827,6 +829,26 @@ export const BookStudioApp: React.FC = () => {
             reloadProjects();
           }}
           onProjectSaved={() => {
+            reloadProjects();
+          }}
+        />
+      </React.Suspense>
+    );
+  }
+
+  // ============================================================
+  // TELA: GERADOR DE PUZZLES & SUDOKU KDP
+  // ============================================================
+  if (mode === 'puzzle-generator') {
+    return (
+      <React.Suspense fallback={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: '#0284c7', fontWeight: 700, gap: 10 }}>
+          <span>Carregando Gerador de Puzzles & Sudoku KDP...</span>
+        </div>
+      }>
+        <PuzzleBookStudio
+          onBackToDashboard={() => {
+            setMode('project-list');
             reloadProjects();
           }}
         />
