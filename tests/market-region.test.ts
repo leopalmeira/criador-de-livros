@@ -18,7 +18,7 @@ describe('market region helpers', () => {
     const { formatPlatformPrice } = await import('../src/services/market-region');
 
     expect(formatPlatformPrice(49.9, true)).toContain('49,90');
-    expect(formatPlatformPrice(49.9, false)).toBe('US$ 49.90');
+    expect(formatPlatformPrice(49.9, false)).toBe('$49.90');
   });
 
   it('normalizes the detected country code and permits retry after failure', async () => {

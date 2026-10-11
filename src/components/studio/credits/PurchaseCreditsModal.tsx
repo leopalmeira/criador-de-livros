@@ -4,9 +4,10 @@
 
 import React, { useState } from 'react';
 import { X, Sparkles, CreditCard, ShieldCheck, CheckCircle2, Zap, BookOpen } from 'lucide-react';
-import { useBookCredits, CREDIT_PACKAGES, CreditPackage, BOOK_CREDIT_PRICE_USD, KdpCreditsService } from '../../../services/kdp-credits-service';
+import { useBookCredits, CREDIT_PACKAGES, CreditPackage, KdpCreditsService } from '../../../services/kdp-credits-service';
 import { useTranslation } from '../../../services/i18n-service';
-import { formatPlatformPrice } from '../../../services/market-region';
+import { usePlatformCurrency } from '../../../services/use-platform-currency';
+import { PlatformProductId, formatMoney, getPlatformPrice } from '../../../services/platform-currency';
 
 interface Props {
   isOpen: boolean;
@@ -17,8 +18,11 @@ interface Props {
 
 export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, motivo }) => {
   const { balance, purchaseCredits } = useBookCredits();
-  const { t, currentLang, isBrazil } = useTranslation();
-  const subscriptionPrice = formatPlatformPrice(25, isBrazil, currentLang);
+  const { currentLang } = useTranslation();
+  const { currency, chargeCurrency, chargeDiffersFromDisplay, formatProduct } = usePlatformCurrency();
+  const subscriptionPrice = formatProduct('subscription_monthly');
+  const perBookPrice = formatProduct('pack_1');
+  const packagePrice = (pkg: CreditPackage) => formatProduct(pkg.id as PlatformProductId);
   const ui = (portuguese: string, english: string) => currentLang === 'pt-BR' ? portuguese : english;
   const packageName = (pkg: CreditPackage) => {
     if (currentLang === 'pt-BR') return pkg.name;
@@ -36,7 +40,7 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
     setTimeout(() => {
       if (pacoteSelecionado.id === 'subscription_monthly') {
         KdpCreditsService.activateSubscription('Assinatura Mensal BookEngin - Até 15 Livros/mês');
-        purchaseCredits(15, 'Ativação de Assinatura Mensal US$ 25');
+        purchaseCredits(15, `Ativação de Assinatura Mensal ${subscriptionPrice}`);
       } else {
         purchaseCredits(pacoteSelecionado.booksCount, `Compra de pacote: ${pacoteSelecionado.name}`);
       }
@@ -166,7 +170,7 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               alignItems: 'center',
               gap: 6
             }}>
-              <BookOpen size={16} /> {balance} {balance === 1 ? ui('Livro', 'Book') : ui('Livros', 'Books')} ({balance * BOOK_CREDIT_PRICE_USD} USD)
+              <BookOpen size={16} /> {balance} {balance === 1 ? ui('Livro', 'Book') : ui('Livros', 'Books')} ({formatMoney(balance * getPlatformPrice('pack_1', currency), currency)})
             </span>
           </div>
 
@@ -224,14 +228,14 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                         </span>
                       </>
                     ) : (
-                      `US$ ${pkg.priceUsd.toFixed(2)}`
+                      packagePrice(pkg)
                     )}
                   </div>
 
                   <div style={{ fontSize: 11, color: pkg.id === 'subscription_monthly' ? '#34d399' : '#94a3b8', marginTop: 4, fontWeight: pkg.id === 'subscription_monthly' ? 700 : 400 }}>
                     {pkg.id === 'subscription_monthly'
                       ? (currentLang === 'pt-BR' ? 'Acesso Ilimitado • Cancele quando quiser' : currentLang === 'es-ES' ? 'Acceso Ilimitado • Cancela cuando quieras' : 'Unlimited Access • Cancel anytime')
-                      : `Equivalente a US$ ${BOOK_CREDIT_PRICE_USD.toFixed(2)} / livro`}
+                      : ui(`Equivalente a ${perBookPrice} / livro`, `Equivalent to ${perBookPrice} / book`)}
                   </div>
                 </div>
               );
@@ -284,8 +288,14 @@ export const PurchaseCreditsModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                 ? ui('Processando...', 'Processing...')
                 : pacoteSelecionado.id === 'subscription_monthly'
                   ? ui(`Ativar Assinatura Ilimitada (${subscriptionPrice}/mês)`, `Activate Unlimited Subscription (${subscriptionPrice}/month)`)
-                  : ui(`Adicionar ${pacoteSelecionado.booksCount} Livros por US$ ${pacoteSelecionado.priceUsd.toFixed(2)}`, `Add ${pacoteSelecionado.booksCount} Books for US$ ${pacoteSelecionado.priceUsd.toFixed(2)}`)}
+                  : ui(`Adicionar ${pacoteSelecionado.booksCount} Livros por ${packagePrice(pacoteSelecionado)}`, `Add ${pacoteSelecionado.booksCount} Books for ${packagePrice(pacoteSelecionado)}`)}
             </button>
+          )}
+
+          {chargeDiffersFromDisplay && (
+            <div style={{ marginTop: 12, fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>
+              {ui(`Valores exibidos em ${currency} como referência. A cobrança é processada em ${chargeCurrency}.`, `Prices shown in ${currency} for reference. Payment is processed in ${chargeCurrency}.`)}
+            </div>
           )}
 
           {/* GARANTIA */}

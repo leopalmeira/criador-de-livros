@@ -18,8 +18,10 @@ function kdpAiBackendPlugin() {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.setHeader('Access-Control-Allow-Origin', '*');
           const cfCountry = req.headers['cf-ipcountry'] || req.headers['x-country-code'] || req.headers['x-vercel-ip-country'];
-          const country = cfCountry ? String(cfCountry).toUpperCase() : 'BR';
-          res.end(JSON.stringify({ country, isBrazil: country === 'BR' }));
+          const headerCountry = cfCountry ? String(cfCountry).trim().toUpperCase() : '';
+          const country = /^[A-Z]{2}$/.test(headerCountry) && headerCountry !== 'XX' ? headerCountry : 'BR';
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify({ country, isBrazil: country === 'BR', source: headerCountry ? 'edge-header' : 'local-development' }));
           return;
         }
 

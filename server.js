@@ -430,18 +430,26 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 0.5. API de Geolocalização (/api/geo)
+  // Usa somente cabeçalhos definidos pela CDN/proxy (não confia em dados do usuário).
+  // Quando o país não é conhecido, devolve null para o cliente aplicar o próximo fallback.
   if (pathname === '/api/geo') {
     const cfCountry = req.headers['cf-ipcountry'] || req.headers['x-country-code'] || req.headers['x-vercel-ip-country'] || req.headers['cloudfront-viewer-country'];
-    let country = cfCountry ? String(cfCountry).toUpperCase() : null;
+    const headerCountry = cfCountry ? String(cfCountry).trim().toUpperCase() : '';
+    let country = /^[A-Z]{2}$/.test(headerCountry) && headerCountry !== 'XX' && headerCountry !== 'T1' ? headerCountry : null;
+    let source = country ? 'edge-header' : 'unknown';
     if (!country) {
-      const forwardedFor = req.headers['x-forwarded-for'];
       const host = req.headers.host || '';
-      const isLocal = !forwardedFor || host.includes('localhost') || host.includes('127.0.0.1');
-      country = isLocal ? 'BR' : 'US';
+      const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+      if (isLocal) {
+        country = 'BR';
+        source = 'local-development';
+      }
     }
+    res.setHeader('Cache-Control', 'no-store');
     return sendJson(res, 200, {
       country,
-      isBrazil: country === 'BR'
+      isBrazil: country === 'BR',
+      source
     });
   }
 

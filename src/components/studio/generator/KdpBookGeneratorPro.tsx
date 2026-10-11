@@ -1142,9 +1142,9 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       return;
     }
 
-    // REGRA DE NEGÓCIO: Cadastro gratuito, mas geração de livro requer crédito (US$ 3 por livro)
+    // REGRA DE NEGÓCIO: Cadastro gratuito, mas geração de livro requer crédito
     if (creditosLivros < 1) {
-      setCreditModalMotivo('Para gerar este livro completo com IA é necessário 1 crédito (US$ 3 por livro). Seu cadastro é 100% gratuito, basta adquirir seus créditos conforme sua produção.');
+      setCreditModalMotivo('Para gerar este livro completo com IA é necessário 1 crédito. Seu cadastro é 100% gratuito, basta adquirir seus créditos conforme sua produção.');
       setIsCreditModalOpen(true);
       return;
     }
@@ -4086,7 +4086,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#334155' }}>
                 <span style={{ fontSize: 14 }}>💳</span>
-                <span>Créditos: <strong>{creditosLivros} {creditosLivros === 1 ? 'livro' : 'livros'}</strong> (US$ 3/livro)</span>
+                <span>Créditos: <strong>{creditosLivros} {creditosLivros === 1 ? 'livro' : 'livros'}</strong></span>
               </div>
               <button
                 type="button"

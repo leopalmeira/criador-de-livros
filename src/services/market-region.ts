@@ -1,7 +1,26 @@
+import { currencyFromBrazilFlag, formatMoney } from './platform-currency';
+
 const GEOLOCATION_ENDPOINT = 'https://ipapi.co/json/';
 const GEOLOCATION_TIMEOUT_MS = 5000;
+const SESSION_COUNTRY_KEY = 'bookengin_visitor_country';
 
 let visitorCountryRequest: Promise<string> | null = null;
+
+function readSessionCountry(): string | null {
+  try {
+    if (typeof sessionStorage === 'undefined') return null;
+    const value = sessionStorage.getItem(SESSION_COUNTRY_KEY);
+    return value && /^[A-Z]{2}$/.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeSessionCountry(country: string): void {
+  try {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(SESSION_COUNTRY_KEY, country);
+  } catch {}
+}
 
 const BRAZILIAN_TIMEZONES = new Set([
   'America/Sao_Paulo',
@@ -37,14 +56,16 @@ export function isBrowserInBrazil(): boolean {
 }
 
 async function requestVisitorCountry(fetcher: typeof fetch): Promise<string> {
-  // Se estiver no browser e usando o fetch nativo, tenta primeiro o endpoint local rápido /api/geo
+  // Fonte preferencial: o próprio servidor, que lê o país dos cabeçalhos da CDN/proxy.
+  // Se o servidor não souber o país (country = null), seguimos para o provedor externo.
   if (typeof window !== 'undefined' && fetcher === fetch) {
     try {
-      const geoRes = await fetch('/api/geo', { signal: AbortSignal.timeout(2000) });
+      const geoRes = await fetch('/api/geo', { signal: AbortSignal.timeout(2000), cache: 'no-store' });
       if (geoRes.ok) {
         const geoData = await geoRes.json();
-        if (geoData?.country && typeof geoData.country === 'string') {
-          return geoData.country.toUpperCase();
+        const serverCountry = typeof geoData?.country === 'string' ? geoData.country.trim().toUpperCase() : '';
+        if (/^[A-Z]{2}$/.test(serverCountry)) {
+          return serverCountry;
         }
       }
     } catch {}
@@ -79,16 +100,26 @@ async function requestVisitorCountry(fetcher: typeof fetch): Promise<string> {
 }
 
 export function detectVisitorCountry(fetcher: typeof fetch = fetch): Promise<string> {
+  // Preferência mantida durante a sessão: evita nova consulta e oscilação de moeda.
+  if (fetcher === fetch) {
+    const cached = readSessionCountry();
+    if (cached) return Promise.resolve(cached);
+  }
   if (!visitorCountryRequest) {
-    visitorCountryRequest = requestVisitorCountry(fetcher).catch(error => {
-      visitorCountryRequest = null;
-      // Se falhou e o fetcher foi o nativo, verifica a timezone local do usuário antes de desistir
-      if (fetcher === fetch && isBrowserInBrazil()) {
-        return 'BR';
-      }
-      console.warn('Visitor country detection failed; using the international default.', error);
-      throw error;
-    });
+    visitorCountryRequest = requestVisitorCountry(fetcher)
+      .then(country => {
+        if (fetcher === fetch) storeSessionCountry(country);
+        return country;
+      })
+      .catch(error => {
+        visitorCountryRequest = null;
+        // Se falhou e o fetcher foi o nativo, verifica a timezone local do usuário antes de desistir
+        if (fetcher === fetch && isBrowserInBrazil()) {
+          return 'BR';
+        }
+        console.warn('Visitor country detection failed; using the international default.', error);
+        throw error;
+      });
   }
   return visitorCountryRequest;
 }
@@ -99,29 +130,18 @@ export function isBrazilianCountry(countryCode: string | null): boolean {
   return false;
 }
 
-export function formatPlatformPrice(amount: number, isBrazil: boolean, lang?: string): string {
-  // O valor só é em Reais (BRL) se for acessado do Brasil E o idioma estiver em português (pt-BR).
-  // Sempre que acessado de outro país OU quando virar para o público americano (en-US) / internacional, o valor DEVE ser em dólar americano.
-  const isBrl = isBrazil && (!lang || lang === 'pt-BR');
-  if (isBrl) {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(amount);
-  }
-
-  // Público americano nativo (en-US): formato $25.00
-  if (lang === 'en-US') {
-    return `$${amount.toFixed(2)}`;
-  }
-
-  // Acessos fora do Brasil ou outros idiomas internacionais: formato em dólar americano
-  return `US$ ${amount.toFixed(2)}`;
+/**
+ * Formata um valor que JÁ está na moeda do visitante.
+ * A moeda depende exclusivamente do país (Brasil → BRL; demais → USD).
+ * O parâmetro de idioma é mantido apenas por compatibilidade e é ignorado.
+ */
+export function formatPlatformPrice(amount: number, isBrazil: boolean, _lang?: string): string {
+  return formatMoney(amount, currencyFromBrazilFlag(isBrazil));
 }
 
 export function replacePlatformPrice(text: string, formattedPrice: string): string {
   return text.replace(
-    /R\$\s*25(?:[,.]00)?|R\$\s*49[,.]90|US\$\s*25(?:\.00)?|\$25(?:\.00)?|US\$\s*49\.90|49[,.]90\s*€/gi,
+    /R\$\s*25(?:[,.]00)?|R\$\s*49[,.]90|US\$\s*25(?:\.00)?|\$25(?:\.00)?|US\$\s*49\.90|\$49\.90|49[,.]90\s*€/gi,
     formattedPrice
   );
 }
