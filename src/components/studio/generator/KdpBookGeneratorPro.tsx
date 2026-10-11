@@ -66,6 +66,7 @@ import { PlannerBookStudio } from '../planner/PlannerBookStudio';
 import { useTranslation } from '../../../services/i18n-service';
 import { PrintCoverService } from '../../../services/print-cover-service';
 import { PublishingMetadataService } from '../../../services/publishing-metadata-service';
+import { preflightPdf } from '../../../services/pdf-preflight';
 
 const newProjectId = () => newId('prj_');
 
@@ -566,6 +567,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   // Sugestões de IA por campo
   const [loadingSugestao, setLoadingSugestao] = useState<string | null>(null);
   const previewScrollRef = useRef<HTMLDivElement>(null);
+  const [diagnostico, setDiagnostico] = useState<string>('');
 
   // Isolamento por projeto: cada projeto tem seu próprio projectId e sua própria chave de rascunho.
   // Nunca existe uma chave global "último projeto".
@@ -2004,7 +2006,7 @@ ${ganchoImediato}`;
         isKids
       });
 
-      const blob = new Blob([res.pdfBytes], { type: 'application/pdf' });
+      const blob = new Blob([res.pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -2601,8 +2603,8 @@ ${ganchoImediato}`;
         manuscriptWordCount: totalWords
       });
 
-      if (!preflight.ok && preflight.issues.some(i => i.severity === 'CRITICAL')) {
-        const criticos = preflight.issues.filter(i => i.severity === 'CRITICAL').map(i => i.message).join('; ');
+      if (!preflight.ok && preflight.issues.some((i: any) => i.severity === 'CRITICAL')) {
+        const criticos = preflight.issues.filter((i: any) => i.severity === 'CRITICAL').map((i: any) => i.message).join('; ');
         setStatusMsg(`❌ Bloqueio Editorial: Falha crítica no PDF Preflight: ${criticos}`);
         setStatusType('error');
         logDiag(`Finalização bloqueada pelo Preflight: ${criticos}`);
@@ -2893,8 +2895,6 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
       setActiveTab('preview');
     } else if (selectedType === 'planner' || selectedType === 'diary') {
       setActiveTab('planner');
-    } else if (selectedType === 'coloring-book') {
-      setActiveTab('colorir');
     } else {
       setActiveTab('preview');
     }

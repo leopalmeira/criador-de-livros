@@ -4,7 +4,7 @@ import {
   HelpCircle, ChevronDown, ArrowRight,
   Clock, Search, Copy, Trash2, Sparkles, CheckCircle2, Play,
   DollarSign, Bot, LogOut, Zap, RefreshCw, Shield,
-  GraduationCap, Headphones, FolderKanban, CheckCircle, Download, Layers, Grid3X3
+  GraduationCap, Headphones, FolderKanban, CheckCircle, Download, Layers, Grid3X3, X
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
 import { BookOpportunityProposal } from '../../types/category-intelligence';
@@ -65,6 +65,8 @@ export const BookIntelDashboard: React.FC<Props> = ({
   const [activeModalAction, setActiveModalAction] = useState<string | null>(null);
   const [finalizingProjectId, setFinalizingProjectId] = useState<string | null>(null);
   const [batchState, setBatchState] = useState<BatchRunnerState>(batchBackgroundRunner.getState());
+  const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
+  const [libraryActiveTab, setLibraryActiveTab] = useState<'finalized' | 'drafts'>('finalized');
 
   // Ouve atualizações de progresso do lote em tempo real
   useEffect(() => {
@@ -299,10 +301,10 @@ export const BookIntelDashboard: React.FC<Props> = ({
               <button
                 className="sidebar-nav-item"
                 onClick={() => {
-                  const el = document.getElementById('section-projetos') || document.querySelector('.existing-projects-sublist') || document.querySelector('.final-shelf-container');
-                  el?.scrollIntoView({ behavior: 'smooth' });
+                  setLibraryActiveTab(finalizedProjects.length > 0 ? 'finalized' : 'drafts');
+                  setIsLibraryModalOpen(true);
                 }}
-                title="Ver todos os projetos"
+                title="Ver todos os projetos organizados no acervo"
               >
                 <FolderKanban size={16} color="#64748b" />
                 <span>Meus Projetos</span>
@@ -312,9 +314,8 @@ export const BookIntelDashboard: React.FC<Props> = ({
               <button
                 className="sidebar-nav-item"
                 onClick={() => {
-                  const el = document.querySelector('.existing-projects-sublist');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  else if (projects.length > 0) onOpenProject(projects[0].id);
+                  setLibraryActiveTab('drafts');
+                  setIsLibraryModalOpen(true);
                 }}
                 title="Projetos em andamento"
               >
@@ -326,10 +327,10 @@ export const BookIntelDashboard: React.FC<Props> = ({
               <button
                 className="sidebar-nav-item"
                 onClick={() => {
-                  const el = document.querySelector('.final-shelf-container');
-                  el?.scrollIntoView({ behavior: 'smooth' });
+                  setLibraryActiveTab('finalized');
+                  setIsLibraryModalOpen(true);
                 }}
-                title="Projetos concluídos na estante"
+                title="Projetos concluídos no acervo"
               >
                 <CheckCircle2 size={16} color="#059669" />
                 <span>Concluídos</span>
@@ -801,245 +802,155 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* LISTAGEM DE OBRAS EM ANDAMENTO / RASCUNHOS (OCULTA QUANDO TODAS AS OBRAS JÁ ESTÃO FINALIZADAS NA ESTANTE) */}
-            {draftProjects.length > 0 && (
-              <div className="existing-projects-sublist" style={{ marginTop: 10, marginBottom: 24 }}>
-                <div className="existing-projects-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* CARD EXCLUSIVO E ORGANIZADO: ACERVO DE LIVROS PUBLICADOS & OBRAS KDP */}
+            {projects.length > 0 ? (
+              <div
+                onClick={() => {
+                  setLibraryActiveTab(finalizedProjects.length > 0 ? 'finalized' : 'drafts');
+                  setIsLibraryModalOpen(true);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                  borderRadius: 16,
+                  padding: '24px 28px',
+                  marginBottom: 26,
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
+                  cursor: 'pointer',
+                  transition: 'all 0.25s ease',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+                className="library-hub-card"
+              >
+                {/* Glow decorativo sutil */}
+                <div style={{
+                  position: 'absolute',
+                  top: -40,
+                  right: -40,
+                  width: 220,
+                  height: 220,
+                  borderRadius: '50%',
+                  background: 'radial-gradient(circle, rgba(56, 189, 248, 0.18) 0%, transparent 70%)',
+                  pointerEvents: 'none'
+                }} />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 18, minWidth: 260 }}>
                     <div style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      background: '#0f172a',
+                      width: 56,
+                      height: 56,
+                      borderRadius: 14,
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#ffffff'
+                      boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
+                      flexShrink: 0
                     }}>
-                      <BookOpen size={16} />
+                      <BookOpen size={28} color="#ffffff" />
                     </div>
+
                     <div>
-                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-                        Obras em Andamento ({draftProjects.length})
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{
+                          background: 'rgba(56, 189, 248, 0.2)',
+                          color: '#38bdf8',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase'
+                        }}>
+                          Biblioteca Editorial KDP
+                        </span>
+                        <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                          • {projects.length} {projects.length === 1 ? 'obra catalogada' : 'obras catalogadas'}
+                        </span>
+                      </div>
+
+                      <h3 style={{ margin: 0, fontSize: 19, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.3px' }}>
+                        Acervo de Livros Publicados & Obras KDP
                       </h3>
-                      <span style={{ fontSize: 12, color: '#64748b' }}>
-                        Projetos em fase de escrita, pesquisa ou diagramação
-                      </span>
+
+                      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#94a3b8', lineHeight: 1.4 }}>
+                        {finalizedProjects.length > 0 
+                          ? `${finalizedProjects.length} ${finalizedProjects.length === 1 ? 'livro diagramado e auditado' : 'livros diagramados e auditados'} prontos com PDFs oficiais (miolo e capa aberta) e manuscrito.`
+                          : 'Seus projetos estão salvos e organizados. Clique para abrir o acervo, ver, mexer e manipular suas obras.'}
+                      </p>
                     </div>
                   </div>
 
-                  <button
-                    className="btn-create-sub"
-                    onClick={onCreateNewProject}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 16px',
-                      borderRadius: 8,
-                      background: '#0f172a',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)'
-                    }}
-                  >
-                    <Plus size={14} /> {t('catalog.btnNew')}
-                  </button>
-                </div>
-
-                <div className="existing-projects-grid" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {draftProjects.map(p => {
-                    const chapters = p.kdpChapters?.length || 0;
-                    const words = p.kdpChapters?.reduce((s, c) => s + (c.wordCount || 0), 0) || 0;
-                    const coverUrl = p.coverImageUrl;
-
-                    return (
+                  {/* Showcase de miniaturas das capas organizadas */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                    {projects.slice(0, 4).map((p) => (
                       <div
                         key={p.id}
-                        className="project-row-card"
-                        onClick={() => onOpenProject(p.id)}
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '12px 16px',
-                          background: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 12,
-                          gap: 16,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                          width: 40,
+                          height: 58,
+                          borderRadius: 4,
+                          overflow: 'hidden',
+                          background: '#334155',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                          flexShrink: 0
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
-                          {/* MINIATURA EXCLUSIVA DA CAPA DO LIVRO (PROPORÇÃO KDP 2:3) */}
-                          <div
-                            style={{
-                              width: 54,
-                              height: 80,
-                              borderRadius: 6,
-                              overflow: 'hidden',
-                              flexShrink: 0,
-                              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                              boxShadow: '0 4px 10px rgba(0,0,0,0.18)',
-                              border: '1px solid #cbd5e1',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              position: 'relative'
-                            }}
-                          >
-                            {coverUrl ? (
-                              <img
-                                src={coverUrl}
-                                alt={`Capa de ${p.title || 'Livro'}`}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              />
-                            ) : (
-                              <div style={{ padding: 4, textAlign: 'center', color: '#ffffff' }}>
-                                <span style={{ fontSize: 7, fontWeight: 800, color: '#38bdf8', letterSpacing: '0.5px' }}>
-                                  KDP
-                                </span>
-                                <div style={{
-                                  fontSize: 8,
-                                  fontWeight: 700,
-                                  lineHeight: 1.1,
-                                  maxHeight: 38,
-                                  overflow: 'hidden',
-                                  marginTop: 2,
-                                  color: '#f8fafc'
-                                }}>
-                                  {p.title || 'Obra'}
-                                </div>
-                                <div style={{ fontSize: 6, color: '#94a3b8', marginTop: 3 }}>
-                                  {p.author ? p.author.split(' ')[0] : 'Autor'}
-                                </div>
-                              </div>
-                            )}
+                        {p.coverImageUrl ? (
+                          <img src={p.coverImageUrl} alt={p.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', color: '#94a3b8', fontSize: 8 }}>
+                            KDP
                           </div>
-
-                          {/* INFORMAÇÕES DA OBRA */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
-                              <h4 style={{
-                                margin: 0,
-                                fontSize: 15,
-                                fontWeight: 700,
-                                color: '#0f172a',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}>
-                                {p.title || 'Livro Sem Título'}
-                              </h4>
-                              <span style={{
-                                fontSize: 10,
-                                fontWeight: 600,
-                                background: '#f8fafc',
-                                color: '#475569',
-                                padding: '2px 8px',
-                                borderRadius: 4,
-                                border: '1px solid #e2e8f0'
-                              }}>
-                                Em Andamento • {chapters} {chapters === 1 ? 'capítulo' : 'capítulos'}
-                              </span>
-                            </div>
-
-                            {p.subtitle && (
-                              <p style={{
-                                margin: '0 0 3px 0',
-                                fontSize: 12,
-                                color: '#475569',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                fontStyle: 'italic'
-                              }}>
-                                {p.subtitle}
-                              </p>
-                            )}
-
-                            <span style={{ fontSize: 12, color: '#64748b' }}>
-                              {p.author || 'Autor não definido'} • {p.categories?.[0] || p.kdpBookType || 'Não-Ficção'} • {chapters} capítulos • {words > 0 ? `${words.toLocaleString('pt-BR')} palavras` : 'Em criação'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* BOTÕES DE AÇÃO PROFISSIONAIS E SÓBRIOS */}
-                        <div className="project-row-actions" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {chapters > 0 && (
-                            <button
-                              className="btn-icon-soft"
-                              onClick={(e) => handleQuickFinalize(p, e)}
-                              disabled={finalizingProjectId === p.id}
-                              title="Finalizar Obra e Disponibilizar para Download"
-                              style={{ color: '#0f172a', borderColor: '#cbd5e1' }}
-                            >
-                              <CheckCircle2 size={14} />
-                            </button>
-                          )}
-
-                          <button
-                            className="btn-icon-soft"
-                            onClick={(e) => onDuplicateProject(p.id, e)}
-                            title="Duplicar Obra"
-                            style={{ color: '#475569', borderColor: '#cbd5e1' }}
-                          >
-                            <Copy size={14} />
-                          </button>
-                          <button
-                            className="btn-icon-soft danger"
-                            onClick={(e) => onDeleteProject(p.id, e)}
-                            title="Excluir"
-                            style={{ color: '#dc2626', borderColor: '#fecaca' }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => onOpenProject(p.id)}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '8px 14px',
-                              borderRadius: 6,
-                              background: '#0f172a',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              boxShadow: '0 1px 3px rgba(15, 23, 42, 0.2)'
-                            }}
-                          >
-                            Continuar <ArrowRight size={13} />
-                          </button>
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
+                    ))}
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLibraryActiveTab(finalizedProjects.length > 0 ? 'finalized' : 'drafts');
+                        setIsLibraryModalOpen(true);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '11px 22px',
+                        borderRadius: 10,
+                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
+                        transition: 'transform 0.15s ease'
+                      }}
+                    >
+                      <Layers size={16} /> Abrir Acervo de Livros ({projects.length}) <ArrowRight size={15} />
+                    </button>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {/* CASO NÃO HAJA NENHUM PROJETO CADASTRADO NO SISTEMA */}
-            {projects.length === 0 && (
+            ) : (
               <div style={{
                 padding: '36px 24px',
-                background: '#f8fafc',
+                background: '#ffffff',
                 border: '1px dashed #cbd5e1',
-                borderRadius: 12,
+                borderRadius: 14,
                 textAlign: 'center',
-                marginBottom: 24
+                marginBottom: 24,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
               }}>
-                <BookOpen size={32} color="#94a3b8" style={{ margin: '0 auto 8px' }} />
-                <p style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#475569' }}>
+                <BookOpen size={36} color="#94a3b8" style={{ margin: '0 auto 10px' }} />
+                <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
                   {t('catalog.emptyTitle')}
+                </h4>
+                <p style={{ margin: '0 0 16px', fontSize: 13, color: '#64748b' }}>
+                  Crie seu primeiro livro tradicional, e-book de curso ou gere um lote automático para compor sua biblioteca.
                 </p>
                 <button
                   onClick={onCreateNewProject}
@@ -1047,20 +958,19 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     background: '#0f172a',
                     color: '#ffffff',
                     border: 'none',
-                    borderRadius: 6,
-                    padding: '8px 16px',
+                    borderRadius: 8,
+                    padding: '10px 20px',
                     fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer'
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(15, 23, 42, 0.2)'
                   }}
                 >
+                  <Plus size={15} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                   {t('catalog.emptyAction')}
                 </button>
               </div>
             )}
-
-            {/* ESTANTE DE LIVROS FINALIZADOS DISPONÍVEIS PARA BAIXAR */}
-            <FinalBooksShelf onOpenProject={onOpenProject} />
 
           </div>
 
@@ -1121,6 +1031,331 @@ export const BookIntelDashboard: React.FC<Props> = ({
         isOpen={isCreditsModalOpen}
         onClose={() => setIsCreditsModalOpen(false)}
       />
+
+      {/* MODAL EXPANSIVO ORGANIZADO DO ACERVO DE LIVROS PUBLICADOS */}
+      {isLibraryModalOpen && (
+        <div
+          className="modal-backdrop-overlay"
+          onClick={() => setIsLibraryModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.78)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#f8fafc',
+              borderRadius: 16,
+              width: '100%',
+              maxWidth: 1240,
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.35)',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header do Modal com Botão de Fechar Bem Visível */}
+            <div style={{
+              padding: '18px 24px',
+              background: '#0f172a',
+              color: '#ffffff',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderBottom: '1px solid #334155',
+              flexWrap: 'wrap',
+              gap: 12
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <BookOpen size={20} color="#ffffff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#ffffff' }}>
+                    Acervo de Livros Publicados & Obras KDP
+                  </h3>
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                    Selecione uma obra para ver, mexer, baixar miolo/capa ou editar no estúdio.
+                  </span>
+                </div>
+              </div>
+
+              {/* Botões de Ação do Topo: Abas + Fechar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', background: '#1e293b', borderRadius: 8, padding: 3, border: '1px solid #334155' }}>
+                  <button
+                    onClick={() => setLibraryActiveTab('finalized')}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: 6,
+                      background: libraryActiveTab === 'finalized' ? '#0284c7' : 'transparent',
+                      color: libraryActiveTab === 'finalized' ? '#ffffff' : '#94a3b8',
+                      border: 'none',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Livros Concluídos ({finalizedProjects.length})
+                  </button>
+
+                  <button
+                    onClick={() => setLibraryActiveTab('drafts')}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: 6,
+                      background: libraryActiveTab === 'drafts' ? '#0284c7' : 'transparent',
+                      color: libraryActiveTab === 'drafts' ? '#ffffff' : '#94a3b8',
+                      border: 'none',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Em Andamento ({draftProjects.length})
+                  </button>
+                </div>
+
+                {/* BOTÃO DE FECHAR DESTACADO */}
+                <button
+                  onClick={() => setIsLibraryModalOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    background: 'rgba(239, 68, 68, 0.2)',
+                    color: '#fca5a5',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Fechar Acervo de Livros"
+                >
+                  <X size={16} /> Fechar
+                </button>
+              </div>
+            </div>
+
+            {/* Conteúdo com rolagem do Modal */}
+            <div style={{
+              padding: '24px',
+              overflowY: 'auto',
+              flex: 1
+            }}>
+              {libraryActiveTab === 'finalized' ? (
+                <div>
+                  <FinalBooksShelf
+                    onOpenProject={(id) => {
+                      setIsLibraryModalOpen(false);
+                      onOpenProject(id);
+                    }}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                        Obras em Andamento ({draftProjects.length})
+                      </h4>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>
+                        Livros em processo de criação editorial
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setIsLibraryModalOpen(false);
+                        onCreateNewProject();
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        background: '#0f172a',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Plus size={15} /> Criar Novo Livro
+                    </button>
+                  </div>
+
+                  {draftProjects.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                      <p>Nenhuma obra em andamento. Todas as suas obras estão finalizadas no acervo!</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {draftProjects.map(p => {
+                        const chapters = p.kdpChapters?.length || 0;
+                        const words = p.kdpChapters?.reduce((s, c) => s + (c.wordCount || 0), 0) || 0;
+                        const coverUrl = p.coverImageUrl;
+
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              setIsLibraryModalOpen(false);
+                              onOpenProject(p.id);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '14px 18px',
+                              background: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: 12,
+                              gap: 16,
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                width: 50,
+                                height: 75,
+                                borderRadius: 6,
+                                overflow: 'hidden',
+                                background: '#1e293b',
+                                flexShrink: 0,
+                                border: '1px solid #cbd5e1'
+                              }}>
+                                {coverUrl ? (
+                                  <img src={coverUrl} alt={p.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 9 }}>
+                                    KDP
+                                  </div>
+                                )}
+                              </div>
+
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                                  {p.title || 'Livro Sem Título'}
+                                </h4>
+                                {p.subtitle && (
+                                  <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>
+                                    {p.subtitle}
+                                  </p>
+                                )}
+                                <span style={{ fontSize: 12, color: '#64748b' }}>
+                                  {p.author || 'Autor'} • {chapters} capítulos • {words > 0 ? `${words.toLocaleString('pt-BR')} palavras` : 'Em criação'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
+                              {chapters > 0 && (
+                                <button
+                                  onClick={(e) => handleQuickFinalize(p, e)}
+                                  disabled={finalizingProjectId === p.id}
+                                  title="Finalizar e disponibilizar para download"
+                                  style={{
+                                    padding: '7px 12px',
+                                    borderRadius: 6,
+                                    background: 'rgba(16, 185, 129, 0.1)',
+                                    color: '#059669',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Finalizar Obra
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setIsLibraryModalOpen(false);
+                                  onOpenProject(p.id);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: '8px 14px',
+                                  borderRadius: 6,
+                                  background: '#0f172a',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Continuar <ArrowRight size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Rodapé do Modal com Botão de Fechar */}
+            <div style={{
+              padding: '14px 24px',
+              background: '#ffffff',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: 12, color: '#64748b' }}>
+                BookEngin • Catálogo integrado Amazon KDP
+              </span>
+
+              <button
+                onClick={() => setIsLibraryModalOpen(false)}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 8,
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer'
+                }}
+              >
+                Fechar Estante
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

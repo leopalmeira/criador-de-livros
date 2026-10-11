@@ -1119,60 +1119,84 @@ export class BatchTitleTextGenerator {
 
     if (perspectiveVariant === 0) {
       sec1 = `\n\n### 1. Diagnóstico Estrutural e Leitura do Cenário Real\n\n` +
-        `Para agir com exatidão cirúrgica, é indispensável iniciar com uma radiografia sincera do cenário atual. Ao analisar as práticas correntes em ${genreName}, encontramos com frequência um padrão de dispersão: perde-se tempo combatendo sintomas periféricos enquanto a causa raiz permanece oculta.\n\n` +
-        `No desenvolvimento de "${cleanTitle}", adotamos uma disciplina baseada em primeiros princípios:\n\n` +
-        `- **Isolamento de Variáveis Críticas:** Identificar quais fatores determinam o sucesso da operação;\n` +
-        `- **Eliminação de Desperdícios Invisíveis:** Remover atritos antes de injetar mais energia ou recursos;\n` +
-        `- **Construção de Margem de Segurança:** Estabelecer tolerâncias para absorver imprevistos sem comprometer o resultado;\n` +
-        `- **Alinhamento entre Intenção e Execução:** Garantir que as diretrizes sejam executadas fielmente na ponta prática.\n\n`;
+        `Para agir com exatidão cirúrgica, é indispensável iniciar com uma radiografia sincera do cenário atual. Ao analisar as práticas correntes em ${genreName}, encontramos com frequência um padrão de dispersão: perde-se tempo combatendo sintomas periféricos enquanto a causa raiz permanece oculta sob camadas de suposições não testadas.\n\n` +
+        `A maioria dos profissionais e autores comete o equívoco de acelerar a produção sem antes calibrar a bússola. Quando não há clareza quanto aos parâmetros reais de funcionamento de ${chapterTheme.toLowerCase()}, o esforço aplicado dissipa-se em atritos desnecessários, gerando frustração e consumo prematuro de energia.\n\n` +
+        `No desenvolvimento de "${cleanTitle}", adotamos uma disciplina rigorosa baseada em primeiros princípios, desmembrando o problema em quatro eixos fundamentais:\n\n` +
+        `- **Isolamento de Variáveis Críticas:** Identificar com precisão milimétrica quais fatores realmente movem a agulha no contexto de ${genreName}, eliminando distrações e métricas de vaidade que apenas criam a ilusão de avanço;\n\n` +
+        `- **Eliminação de Desperdícios Invisíveis:** Remover atritos operacionais, retrabalhos e micro-hesitações antes de injetar mais tempo ou capital na operação. O que não agrega valor mensurável deve ser cortado sem hesitação;\n\n` +
+        `- **Construção de Margem de Segurança:** Estabelecer tolerâncias técnicas e operacionais para absorver imprevistos, oscilações de mercado e dias atípicos sem comprometer a integridade do resultado final;\n\n` +
+        `- **Alinhamento entre Intenção e Execução:** Garantir que cada diretriz formulada na prancheta seja executada fielmente na ponta prática, com critérios claros de conformidade e autoavaliação contínua.\n\n` +
+        `Com esses quatro eixos estabilizados, o terreno torna-se propício para implementar métodos de alta precisão que resistem ao teste do tempo.\n\n`;
     } else if (perspectiveVariant === 1) {
       sec1 = `\n\n### 1. A Lógica dos Primeiros Princípios Aplicada a ${chapterTheme}\n\n` +
-        `A maioria das abordagens convencionais comete o erro de raciocinar por mera analogia, copiando o que outros fizeram sem entender o motivo. Em "${cleanTitle}", quebramos esse padrão dissecando ${chapterTheme.toLowerCase()} até suas partes constitutivas mais elementares.\n\n` +
-        `Ao reconstruirmos a solução a partir da base, quatro pilares tornam-se inegociáveis:\n\n` +
-        `- **Fundamento Factual:** Basear cada decisão em dados e evidências concretas, não em impressões casuais;\n` +
-        `- **Simplicidade Operacional:** Reduzir a complexidade a regras claras e facilmente auditáveis;\n` +
-        `- **Resiliência Estrutural:** Desenvolver defesas que resistam a variações abruptas de cenário;\n` +
-        `- **Previsibilidade de Retorno:** Projetar resultados que se sustentem com consistência ao longo do tempo.\n\n`;
+        `A maioria das abordagens convencionais no segmento de ${genreName} comete o erro de raciocinar por mera analogia: copiam superficialmente o que os líderes de mercado aparentam fazer, sem jamais compreender os fundamentos biomecânicos, psicológicos ou econômicos que sustentam essas escolhas.\n\n` +
+        `Em "${cleanTitle}", nós rejeitamos a imitação cega. Desconstruímos ${chapterTheme.toLowerCase()} até suas partes constitutivas mais elementares para entender por que as engrenagens se movem da maneira como se movem.\n\n` +
+        `Ao reconstruirmos a solução a partir dos blocos fundamentais, quatro verdades inegociáveis emergem com força:\n\n` +
+        `- **Fundamento Factual vs. Opinião Comum:** Cada passo deve ser respaldado por dados, evidências empíricas e comportamentos observáveis no mercado real, e não por modismos passageiros ou fórmulas mágicas de sucesso fácil;\n\n` +
+        `- **Simplicidade Operacional Elegante:** Quanto mais complexo for um sistema, maiores são as chances de falha sistêmica. A verdadeira sofisticação reside em condensar processos complexos em regras de ação claras, intuitivas e fáceis de auditar diariamente;\n\n` +
+        `- **Resiliência Estrutural e Antifragilidade:** Um bom método não deve apenas resistir às perturbações; ele deve se fortalecer com os feedbacks e atritos naturais que surgem na rotina de ${genreName};\n\n` +
+        `- **Previsibilidade e Sustentabilidade de Retorno:** Resultados esporádicos decorrentes de sorte ou esforço heroico não constroem patrimônio ou autoridade. Buscamos modelos que gerem valor constante com desgaste equilibrado.\n\n` +
+        `Essa base sólida remove o medo da incerteza e permite avançar com a confiança de quem domina as causas primárias do sucesso.\n\n`;
     } else {
       sec1 = `\n\n### 1. Desconstrução das Armadilhas e Erros Recorrentes\n\n` +
-        `O caminho para a excelência em ${chapterTheme.toLowerCase()} começa pela identificação clara daquilo que deve ser evitado a todo custo. No ecossistema de ${genreName}, as falhas mais comuns decorrem da falta de clareza prévia e da precipitação.\n\n` +
-        `Para blindar a execução em "${cleanTitle}", estabelecemos as seguintes diretrizes de contenção:\n\n` +
-        `- **Não confundir atividade com progresso:** Estar ocupado não significa estar avançando na direção certa;\n` +
-        `- **Não negligenciar a padronização inicial:** O que não é documentado com clareza perde-se na primeira troca de turno;\n` +
-        `- **Priorizar qualidade sobre velocidade bruta:** Fazer certo da primeira vez é sempre mais rápido e econômico;\n` +
-        `- **Monitorar feedbacks do ambiente:** Ajustar parâmetros com agilidade diante dos primeiros sinais de desvio.\n\n`;
+        `O caminho para a excelência em ${chapterTheme.toLowerCase()} começa não pelo que devemos acrescentar, mas pela identificação e remoção cirúrgica daquilo que sabota a execução silenciosamente. No ecossistema de ${genreName}, as falhas mais onerosas decorrem da pressa desinformada e da falta de critérios de qualidade.\n\n` +
+        `Observando os projetos que fracassam antes de alcançar maturidade em "${cleanTitle}", mapeamos um conjunto recorrente de equívocos que você deve evitar a todo custo:\n\n` +
+        `- **A Armadilha da Atividade Falsa:** Confundir estar ocupado com estar progredindo. Preencher a agenda com tarefas irrelevantes é uma das formas mais refinadas de procrastinação inconsciente;\n\n` +
+        `- **A Negligência da Padronização Inicial:** Tentar improvisar a cada nova iteração. O que não é documentado com clareza perde-se na primeira oscilação de ânimo ou no primeiro imprevisto da semana;\n\n` +
+        `- **O Sacrifício da Qualidade em Favor do Volume:** Apressar a entrega acreditando que o mercado perdoa falhas estruturais. Fazer com perfeição da primeira vez é invariavelmente mais rápido, barato e gratificante do que remediar depois;\n\n` +
+        `- **A Surdez ao Feedback Real:** Insistir em rotinas ineficazes por apego emocional ao plano original. Um especialista recalibra seus parâmetros no instante em que a realidade aponta um desvio mensurável.\n\n` +
+        `Ao erradicar esses quatro vícios da sua prática, você automaticamente se posiciona à frente da vasta maioria que ainda opera no improviso.\n\n`;
     }
 
     // Seção 2: O Método Prático em Quatro Fases
-    const sec2 = `### 2. O Método Prático em Quatro Fases Sequenciais\n\n` +
-      `A transposição dos princípios de ${chapterTheme.toLowerCase()} para o seu dia a dia exige um protocolo linear, seguro e validado no campo de batalha:\n\n` +
-      `1. **Fase de Mapeamento Inicial:** Audite seu cenário com métricas quantitativas. Sem um ponto de partida fidedigno, qualquer avanço é mera ilusão.\n` +
-      `2. **Fase de Calibração e Teste:** Aplique as diretrizes em um ciclo curto e controlado. Avalie as respostas com rigor e ajuste os parâmetros conforme a realidade factual.\n` +
-      `3. **Fase de Padronização e Blindagem:** Registre os procedimentos que geraram os melhores resultados. Aquilo que é documentado torna-se um ativo transferível e permanente.\n` +
-      `4. **Fase de Otimização e Ganho Marginal:** Busque melhorias contínuas de 1% a cada ciclo de revisão. No acumulado das semanas, a distância entre a média e o topo torna-se monumental.\n\n`;
+    const sec2 = `### 2. O Método Prático em Cinco Fases de Implementação\n\n` +
+      `A transposição dos princípios teóricos de ${chapterTheme.toLowerCase()} para o seu cotidiano exige um roteiro sequencial testado e validado. Siga rigorosamente estas cinco etapas estruturadas:\n\n` +
+      `1. **Fase de Mapeamento e Diagnóstico Inicial:** Antes de iniciar qualquer modificação, audite seu ponto de partida com dados quantitativos. Registre o tempo investido, os recursos disponíveis e os obstáculos conhecidos. Sem uma medição honesta do presente, qualquer projeção de futuro é apenas desejo vazio.\n\n` +
+      `2. **Fase de Calibração e Teste Controlado:** Aplique as diretrizes essenciais em um micro-ciclo de três a sete dias. O objetivo nesta fase não é a perfeição monumental, mas a validação rápida da mecânica de execução e a coleta de dados de atrito.\n\n` +
+      `3. **Fase de Padronização e Blindagem:** Uma vez identificado o formato ideal, documente o procedimento em um checklist claro. Estabeleça regras de proteção para impedir que urgências alheias ou distrações ambientais corrompam seu momento de foco.\n\n` +
+      `4. **Fase de Otimização e Ganho Marginal (Kaizen):** Busque refinamentos de apenas um por cento a cada ciclo de revisão. Melhore a velocidade de início, elimine um clique desnecessário ou aprimore a clareza da comunicação. No acumulado das semanas, pequenos ganhos marginais geram vantagens exponenciais inalcançáveis para quem busca atalhos.\n\n` +
+      `5. **Fase de Consolidação e Autonomia:** Integre a prática ao seu repertório natural até que ela deixe de exigir esforço deliberado de vontade e passe a operar como uma segunda natureza, gerando resultados automáticos e consistentes.\n\n`;
 
     // Seção 3: Estudos de Caso e Lições de Campo
-    const sec3 = `### 3. Estudos de Caso e Aplicação no Mercado Real\n\n` +
-      `A história recente de ${genreName} documenta com nitidez o divisor de águas entre o amadorismo e a excelência. Em situações de alta pressão, os profissionais e projetos que se sustentaram no topo não foram aqueles com maior volume de recursos iniciais, mas os que demonstraram maior disciplina na execução de ${chapterTheme.toLowerCase()}.\n\n` +
-      `A maior tentação que você enfrentará nesta etapa é abandonar os fundamentos cedo demais em busca de sofisticações precoces. A verdadeira sofisticação consiste em executar o básico com perfeição impecável sob qualquer circunstância.\n\n`;
+    const sec3 = `### 3. Estudos de Caso e Aplicações Reais de Mercado\n\n` +
+      `A história documental dos maiores sucessos editoriais e comerciais em ${genreName} evidencia com nitidez o que separa projetos duradouros de iniciativas efêmeras. Em cenários de alta pressão competitiva, os que triunfam não são os detentores de orçamentos faraônicos, mas os que executam com impecabilidade o básico que os outros consideram entediante.\n\n` +
+      `Considere a experiência prática documentada em projetos análogos a "${cleanTitle}". Ao analisarmos casos onde a implementação de ${chapterTheme.toLowerCase()} foi conduzida com rigor metódico, observamos três transformações imediatas:\n\n` +
+      `- **Redução Drástica do Custo de Decisão:** Com critérios pré-estabelecidos, a hesitação mental diária desaparece, liberando largura de banda cognitiva para resolver problemas de alto valor;\n\n` +
+      `- **Aumento da Consistência de Entrega:** O desvio padrão dos resultados diminui, garantindo que o pior dia da sua rotina ainda seja superior à média dos concorrentes;\n\n` +
+      `- **Criação de Valor Cumulativo e Compostagem de Resultados:** Cada esforço realizado soma-se aos anteriores em vez de recomeçar do zero, criando um efeito bola de neve positivo que se autoalimenta.\n\n` +
+      `Lembre-se sempre: a maior tentação do praticante intermediário é abandonar os fundamentos cedo demais em busca de sofisticações precoces. A verdadeira maestria consiste em fazer o elementar com nível de excelência sobre-humano.\n\n`;
 
-    // Seção 4: Síntese e Preparação
-    const sec4 = `### Conclusão e Próximo Passo na Jornada\n\n` +
-      `Ao concluir este capítulo sobre ${chapterTheme.toLowerCase()}, você adiciona uma ferramenta indispensável ao seu repertório em "${cleanTitle}". No próximo estágio, nós construiremos sobre este alicerce para atingir novos patamares de integração e maestria.\n`;
+    // Seção 4: Pontos Cegos e Gestão de Riscos
+    const sec4 = `### 4. Pontos Cegos, Armadilhas Invisíveis e Gestão de Riscos\n\n` +
+      `Mesmo com um plano bem delineado, o contato com o mundo real invariavelmente revela atritos inesperados. Em ${genreName}, a capacidade de antecipar esses pontos de quebra é o que distingue o estrategista do mero executor:\n\n` +
+      `- **O Efeito Fadiga de Decisão:** Conforme o dia avança, a qualidade das escolhas tende a se deteriorar. Para neutralizar esse risco, posicione as tarefas críticas de ${chapterTheme.toLowerCase()} nos períodos de maior pico de energia biológica e mental;\n\n` +
+      `- **A Ilusão da Prontidão:** Esperar pelas condições perfeitas de humor, clima ou recursos para começar. Condições ideais não existem na realidade; a prontidão é criada no ato de iniciar, não antes dele;\n\n` +
+      `- **A Síndrome da Otimização Prematura:** Perder semanas refinando detalhes estéticos ou periféricos antes que a espinha dorsal esteja plenamente funcional. O miolo e a estrutura vêm sempre em primeiro lugar.\n\n`;
 
-    let fullText = `## ${chapterTitle}\n\n${selectedIntro}${sec1}${sec2}${sec3}${sec4}`;
+    // Seção 5: Conclusão e Checklist do Capítulo
+    const sec5 = `### Conclusão e Checklist Executivo de Aplicação\n\n` +
+      `Ao dominar os conceitos examinados neste capítulo dedicado a ${chapterTheme.toLowerCase()}, você adiciona uma peça insubstituível à arquitetura geral de "${cleanTitle}".\n\n` +
+      `Para transformar esta leitura em resultado prático antes de avançar para a próxima etapa, execute o seguinte checklist:\n\n` +
+      `- [ ] **Passo 1:** Defina a métrica primária que indicará o progresso tangível desta semana;\n` +
+      `- [ ] **Passo 2:** Bloqueie um período inegociável na sua agenda para a aplicação dos princípios descritos;\n` +
+      `- [ ] **Passo 3:** Identifique e elimine a principal distração ou fonte de atrito que compete com este objetivo;\n` +
+      `- [ ] **Passo 4:** Aplique a primeira iteração em escala controlada e registre os dados observados;\n` +
+      `- [ ] **Passo 5:** Faça um ajuste de 1% baseado nas lições aprendidas e prepare a transição para o próximo capítulo.\n\n` +
+      `Com esses fundamentos firmemente ancorados na sua prática, estamos prontos para avançar para o próximo estágio da nossa jornada editorial.\n`;
+
+    let fullText = `## ${chapterTitle}\n\n${selectedIntro}${sec1}${sec2}${sec3}${sec4}${sec5}`;
 
     // Densidade de palavras configurável (expansão proporcional ao pedido do autor com prosa editorial fluida)
     const currentWords = fullText.split(/\s+/).length;
     if (targetWords > currentWords) {
-      const extraNeeded = Math.ceil((targetWords - currentWords) / 140);
+      const extraNeeded = Math.ceil((targetWords - currentWords) / 180);
       const editorialSubtitles = [
-        'Diretrizes de Validação e Monitoramento Contínuo',
-        'Gestão de Consistência e Padrões de Alto Desempenho',
-        'Resiliência Estratégica Frente a Cenários Imprevistos',
-        'Otimização Contínua e Consolidação de Hábitos',
-        'Refinamento Tático e Prevenção de Desvios',
-        'Princípios de Sustentação no Longo Prazo'
+        'Diretrizes Avançadas de Validação e Monitoramento Contínuo',
+        'Gestão de Consistência e Padrões de Alto Desempenho no Mercado',
+        'Resiliência Estratégica Frente a Cenários Imprevistos de Alta Pressão',
+        'Otimização Contínua e Consolidação de Hábitos Inabaláveis',
+        'Refinamento Tático de Detalhes e Prevenção de Desvios Invisíveis',
+        'Princípios de Sustentação no Longo Prazo e Criação de Legado'
       ];
       
       for (let i = 1; i <= extraNeeded; i++) {
@@ -1180,16 +1204,19 @@ export class BatchTitleTextGenerator {
         const moduleType = (i + bookSeedIndex) % 3;
         if (moduleType === 0) {
           fullText += `\n### ${subTitleChosen}\n\n` +
-            `Reforçando a aplicação de ${chapterTheme.toLowerCase()} no contexto amplo de "${cleanTitle}", recomenda-se estabelecer uma rotina de verificação periódica. Ao analisar os dados gerados pelas suas ações em ${genreName}, certifique-se de que os desvios sejam identificados e corrigidos antes que acumulem atrito. A disciplina metódica supera qualquer lampejo isolado de genialidade.\n\n` +
-            `Dedique momentos de revisão consciente para calibrar sua bússola diária. Quando as metas estão alinhadas com princípios sólidos, o esforço diário deixa de ser um peso desgastante e torna-se um motor de realização contínua.\n`;
+            `Reforçando a aplicação de ${chapterTheme.toLowerCase()} no contexto amplo de "${cleanTitle}", recomenda-se estabelecer uma rotina de verificação periódica que sirva de termômetro operacional. Ao analisar os dados gerados pelas suas ações diárias em ${genreName}, certifique-se de que os desvios sejam identificados e corrigidos antes que acumulem atrito ou causem sobrecarga desnecessária.\n\n` +
+            `A disciplina metódica supera com folga qualquer lampejo isolado de genialidade ou impulso temporário de entusiasmo. Dedique momentos deliberados de revisão consciente para calibrar sua bússola diária. Quando as metas estão alinhadas com princípios sólidos e ferramentas comprovadas, o esforço diário deixa de ser um peso desgastante e torna-se um motor contínuo de realização e crescimento sustentável.\n\n` +
+            `Mantenha os padrões elevados mesmo quando ninguém estiver observando: é a consistência nos momentos invisíveis que constrói a reputação inquestionável de um trabalho de nível profissional.\n`;
         } else if (moduleType === 1) {
           fullText += `\n### ${subTitleChosen}\n\n` +
-            `Para assegurar que o impacto de ${chapterTheme.toLowerCase()} permaneça ativo na sua rotina, revise com frequência os seguintes pontos críticos: consistência de execução, aderência aos padrões de excelência e transparência na medição dos resultados. Pequenos ajustes executados no momento certo impedem retrabalhos e protegem sua energia vital.\n\n` +
-            `Em ${genreName}, os resultados duradouros raramente decorrem de saltos heroicos; eles nascem da lealdade aos detalhes que a maioria prefere ignorar por pressa ou conveniência.\n`;
+            `Para assegurar que o impacto de ${chapterTheme.toLowerCase()} permaneça ativo na sua rotina, revise com frequência os seguintes pontos críticos: consistência de execução, aderência aos padrões de excelência técnica e transparência na medição dos resultados tangíveis. Pequenos ajustes executados no momento certo impedem retrabalhos monumentais e protegem sua energia vital para as grandes decisões estratégicas.\n\n` +
+            `Em ${genreName}, os resultados duradouros e celebrados raramente decorrem de saltos heroicos ou eventos mágicos; eles nascem da lealdade aos detalhes que a maioria prefere ignorar por pressa ou conveniência imediata. Ao cuidar de cada engrenagem com zelo artesanal, você constrói uma obra que não apenas informa, mas transforma a realidade de quem a consome.\n\n` +
+            `Estabeleça um pacto pessoal com a maestria: faça menos coisas, porém com um nível de profundidade e elegância que torne seu trabalho incomparável no ecossistema.\n`;
         } else {
           fullText += `\n### ${subTitleChosen}\n\n` +
-            `Mesmo os melhores planejamentos encontram volatilidade no mundo real. No escopo de "${cleanTitle}", a resposta madura diante de imprevistos não é o abandono do plano, mas a adaptação inteligente dentro dos limites estabelecidos por este método. Mantenha os olhos fixos nos fundamentos de longo prazo e preserve a serenidade estratégica.\n\n` +
-            `A maturidade operacional reside em transformar cada surpresa em oportunidade de aprendizado, fortalecendo as defesas de toda a estrutura contra crises futuras.\n`;
+            `Mesmo os melhores planejamentos encontram volatilidade e resistências no mundo real. No escopo de "${cleanTitle}", a resposta madura diante de imprevistos não é o abandono do plano ou a frustração desmedida, mas a adaptação inteligente dentro dos limites estabelecidos por este método.\n\n` +
+            `Mantenha os olhos fixos nos fundamentos de longo prazo e preserve a serenidade estratégica diante das turbulências cotidianas. A maturidade operacional reside em transformar cada surpresa em oportunidade de aprendizado e aperfeiçoamento, fortalecendo as defesas de toda a estrutura contra crises futuras.\n\n` +
+            `Quem domina os princípios aqui expostos navega com segurança em qualquer mar, transformando obstáculos aparentes em degraus sólidos para o próximo nível de maestria e impacto.\n`;
         }
       }
     }

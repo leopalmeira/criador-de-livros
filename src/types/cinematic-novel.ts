@@ -40,13 +40,14 @@ export interface CinematicCharacter {
   heightAndBuild: string;
   distinctiveMarks: string;
   costumes: string[];
-  accessories: string[];
+  accessories?: string[];
   personality: string;
-  speakingStyle: string;
-  relationships: Record<string, string>;
+  speakingStyle?: string;
+  voiceTone?: string;
+  relationships?: Record<string, string>;
   referenceImageUrl?: string;
   referencePrompt?: string;
-  isApproved: boolean;
+  isApproved?: boolean;
 }
 
 export interface CinematicStoryBible {

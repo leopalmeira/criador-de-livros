@@ -163,6 +163,27 @@ export class PublishingMetadataService {
   }
 
   /**
+   * Retorna diretamente a lista de strings com as 7 palavras-chave formatadas
+   */
+  public static generateKdpKeywords(params: {
+    title: string;
+    subtitle?: string;
+    author?: string;
+    genre?: string;
+    targetAudience?: string;
+    description?: string;
+    bookType?: string;
+  }): string[] {
+    const slots = this.generateKdpKeywordSlots(
+      params.title,
+      params.subtitle || '',
+      params.genre || 'Geral',
+      params.description || ''
+    );
+    return slots.map(s => s.keywordPhrase);
+  }
+
+  /**
    * Constrói os metadados organizados para Google Play Books
    */
   public static generateGooglePlayMetadata(

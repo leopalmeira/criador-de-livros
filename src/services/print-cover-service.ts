@@ -172,17 +172,25 @@ export class PrintCoverService {
     title: string;
     subtitle?: string;
     author: string;
+    genre?: string;
     pageCount: number;
     paperType?: PaperType;
     trimSize?: TrimSize;
     frontArtDataUrl?: string;
+    frontCoverDataUrl?: string;
+    backCoverDataUrl?: string;
     frontIsAlreadyDiagrammed?: boolean;
+    synopsisText?: string;
+    hookHeadline?: string;
+    readerBenefits?: string[];
+    isKids?: boolean;
     backCoverContent?: BackCoverContent;
     primaryColorHex?: string;
   }): Promise<{ pdfBytes: Uint8Array; validation: PrintCoverValidationReport }> {
     const trimSize: TrimSize = params.trimSize || '6x9';
     const paperType: PaperType = params.paperType || 'bw-white';
     const safePageCount = Math.max(24, params.pageCount || 150);
+    const frontArt = params.frontArtDataUrl || params.frontCoverDataUrl;
 
     const validation = this.validatePrintCover({
       title: params.title,
@@ -190,7 +198,7 @@ export class PrintCoverService {
       pageCount: safePageCount,
       paperType,
       trimSize,
-      hasFrontArt: Boolean(params.frontArtDataUrl)
+      hasFrontArt: Boolean(frontArt)
     });
 
     const geometry: KdpSpineCalculation = CoverQualityChecker.calculateKdpSpineAndCover(
@@ -224,11 +232,11 @@ export class PrintCoverService {
     const frontCoverX = spineX + spineWidthMm;
 
     // --- PAINEL FRONTAL (CAPA DIREITA) ---
-    if (params.frontArtDataUrl && params.frontArtDataUrl.startsWith('data:image')) {
+    if (frontArt && frontArt.startsWith('data:image')) {
       try {
-        const isPng = params.frontArtDataUrl.includes('image/png');
+        const isPng = frontArt.includes('image/png');
         doc.addImage(
-          params.frontArtDataUrl,
+          frontArt,
           isPng ? 'PNG' : 'JPEG',
           frontCoverX,
           0,

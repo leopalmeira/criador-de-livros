@@ -137,7 +137,7 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
         frontIsAlreadyDiagrammed: true,
         synopsisText: book.subtitle || undefined
       });
-      const blob = new Blob([res.pdfBytes], { type: 'application/pdf' });
+      const blob = new Blob([res.pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

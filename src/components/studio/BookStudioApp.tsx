@@ -26,6 +26,7 @@ import { CinematicNovelService } from '../../services/cinematic-novel-service';
 const CourseEbookStudio = React.lazy(() => import('./course/CourseEbookStudio').then(m => ({ default: m.CourseEbookStudio })));
 const CourseDigitalReader = React.lazy(() => import('./course/CourseDigitalReader').then(m => ({ default: m.CourseDigitalReader })));
 const PuzzleBookStudio = React.lazy(() => import('./puzzles/PuzzleBookStudio').then(m => ({ default: m.PuzzleBookStudio })));
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import '../../styles/book-intel-dashboard.css';
 
 type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinematic-novel' | 'course-generator' | 'puzzle-generator';
@@ -671,7 +672,7 @@ export const BookStudioApp: React.FC = () => {
   // ============================================================
   if (mode === 'project-list') {
     return (
-      <>
+      <ErrorBoundary fallbackTitle="Painel de Controle Editorial" onReset={() => reloadProjects()}>
         <BookIntelDashboard
           projects={projects}
           currentUser={currentUser}
@@ -718,7 +719,7 @@ export const BookStudioApp: React.FC = () => {
             onCancel={() => setIsCinematicWizardOpen(false)}
           />
         )}
-      </>
+      </ErrorBoundary>
     );
   }
 
@@ -727,20 +728,22 @@ export const BookStudioApp: React.FC = () => {
   // ============================================================
   if (mode === 'kdp-generator') {
     return (
-      <KdpBookGeneratorPro
-        key={activeProject ? activeProject.id : newSessionId}
-        initialProject={activeProject}
-        isNewProject={activeProject === null}
-        onBackToDashboard={() => {
-          setActiveProject(null);
-          setMode('project-list');
-          reloadProjects();
-        }}
-        onProjectSaved={(newProject) => {
-          setProjects(prev => [newProject, ...prev]);
-          reloadProjects();
-        }}
-      />
+      <ErrorBoundary fallbackTitle="Gerador de Livros KDP Pro" onReset={() => setMode('project-list')}>
+        <KdpBookGeneratorPro
+          key={activeProject ? activeProject.id : newSessionId}
+          initialProject={activeProject}
+          isNewProject={activeProject === null}
+          onBackToDashboard={() => {
+            setActiveProject(null);
+            setMode('project-list');
+            reloadProjects();
+          }}
+          onProjectSaved={(newProject) => {
+            setProjects(prev => [newProject, ...prev]);
+            reloadProjects();
+          }}
+        />
+      </ErrorBoundary>
     );
   }
 

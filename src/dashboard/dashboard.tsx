@@ -3,8 +3,12 @@ import { createRoot } from 'react-dom/client';
 import '../components/studio/book-studio.css';
 import { BookStudioApp } from '../components/studio/BookStudioApp';
 
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
+
 export const DashboardApp: React.FC = () => (
-  <BookStudioApp />
+  <ErrorBoundary fallbackTitle="Painel Editorial BookEngin" onReset={() => window.location.reload()}>
+    <BookStudioApp />
+  </ErrorBoundary>
 );
 
 const dashboardContainer = document.getElementById('dashboard-root')!;
