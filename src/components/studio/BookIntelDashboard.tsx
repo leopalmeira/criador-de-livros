@@ -3,7 +3,7 @@ import {
   BookOpen, Plus,
   HelpCircle, ChevronDown, ArrowRight,
   Clock, Search, Copy, Trash2, Sparkles, CheckCircle2, Play,
-  DollarSign, Bot, LogOut, Zap, RefreshCw, Shield,
+  DollarSign, LogOut, Zap, RefreshCw, Shield,
   GraduationCap, Headphones, FolderKanban, CheckCircle, Download, Layers, Grid3X3, X
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
@@ -137,75 +137,51 @@ export const BookIntelDashboard: React.FC<Props> = ({
             {/* SELETOR DE IDIOMA COM BANDEIRAS E NOMES NATIVOS */}
             <LanguageSelector />
 
-            {/* WIDGET DE CRÉDITOS DO AUTOR (US$ 3 POR LIVRO GERADO) */}
+            {/* WIDGET DE CRÉDITOS REDUZIDO E DISCRETO */}
             <button
               onClick={() => setIsCreditsModalOpen(true)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 8,
-                background: 'rgba(16, 185, 129, 0.12)',
-                color: '#34d399',
-                border: '1px solid rgba(16, 185, 129, 0.35)',
-                fontWeight: 700,
-                fontSize: 12,
+                gap: 5,
+                padding: '3px 9px',
+                borderRadius: 6,
+                background: 'rgba(16, 185, 129, 0.08)',
+                color: '#10b981',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                fontWeight: 600,
+                fontSize: 11,
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
-              title="Saldo de créditos para gerar livros ($3 por livro)"
+              title="Saldo de créditos para gerar livros"
             >
-              <span>💳</span>
-              <span>{bookCredits} {bookCredits === 1 ? 'Crédito' : 'Créditos'}</span>
-              <span style={{ fontSize: 10, color: '#94a3b8' }}>($3/livro)</span>
+              <span style={{ fontSize: 11 }}>💳</span>
+              <span>{bookCredits} {bookCredits === 1 ? 'crédito' : 'créditos'}</span>
             </button>
 
-            {onOpenAiGuide && (
-              <button
-                onClick={onOpenAiGuide}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  borderRadius: 8,
-                  background: 'rgba(56, 189, 248, 0.12)',
-                  color: '#38bdf8',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                title={t('aiGuide.title')}
-              >
-                <Bot size={15} /> {t('nav.aiGuide')}
-              </button>
-            )}
-
-            {onOpenAdmin && (
+            {/* PAINEL ADMIN: EXCLUSIVAMENTE PARA ADMINISTRADORES DA PLATAFORMA */}
+            {onOpenAdmin && Boolean(currentUser?.isAdmin) && (
               <button
                 onClick={onOpenAdmin}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  borderRadius: 8,
-                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.22) 0%, rgba(109, 40, 217, 0.3) 100%)',
-                  color: '#c084fc',
-                  border: '1px solid rgba(168, 85, 247, 0.45)',
-                  fontWeight: 700,
-                  fontSize: 12,
+                  gap: 5,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  background: '#1e293b',
+                  color: '#cbd5e1',
+                  border: '1px solid #334155',
+                  fontWeight: 600,
+                  fontSize: 11,
                   cursor: 'pointer',
-                  boxShadow: '0 0 14px rgba(139, 92, 246, 0.25)',
                   transition: 'all 0.2s'
                 }}
                 title={t('admin.title', 'Painel de Controle Editorial & Clientes')}
               >
-                <Shield size={15} />
-                <span>{t('admin.badge', 'Painel Admin & Clientes')}</span>
+                <Shield size={13} color="#94a3b8" />
+                <span>{t('admin.badge', 'Admin')}</span>
               </button>
             )}
 
