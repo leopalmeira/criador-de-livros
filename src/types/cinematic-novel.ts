@@ -136,6 +136,7 @@ export interface CinematicPagePlan {
   visualPrompt: string; // Prompt individual específico DESTA página
   negativePrompt: string;
   imageUrl?: string;
+  imageHistory?: string[];
   
   // LAYOUT EDITORIAL (Página inteira cinematográfica ou grade de quadros)
   layoutType: 'single_hero' | 'multi_panel';
@@ -182,6 +183,7 @@ export interface CinematicNovelProjectData {
   checklist: CinematicChecklistTask[];
   
   coverImageUrl?: string;
+  coverImageHistory?: string[];
   coverTitle?: string;
   coverSubtitle?: string;
   

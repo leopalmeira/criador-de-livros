@@ -146,3 +146,15 @@ export function getRealisticCinematicSvgDataUrl(description: string, theme: stri
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
+
+/**
+ * Gera imagem de capa cinematográfica de alto impacto via Replicate FLUX.1
+ */
+export async function generateCoverVisualWithReplicate(
+  title: string,
+  genre: string = 'Thriller',
+  visualStyle: string = 'Fotografia Cinematográfica 35mm Realista'
+): Promise<string> {
+  const prompt = `Award-winning bestselling book cover photograph, "${title}", ${genre}, ${visualStyle}, cinematic lighting, dramatic atmosphere, 35mm film photography, 8k resolution, photorealistic, fine art, no letters, no text, no watermark`;
+  return generateFrameVisualWithReplicate(prompt, 'cover', '2:3');
+}

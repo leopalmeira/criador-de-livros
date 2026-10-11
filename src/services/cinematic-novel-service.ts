@@ -614,106 +614,486 @@ Você DEVE responder ESTRITAMENTE em formato JSON válido, sem texto fora do JSO
   }
 
   /**
-   * Exportação Oficial em PDF Full Bleed Colorido de Alta Resolução Diagramado para Impressão KDP
+   * Cria páginas fotográficas padrão com cenas fotorrealistas e textos ricos integrados
+   */
+  static createDefaultInitialPages(project: CinematicNovelProjectData): CinematicPagePlan[] {
+    return [
+      {
+        id: `page_1_${Date.now()}`,
+        bookId: project.id,
+        chapterNumber: 1,
+        chapterTitle: 'O Despertar no Quarto Cinza',
+        pageNumber: 1,
+        sceneSummary: 'Helena acorda às 06:17 da manhã com o som da chuva e a sensação paralisante de tempo perdido.',
+        previousNarrativeContext: 'Início da narrativa',
+        dramaticObjective: 'Estabelecer a atmosfera de suspense psicológico e a quebra da rotina.',
+        charactersPresent: ['Helena Vance'],
+        mandatoryVisualReferences: ['Helena Vance', 'Despertador 06:17', 'Roupão de lã cinza'],
+        charactersAppearance: 'Mulher de 34 anos com cabelos castanhos ondulados e olhar tenso',
+        costumeAndProps: 'Roupão de lã cinza amarrado na cintura',
+        environmentSetting: 'Quarto com luz difusa de chuva matinal',
+        timeAndLighting: '06:17 da manhã, luz fria de tempestade',
+        actionsAndExpressions: 'Sentada na beira da cama olhando o despertador com apreensão',
+        cameraFraming: 'plano-medio',
+        imageComposition: 'Enquadramento cinematográfico 35mm com espaço inferior para texto integrado',
+        requiredElements: ['Despertador digital 06:17', 'Chuva na janela'],
+        persistentElements: ['Traços faciais da protagonista'],
+        narrationText: 'Helena abriu os olhos lentamente e encarou o teto. O silêncio da casa era quebrado apenas pelo gotejar ritmado da chuva na vidraça. Ao lado da cama, os números vermelhos do despertador digital marcavam exatamente seis e dezessete da manhã.',
+        dialogues: [
+          {
+            id: `d_1_1`,
+            speakerId: 'char_1',
+            speakerName: 'Helena',
+            speechText: 'Por que sinto que a noite passada não me pertence mais?...',
+            speechType: 'thought'
+          }
+        ],
+        speechAttribution: 'Pensamento interno de Helena',
+        textPlacementPlan: 'Texto impresso diretamente sobre o terço inferior da fotografia, sem caixas brancas',
+        reservedVisualSpace: 'Área inferior da imagem',
+        validationCriteria: ['Fotografia realista 35mm', 'Texto integrado sem caixa branca'],
+        visualPrompt: 'Cinematic 35mm film still of a realistic 34-year-old woman sitting on edge of bed in moody bedroom, early morning cold rain outside window, red digital clock 06:17 on nightstand, wearing charcoal wool bathrobe, atmospheric moody lighting, photorealistic, 8k resolution, award winning cinematography, completely free of typography or white boxes',
+        negativePrompt: 'blurry, 3d cartoon, text boxes, white speech bubbles, watermark, deformed',
+        layoutType: 'single_hero',
+        isApproved: true,
+        validationStatus: 'gerado',
+        version: 1,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      },
+      {
+        id: `page_2_${Date.now() + 1}`,
+        bookId: project.id,
+        chapterNumber: 1,
+        chapterTitle: 'O Envelope Pardo',
+        pageNumber: 2,
+        sceneSummary: 'Helena encontra a cafeteira ligada e um bilhete anônimo perturbador sobre a bancada.',
+        previousNarrativeContext: 'Helena caminha pelo corredor silencioso até a cozinha.',
+        dramaticObjective: 'Revelar o elemento deflagrador do mistério: o bilhete sobre a ponte.',
+        charactersPresent: ['Helena Vance'],
+        mandatoryVisualReferences: ['Envelope pardo', 'Bancada de granito', 'Cafeteira elétrica'],
+        charactersAppearance: 'Helena com mãos trêmulas segurando o bilhete',
+        costumeAndProps: 'Roupão cinza, xícara de café fumegante, papel pardo áspero',
+        environmentSetting: 'Cozinha silenciosa em tons escuros e luz matinal amarelada',
+        timeAndLighting: '06:22 da manhã, luz da luminária sobre a bancada',
+        actionsAndExpressions: 'Leitura atônita da frase datilografada no bilhete',
+        cameraFraming: 'close-up-dramatico',
+        imageComposition: 'Close fotográfico com profundidade de campo rasa e foco nas mãos e no bilhete',
+        requiredElements: ['Envelope pardo', 'Bilhete datilografado'],
+        persistentElements: ['Figurino do roupão cinza'],
+        narrationText: 'Na cozinha silenciosa, a cafeteira elétrica estava ligada. Apoiado contra a bancada de granito escuro, um envelope pardo fechado continha apenas uma frase datilografada: "Você esqueceu o que aconteceu na ponte". O sangue pareceu sumir de suas mãos.',
+        dialogues: [
+          {
+            id: `d_1_2`,
+            speakerId: 'char_1',
+            speakerName: 'Helena',
+            speechText: 'Quem esteve aqui enquanto eu dormia?...',
+            speechType: 'speech'
+          }
+        ],
+        speechAttribution: 'Helena falando sozinha na cozinha',
+        textPlacementPlan: 'Texto impresso diretamente sobre o terço inferior da fotografia, sem caixas brancas',
+        reservedVisualSpace: 'Área inferior da imagem',
+        validationCriteria: ['Fotografia realista 35mm', 'Texto integrado sem caixa branca'],
+        visualPrompt: 'Cinematic 35mm movie close-up shot of trembling female hands holding a kraft paper note reading mystery words on a dark granite kitchen counter, steaming coffee maker in background, moody atmospheric light, dramatic film photography, photorealistic, 8k, no artificial white boxes',
+        negativePrompt: 'blurry, 3d cartoon, text boxes, white speech bubbles, watermark, deformed',
+        layoutType: 'single_hero',
+        isApproved: true,
+        validationStatus: 'gerado',
+        version: 1,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      },
+      {
+        id: `page_3_${Date.now() + 2}`,
+        bookId: project.id,
+        chapterNumber: 2,
+        chapterTitle: 'O Consultório do Dr. Arthur',
+        pageNumber: 3,
+        sceneSummary: 'Confronto no consultório médico com Dr. Arthur sobre os lapsos de memória.',
+        previousNarrativeContext: 'Helena busca respostas imediatas sobre a noite da ponte.',
+        dramaticObjective: 'Instaurar desconfiança em relação ao médico assistente.',
+        charactersPresent: ['Helena Vance', 'Dr. Arthur Miller'],
+        mandatoryVisualReferences: ['Dr. Arthur Miller', 'Mesa de mogno', 'Jaleco médico'],
+        charactersAppearance: 'Médico de 42 anos com óculos finos e olhar analítico',
+        costumeAndProps: 'Jaleco branco sobre camisa azul clara, relatórios médicos',
+        environmentSetting: 'Consultório médico elegante com persianas de madeira',
+        timeAndLighting: '09:30 da manhã, luz solar suave filtrada pelas persianas',
+        actionsAndExpressions: 'Arthur desviando o olhar ao ver o bilhete sobre a mesa',
+        cameraFraming: 'plano-americano',
+        imageComposition: 'Dois personagens em tensão dramática frente a frente',
+        requiredElements: ['Mesa de mogno', 'Relatórios neurológicos'],
+        persistentElements: ['Rosto do Dr. Arthur e expressão de Helena'],
+        narrationText: 'O Dr. Arthur ajeitou os óculos sobre o nariz e encarou o papel sobre sua mesa de mogno. Por um instante fugaz, a máscara de serenidade do médico caiu, revelando o mesmo medo que assombrava a mente de Helena.',
+        dialogues: [
+          {
+            id: `d_2_1`,
+            speakerId: 'char_2',
+            speakerName: 'Dr. Arthur',
+            speechText: 'Helena, se você insistir em reabrir as memórias daquela ponte, ninguém poderá protegê-la do que virá a seguir.',
+            speechType: 'speech'
+          }
+        ],
+        speechAttribution: 'Diálogo tenso de Dr. Arthur',
+        textPlacementPlan: 'Texto impresso diretamente sobre a fotografia, sem caixas brancas',
+        reservedVisualSpace: 'Área inferior da imagem',
+        validationCriteria: ['Fotografia realista 35mm', 'Texto integrado sem caixa branca'],
+        visualPrompt: 'Cinematic 35mm film still of a distinguished 42-year-old male doctor in white medical coat and glasses sitting across mahogany desk facing a tense brunette woman in stylish coat, morning window sunlight through blinds, high tension, photorealistic movie still, 8k, authentic textures, no text boxes',
+        negativePrompt: 'blurry, 3d cartoon, text boxes, white speech bubbles, watermark, deformed',
+        layoutType: 'single_hero',
+        isApproved: true,
+        validationStatus: 'gerado',
+        version: 1,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ];
+  }
+
+  /**
+   * Renderiza a página fotográfica cinematográfica no Canvas com TEXTO INTEGRADO DIRETO NA IMAGEM.
+   * REGRA IMPERATIVA: SEM caixa branca, SEM box branco, SEM balão branco por trás do texto!
+   */
+  static renderPageToCanvas(
+    canvas: HTMLCanvasElement,
+    page: CinematicPagePlan,
+    bookTitle: string,
+    width = 1200,
+    height = 1714
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve();
+        return;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      // 1. Desenha o fundo da imagem fotográfica
+      const drawBackgroundAndText = (imgElement?: HTMLImageElement) => {
+        if (imgElement && imgElement.naturalWidth > 0) {
+          ctx.drawImage(imgElement, 0, 0, width, height);
+        } else {
+          // Fundo fotográfico gradiente de segurança profundo e cinematográfico
+          const grad = ctx.createLinearGradient(0, 0, 0, height);
+          grad.addColorStop(0, '#0f172a');
+          grad.addColorStop(0.5, '#1e293b');
+          grad.addColorStop(1, '#020617');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, width, height);
+        }
+
+        // 2. SCRIM GRADIENT SUAVE (Vignette natural cinematográfica - NÃO É UMA CAIXA!)
+        // Gradiente contínuo de transparência no terço inferior para garantir 100% de legibilidade
+        const scrimH = height * 0.42;
+        const scrimY = height - scrimH;
+        const scrimGrad = ctx.createLinearGradient(0, scrimY, 0, height);
+        scrimGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        scrimGrad.addColorStop(0.35, 'rgba(0, 0, 0, 0.45)');
+        scrimGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.75)');
+        scrimGrad.addColorStop(1, 'rgba(0, 0, 0, 0.90)');
+        ctx.fillStyle = scrimGrad;
+        ctx.fillRect(0, scrimY, width, scrimH);
+
+        // 3. Cabeçalho de topo sutil e integrado na imagem (sem nenhuma caixa retangular!)
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 2;
+        ctx.font = 'bold 20px "Inter", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(bookTitle.toUpperCase(), 48, 60);
+
+        if (page.chapterTitle) {
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.9)'; // Dourado suave
+          ctx.font = 'italic 16px "Merriweather", Georgia, serif';
+          ctx.fillText(page.chapterTitle, 48, 88);
+        }
+        ctx.restore();
+
+        // 4. TEXTO NARRATIVO INTEGRADO DIRETO NA IMAGEM (SEM CAIXA BRANCA, SEM BOX, SEM BALÃO)
+        let textY = height - scrimH + 90;
+        const textX = 54;
+        const maxTextW = width - 108;
+
+        const narration = page.narrationText || (page.panels?.[0]?.narrationText) || '';
+        if (narration) {
+          ctx.save();
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+          ctx.shadowBlur = 10;
+          ctx.shadowOffsetY = 3;
+          ctx.font = 'normal 400 24px "Merriweather", Georgia, serif';
+          ctx.textAlign = 'left';
+
+          // Quebra de linhas suave
+          const words = narration.split(' ');
+          let currentLine = '';
+          const lineHeight = 38;
+
+          for (const word of words) {
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxTextW) {
+              ctx.fillText(currentLine, textX, textY);
+              currentLine = word;
+              textY += lineHeight;
+            } else {
+              currentLine = testLine;
+            }
+          }
+          if (currentLine) {
+            ctx.fillText(currentLine, textX, textY);
+            textY += lineHeight + 18;
+          }
+          ctx.restore();
+        }
+
+        // 5. DIÁLOGOS DIRETOS SOBRE A FOTOGRAFIA (SEM BALÃO DE QUADRINHOS!)
+        const dialogues = page.dialogues || (page.panels?.[0]?.dialogues) || [];
+        if (dialogues.length > 0) {
+          dialogues.slice(0, 2).forEach((dial) => {
+            ctx.save();
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 2;
+
+            // Nome do personagem em dourado elegante
+            ctx.fillStyle = '#fde68a';
+            ctx.font = 'bold 20px "Merriweather", Georgia, serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`${dial.speakerName.toUpperCase()}:`, textX, textY);
+
+            // Fala do personagem em itálico branco suave
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'italic 22px "Merriweather", Georgia, serif';
+            const quoteText = `"${dial.speechText}"`;
+
+            // Quebra de linha da fala
+            const dWords = quoteText.split(' ');
+            let dLine = '';
+            const dLineHeight = 34;
+            textY += 30;
+
+            for (const dw of dWords) {
+              const testDLine = dLine ? `${dLine} ${dw}` : dw;
+              if (ctx.measureText(testDLine).width > maxTextW) {
+                ctx.fillText(dLine, textX + 16, textY);
+                dLine = dw;
+                textY += dLineHeight;
+              } else {
+                dLine = testDLine;
+              }
+            }
+            if (dLine) {
+              ctx.fillText(dLine, textX + 16, textY);
+              textY += dLineHeight + 14;
+            }
+            ctx.restore();
+          });
+        }
+
+        // 6. NÚMERO DA PÁGINA NO RODAPÉ
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 6;
+        ctx.font = 'bold 15px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`— ${page.pageNumber} —`, width / 2, height - 32);
+        ctx.restore();
+
+        resolve();
+      };
+
+      // Carrega imagem com crossOrigin para evitar contaminação do canvas
+      const imgUrl = page.imageUrl || (page.panels?.[0]?.imageUrl);
+      if (imgUrl) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => drawBackgroundAndText(img);
+        img.onerror = () => drawBackgroundAndText();
+        img.src = imgUrl;
+      } else {
+        drawBackgroundAndText();
+      }
+    });
+  }
+
+  /**
+   * Exportação Oficial em PDF Full Bleed Colorido com Imagem e Texto Integrado DIRETO na foto.
+   * SEM caixa branca, SEM box e SEM balões!
    */
   static async exportPdfFullBleed(project: CinematicNovelProjectData): Promise<Blob> {
-    // Dimensão oficial 7x10 polegadas (177.8 x 254 mm) com sangria full-bleed
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: [177.8, 254]
+      format: [177.8, 254] // 7x10 polegadas padrão KDP
     });
 
     const pageWidth = 177.8;
     const pageHeight = 254;
 
+    // Se estiver em ambiente Node.js (testes unitários sem DOM)
+    if (typeof document === 'undefined') {
+      for (let i = 0; i < project.pages.length; i++) {
+        if (i > 0) doc.addPage([177.8, 254], 'portrait');
+        doc.setFillColor(9, 13, 22);
+        doc.rect(0, 0, pageWidth, pageHeight, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(16);
+        doc.text(project.title.toUpperCase(), 20, 25);
+        doc.setFont('times', 'normal');
+        doc.setFontSize(11);
+        doc.text(project.pages[i].narrationText || '', 20, 200, { maxWidth: 137.8 });
+      }
+      return doc.output('blob');
+    }
+
+    const canvas = document.createElement('canvas');
+
     for (let i = 0; i < project.pages.length; i++) {
       const page = project.pages[i];
       if (i > 0) doc.addPage([177.8, 254], 'portrait');
 
-      // Fundo cinematográfico escuro e elegante (sem fundo branco genérico!)
-      doc.setFillColor(15, 23, 42); // slate-900 profundo
-      doc.rect(0, 0, pageWidth, pageHeight, 'F');
+      // Renderiza página fotográfica cinematográfica no Canvas (SEM caixas brancas nem balões)
+      await this.renderPageToCanvas(canvas, page, project.title, 1200, 1714);
 
-      // Se houver imagem da página, desenha em formato full bleed
-      if (page.imageUrl) {
+      // Adiciona imagem composta de alta definição no PDF
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      doc.addImage(dataUrl, 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
+    }
+
+    return doc.output('blob');
+  }
+
+  /**
+   * Constrói Capa Aberta KDP Oficial (Full-Wrap Cover PDF) do Foto Livro Realista
+   */
+  static async exportCoverPdf(project: CinematicNovelProjectData): Promise<Blob> {
+    const pageCount = Math.max(24, project.pages.length);
+    const spineWidthInches = Math.max(0.08, pageCount * 0.002252);
+    const trimWidth = 7.0;
+    const trimHeight = 10.0;
+    const bleed = 0.125;
+
+    const totalWidthInches = trimWidth * 2 + spineWidthInches + bleed * 2;
+    const totalHeightInches = trimHeight + bleed * 2;
+
+    const widthPt = totalWidthInches * 72;
+    const heightPt = totalHeightInches * 72;
+
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: [widthPt, heightPt]
+    });
+
+    if (typeof document === 'undefined') {
+      doc.setFillColor(9, 13, 22);
+      doc.rect(0, 0, widthPt, heightPt, 'F');
+      return doc.output('blob');
+    }
+
+    const canvas = document.createElement('canvas');
+    const dpi = 150;
+    canvas.width = Math.round(totalWidthInches * dpi);
+    canvas.height = Math.round(totalHeightInches * dpi);
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const toPx = (val: number) => val * dpi;
+
+      // Fundo cinematográfico rico
+      const bgGrad = ctx.createLinearGradient(0, 0, w, h);
+      bgGrad.addColorStop(0, '#090d16');
+      bgGrad.addColorStop(0.5, '#1e1b4b');
+      bgGrad.addColorStop(1, '#020617');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      const bleedPx = toPx(bleed);
+      const trimWPx = toPx(trimWidth);
+      const spineWPx = toPx(spineWidthInches);
+      const frontCoverX = bleedPx + trimWPx + spineWPx;
+
+      // Capa frontal (lado direito)
+      const frontCenterX = frontCoverX + trimWPx / 2;
+
+      // Se houver imagem de capa, desenha em formato fotográfico de estúdio
+      if (project.coverImageUrl) {
         try {
-          doc.addImage(page.imageUrl, 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
-        } catch {
-          // fallback visual caso imagem não seja rasterizável
-          doc.setFillColor(15, 23, 42);
-          doc.rect(0, 0, pageWidth, pageHeight, 'F');
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = project.coverImageUrl;
+          if (img.complete && img.naturalWidth > 0) {
+            ctx.drawImage(img, frontCoverX, 0, trimWPx + bleedPx, h);
+          }
+        } catch { }
+      }
+
+      // Gradiente suave para o título
+      const titleGrad = ctx.createLinearGradient(0, 0, 0, h * 0.45);
+      titleGrad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
+      titleGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = titleGrad;
+      ctx.fillRect(frontCoverX, 0, trimWPx + bleedPx, h * 0.45);
+
+      // Título cinematográfico em destaque direto sobre a arte (sem box branco!)
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 4;
+      ctx.font = '900 48px "Merriweather", serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(project.title.toUpperCase(), frontCenterX, toPx(2.2));
+
+      // Subtítulo dourado suave
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'italic 700 24px "Merriweather", serif';
+      ctx.fillText(project.subtitle || 'Foto Livro Realista', frontCenterX, toPx(2.8));
+
+      // Autor no rodapé
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 20px "Inter", sans-serif';
+      ctx.fillText(`Por: ${project.author || 'Leandro Palmeira'}`, frontCenterX, h - toPx(1.2));
+      ctx.restore();
+
+      // Contracapa (lado esquerdo)
+      const backCenterX = bleedPx + trimWPx / 2;
+      ctx.save();
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = 'bold 28px "Merriweather", serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('UMA HISTÓRIA CINEMATOGRÁFICA', backCenterX, toPx(2.2));
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '400 18px "Merriweather", serif';
+      const synWords = (project.storyBible?.synopsis || project.premise).split(' ');
+      let synLine = '';
+      let synY = toPx(3.0);
+      for (const sw of synWords) {
+        const test = synLine ? `${synLine} ${sw}` : sw;
+        if (ctx.measureText(test).width > trimWPx - toPx(1.2)) {
+          ctx.fillText(synLine, backCenterX, synY);
+          synLine = sw;
+          synY += 28;
+        } else {
+          synLine = test;
         }
       }
+      if (synLine) ctx.fillText(synLine, backCenterX, synY);
+      ctx.restore();
 
-      // Cabeçalho de Capítulo integrado na imagem
-      if (page.pageNumber === 1 || page.chapterTitle) {
-        doc.setFillColor(15, 23, 42);
-        // Caixa de título translúcida/sombra no topo
-        doc.rect(10, 10, pageWidth - 20, 22, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('times', 'bold');
-        doc.setFontSize(16);
-        doc.text(project.title.toUpperCase(), 15, 18);
-        doc.setFontSize(11);
-        doc.setFont('times', 'italic');
-        doc.setTextColor(203, 213, 225);
-        doc.text(`${page.chapterTitle || 'Capítulo 1'}`, 15, 26);
-      }
-
-      // Renderização das Caixas de Narração e Diálogos Integrados (Estilo Cinematográfico Sem Fundo Branco)
-      let currentY = page.pageNumber === 1 ? 38 : 18;
-      const marginX = 14;
-      const boxWidth = pageWidth - (marginX * 2);
-
-      // Renderiza painéis ou narração
-      if (page.panels && page.panels.length > 0) {
-        for (const panel of page.panels.slice(0, 3)) {
-          if (panel.narrationText) {
-            doc.setFillColor(15, 23, 42);
-            doc.setDrawColor(71, 85, 105);
-            doc.setLineWidth(0.3);
-            
-            const lines = doc.splitTextToSize(panel.narrationText, boxWidth - 10);
-            const boxH = Math.min(38, (lines.length * 4.2) + 8);
-            
-            if (currentY + boxH < pageHeight - 20) {
-              // Caixa translúcida escura com borda sutil
-              doc.roundedRect(marginX, currentY, boxWidth, boxH, 2, 2, 'FD');
-              doc.setTextColor(248, 250, 252);
-              doc.setFont('times', 'normal');
-              doc.setFontSize(9.5);
-              doc.text(lines.slice(0, 7), marginX + 5, currentY + 6);
-              currentY += boxH + 6;
-            }
-          }
-
-          // Balão de diálogo integrado
-          if (panel.dialogues && panel.dialogues.length > 0) {
-            const dial = panel.dialogues[0];
-            const dLines = doc.splitTextToSize(`"${dial.speechText}"`, boxWidth - 24);
-            const dialH = (dLines.length * 4.2) + 8;
-            
-            if (currentY + dialH < pageHeight - 20) {
-              doc.setFillColor(30, 41, 59);
-              doc.setDrawColor(148, 163, 184);
-              doc.setLineWidth(0.4);
-              doc.roundedRect(marginX + 10, currentY, boxWidth - 20, dialH, 3, 3, 'FD');
-              doc.setTextColor(226, 232, 240);
-              doc.setFont('helvetica', 'italic');
-              doc.setFontSize(9);
-              doc.text(dLines, marginX + 15, currentY + 5.5);
-              currentY += dialH + 8;
-            }
-          }
-        }
-      }
-
-      // Rodapé com número de página cinematográfico
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184);
-      doc.text(`${page.pageNumber}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      doc.addImage(dataUrl, 'JPEG', 0, 0, widthPt, heightPt);
     }
 
     return doc.output('blob');

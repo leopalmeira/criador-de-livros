@@ -260,6 +260,79 @@ export const BookStudioApp: React.FC = () => {
     }
   };
 
+  // Abrir ou Iniciar diretamente o Estúdio do Foto Livro Realista
+  const handleOpenCinematicStudio = async () => {
+    if (activeCinematicProject) {
+      setMode('cinematic-novel');
+      return;
+    }
+    const existing = projects.find(p => p.kdpBookType === 'cinematic_illustrated_novel' && p.cinematicNovelData);
+    if (existing && existing.cinematicNovelData) {
+      setActiveCinematicProject(existing.cinematicNovelData);
+      setMode('cinematic-novel');
+      return;
+    }
+    const defaultPages = CinematicNovelService.createDefaultInitialPages();
+    const newProject = CinematicNovelService.createInitialProject({
+      title: 'O Enigma do Farol Solitário',
+      subtitle: 'Foto Livro Realista',
+      author: currentUser?.name || 'Leandro Palmeira',
+      genre: 'suspense-psicologico' as any,
+      subgenre: 'Thriller Costeiro Noir',
+      language: 'Português',
+      targetAudience: 'Adulto',
+      premise: 'Em uma ilha isolada pelo nevoeiro, um investigador descobre fotografias antigas esquecidas em um farol desativado que revelam o segredo de desaparecimentos inexplicáveis.',
+      totalChaptersPlanned: 3,
+      approximatePages: defaultPages.length,
+      visualStyle: 'Fotografia Cinematográfica 35mm Realista',
+      emotionalTone: 'Tenso, misterioso e atmosférico',
+      endingType: 'Revelação psicológica surpreendente',
+      narrativePov: 'Terceira pessoa'
+    });
+    newProject.pages = defaultPages;
+
+    const bookProj: BookProject = {
+      id: newProject.id,
+      createdAt: newProject.createdAt,
+      updatedAt: newProject.updatedAt,
+      status: 'ESCREVENDO',
+      priority: 'ALTA',
+      executionMode: 'assisted',
+      title: newProject.title,
+      subtitle: newProject.subtitle,
+      author: newProject.author,
+      genre: newProject.genre,
+      description: newProject.premise,
+      language: newProject.language,
+      format: 'Capa Comum',
+      trimSize: '7x10',
+      paperType: 'color',
+      estimatedPages: defaultPages.length,
+      actualPages: defaultPages.length,
+      targetPrice: 39.90,
+      currency: 'BRL',
+      targetMarketplace: 'Amazon KDP',
+      categories: ['Foto Livro Realista', 'Suspense e Mistério'],
+      keywords: ['Foto Livro Realista', 'Fotografia 35mm', 'Suspense KDP', 'Thriller'],
+      targetAudience: newProject.targetAudience,
+      topic: newProject.premise,
+      kdpBookType: 'cinematic_illustrated_novel',
+      chapters: [],
+      pipelineStage: 'writing',
+      pipelineProgress: 60,
+      pipelineLog: ['Iniciado via Estúdio de Foto Livro Realista'],
+      tasks: [],
+      notes: '',
+      competitorsAsins: [],
+      cinematicNovelData: newProject
+    };
+
+    await db.saveBookProject(bookProj);
+    setProjects(prev => [bookProj, ...prev]);
+    setActiveCinematicProject(newProject);
+    setMode('cinematic-novel');
+  };
+
   // Concluir criação do Foto Livro Realista no Wizard
   const handleCinematicWizardComplete = async (cinematicData: CinematicNovelProjectData) => {
     setIsCinematicWizardOpen(false);
@@ -653,7 +726,7 @@ export const BookStudioApp: React.FC = () => {
           currentUser={currentUser}
           onCreateNewProject={handleCreateNewProject}
           onCreateCourseEbook={handleCreateCourseEbook}
-          onCreateCinematicNovel={() => setIsCinematicWizardOpen(true)}
+          onCreateCinematicNovel={handleOpenCinematicStudio}
           onCreateColoringBook={() => {
             setActiveProject(null);
             setNewSessionId(`sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
