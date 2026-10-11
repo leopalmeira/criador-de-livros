@@ -35,10 +35,7 @@ import { BOOK_THEMES, getTheme, isChildrenTheme, type BookTheme } from '../../..
 import { AGE_BANDS, type AgeBandId, validateAgeRequirement, buildAgeDirective } from '../../../services/age-engine';
 import { researchMarket, pickReferences, describeRank, displayField, DATA_UNAVAILABLE, type MarketReference } from '../../../services/market-intel';
 import { filterOriginalCandidates, checkTitleSimilarity } from '../../../services/similarity-engine';
-import { preflightPdf } from '../../../services/pdf-preflight';
-import { ColoringBookStudio } from '../coloring/ColoringBookStudio';
 import { AudiobookStudio } from '../audiobook/AudiobookStudio';
-import { MultiplatformPublishingModal } from '../publishing/MultiplatformPublishingModal';
 import { KdpTourGuideModal } from './KdpTourGuideModal';
 import { KdpPageReviewerModal } from './KdpPageReviewerModal';
 import { Top50BestsellersModal } from './Top50BestsellersModal';
@@ -523,11 +520,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [statusMsg, setStatusMsg] = useState('Pronto para iniciar');
   const [statusType, setStatusType] = useState<'normal' | 'ok' | 'error'>('normal');
   const [progressPercent, setProgressPercent] = useState(0);
-  const [diagnostico, setDiagnostico] = useState('Sistema pronto.');
-  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'colorir' | 'planner' | 'audiobook'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'planner' | 'audiobook'>('preview');
   const [bookType, setBookType] = useState<BookType>('fiction-novel');
   const [creationSelectorValue, setCreationSelectorValue] = useState('format:fiction-novel');
-  const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
 
   // Sistema de Eficiência Máxima de API (Modo Ultra Econômico Google Gemini)
   const [modoEconomico, setModoEconomico] = useState(true);
@@ -4476,27 +4471,6 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
                 <button
                   type="button"
-                  onClick={() => setActiveTab('colorir')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: activeTab === 'colorir' ? '#0284c7' : '#e2e8f0',
-                    background: activeTab === 'colorir' ? '#f0f9ff' : '#ffffff',
-                    color: activeTab === 'colorir' ? '#0284c7' : '#64748b',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <span>🎨</span> Livro de Colorir KDP
-                </button>
-
-                <button
-                  type="button"
                   onClick={() => setActiveTab('planner')}
                   style={{
                     display: 'flex',
@@ -4536,28 +4510,6 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   title="Abrir Audiobook Studio"
                 >
                   <Headphones size={15} /> 🎧 Audiobook · Em breve
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsPublishingModalOpen(true)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid #10b981',
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    color: '#ffffff',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
-                  }}
-                  title="Abrir Publicação Multiplataforma"
-                >
-                  <Globe size={15} /> 🚀 Multiplataforma · Em breve
                 </button>
               </div>
 
@@ -6477,19 +6429,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
 
-              {/* ABA 5: LIVRO DE COLORIR KDP COM CONTROLE RIGOROSO DE CRÉDITOS */}
-              {activeTab === 'colorir' && (
-                <div style={{ maxHeight: 720, overflowY: 'auto' }}>
-                  <ColoringBookStudio
-                    tema={temaSelecionado || genero}
-                    subtema={subtemaSelecionado}
-                    titulo={titulo}
-                    autor={autor}
-                    capaDataUrl={capaFinal}
-                    onCapaGerada={setCapaFinal}
-                  />
-                </div>
-              )}
+
 
               {activeTab === 'planner' && (
                 <PlannerBookStudio
@@ -6631,26 +6571,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   <ShieldCheck size={14} color="#059669" /> {isAuditing ? 'Auditando...' : 'Auditar Obra'}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsPublishingModalOpen(true)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    background: '#f8fafc',
-                    color: '#0f172a',
-                    border: '1px solid #cbd5e1',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                  title="Publicação Multiplataforma (Kindle, Audiobook, Impresso)"
-                >
-                  <Globe size={14} /> Multiplataforma · Em breve
-                </button>
+
 
                 {promoData && (
                   <button
@@ -6786,19 +6707,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         />
       )}
 
-      {/* MODAL FULL DE PUBLICAÇÃO MULTIPLATAFORMA (KINDLE, SPOTIFY, AUDIBLE, ETC.) */}
-      <MultiplatformPublishingModal
-        isOpen={isPublishingModalOpen}
-        onClose={() => setIsPublishingModalOpen(false)}
-        project={{
-          id: projectIdRef.current || initialProject?.id || 'prj_studio',
-          title: titulo || 'Projeto BookEngin',
-          subtitle: subtitulo,
-          author: autor,
-          capitulos: livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || [],
-          coverUrl: capaFinal
-        }}
-      />
+
 
       {/* Tour guiado removido da UI conforme solicitação */}
 

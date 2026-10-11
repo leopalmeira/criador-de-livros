@@ -14,13 +14,9 @@ import { AdminPanelTab } from '../../dashboard/components/AdminPanelTab';
 import { BookIntelDashboard } from './BookIntelDashboard';
 import { SegmentSelectorModal } from './SegmentSelectorModal';
 import { KdpBookGeneratorPro } from './generator/KdpBookGeneratorPro';
-import { MultiplatformPublishingModal } from './publishing/MultiplatformPublishingModal';
-import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
 import { LoginPage } from './auth/LoginPage';
 import { BatchBookGeneratorModal } from './batch/BatchBookGeneratorModal';
-import { TechnicalManualsModal } from './manuals/TechnicalManualsModal';
 import { AuthorAiGuideDrawer } from './ai-guide/AuthorAiGuideDrawer';
-import { BestsellerCover10StylesModal } from './cover/BestsellerCover10StylesModal';
 import { CoverStyleDefinition } from '../../services/amazon-cover-styles';
 import { AuthenticatedUser, authClient } from '../../services/auth-client';
 import { CinematicNovelWizard } from './cinematic/CinematicNovelWizard';
@@ -46,8 +42,6 @@ export const BookStudioApp: React.FC = () => {
 
   const [mode, setMode] = useState<AppMode>('project-list');
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
-  const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
-  const [publishingProject, setPublishingProject] = useState<BookProject | null>(null);
 
   // Romance Cinematográfico Realista
   const [isCinematicWizardOpen, setIsCinematicWizardOpen] = useState(false);
@@ -58,13 +52,7 @@ export const BookStudioApp: React.FC = () => {
 
   // Novos Modais KDP
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [isManualsModalOpen, setIsManualsModalOpen] = useState(false);
-  const [isCover10StylesOpen, setIsCover10StylesOpen] = useState(false);
   const [isAiGuideOpen, setIsAiGuideOpen] = useState(false);
-
-  // Estado para Publicação Direta KDP In-App
-  const [isKdpPublishOpen, setIsKdpPublishOpen] = useState(false);
-  const [kdpPublishTarget, setKdpPublishTarget] = useState<BookProject | null>(null);
 
   // Link Compartilhado Público do E-book de Curso (?viewCourse=<id>)
   const [sharedCourseProject, setSharedCourseProject] = useState<BookProject | null>(null);
@@ -599,29 +587,7 @@ export const BookStudioApp: React.FC = () => {
     setProjects(prev => [copy, ...prev]);
   };
 
-  // Abrir Publicação Direta Amazon KDP In-App
-  const handleOpenKdpPublish = (projectId?: string) => {
-    if (projectId) {
-      const p = projects.find(item => item.id === projectId);
-      setKdpPublishTarget(p || null);
-    } else {
-      const defaultProj = projects.find(p => p.status === 'FINALIZADO') || projects[0] || null;
-      setKdpPublishTarget(defaultProj);
-    }
-    setIsKdpPublishOpen(true);
-  };
 
-  // Abrir Publicação Multiplataforma a partir da Dashboard
-  const handleOpenPublishing = (projectId?: string) => {
-    if (projectId) {
-      const p = projects.find(item => item.id === projectId);
-      setPublishingProject(p || null);
-    } else {
-      const defaultProj = projects.find(p => p.status === 'FINALIZADO') || projects[0] || null;
-      setPublishingProject(defaultProj);
-    }
-    setIsPublishingModalOpen(true);
-  };
 
   // ============================================================
   // LEITOR DIGITAL PÚBLICO (LINK COMPARTILHÁVEL PARA CLIENTES)
@@ -704,30 +670,6 @@ export const BookStudioApp: React.FC = () => {
   // TELA 1: DASHBOARD BOOKENGIN (DESIGN PROFISSIONAL)
   // ============================================================
   if (mode === 'project-list') {
-    const targetProjectForPublishing = publishingProject || projects[0] || {
-      id: 'demo_studio',
-      title: 'Meu Livro KDP',
-      subtitle: 'Guia Editorial & Estratégia Comercial',
-      author: 'Leandro Palmeira',
-      capitulos: [],
-      coverUrl: null
-    };
-
-    const targetKdpDirect = kdpPublishTarget || projects.find(p => p.status === 'FINALIZADO') || projects[0] || {
-      id: 'demo_kdp',
-      title: 'Meu Livro KDP Pro',
-      subtitle: 'Edição Publicada Direta',
-      author: 'Leandro Palmeira',
-      description: '',
-      categories: ['Não-Ficção / Desenvolvimento Pessoal'],
-      keywords: [],
-      capitulos: [],
-      coverUrl: null,
-      targetPrice: 39.90,
-      currency: 'BRL',
-      trimSize: '6x9'
-    };
-
     return (
       <>
         <BookIntelDashboard
@@ -735,12 +677,6 @@ export const BookStudioApp: React.FC = () => {
           currentUser={currentUser}
           onCreateNewProject={handleCreateNewProject}
           onCreateCourseEbook={handleCreateCourseEbook}
-          onCreateCinematicNovel={handleOpenCinematicStudio}
-          onCreateColoringBook={() => {
-            setActiveProject(null);
-            setNewSessionId(`sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
-            setMode('kdp-generator');
-          }}
           onCreatePuzzleBook={() => setMode('puzzle-generator')}
           onOpenProject={openProject}
           onDuplicateProject={duplicateProject}
@@ -748,11 +684,7 @@ export const BookStudioApp: React.FC = () => {
           onOpenSettings={() => setMode('settings')}
           onOpenAdmin={() => setMode('admin')}
           onSelectOpportunity={handleSelectOpportunity}
-          onOpenPublishing={handleOpenPublishing}
-          onOpenKdpPublish={handleOpenKdpPublish}
           onOpenBatchGenerator={() => setIsBatchModalOpen(true)}
-          onOpenTechnicalManuals={() => setIsManualsModalOpen(true)}
-          onOpenCover10Styles={() => setIsCover10StylesOpen(true)}
           onOpenAiGuide={() => setIsAiGuideOpen(true)}
           onLogout={handleLogout}
         />
@@ -760,45 +692,6 @@ export const BookStudioApp: React.FC = () => {
           isOpen={isSegmentModalOpen}
           onClose={() => setIsSegmentModalOpen(false)}
           onConfirm={handleConfirmNewSegmentProject}
-        />
-        <MultiplatformPublishingModal
-          isOpen={isPublishingModalOpen}
-          onClose={() => setIsPublishingModalOpen(false)}
-          project={{
-            id: targetProjectForPublishing.id,
-            title: targetProjectForPublishing.title || 'Livro Sem Título',
-            subtitle: targetProjectForPublishing.subtitle,
-            author: targetProjectForPublishing.author || 'Leandro Palmeira',
-            capitulos: (targetProjectForPublishing as any).kdpChapters?.map((c: any) => ({
-              titulo: c.title || c.titulo || 'Capítulo',
-              texto: c.content || c.conteudo || ''
-            })) || (targetProjectForPublishing as any).capitulos || [],
-            coverUrl: (targetProjectForPublishing as any).coverUrl || (targetProjectForPublishing as any).capaFinal || (targetProjectForPublishing as any).coverImageUrl || null
-          }}
-        />
-        <KdpDirectPublishModal
-          isOpen={isKdpPublishOpen}
-          onClose={() => setIsKdpPublishOpen(false)}
-          project={{
-            id: targetKdpDirect.id,
-            title: targetKdpDirect.title || 'Livro Sem Título',
-            subtitle: targetKdpDirect.subtitle,
-            author: targetKdpDirect.author || 'Leandro Palmeira',
-            description: targetKdpDirect.description,
-            categories: targetKdpDirect.categories,
-            keywords: targetKdpDirect.keywords,
-            capitulos: (targetKdpDirect as any).kdpChapters?.map((c: any) => ({
-              titulo: c.title || c.titulo || 'Capítulo',
-              texto: c.content || c.conteudo || ''
-            })) || (targetKdpDirect as any).capitulos || [],
-            coverUrl: (targetKdpDirect as any).coverImageUrl || (targetKdpDirect as any).coverUrl || (targetKdpDirect as any).capaFinal || null,
-            targetPrice: targetKdpDirect.targetPrice || 39.90,
-            currency: targetKdpDirect.currency || 'BRL',
-            trimSize: targetKdpDirect.trimSize || '6x9'
-          }}
-          onPublishSuccess={() => {
-            reloadProjects();
-          }}
         />
 
         {/* MODAL DO GERADOR EM LOTE (1 A 20 LIVROS COM AUTO-AUDITORIA) */}
@@ -808,38 +701,13 @@ export const BookStudioApp: React.FC = () => {
           onBatchCompleted={() => reloadProjects()}
         />
 
-        {/* MODAL DE MANUAIS TÉCNICOS COM IMAGENS E TEXTOS */}
-        <TechnicalManualsModal
-          isOpen={isManualsModalOpen}
-          onClose={() => setIsManualsModalOpen(false)}
-          onProjectCreated={(id) => {
-            reloadProjects();
-            openProject(id);
-          }}
-        />
-
-        {/* MODAL DOS 10 ESTILOS DE CAPAS COM LINKS DA AMAZON E GRAU DE ACEITAÇÃO */}
-        <BestsellerCover10StylesModal
-          isOpen={isCover10StylesOpen}
-          onClose={() => setIsCover10StylesOpen(false)}
-          project={activeProject || projects[0] || null}
-        />
-
         {/* IA GUIA DO AUTOR NO PAINEL */}
         <AuthorAiGuideDrawer
           isOpen={isAiGuideOpen}
           onClose={() => setIsAiGuideOpen(false)}
-          onOpenManuals={() => {
-            setIsAiGuideOpen(false);
-            setIsManualsModalOpen(true);
-          }}
           onOpenBatch={() => {
             setIsAiGuideOpen(false);
             setIsBatchModalOpen(true);
-          }}
-          onOpenCoverStudio={() => {
-            setIsAiGuideOpen(false);
-            setIsCover10StylesOpen(true);
           }}
         />
 

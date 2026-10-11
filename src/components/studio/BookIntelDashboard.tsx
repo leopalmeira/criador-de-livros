@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  BookOpen, Plus, TrendingUp, FileText,
+  BookOpen, Plus,
   HelpCircle, ChevronDown, ArrowRight,
-  Clock, Copy, Trash2, Sparkles, CheckCircle2, Search, Globe, Play,
-  Rocket, DollarSign, Bot, LogOut, Zap, Wrench, Palette, RefreshCw, Shield, Film,
+  Copy, Trash2, Sparkles, CheckCircle2, Play,
+  DollarSign, Bot, LogOut, Zap, RefreshCw, Shield,
   GraduationCap, Headphones, FolderKanban, CheckCircle, Download, Layers, Grid3X3
 } from 'lucide-react';
 import { BookProject } from '../../types/book-project';
@@ -23,8 +23,6 @@ interface Props {
   currentUser?: AuthenticatedUser | null;
   onCreateNewProject: () => void;
   onCreateCourseEbook?: () => void;
-  onCreateCinematicNovel?: () => void;
-  onCreateColoringBook?: () => void;
   onCreatePuzzleBook?: () => void;
   onOpenProject: (id: string) => void;
   onDuplicateProject: (id: string, e: React.MouseEvent) => void;
@@ -38,12 +36,8 @@ interface Props {
     category: string, 
     subcategory: string
   ) => void;
-  onOpenPublishing?: (projectId?: string) => void;
-  onOpenKdpPublish?: (projectId?: string) => void;
   onOpenLanding?: () => void;
   onOpenBatchGenerator?: () => void;
-  onOpenTechnicalManuals?: () => void;
-  onOpenCover10Styles?: () => void;
   onOpenAiGuide?: () => void;
   onLogout?: () => void;
 }
@@ -53,8 +47,6 @@ export const BookIntelDashboard: React.FC<Props> = ({
   currentUser,
   onCreateNewProject,
   onCreateCourseEbook,
-  onCreateCinematicNovel,
-  onCreateColoringBook,
   onCreatePuzzleBook,
   onOpenProject,
   onDuplicateProject,
@@ -62,12 +54,8 @@ export const BookIntelDashboard: React.FC<Props> = ({
   onOpenSettings,
   onOpenAdmin,
   onQuickAction,
-  onOpenPublishing,
-  onOpenKdpPublish,
   onOpenLanding,
   onOpenBatchGenerator,
-  onOpenTechnicalManuals,
-  onOpenCover10Styles,
   onOpenAiGuide,
   onLogout
 }) => {
@@ -101,20 +89,6 @@ export const BookIntelDashboard: React.FC<Props> = ({
     (p.kdpChapters?.length || 0) > 0
   );
 
-  // Formatação de data no idioma nativo selecionado
-  const formattedToday = (() => {
-    const now = new Date();
-    try {
-      return now.toLocaleDateString(currentLang, {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      });
-    } catch {
-      return now.toLocaleDateString();
-    }
-  })();
 
   // Finalizar projeto rápido diretamente pela Dashboard
   const handleQuickFinalize = async (p: BookProject, e: React.MouseEvent) => {
@@ -568,65 +542,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                     </button>
                   )}
 
-                  {/* MANUAIS TÉCNICOS COMO FAZER COM DIAGRAMAS */}
-                  {onOpenTechnicalManuals && (
-                    <button
-                      className="btn-hero-cta"
-                      onClick={onOpenTechnicalManuals}
-                      style={{
-                        background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
-                      }}
-                      title={t('manuals.subtitle')}
-                    >
-                      <Wrench size={18} /> {t('hero.btnManuals')}
-                    </button>
-                  )}
 
-                  {/* 10 ESTILOS DE CAPAS AMAZON */}
-                  {onOpenCover10Styles && (
-                    <button
-                      className="btn-hero-cta"
-                      onClick={onOpenCover10Styles}
-                      style={{
-                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                        color: '#0f172a',
-                        fontWeight: 700,
-                        boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
-                      }}
-                      title={t('covers.subtitle')}
-                    >
-                      <Palette size={18} /> {t('hero.btnCovers')}
-                    </button>
-                  )}
-
-                  <button
-                    className="btn-hero-cta"
-                    onClick={() => onOpenKdpPublish && onOpenKdpPublish()}
-                    style={{
-                      background: 'linear-gradient(135deg, #334155, #1e293b)',
-                      color: '#f8fafc',
-                      fontWeight: 700,
-                      border: '1px solid #475569'
-                    }}
-                    title="Publicar Livro Diretamente no Amazon KDP sem Sair da Plataforma"
-                  >
-                    <Rocket size={18} /> {t('hero.btnKdpDirect')}
-                  </button>
-
-                  <button
-                    className="btn-hero-cta"
-                    onClick={() => onOpenPublishing && onOpenPublishing()}
-                    style={{
-                      background: 'linear-gradient(135deg, #059669, #047857)',
-                      boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)'
-                    }}
-                    title="Central de Publicação Multiplataforma"
-                  >
-                    <Globe size={18} /> {t('hero.btnMultiplatform')} · Em breve
-                  </button>
                 </div>
               </div>
 
@@ -735,146 +651,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                   </button>
                 </div>
 
-                {/* CARD 2 — LIVRO DE COLORIR */}
-                <div style={{
-                  background: '#ffffff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 14,
-                  padding: '20px 22px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: 14,
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-                  transition: 'all 0.2s ease'
-                }}>
-                  <div>
-                    <div style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      background: 'rgba(16, 185, 129, 0.12)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: 12
-                    }}>
-                      <Palette size={22} color="#059669" />
-                    </div>
-                    <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                      Livro de Colorir
-                    </h3>
-                    <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-                      Ilustrações em preto e branco com traços vetoriais grossos, impressão em um único lado da folha, personagens consistentes e formato 8.5x11 pol KDP.
-                    </p>
-                  </div>
 
-                  <button
-                    onClick={() => {
-                      if (onCreateColoringBook) onCreateColoringBook();
-                      else onCreateNewProject();
-                    }}
-                    style={{
-                      width: '100%',
-                      background: '#059669',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '10px 16px',
-                      borderRadius: 8,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6
-                    }}
-                  >
-                    <Palette size={15} /> Criar livro
-                  </button>
-                </div>
-
-                {/* CARD 3 — ROMANCE CINEMATOGRÁFICO REALISTA (EXCLUSIVO) */}
-                <div style={{
-                  background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)',
-                  border: '2px solid #f59e0b',
-                  borderRadius: 14,
-                  padding: '20px 22px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: 14,
-                  boxShadow: '0 8px 24px rgba(245, 158, 11, 0.18)',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}>
-                  {/* SELO / BADGE EXCLUSIVO */}
-                  <div style={{
-                    position: 'absolute',
-                    top: 12,
-                    right: 12,
-                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                    color: '#0f172a',
-                    fontSize: 10,
-                    fontWeight: 900,
-                    padding: '3px 8px',
-                    borderRadius: 4,
-                    letterSpacing: '0.04em',
-                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)'
-                  }}>
-                    ★ MÓDULO EXCLUSIVO COM IA
-                  </div>
-
-                  <div>
-                    <div style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      background: 'rgba(245, 158, 11, 0.2)',
-                      border: '1px solid rgba(245, 158, 11, 0.4)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: 12
-                    }}>
-                      <Film size={22} color="#f59e0b" />
-                    </div>
-                    <h3 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 900, color: '#ffffff' }}>
-                      Foto Livro Realista
-                    </h3>
-                    <div style={{ fontSize: 12, color: '#fcd34d', fontWeight: 600, fontStyle: 'italic', marginBottom: 8 }}>
-                      Crie foto livros cinematográficos com personagens realistas, imagens da API Replicate, narração densa e diálogos integrados.
-                    </div>
-                    <p style={{ margin: 0, fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>
-                      Produza foto-livros com estética cinematográfica 35mm fotorrealista via Replicate, múltiplos painéis sequenciais por página, narração rica e sem fundos brancos genéricos.
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      if (onCreateCinematicNovel) onCreateCinematicNovel();
-                      else onCreateNewProject();
-                    }}
-                    style={{
-                      width: '100%',
-                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                      color: '#0f172a',
-                      border: 'none',
-                      padding: '11px 16px',
-                      borderRadius: 8,
-                      fontSize: 14,
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      boxShadow: '0 4px 14px rgba(245, 158, 11, 0.4)'
-                    }}
-                  >
-                    <Sparkles size={16} /> Criar livro
-                  </button>
-                </div>
 
                 {/* CARD 4 — CRIAR E-BOOK DE CURSO PROFISSIONALIZANTE COM IA E REPLICATE */}
                 <div style={{
@@ -1224,28 +1001,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                               <CheckCircle2 size={14} />
                             </button>
                           )}
-                          <button
-                            className="btn-icon-soft"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenKdpPublish && onOpenKdpPublish(p.id);
-                            }}
-                            title="Publicar Direto no Amazon KDP In-App"
-                            style={{ color: '#d97706', borderColor: '#f59e0b', background: 'rgba(245, 158, 11, 0.08)' }}
-                          >
-                            <Rocket size={14} />
-                          </button>
-                          <button
-                            className="btn-icon-soft"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenPublishing && onOpenPublishing(p.id);
-                            }}
-                            title="Publicação Multiplataforma"
-                            style={{ color: '#0f172a', borderColor: '#cbd5e1' }}
-                          >
-                            <Globe size={14} />
-                          </button>
+
                           <button
                             className="btn-icon-soft"
                             onClick={(e) => onDuplicateProject(p.id, e)}
@@ -1326,122 +1082,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
 
           </div>
 
-          {/* COLUNA DIREITA */}
-          <div className="intel-right-column">
-            
-            {/* CARD 1: VISÃO GERAL COM MÉTRICAS */}
-            <div className="intel-overview-card">
-              <div className="overview-header">
-                <h3 className="overview-title">{t('overview.title')}</h3>
-                <span className="overview-date">{formattedToday}</span>
-              </div>
 
-              <div className="overview-stats-grid">
-                {/* Métrica 1: Livros no projeto */}
-                <div className="stat-tile" onClick={onCreateNewProject}>
-                  <div className="stat-tile-top">
-                    <div className="stat-icon-box blue-bg">
-                      <BookOpen size={16} color="#2563eb" />
-                    </div>
-                  </div>
-                  <span className="stat-label">{t('metric.projectsCount')}</span>
-                  <div className="stat-num-row">
-                    <span className="stat-number">{projects.length}</span>
-                    <ArrowRight size={14} className="stat-arrow" />
-                  </div>
-                </div>
-
-                {/* Métrica 2: Pesquisas realizadas */}
-                <div className="stat-tile" onClick={() => onQuickAction ? onQuickAction('niche') : setActiveModalAction('niche')}>
-                  <div className="stat-tile-top">
-                    <div className="stat-icon-box green-bg">
-                      <Search size={16} color="#059669" />
-                    </div>
-                  </div>
-                  <span className="stat-label">{t('metric.searchesCount')}</span>
-                  <div className="stat-num-row">
-                    <span className="stat-number">{projects.length > 0 ? projects.length * 3 : 0}</span>
-                    <ArrowRight size={14} className="stat-arrow" />
-                  </div>
-                </div>
-
-                {/* Métrica 3: Nichos analisados */}
-                <div className="stat-tile" onClick={() => onQuickAction ? onQuickAction('competition') : setActiveModalAction('competition')}>
-                  <div className="stat-tile-top">
-                    <div className="stat-icon-box cyan-bg">
-                      <TrendingUp size={16} color="#0284c7" />
-                    </div>
-                  </div>
-                  <span className="stat-label">{t('metric.nichesCount')}</span>
-                  <div className="stat-num-row">
-                    <span className="stat-number">{projects.length > 0 ? projects.length * 2 : 0}</span>
-                    <ArrowRight size={14} className="stat-arrow" />
-                  </div>
-                </div>
-
-                {/* Métrica 4: Relatórios gerados */}
-                <div className="stat-tile" onClick={() => onQuickAction ? onQuickAction('reports') : setActiveModalAction('reports')}>
-                  <div className="stat-tile-top">
-                    <div className="stat-icon-box orange-bg">
-                      <FileText size={16} color="#d97706" />
-                    </div>
-                  </div>
-                  <span className="stat-label">{t('metric.reportsCount')}</span>
-                  <div className="stat-num-row">
-                    <span className="stat-number">{projects.length > 0 ? projects.length : 0}</span>
-                    <ArrowRight size={14} className="stat-arrow" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* CARD 2: ATIVIDADE RECENTE */}
-            <div className="intel-activity-card">
-              <div className="activity-header">
-                <h3 className="activity-title">{t('activity.title')}</h3>
-                <button
-                  className="activity-link-all"
-                  onClick={() => projects.length > 0 && onOpenProject(projects[0].id)}
-                >
-                  {t('activity.viewAll')} <ArrowRight size={12} />
-                </button>
-              </div>
-
-              {projects.length === 0 ? (
-                <div className="activity-empty-state">
-                  <div className="clock-icon-circle">
-                    <Clock size={28} color="#94a3b8" />
-                  </div>
-                  <h4 className="activity-empty-title">{t('activity.emptyTitle')}</h4>
-                  <p className="activity-empty-desc">
-                    {t('activity.emptyDesc')}
-                  </p>
-                </div>
-              ) : (
-                <div className="activity-items-list">
-                  {projects.slice(0, 4).map((p) => (
-                    <div
-                      key={p.id}
-                      className="activity-item-row"
-                      onClick={() => onOpenProject(p.id)}
-                    >
-                      <div className="activity-item-dot" />
-                      <div className="activity-item-info">
-                        <span className="activity-item-title">
-                          {p.title ? `Editou "${p.title}"` : 'Iniciou novo projeto'}
-                        </span>
-                        <span className="activity-item-time">
-                          {new Date(p.updatedAt).toLocaleDateString('pt-BR')} • {p.categories?.[0] || 'KDP'}
-                        </span>
-                      </div>
-                      <ArrowRight size={13} color="#94a3b8" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-          </div>
         </div>
       </div>
     </div>

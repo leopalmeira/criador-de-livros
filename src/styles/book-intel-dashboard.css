@@ -225,15 +225,9 @@
 
 .book-intel-grid {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: 1fr;
   gap: 24px;
   align-items: start;
-}
-
-@media (max-width: 1080px) {
-  .book-intel-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* COLUNA ESQUERDA */

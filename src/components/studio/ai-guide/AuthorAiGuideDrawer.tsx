@@ -16,9 +16,7 @@ import {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onOpenManuals?: () => void;
   onOpenBatch?: () => void;
-  onOpenCoverStudio?: () => void;
 }
 
 interface Message {
@@ -31,15 +29,13 @@ interface Message {
 export const AuthorAiGuideDrawer: React.FC<Props> = ({
   isOpen,
   onClose,
-  onOpenManuals,
-  onOpenBatch,
-  onOpenCoverStudio
+  onOpenBatch
 }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'm1',
       sender: 'ai',
-      text: 'Olá, autor! Sou sua Inteligência Artificial Guia Editorial. Estou aqui para orientá-lo na criação de obras de alta conversão na Amazon, estruturação de manuais técnicos com diagramas cotados e estratégias de publicação em lote.',
+      text: 'Olá, autor! Sou sua Inteligência Artificial Guia Editorial. Estou aqui para orientá-lo na criação de obras de alta conversão na Amazon, pesquisa de palavras-chave e estratégias de publicação.',
       timestamp: 'Agora'
     }
   ]);
@@ -68,14 +64,12 @@ export const AuthorAiGuideDrawer: React.FC<Props> = ({
       let aiReply = '';
       const lower = text.toLowerCase();
 
-      if (lower.includes('manual') || lower.includes('radio') || lower.includes('moveis') || lower.includes('como fazer')) {
-        aiReply = '💡 Para manuais de "Como Fazer", a regra de ouro na Amazon é combinar texto conciso com diagramas técnicos esquemáticos (circuitos, cortes e vistas explodidas). O leitor KDP compra manuais pela promessa de clareza visual. Você pode abrir o módulo de "Manuais Técnicos" no painel para ver projetos prontos de rádio galena, marcenaria e energia solar!';
-      } else if (lower.includes('capa') || lower.includes('70%') || lower.includes('estilo')) {
-        aiReply = '🎨 O segredo da conversão de capas na Amazon é a escala da miniatura (thumbnail a 100px). Se o Grau de Aceitação for menor que 70%, nossa IA acusa risco de contraste ou tipografia ilegível. Sempre utilize um dos nossos 10 Estilos Direcionados de Best-Sellers (como Minimalista ou Bold Impact) inspirados em livros que já faturam milhões na Amazon.';
+      if (lower.includes('capa') || lower.includes('70%') || lower.includes('estilo')) {
+        aiReply = '🎨 O segredo da conversão de capas na Amazon é a nitidez da miniatura (thumbnail a 100px). Garanta alto contraste tipográfico e composição limpa para destacar sua obra nas listagens de busca.';
       } else if (lower.includes('lote') || lower.includes('paginas') || lower.includes('capitulo') || lower.includes('palavras')) {
         aiReply = '⚡ No Gerador em Lote, você pode selecionar múltiplos gêneros e de 1 a 20 livros por gênero. Para atingir exatamente a quantidade de páginas desejada: defina por exemplo 1.800 palavras por capítulo em 10 capítulos = ~82 páginas formatadas KDP (calculando 250 palavras/página). O sistema audita e aprova a obra 100% no automático!';
       } else {
-        aiReply = `Compreendo perfeitamente sua estratégia sobre "${text}". O mercado editorial na Amazon KDP premia autores que publicam catálogos consistentes com design alinhado aos líderes da categoria. Recomendo utilizar nosso gerador em lote com auditoria automática ou criar um manual técnico visual. Como posso auxiliá-lo agora?`;
+        aiReply = `Compreendo perfeitamente sua estratégia sobre "${text}". O mercado editorial na Amazon KDP premia autores que publicam catálogos consistentes com design alinhado aos líderes da categoria. Como posso auxiliá-lo agora?`;
       }
 
       setMessages(prev => [
@@ -159,23 +153,6 @@ export const AuthorAiGuideDrawer: React.FC<Props> = ({
       {/* ATALHOS RÁPIDOS DE ORIENTAÇÃO */}
       <div style={{ padding: '12px 16px', background: '#0c1322', borderBottom: '1px solid #1e293b', display: 'flex', gap: 8, overflowX: 'auto' }}>
         <button
-          onClick={() => handleSendMessage('Como estruturar um manual prático de como fazer coisas com diagramas?')}
-          style={{
-            padding: '6px 12px',
-            borderRadius: 6,
-            background: '#1e293b',
-            border: '1px solid #334155',
-            color: '#38bdf8',
-            fontSize: 11,
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            cursor: 'pointer'
-          }}
-        >
-          🛠️ Manuais com Diagramas
-        </button>
-
-        <button
           onClick={() => handleSendMessage('Como funciona a regra dos 70% de aceitação nas capas KDP?')}
           style={{
             padding: '6px 12px',
@@ -254,25 +231,6 @@ export const AuthorAiGuideDrawer: React.FC<Props> = ({
       <div style={{ padding: '12px 16px', background: '#0f172a', borderTop: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Ações Rápidas no Painel:</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          {onOpenManuals && (
-            <button
-              onClick={onOpenManuals}
-              style={{
-                flex: 1,
-                padding: '8px 10px',
-                borderRadius: 6,
-                background: 'rgba(56, 189, 248, 0.1)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                color: '#38bdf8',
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              <Wrench size={12} style={{ display: 'inline', marginRight: 4 }} /> Ver Manuais
-            </button>
-          )}
-
           {onOpenBatch && (
             <button
               onClick={onOpenBatch}
