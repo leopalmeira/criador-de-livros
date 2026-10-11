@@ -95,6 +95,9 @@ export const KdpDirectPublishModal: React.FC<KdpDirectPublishModalProps> = ({
       setBookTitle(project.title || '');
       setBookSubtitle(project.subtitle || '');
       setAuthorName(project.author || 'Autor');
+      if (project.keywords && project.keywords.length > 0) {
+        setKeywords(project.keywords);
+      }
     }
   }, [project]);
 

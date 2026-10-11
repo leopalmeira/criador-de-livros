@@ -4,6 +4,7 @@ export type CoverVisualStyle = 'minimalist' | 'cinematic' | 'concept' | 'abstrac
 export type CoverTitleLayout = 'topo' | 'centro' | 'esquerda';
 export type CoverTypographyPalette =
   | 'auto'
+  | 'playful-kids'
   | 'gold-luxury'
   | 'crimson-noir'
   | 'platinum-modern'
@@ -36,11 +37,50 @@ const COVER_STYLE_DIRECTIONS: Record<CoverVisualStyle, string> = {
 };
 
 /**
+ * Verifica se a obra é direcionada ao público infantil / livro ilustrado
+ */
+export function isChildrenBook(
+  genre?: string,
+  premise?: string,
+  bookType?: string,
+  ageBand?: string
+): boolean {
+  const text = `${genre || ''} ${premise || ''} ${bookType || ''} ${ageBand || ''}`.toLowerCase();
+  return (
+    bookType === 'children-picture-book' ||
+    /infantil|crianç|crianc|kids|children|picture-book|ilustrado|3-5 anos|6-8 anos|0-2 anos|9-12 anos|historinha|conto infantil|fábula|fabula/i.test(text)
+  );
+}
+
+/**
  * Constrói cenários atmosféricos dinâmicos e cinematográficos, eliminando
  * cenários genéricos de interiores e ambientes monótonos de sala.
  */
-export function buildAtmosphericSceneContext(genre: string, premise: string): string {
+export function buildAtmosphericSceneContext(genre: string, premise: string, isKids = false): string {
   const text = `${genre} ${premise}`.toLowerCase();
+
+  // 0. Livro Infantil, Ilustrado, Crianças (3-5 anos, etc.) - Cenários Acolhedores, Mágicos e Fofos
+  if (
+    isKids ||
+    text.includes('infantil') ||
+    text.includes('crian') ||
+    text.includes('kids') ||
+    text.includes('children') ||
+    text.includes('ilustrado') ||
+    text.includes('3-5') ||
+    text.includes('6-8') ||
+    text.includes('historinha') ||
+    text.includes('fábula') ||
+    text.includes('fabula')
+  ) {
+    const cenariosInfantis = [
+      'enchanting whimsical children storybook scene with soft warm magical lighting, friendly cute and lovable smiling creature, joyful vibrant pastel colors, cozy bedtime atmosphere with gentle glowing stars and fluffy clouds, delightful picture book illustration',
+      'magical sunlit meadow with colorful wildflowers and butterflies, charming adorable smiling creature, warm cheerful pastel palette, heartwarming storybook setting',
+      'cozy dreamy nursery bedroom at twilight with soft fairy lights, lovable friendly furry monster sleeping peacefully, gentle starry night sky, comforting and soothing picture book warmth',
+      'whimsical enchanted storybook forest with soft glowing lanterns, friendly smiling animals, bright cheerful colors and playful magical atmosphere'
+    ];
+    return cenariosInfantis[Math.abs(text.length) % cenariosInfantis.length];
+  }
 
   // 1. Thriller Psicológico, Mistério, Suspense, Crime, Manipulação, Narcisismo
   if (
@@ -145,15 +185,26 @@ export function buildAtmosphericSceneContext(genre: string, premise: string): st
 
 /**
  * Construtor do Prompt de Arte da Capa:
- * Garante variedade cinematográfica e proíbe terminantemente o clichê monótono de sala de estar.
+ * Garante variedade e contextualização total ao gênero e público (incluindo infantil).
  */
 export function buildCoverArtPrompt(
   genre: string,
   premise: string,
   sample: string,
   style: CoverVisualStyle,
-  customPrompt = ''
+  customPrompt = '',
+  opts?: { bookType?: string; ageBand?: string; isKids?: boolean }
 ): string {
+  const isKids = opts?.isKids ?? isChildrenBook(genre, premise, opts?.bookType, opts?.ageBand);
+
+  if (isKids) {
+    const subject = customPrompt.trim() || premise.trim() || sample.trim() || genre;
+    const dynamicAtmosphere = buildAtmosphericSceneContext(genre, premise, true);
+    const kidsDirection = `Enchanting, vibrant children's picture book cover illustration for young children (ages 3 to 5). Subject: ${subject}. Visual setting: ${dynamicAtmosphere}. Style: Charming whimsical storybook illustration, adorable lovable character design with friendly expressive smiling eyes, joyful warm lighting, soft clean textures, rich cheerful colors (Pixar 3D animated or fairytale watercolor storybook style). Ample clean breathing room at the top or center for book title placement.`;
+    const safetyDirection = `STRICT CHILD SAFETY RULE: Absolutely NO scary, creepy, dark, gothic, menacing, or grim elements. The scene and characters must feel completely safe, cozy, joyful, and comforting for toddlers and preschool children. Zero text, zero letters, zero watermarks.`;
+    return sanitizarPromptArteSemTexto(genre, `${kidsDirection} ${safetyDirection}`);
+  }
+
   const subject = customPrompt.trim() || premise.trim() || sample.trim() || genre;
   const styleDirection = COVER_STYLE_DIRECTIONS[style];
   const sampleContext = sample.trim() && !customPrompt.trim()
@@ -178,14 +229,18 @@ export function buildCoverArtPrompt(
 export function getCoverTypographyTheme(
   genre: string,
   tipoEstilo: 'modern-magazine' | 'luxury-serif' | 'bold-impact' = 'modern-magazine',
-  paletteChoice: CoverTypographyPalette = 'auto'
+  paletteChoice: CoverTypographyPalette = 'auto',
+  opts?: { isKids?: boolean; bookType?: string; ageBand?: string }
 ): CoverTypographyStyleConfig {
   const g = (genre || '').toLowerCase();
+  const isKids = opts?.isKids ?? isChildrenBook(genre, '', opts?.bookType, opts?.ageBand);
 
-  // Seleção automática da paleta baseada no gênero
+  // Seleção automática da paleta baseada no gênero e público
   let palette = paletteChoice;
   if (palette === 'auto') {
-    if (g.includes('thriller') || g.includes('suspense') || g.includes('crime') || g.includes('terror') || g.includes('mister')) {
+    if (isKids) {
+      palette = 'playful-kids';
+    } else if (g.includes('thriller') || g.includes('suspense') || g.includes('crime') || g.includes('terror') || g.includes('mister')) {
       palette = 'crimson-noir';
     } else if (g.includes('fantasia') || g.includes('epico') || g.includes('luxo') || g.includes('historia')) {
       palette = 'gold-luxury';
@@ -206,7 +261,12 @@ export function getCoverTypographyTheme(
   let fontFamilyAuthor = '"Montserrat", "Inter", -apple-system, sans-serif';
   let fontWeightTitle = '900';
 
-  if (tipoEstilo === 'luxury-serif') {
+  if (palette === 'playful-kids') {
+    fontFamilyTitle = '"Fredoka", "Quicksand", "Nunito", -apple-system, sans-serif';
+    fontFamilySubtitle = '"Quicksand", "Nunito", -apple-system, sans-serif';
+    fontFamilyAuthor = '"Fredoka", "Quicksand", -apple-system, sans-serif';
+    fontWeightTitle = '800';
+  } else if (tipoEstilo === 'luxury-serif') {
     fontFamilyTitle = '"Playfair Display", "Cinzel", "Cormorant Garamond", Georgia, serif';
     fontFamilySubtitle = '"Cormorant Garamond", "Playfair Display", Georgia, serif';
     fontFamilyAuthor = '"Cinzel", "Playfair Display", Georgia, serif';
@@ -219,6 +279,24 @@ export function getCoverTypographyTheme(
   }
 
   switch (palette) {
+    case 'playful-kids':
+      return {
+        fontFamilyTitle,
+        fontFamilySubtitle,
+        fontFamilyAuthor,
+        fontWeightTitle,
+        fontWeightSubtitle: '600',
+        fontWeightAuthor: '700',
+        titleGradient: ['#ffffff', '#fef08a'], // Branco luminoso com degradê solar suave
+        subtitleColor: '#ffffff',
+        authorColor: '#fef08a',
+        strokeColor: 'rgba(30, 41, 59, 0.85)',
+        strokeWidth: 5,
+        shadowColor: 'rgba(15, 23, 42, 0.6)',
+        shadowBlur: 16,
+        authorLetterSpacing: false
+      };
+
     case 'crimson-noir':
       return {
         fontFamilyTitle,

@@ -67,6 +67,8 @@ import { useBookCredits } from '../../../services/kdp-credits-service';
 import { PurchaseCreditsModal } from '../credits/PurchaseCreditsModal';
 import { PlannerBookStudio } from '../planner/PlannerBookStudio';
 import { useTranslation } from '../../../services/i18n-service';
+import { PrintCoverService } from '../../../services/print-cover-service';
+import { PublishingMetadataService } from '../../../services/publishing-metadata-service';
 
 const newProjectId = () => newId('prj_');
 
@@ -477,6 +479,14 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [planoEditorial, setPlanoEditorial] = useState<KdpEditorialPlan | null>(null);
   const [capaFinal, setCapaFinal] = useState<string | null>(null);
   const [fundoImg, setFundoImg] = useState<string | null>(null);
+  const [contracapaFinal, setContracapaFinal] = useState<string | null>(null);
+  const [wrapPreviewUrl, setWrapPreviewUrl] = useState<string | null>(null);
+  const [viewModeCapa, setViewModeCapa] = useState<'wrap' | 'front' | 'back'>('wrap');
+  const [showKdpGuides, setShowKdpGuides] = useState<boolean>(true);
+  const [contracapaTexto, setContracapaTexto] = useState<{ hookHeadline: string; synopsisText: string; readerBenefits: string[] } | null>(null);
+  const [isEditingBackCover, setIsEditingBackCover] = useState(false);
+  const [keywordsKdp, setKeywordsKdp] = useState<string[]>([]);
+  const [isEditingKeywords, setIsEditingKeywords] = useState(false);
   const [promoData, setPromoData] = useState<BookPromotionalPageData | null>(null);
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
 
@@ -700,6 +710,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
           setLivro(p.livro);
           setCapaFinal(p.capaFinal || null);
           setFundoImg(p.fundoImg || null);
+          if (p.contracapaFinal) setContracapaFinal(p.contracapaFinal);
+          if (p.wrapPreviewUrl) setWrapPreviewUrl(p.wrapPreviewUrl);
+          if (p.keywordsKdp && Array.isArray(p.keywordsKdp)) setKeywordsKdp(p.keywordsKdp);
           setPromoData(p.promoData || null);
           setCapAtual(p.livro.capitulos.length);
           setTotalCaps(p.totalCaps || p.livro.capitulos.length);
@@ -745,6 +758,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       livro: novoLivro,
       capaFinal: capa !== undefined ? capa : capaFinal,
       fundoImg: fundo !== undefined ? fundo : fundoImg,
+      contracapaFinal: contracapaFinal || undefined,
+      wrapPreviewUrl: wrapPreviewUrl || undefined,
+      keywordsKdp: keywordsKdp || [],
       promoData: promo !== undefined ? promo : promoData,
       historicoCapas: historicoParaSalvar.slice(0, 20),
       totalCaps,
@@ -786,7 +802,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
         currency: 'BRL',
         targetMarketplace: 'amazon.com.br',
         categories: [genero],
-        keywords: [],
+        keywords: keywordsKdp && keywordsKdp.length > 0 ? keywordsKdp : [],
         targetAudience: targetReader || 'Público Geral',
         topic: topico,
         kdpBookType: bookType,
@@ -826,7 +842,11 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   // Análise de Mercado Amazon KDP (TOP 1-200) com sorteio dinâmico e randômico
   const handleAnalisarMercado = async (forceRandom = false, customQuery?: string) => {
     const temaObj = getTheme(temaSelecionado);
-    const query = customQuery || subtemaSelecionado || temaObj?.marketQuery || temaSelecionado || genero || 'livros';
+    let query = customQuery || subtemaSelecionado || temaObj?.marketQuery || temaSelecionado || genero || 'livros';
+    const isLivroInfantil = bookType === 'children-picture-book' || /infantil|crian|kids|3-5|6-8/i.test(`${temaSelecionado} ${subtemaSelecionado} ${genero} ${faixaEtaria}`);
+    if (isLivroInfantil && !/infantil|crian|kids|children/i.test(query)) {
+      query = `livros infantis ${query}`.trim();
+    }
     setIsAnalyzingMarket(true);
     setMarketFeedback(null);
     logDiag(`Iniciando análise de mercado na Amazon para "${query}"...`);
@@ -1643,15 +1663,20 @@ ${ganchoImediato}`;
     estiloVisual: CoverVisualStyle,
     customPrompt?: string
   ): string => {
-    return buildCoverArtPrompt(genero, premissa, amostra, estiloVisual, customPrompt);
+    const isKids = bookType === 'children-picture-book' || /infantil|crian|kids|3-5|6-8/i.test(`${genero} ${premissa} ${faixaEtaria}`);
+    return buildCoverArtPrompt(genero, premissa, amostra, estiloVisual, customPrompt, {
+      bookType,
+      ageBand: faixaEtaria,
+      isKids
+    });
   };
 
   // DIAGRAMAÇÃO TIPOGRÁFICA EDITORIAL DA CAPA VIA CANVAS (1600x2400)
-  // Padrão visual de diretor de arte de revista internacional:
-  // 1. Zero selos / Zero medalhas kitsch
-  // 2. Clean Zone (Área Limpa) exclusiva atrás do título com alto contraste garantido
-  // 3. Tipografia moderna com proporções refinadas e letter-spacing elegante
-  // 4. REGRA DE OURO ORTOGRÁFICA: 100% de precisão em acentuação e cedilhas ("Finanças", "Gestão", etc.)
+  // Padrão visual elegante adaptado ao público do livro (infantil ou adulto):
+  // 1. Zero selos / Zero medalhas artificiais
+  // 2. Clean Zone (Área Limpa) exclusiva para o título com alto contraste
+  // 3. Tipografia personalizada (lúdica/arredondada para infantil, refinada para não-ficção)
+  // 4. REGRA DE OURO ORTOGRÁFICA: 100% de precisão em acentuação e cedilhas
   const diagramarCapaCanvas = async (
     capaImgUrl: string,
     obraTituloRaw: string,
@@ -1686,9 +1711,15 @@ ${ganchoImediato}`;
     // A legibilidade é garantida por contorno tipográfico (strokeText) e sombra projetada (shadowBlur).
 
     // 1. OBTÉM PALETA E CONFIGURAÇÃO TIPOGRÁFICA ARTÍSTICA DA OBRA
-    const configTipo = getCoverTypographyTheme(obraGenero, tipoEstilo);
+    const isObraInfantil = bookType === 'children-picture-book' || /infantil|crian|kids|3-5|6-8/i.test(`${obraGenero} ${obraPremissa} ${faixaEtaria}`);
+    const configTipo = getCoverTypographyTheme(
+      obraGenero,
+      tipoEstilo,
+      isObraInfantil ? 'playful-kids' : 'auto',
+      { isKids: isObraInfantil, bookType, ageBand: faixaEtaria }
+    );
 
-    // Dimensionamento harmônico e monumental do título
+    // Dimensionamento harmônico do título
     let fontSizeTit = 110;
     if (obraTitulo.length > 50) fontSizeTit = 74;
     else if (obraTitulo.length > 32) fontSizeTit = 86;
@@ -1710,7 +1741,7 @@ ${ganchoImediato}`;
     let yTit = Math.round(centroTitulo - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
     const xTitulo = tituloAlinhadoEsquerda ? 150 : canvas.width / 2;
 
-    // Gradiente vertical para conferir acabamento nobre/metálico/artístico ao título
+    // Gradiente vertical para conferir acabamento harmônico ao título
     const gradTitulo = ctx.createLinearGradient(0, yTit - lineHTit, 0, yTit + alturaTotalTit);
     gradTitulo.addColorStop(0, configTipo.titleGradient[0]);
     gradTitulo.addColorStop(1, configTipo.titleGradient[1]);
@@ -1724,7 +1755,7 @@ ${ganchoImediato}`;
       yTit += lineHTit;
     });
 
-    // 2. SUBTÍTULO COMERCIAL MODERNO HARMONIZADO
+    // 2. SUBTÍTULO COMERCIAL HARMONIZADO
     if (obraSubtituloLimpo) {
       ctx.textAlign = 'center';
       let fontSizeSub = 44;
@@ -1757,13 +1788,15 @@ ${ganchoImediato}`;
       });
     }
 
-    // 3. NOME DO AUTOR NO RODAPÉ COM TIPOGRAFIA REFINADA
+    // 3. NOME DO AUTOR NO RODAPÉ COM TIPOGRAFIA HARMONIOSA
     ctx.shadowBlur = configTipo.shadowBlur;
     ctx.shadowColor = configTipo.shadowColor;
     ctx.font = `${configTipo.fontWeightAuthor} 46px ${configTipo.fontFamilyAuthor}`;
     ctx.fillStyle = configTipo.authorColor;
     ctx.textAlign = 'center';
-    const spacedAutor = obraAutorLimpo.toUpperCase().split('').join(' ');
+    const spacedAutor = configTipo.authorLetterSpacing
+      ? obraAutorLimpo.toUpperCase().split('').join(' ')
+      : obraAutorLimpo;
     ctx.strokeStyle = configTipo.strokeColor;
     ctx.lineWidth = Math.max(2, configTipo.strokeWidth - 1);
     ctx.strokeText(spacedAutor, canvas.width / 2, canvas.height - 140);
@@ -1839,6 +1872,201 @@ ${ganchoImediato}`;
     setStatusType('normal');
   };
 
+  // GERAR CONTRACAPA E VISÃO COMPLETA ABERTA KDP (FULL WRAP / PRINT PREVIEWER)
+  const gerarContracapaEWrap = async (
+    capaFrontalUrl: string,
+    tituloParam?: string,
+    autorParam?: string,
+    generoParam?: string,
+    sinopseParam?: string,
+    customTexto?: { hookHeadline: string; synopsisText: string; readerBenefits: string[] }
+  ) => {
+    try {
+      const obTitle = tituloParam || livro?.titulo || titulo.trim() || 'Obra Editorial';
+      const obAuthor = autorParam || livro?.autor || autor.trim() || 'Autor';
+      const obGenre = generoParam || livro?.genero || genero || 'Ficção';
+      const obSynopsis = sinopseParam || topico.trim() || uniqueAngle || obTitle;
+      const isKids = bookType === 'children-picture-book' || /infantil|crian|kids|3-5|6-8/i.test(`${obGenre} ${obSynopsis} ${faixaEtaria}`);
+      const numPags = livro?.capitulos?.length ? Math.max(24, livro.capitulos.length * 6) : paginasAlvo;
+
+      const backDataUrl = await PrintCoverService.diagramarContracapaCanvas({
+        title: obTitle,
+        author: obAuthor,
+        genre: obGenre,
+        synopsis: customTexto?.synopsisText || obSynopsis,
+        hookHeadline: customTexto?.hookHeadline,
+        benefits: customTexto?.readerBenefits,
+        isKids,
+        trimSize: (formato as any) || '6x9',
+        paperType: 'bw-white'
+      });
+
+      setContracapaFinal(backDataUrl);
+
+      const wrapUrl = await PrintCoverService.diagramarWrapCompositeCanvas({
+        frontCoverDataUrl: capaFrontalUrl,
+        backCoverDataUrl: backDataUrl,
+        title: obTitle,
+        author: obAuthor,
+        pageCount: numPags,
+        trimSize: (formato as any) || '6x9',
+        paperType: 'bw-white',
+        showGuides: showKdpGuides
+      });
+
+      setWrapPreviewUrl(wrapUrl);
+
+      // Gera as 7 palavras-chave oficiais do KDP se não existirem
+      if (keywordsKdp.length === 0) {
+        const generatedKeys = PublishingMetadataService.generateKdpKeywords({
+          title: obTitle,
+          subtitle: livro?.subtitulo || subtitulo,
+          author: obAuthor,
+          genre: obGenre,
+          targetAudience: targetReader || 'Público Geral',
+          description: obSynopsis,
+          bookType
+        });
+        setKeywordsKdp(generatedKeys);
+      }
+
+      return { backDataUrl, wrapUrl };
+    } catch (err) {
+      console.warn('Erro ao gerar contracapa e wrap:', err);
+      return null;
+    }
+  };
+
+  const handleToggleGuides = async (novoValor: boolean) => {
+    setShowKdpGuides(novoValor);
+    if (capaFinal && contracapaFinal) {
+      const obTitle = livro?.titulo || titulo.trim() || 'Obra Editorial';
+      const obAuthor = livro?.autor || autor.trim() || 'Autor';
+      const numPags = livro?.capitulos?.length ? Math.max(24, livro.capitulos.length * 6) : paginasAlvo;
+      try {
+        const wrapUrl = await PrintCoverService.diagramarWrapCompositeCanvas({
+          frontCoverDataUrl: capaFinal,
+          backCoverDataUrl: contracapaFinal,
+          title: obTitle,
+          author: obAuthor,
+          pageCount: numPags,
+          trimSize: (formato as any) || '6x9',
+          paperType: 'bw-white',
+          showGuides: novoValor
+        });
+        setWrapPreviewUrl(wrapUrl);
+      } catch (err) {
+        console.warn('Erro ao alternar guias KDP:', err);
+      }
+    }
+  };
+
+  const handleReaplicarContracapa = async () => {
+    if (!capaFinal) return;
+    setStatusMsg('🔄 Reaplicando texto personalizado na Contracapa...');
+    setStatusType('normal');
+    await gerarContracapaEWrap(
+      capaFinal,
+      livro?.titulo || titulo,
+      livro?.autor || autor,
+      livro?.genero || genero,
+      contracapaTexto?.synopsisText,
+      contracapaTexto || undefined
+    );
+    setStatusMsg('✓ Contracapa atualizada com sucesso!');
+    setStatusType('ok');
+    setIsEditingBackCover(false);
+  };
+
+  const baixarCapaCompletaPdf = async () => {
+    if (!capaFinal) {
+      setStatusMsg('Gere a capa antes de baixar o PDF completo.');
+      setStatusType('error');
+      return;
+    }
+    try {
+      setStatusMsg('📄 Compilando Capa Completa KDP (Full Wrap PDF)...');
+      setStatusType('normal');
+      const obTitle = livro?.titulo || titulo.trim() || 'Obra Editorial';
+      const obAuthor = livro?.autor || autor.trim() || 'Autor';
+      const numPags = livro?.capitulos?.length ? Math.max(24, livro.capitulos.length * 6) : paginasAlvo;
+      const isKids = bookType === 'children-picture-book' || /infantil|crian|kids|3-5|6-8/i.test(`${genero} ${topico}`);
+
+      const res = await PrintCoverService.generateFullWrapCoverPdf({
+        title: obTitle,
+        subtitle: livro?.subtitulo || subtitulo,
+        author: obAuthor,
+        genre: livro?.genero || genero,
+        pageCount: numPags,
+        trimSize: (formato as any) || '6x9',
+        paperType: 'bw-white',
+        frontCoverDataUrl: capaFinal,
+        backCoverDataUrl: contracapaFinal || undefined,
+        frontIsAlreadyDiagrammed: true,
+        synopsisText: contracapaTexto?.synopsisText || topico.trim() || undefined,
+        hookHeadline: contracapaTexto?.hookHeadline || undefined,
+        readerBenefits: contracapaTexto?.readerBenefits || undefined,
+        isKids
+      });
+
+      const blob = new Blob([res.pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kdp-full-cover-${(obTitle || 'livro').toLowerCase().replace(/\s+/g, '-')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatusMsg('✓ PDF da Capa Completa KDP baixado com sucesso!');
+      setStatusType('ok');
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg(`Erro ao gerar PDF da capa completa: ${err.message}`);
+      setStatusType('error');
+    }
+  };
+
+  const baixarContracapaPng = () => {
+    if (!contracapaFinal) {
+      setStatusMsg('Contracapa não gerada ainda.');
+      setStatusType('error');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = contracapaFinal;
+    a.download = `contracapa-${(livro?.titulo || titulo).replace(/\s+/g, '_')}.png`;
+    a.click();
+  };
+
+  const handleCopiarKeywords = async () => {
+    if (keywordsKdp.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(keywordsKdp.join(', '));
+      setStatusMsg('✓ 7 Palavras-Chave copiadas no formato Amazon KDP!');
+      setStatusType('ok');
+    } catch {
+      setStatusMsg('Erro ao copiar palavras-chave.');
+    }
+  };
+
+  const handleRegenerarKeywords = () => {
+    const obTitle = livro?.titulo || titulo.trim() || 'Obra Editorial';
+    const obAuthor = livro?.autor || autor.trim() || 'Autor';
+    const obGenre = livro?.genero || genero || 'Ficção';
+    const obSynopsis = topico.trim() || uniqueAngle || obTitle;
+    const generatedKeys = PublishingMetadataService.generateKdpKeywords({
+      title: obTitle,
+      subtitle: livro?.subtitulo || subtitulo,
+      author: obAuthor,
+      genre: obGenre,
+      targetAudience: targetReader || 'Público Geral',
+      description: obSynopsis,
+      bookType
+    });
+    setKeywordsKdp(generatedKeys);
+    setStatusMsg('✓ 7 Palavras-Chave oficiais do Amazon KDP regeneradas com base no seu nicho!');
+    setStatusType('ok');
+  };
+
   // REGENERAÇÃO DE CAPA DIRETO AO LADO DA CAPA (COM IA E NOVO CONCEITO VISUAL)
   const handleGerarOutraCapa = async () => {
     setIsRegeneratingCoverOnly(true);
@@ -1884,10 +2112,11 @@ ${ganchoImediato}`;
       setHistoricoCapas(novoHistorico);
       setIndiceCapaCarrossel(0);
       setCapaFinal(novaCapaFinal);
+      await gerarContracapaEWrap(novaCapaFinal, obraTitulo, obraAutor, obraGenero, obraPremissa);
 
       if (livro) salvarProgressoLocal(livro, novaCapaFinal, novaCapaUrl, promoData || undefined, novoHistorico);
 
-      setStatusMsg('✓ Nova capa diagramada com sucesso! Adicionada ao seu carrossel de capas.');
+      setStatusMsg('✓ Nova capa e contracapa diagramadas com sucesso! Visualização KDP completa gerada.');
       setStatusType('ok');
     } catch (err: any) {
       console.error(err);
@@ -1992,7 +2221,8 @@ ${ganchoImediato}`;
       );
 
       setCapaFinal(capaFinalBase64);
-      logDiag('Capa diagramada em 1600x2400 finalizada com design editorial limpo de revista.');
+      await gerarContracapaEWrap(capaFinalBase64, obraTitulo, obraAutor, obraGenero, obraPremissa);
+      logDiag('Capa diagramada em 1600x2400 e contracapa KDP finalizadas com sucesso.');
 
       // 3. GERAÇÃO AUTOMÁTICA DA IMAGEM PROMOCIONAL NARRATIVA + PÁGINA PROMOCIONAL
       setStatusMsg('✨ 3/3 Gerando Imagem Narrativa e Página Promocional Automática...');
@@ -2410,6 +2640,8 @@ ${ganchoImediato}`;
         subtitle: livro.subtitulo || '',
         author: livro.autor || 'Autor não definido',
         coverDataUrl: capaFinal || undefined,
+        backCoverDataUrl: contracapaFinal || undefined,
+        keywords: keywordsKdp.length > 0 ? keywordsKdp : undefined,
         pdf: pdfResult.bytes as unknown as ArrayBuffer,
         pageCount: pdfResult.pageCount,
         sizeBytes: (pdfResult.bytes as any).byteLength || 0,
@@ -2495,7 +2727,7 @@ ${ganchoImediato}`;
         currency: 'BRL',
         targetMarketplace: 'amazon.com.br',
         categories: [genero],
-        keywords: [],
+        keywords: keywordsKdp.length > 0 ? keywordsKdp : [],
         targetAudience: 'Público Geral Adulto',
         topic: topico,
         kdpBookType: 'fiction-novel',
@@ -5211,639 +5443,652 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
 
-              {/* ABA 2: CAPA DO LIVRO (ESTÚDIO PROFISSIONAL DE DIREÇÃO DE ARTE LADO A LADO) */}
+              {/* ABA 2: CAPA DO LIVRO (FORMATO LIMPO COM CONTRACAPA, FULL WRAP KDP E 7 PALAVRAS-CHAVE) */}
               {activeTab === 'capa' && (
                 <div
                   style={{
-                    height: 580,
+                    minHeight: 560,
+                    maxHeight: 700,
                     overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
                     background: '#f8fafc',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: '1px solid #e2e8f0',
-                    padding: 20
+                    padding: 24,
+                    gap: 18
                   }}
                 >
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, alignItems: 'start' }}>
-                    {/* COLUNA ESQUERDA: CARROSSEL DE CAPAS GERADAS COM NAVEGAÇÃO LATERAL E SELETOR */}
-                    {(() => {
-                      const capaEmExibicao = historicoCapas[indiceCapaCarrossel] || (capaFinal ? { id: 'ativa_fallback', dataUrl: capaFinal, timestamp: Date.now() } : null);
-                      const isCapaAtiva = capaEmExibicao ? capaEmExibicao.dataUrl === capaFinal : false;
+                  {capaFinal ? (
+                    <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 780 }}>
+                      
+                      {/* BARRA SUPERIOR: ALTERNADOR DE VISUALIZAÇÃO (VISÃO ABERTA KDP / FRENTE / CONTRACAPA) */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        width: '100%',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        marginBottom: 12,
+                        paddingBottom: 12,
+                        borderBottom: '1px solid #e2e8f0'
+                      }}>
+                        {/* SELETOR DE MODOS */}
+                        <div style={{
+                          display: 'inline-flex',
+                          background: '#e2e8f0',
+                          padding: 4,
+                          borderRadius: 8,
+                          gap: 4
+                        }}>
+                          <button
+                            type="button"
+                            onClick={() => setViewModeCapa('wrap')}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 12px',
+                              borderRadius: 6,
+                              border: 'none',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              background: viewModeCapa === 'wrap' ? '#ffffff' : 'transparent',
+                              color: viewModeCapa === 'wrap' ? '#0f172a' : '#64748b',
+                              boxShadow: viewModeCapa === 'wrap' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            title="Visualizar a Capa Completa Aberta com Contracapa + Lombada + Frente (como no Print Previewer da Amazon KDP)"
+                          >
+                            <BookOpen size={14} color={viewModeCapa === 'wrap' ? '#2563eb' : '#64748b'} />
+                            <span>📖 Visão Aberta KDP (Print Previewer)</span>
+                          </button>
 
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#ffffff', padding: 20, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', position: 'relative' }}>
-                          {capaEmExibicao ? (
-                            <div style={{ textAlign: 'center', width: '100%' }}>
-                              {/* CABEÇALHO DO CARROSSEL: CONTADOR E STATUS DA CAPA */}
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: 12,
-                                paddingBottom: 10,
-                                borderBottom: '1px solid #f1f5f9',
-                                gap: 8,
-                                flexWrap: 'wrap'
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <Palette size={15} color="#2563eb" />
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-                                    Galeria de Capas
-                                  </span>
-                                  <span style={{
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    color: '#2563eb',
-                                    background: '#eff6ff',
-                                    padding: '2px 8px',
-                                    borderRadius: 12,
-                                    border: '1px solid #bfdbfe'
-                                  }}>
-                                    {indiceCapaCarrossel + 1} de {Math.max(1, historicoCapas.length)}
-                                  </span>
-                                </div>
+                          <button
+                            type="button"
+                            onClick={() => setViewModeCapa('front')}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 12px',
+                              borderRadius: 6,
+                              border: 'none',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              background: viewModeCapa === 'front' ? '#ffffff' : 'transparent',
+                              color: viewModeCapa === 'front' ? '#0f172a' : '#64748b',
+                              boxShadow: viewModeCapa === 'front' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            title="Visualizar apenas a Capa Frontal (Kindle eBook ou frente do livro)"
+                          >
+                            <span>📕 Capa Frontal</span>
+                          </button>
 
-                                {/* STATUS / BOTÃO PARA ESCOLHER CAPA */}
-                                {isCapaAtiva ? (
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    fontSize: 11,
-                                    fontWeight: 800,
-                                    color: '#059669',
-                                    background: '#ecfdf5',
-                                    padding: '3px 10px',
-                                    borderRadius: 999,
-                                    border: '1px solid #a7f3d0'
-                                  }}>
-                                    <Check size={12} /> Capa Ativa do Livro
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDefinirComoCapaAtiva(capaEmExibicao)}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: 5,
-                                      fontSize: 11,
-                                      fontWeight: 700,
-                                      color: '#ffffff',
-                                      background: '#2563eb',
-                                      padding: '4px 12px',
-                                      borderRadius: 6,
-                                      border: 'none',
-                                      cursor: 'pointer',
-                                      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
-                                      transition: 'all 0.15s ease'
-                                    }}
-                                    title="Definir esta variação como a capa oficial do livro"
-                                  >
-                                    <Star size={12} /> Escolher Esta Capa
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* ÁREA DA CAPA GRANDE COM OS BOTÕES DE NAVEGAÇÃO LATERAL (SETAS / PLAY DE CADA LADO) */}
-                              <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
-                                <img
-                                  src={capaEmExibicao.dataUrl}
-                                  alt={`Capa variação ${indiceCapaCarrossel + 1}`}
-                                  style={{
-                                    maxHeight: 410,
-                                    maxWidth: '100%',
-                                    borderRadius: 8,
-                                    boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.08)',
-                                    display: 'block',
-                                    margin: '0 auto',
-                                    transition: 'all 0.2s ease'
-                                  }}
-                                />
-
-                                {/* BOTÃO NAVEGAÇÃO ESQUERDA (SETA / "PLAY" ESQUERDO) */}
-                                {historicoCapas.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={handleCapaAnterior}
-                                    style={{
-                                      position: 'absolute',
-                                      left: -16,
-                                      top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      width: 38,
-                                      height: 38,
-                                      borderRadius: '50%',
-                                      background: 'rgba(15, 23, 42, 0.88)',
-                                      color: '#ffffff',
-                                      border: '1px solid rgba(255, 255, 255, 0.25)',
-                                      backdropFilter: 'blur(8px)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      cursor: 'pointer',
-                                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
-                                      transition: 'all 0.15s ease',
-                                      zIndex: 10
-                                    }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(15, 23, 42, 0.88)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
-                                    title="Ver capa anterior (◀)"
-                                  >
-                                    <ChevronLeft size={20} />
-                                  </button>
-                                )}
-
-                                {/* BOTÃO NAVEGAÇÃO DIREITA (SETA / "PLAY" DIREITO) */}
-                                {historicoCapas.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={handleCapaProxima}
-                                    style={{
-                                      position: 'absolute',
-                                      right: -16,
-                                      top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      width: 38,
-                                      height: 38,
-                                      borderRadius: '50%',
-                                      background: 'rgba(15, 23, 42, 0.88)',
-                                      color: '#ffffff',
-                                      border: '1px solid rgba(255, 255, 255, 0.25)',
-                                      backdropFilter: 'blur(8px)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      cursor: 'pointer',
-                                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
-                                      transition: 'all 0.15s ease',
-                                      zIndex: 10
-                                    }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(15, 23, 42, 0.88)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
-                                    title="Ver próxima capa (▶)"
-                                  >
-                                    <ChevronRight size={20} />
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* CARROSSEL HORIZONTAL DE MINIATURAS (THUMBNAILS STRIP) */}
-                              {historicoCapas.length > 1 && (
-                                <div style={{ marginTop: 14 }}>
-                                  <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 10,
-                                    overflowX: 'auto',
-                                    padding: '6px 4px',
-                                    maxWidth: '100%'
-                                  }}>
-                                    {historicoCapas.map((item, idx) => {
-                                      const isSelected = idx === indiceCapaCarrossel;
-                                      const isAtiva = item.dataUrl === capaFinal;
-                                      return (
-                                        <div
-                                          key={item.id}
-                                          onClick={() => handleSelecionarCapaCarrossel(idx)}
-                                          style={{
-                                            position: 'relative',
-                                            cursor: 'pointer',
-                                            borderRadius: 6,
-                                            padding: 2,
-                                            border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                            background: isSelected ? '#eff6ff' : '#ffffff',
-                                            boxShadow: isSelected ? '0 0 0 2px rgba(37, 99, 235, 0.25)' : 'none',
-                                            transition: 'all 0.15s ease',
-                                            flexShrink: 0
-                                          }}
-                                          title={`Capa ${idx + 1}${isAtiva ? ' (Ativa)' : ''}`}
-                                        >
-                                          <img
-                                            src={item.dataUrl}
-                                            alt={`Miniatura ${idx + 1}`}
-                                            style={{
-                                              width: 48,
-                                              height: 72,
-                                              objectFit: 'cover',
-                                              borderRadius: 4,
-                                              display: 'block'
-                                            }}
-                                          />
-                                          {isAtiva && (
-                                            <span style={{
-                                              position: 'absolute',
-                                              top: 4,
-                                              right: 4,
-                                              background: '#10b981',
-                                              color: '#ffffff',
-                                              borderRadius: '50%',
-                                              width: 14,
-                                              height: 14,
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'center',
-                                              fontSize: 9,
-                                              fontWeight: 800,
-                                              boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
-                                            }}>
-                                              ✓
-                                            </span>
-                                          )}
-                                          <span style={{
-                                            position: 'absolute',
-                                            bottom: 3,
-                                            left: '50%',
-                                            transform: 'translateX(-50%)',
-                                            background: isSelected ? '#2563eb' : 'rgba(15, 23, 42, 0.75)',
-                                            color: '#ffffff',
-                                            fontSize: 9,
-                                            fontWeight: 700,
-                                            padding: '1px 5px',
-                                            borderRadius: 4,
-                                            whiteSpace: 'nowrap'
-                                          }}>
-                                            #{idx + 1}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* BADGES TÉCNICOS KDP */}
-                              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 4, border: '1px solid #a7f3d0' }}>
-                                  ✓ 1600x2400 (300 DPI)
-                                </span>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
-                                  ✓ Sem Selos Artificiais
-                                </span>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd6fe' }}>
-                                  ✓ Área Limpa Ativa
-                                </span>
-                              </div>
-
-                              {/* BOTÕES DE AÇÃO: DEFINIR COMO ATIVA, BAIXAR PNG, COPIAR E EXCLUIR */}
-                              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
-                                {!isCapaAtiva && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDefinirComoCapaAtiva(capaEmExibicao)}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 6,
-                                      padding: '8px 14px',
-                                      borderRadius: 6,
-                                      background: '#059669',
-                                      color: '#ffffff',
-                                      border: 'none',
-                                      fontSize: 12,
-                                      fontWeight: 700,
-                                      cursor: 'pointer',
-                                      boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)'
-                                    }}
-                                  >
-                                    <Check size={14} /> Ativar Esta Capa no Livro
-                                  </button>
-                                )}
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const link = document.createElement('a');
-                                    link.href = capaEmExibicao.dataUrl;
-                                    link.download = `${(titulo || 'capa-livro').toLowerCase().replace(/\s+/g, '-')}-var${indiceCapaCarrossel + 1}.png`;
-                                    link.click();
-                                  }}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    padding: '8px 14px',
-                                    borderRadius: 6,
-                                    background: '#0f172a',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                  }}
-                                >
-                                  <Download size={14} /> Baixar PNG KDP
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    try {
-                                      const blob = await (await fetch(capaEmExibicao.dataUrl)).blob();
-                                      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-                                      setStatusMsg('✓ Imagem copiada para a área de transferência!');
-                                      setStatusType('ok');
-                                    } catch (e) {
-                                      setStatusMsg('Não foi possível copiar automaticamente para a área de transferência.');
-                                    }
-                                  }}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    padding: '8px 14px',
-                                    borderRadius: 6,
-                                    background: '#ffffff',
-                                    color: '#334155',
-                                    border: '1px solid #cbd5e1',
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  <Copy size={14} /> Copiar Imagem
-                                </button>
-
-                                {historicoCapas.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleExcluirCapaDoHistorico(capaEmExibicao.id, e)}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 5,
-                                      padding: '8px 12px',
-                                      borderRadius: 6,
-                                      background: '#fef2f2',
-                                      color: '#dc2626',
-                                      border: '1px solid #fecaca',
-                                      fontSize: 12,
-                                      fontWeight: 600,
-                                      cursor: 'pointer'
-                                    }}
-                                    title="Descartar esta variação de capa do carrossel"
-                                  >
-                                    <Trash2 size={13} /> Descartar
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ) : (
-                            <div style={{ textAlign: 'center', padding: '80px 20px', color: '#94a3b8' }}>
-                              <ImageIcon size={54} style={{ opacity: 0.3, marginBottom: 12 }} />
-                              <div style={{ fontWeight: 600, fontSize: 14, color: '#475569', marginBottom: 4 }}>
-                                Nenhuma capa gerada ainda
-                              </div>
-                              <p style={{ fontStyle: 'italic', fontSize: 12, maxWidth: 280, margin: '0 auto' }}>
-                                Utilize o painel ao lado para gerar sua primeira capa com estilo editorial moderno.
-                              </p>
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => setViewModeCapa('back')}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 12px',
+                              borderRadius: 6,
+                              border: 'none',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              background: viewModeCapa === 'back' ? '#ffffff' : 'transparent',
+                              color: viewModeCapa === 'back' ? '#0f172a' : '#64748b',
+                              boxShadow: viewModeCapa === 'back' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            title="Visualizar a Contracapa diagramada com sinopse, benefícios e área de código de barras KDP"
+                          >
+                            <span>📘 Contracapa</span>
+                          </button>
                         </div>
-                      );
-                    })()}
 
-                    {/* COLUNA DIREITA: ESTÚDIO DE GERAÇÃO & DIREÇÃO DE ARTE AO LADO DA CAPA */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: '#ffffff', padding: 20, borderRadius: 8, border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <Palette size={18} color="#2563eb" />
-                          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                            Estúdio de Capa & Direção de Arte
-                          </h3>
-                        </div>
-                        <p style={{ fontSize: 12, color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-                          Gere novas variações de capa diretamente aqui com layout profissional de revistas internacionais, tipografia moderna e zero selos artificiais.
-                        </p>
+                        {/* TOGGLE GUIAS TÉCNICAS KDP */}
+                        {viewModeCapa === 'wrap' && (
+                          <label style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: '#334155',
+                            cursor: 'pointer',
+                            userSelect: 'none'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={showKdpGuides}
+                              onChange={(e) => handleToggleGuides(e.target.checked)}
+                              style={{ cursor: 'pointer', accentColor: '#2563eb' }}
+                            />
+                            <span>Exibir Guias Técnicas KDP (Corte & Sangria)</span>
+                          </label>
+                        )}
                       </div>
 
-                      {/* BOTÃO PRINCIPAL DE GERAÇÃO DIRETA */}
-                      <button
-                        type="button"
-                        onClick={handleGerarOutraCapa}
-                        disabled={isRegeneratingCoverOnly || isGeneratingSilhueta}
-                        style={{
+                      {/* BANNER TÉCNICO INFORMATIVO DE CONFORMIDADE COM AMAZON KDP */}
+                      <div style={{
+                        width: '100%',
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: 8,
+                        padding: '10px 14px',
+                        marginBottom: 14,
+                        textAlign: 'left',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        fontSize: 11,
+                        color: '#1e3a8a'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          <span>📐 <b>Formato:</b> {formato}</span>
+                          <span>•</span>
+                          <span>📏 <b>Lombada KDP:</b> {((livro?.capitulos?.length ? Math.max(24, livro.capitulos.length * 6) : paginasAlvo) * 0.002252).toFixed(3)}" (~{(((livro?.capitulos?.length ? Math.max(24, livro.capitulos.length * 6) : paginasAlvo) * 0.002252) * 25.4).toFixed(1)}mm)</span>
+                          <span>•</span>
+                          <span>✂️ <b>Sangria (Bleed):</b> 0.125" (3.2mm)</span>
+                          <span>•</span>
+                          <span>🏷️ <b>Código de Barras KDP:</b> 2" × 1.2" reservada</span>
+                        </div>
+                        <a
+                          href="https://kdp.amazon.com/pt_BR/help/topic/G200645690"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: '#2563eb',
+                            fontWeight: 700,
+                            textDecoration: 'underline',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3
+                          }}
+                        >
+                          Guia KDP G200645690 ↗
+                        </a>
+                      </div>
+
+                      {/* EXIBIÇÃO DA IMAGEM SELECIONADA */}
+                      <div style={{
+                        position: 'relative',
+                        display: 'inline-block',
+                        maxWidth: '100%',
+                        padding: 8,
+                        background: '#ffffff',
+                        borderRadius: 10,
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 12px 30px -8px rgba(0,0,0,0.18)'
+                      }}>
+                        {viewModeCapa === 'wrap' && (wrapPreviewUrl || capaFinal) && (
+                          <img
+                            src={wrapPreviewUrl || capaFinal}
+                            alt="Visão Aberta Completa da Capa KDP"
+                            style={{
+                              maxHeight: 380,
+                              maxWidth: '100%',
+                              borderRadius: 4,
+                              display: 'block',
+                              margin: '0 auto'
+                            }}
+                          />
+                        )}
+
+                        {viewModeCapa === 'front' && (
+                          <img
+                            src={capaFinal}
+                            alt="Capa Frontal do Livro"
+                            style={{
+                              maxHeight: 420,
+                              maxWidth: '100%',
+                              borderRadius: 6,
+                              display: 'block',
+                              margin: '0 auto'
+                            }}
+                          />
+                        )}
+
+                        {viewModeCapa === 'back' && (contracapaFinal || capaFinal) && (
+                          <img
+                            src={contracapaFinal || capaFinal}
+                            alt="Contracapa Diagramada do Livro"
+                            style={{
+                              maxHeight: 420,
+                              maxWidth: '100%',
+                              borderRadius: 6,
+                              display: 'block',
+                              margin: '0 auto'
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* LEGENDA E INFORMAÇÃO */}
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                          {viewModeCapa === 'wrap'
+                            ? '📖 Capa Aberta Completa KDP (Contracapa + Lombada + Frente)'
+                            : viewModeCapa === 'front'
+                            ? '📕 Capa Frontal Diagramada KDP (1600x2400)'
+                            : '📘 Contracapa com Gancho Editorial, Sinopse e Código de Barras'}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                          Calculada milimetricamente para o Amazon KDP Paperback (impressão física) e Kindle eBook.
+                        </div>
+                      </div>
+
+                      {/* BOTÕES DE DOWNLOAD DIRETO E AÇÕES */}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {/* 1. BAIXAR CAPA COMPLETA PDF (FULL WRAP IMPRESSÃO KDP) */}
+                        <button
+                          type="button"
+                          onClick={baixarCapaCompletaPdf}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '9px 15px',
+                            borderRadius: 6,
+                            background: '#0f172a',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 5px rgba(0,0,0,0.18)'
+                          }}
+                          title="Baixar PDF de Capa Completa Aberta (Contracapa + Lombada + Frente) com medidas oficiais KDP"
+                        >
+                          <Download size={14} color="#38bdf8" /> Baixar Capa Completa KDP (PDF)
+                        </button>
+
+                        {/* 2. BAIXAR CAPA FRONTAL PNG */}
+                        <button
+                          type="button"
+                          onClick={baixarCapa}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '9px 13px',
+                            borderRadius: 6,
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            border: '1px solid #cbd5e1',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                          title="Baixar imagem PNG da Capa Frontal em 1600x2400 (Kindle eBook)"
+                        >
+                          <Download size={14} /> Frente (PNG)
+                        </button>
+
+                        {/* 3. BAIXAR CONTRACAPA PNG */}
+                        <button
+                          type="button"
+                          onClick={baixarContracapaPng}
+                          disabled={!contracapaFinal}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '9px 13px',
+                            borderRadius: 6,
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            border: '1px solid #cbd5e1',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: !contracapaFinal ? 'not-allowed' : 'pointer',
+                            opacity: !contracapaFinal ? 0.6 : 1
+                          }}
+                          title="Baixar imagem PNG da Contracapa diagramada"
+                        >
+                          <Download size={14} /> Contracapa (PNG)
+                        </button>
+
+                        {/* 4. COPIAR IMAGEM */}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const targetUrl = viewModeCapa === 'wrap' ? (wrapPreviewUrl || capaFinal) : viewModeCapa === 'back' ? (contracapaFinal || capaFinal) : capaFinal;
+                              const blob = await (await fetch(targetUrl)).blob();
+                              await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                              setStatusMsg('✓ Imagem copiada para a área de transferência!');
+                              setStatusType('ok');
+                            } catch {
+                              setStatusMsg('Não foi possível copiar automaticamente para a área de transferência.');
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '9px 13px',
+                            borderRadius: 6,
+                            background: '#ffffff',
+                            color: '#334155',
+                            border: '1px solid #cbd5e1',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Copy size={14} /> Copiar
+                        </button>
+
+                        {/* 5. PERSONALIZAR TEXTO DA CONTRACAPA */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!contracapaTexto) {
+                              const smartBack = PrintCoverService.generateSmartBackCover(
+                                livro?.titulo || titulo,
+                                topico.trim() || undefined,
+                                livro?.genero || genero
+                              );
+                              setContracapaTexto({
+                                hookHeadline: smartBack.hookHeadline,
+                                synopsisText: smartBack.synopsisText,
+                                readerBenefits: smartBack.readerBenefits
+                              });
+                            }
+                            setIsEditingBackCover(!isEditingBackCover);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '9px 13px',
+                            borderRadius: 6,
+                            background: isEditingBackCover ? '#eff6ff' : '#ffffff',
+                            color: isEditingBackCover ? '#1d4ed8' : '#334155',
+                            border: isEditingBackCover ? '1px solid #93c5fd' : '1px solid #cbd5e1',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                          title="Personalizar Headline, Sinopse e 3 Benefícios da Contracapa"
+                        >
+                          <Sliders size={14} /> {isEditingBackCover ? 'Ocultar Edição' : 'Personalizar Contracapa'}
+                        </button>
+
+                        {/* 6. GERAR OUTRA CAPA COM IA */}
+                        <button
+                          type="button"
+                          onClick={handleGerarOutraCapa}
+                          disabled={isRegeneratingCoverOnly || gerando}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '9px 15px',
+                            borderRadius: 6,
+                            background: '#2563eb',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: isRegeneratingCoverOnly || gerando ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
+                          }}
+                        >
+                          {isRegeneratingCoverOnly ? (
+                            <>
+                              <RefreshCw size={14} className="animate-spin" /> Criando Novo Conceito...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={14} /> ✨ Gerar Outra com IA
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* PAINEL DE PERSONALIZAÇÃO DA CONTRACAPA (SE ATIVADO) */}
+                      {isEditingBackCover && contracapaTexto && (
+                        <div style={{
+                          width: '100%',
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 8,
+                          padding: 16,
+                          marginTop: 16,
+                          textAlign: 'left',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>
+                            ✏️ Personalizar Conteúdo Comercial da Contracapa
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                                Gancho / Headline de Impacto (Topo da Contracapa):
+                              </label>
+                              <input
+                                type="text"
+                                value={contracapaTexto.hookHeadline}
+                                onChange={(e) => setContracapaTexto({ ...contracapaTexto, hookHeadline: e.target.value })}
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                              />
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                                Sinopse Comercial da Obra:
+                              </label>
+                              <textarea
+                                rows={3}
+                                value={contracapaTexto.synopsisText}
+                                onChange={(e) => setContracapaTexto({ ...contracapaTexto, synopsisText: e.target.value })}
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, resize: 'vertical' }}
+                              />
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                                3 Destaques / Benefícios da Leitura:
+                              </label>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {[0, 1, 2].map((idx) => (
+                                  <input
+                                    key={idx}
+                                    type="text"
+                                    value={contracapaTexto.readerBenefits[idx] || ''}
+                                    onChange={(e) => {
+                                      const novos = [...contracapaTexto.readerBenefits];
+                                      novos[idx] = e.target.value;
+                                      setContracapaTexto({ ...contracapaTexto, readerBenefits: novos });
+                                    }}
+                                    placeholder={`Benefício ${idx + 1}...`}
+                                    style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleReaplicarContracapa}
+                              style={{
+                                alignSelf: 'flex-start',
+                                marginTop: 6,
+                                padding: '8px 16px',
+                                background: '#059669',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✓ Atualizar e Reaplicar na Contracapa
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CARD DAS 7 PALAVRAS-CHAVE OFICIAIS DO AMAZON KDP */}
+                      <div style={{
+                        width: '100%',
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 10,
+                        padding: 16,
+                        marginTop: 18,
+                        textAlign: 'left',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                      }}>
+                        <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
                           gap: 8,
-                          padding: '12px 18px',
-                          borderRadius: 8,
-                          background: isRegeneratingCoverOnly
-                            ? '#94a3b8'
-                            : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                          marginBottom: 8
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 15 }}>🔑</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                              7 Palavras-Chave de Busca Oficiais Amazon KDP
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={handleCopiarKeywords}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '5px 11px',
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                              title="Copiar todas as 7 palavras-chave para colar no painel do Amazon KDP"
+                            >
+                              <Copy size={12} /> Copiar 7 Palavras-Chave
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleRegenerarKeywords}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '5px 10px',
+                                background: '#f8fafc',
+                                color: '#475569',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                              title="Regenerar sugestões de busca otimizadas para este nicho"
+                            >
+                              <RefreshCw size={11} /> Regenerar
+                            </button>
+                          </div>
+                        </div>
+
+                        <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                          A Amazon KDP disponibiliza exatamente 7 caixas de termos de busca na publicação. Nossas palavras-chave seguem as regras oficiais (sem repetir palavras do título e focadas no interesse do leitor).
+                        </p>
+
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                          gap: 8
+                        }}>
+                          {keywordsKdp.slice(0, 7).map((kw, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                padding: '6px 10px',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                color: '#1e293b'
+                              }}
+                            >
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                color: '#2563eb',
+                                background: '#eff6ff',
+                                padding: '1px 6px',
+                                borderRadius: 4
+                              }}>
+                                #{idx + 1}
+                              </span>
+                              <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {kw}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 20px' }}>
+                      <ImageIcon size={54} style={{ opacity: 0.3, marginBottom: 12 }} />
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                        Nenhuma capa gerada ainda
+                      </div>
+                      <p style={{ fontStyle: 'italic', fontSize: 12, maxWidth: 320, margin: '0 auto 16px auto', color: '#64748b' }}>
+                        Clique no botão abaixo para gerar uma capa de alta resolução contextualizada com o tema do livro.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={gerarCapaEPaginaPromocional}
+                        disabled={gerando || isRegeneratingCoverOnly}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '10px 20px',
+                          borderRadius: 6,
+                          background: '#2563eb',
                           color: '#ffffff',
                           border: 'none',
                           fontSize: 13,
                           fontWeight: 700,
-                          cursor: isRegeneratingCoverOnly ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
-                          transition: 'all 0.15s ease'
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
                         }}
                       >
-                        {isRegeneratingCoverOnly ? (
-                          <>
-                            <RefreshCw size={15} className="animate-spin" /> Gerando Novo Conceito com IA...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={15} /> ✨ Gerar Outra Capa com IA (Novo Conceito)
-                          </>
-                        )}
+                        <Sparkles size={16} /> 🎨 Gerar Capa KDP com IA
                       </button>
-
-                      {/* SELEÇÃO DO ESTILO TIPOGRÁFICO MODERNO */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                          Estilo da Tipografia (Design de Revista):
-                        </label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                          {[
-                            { id: 'modern-magazine', label: 'Moderno Revista', desc: 'Montserrat / Sans', sub: 'Clean & Equilibrado' },
-                            { id: 'luxury-serif', label: 'Luxo Editorial', desc: 'Playfair / Cinzel', sub: 'Clássico Premiado' },
-                            { id: 'bold-impact', label: 'Impacto Bold', desc: 'Oswald / Suíço', sub: 'Forte & Autoritário' }
-                          ].map((tipo) => {
-                            const isSelected = estiloCapaTipo === tipo.id;
-                            return (
-                              <button
-                                key={tipo.id}
-                                type="button"
-                                onClick={() => setEstiloCapaTipo(tipo.id as any)}
-                                style={{
-                                  padding: '8px 10px',
-                                  borderRadius: 6,
-                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                  background: isSelected ? '#eff6ff' : '#ffffff',
-                                  textAlign: 'left',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease'
-                                }}
-                              >
-                                <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#1d4ed8' : '#0f172a' }}>
-                                  {tipo.label}
-                                </div>
-                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
-                                  {tipo.desc}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                          Composição do título:
-                        </label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                          {([
-                            { id: 'topo', label: 'Topo editorial', detail: 'Abertura clássica' },
-                            { id: 'centro', label: 'Centro clássico', detail: 'Foco equilibrado' },
-                            { id: 'esquerda', label: 'Alinhado à esquerda', detail: 'Composição assimétrica' }
-                          ] satisfies { id: CoverTitleLayout; label: string; detail: string }[]).map(layout => {
-                            const isSelected = posicaoTituloCapa === layout.id;
-                            return (
-                              <button
-                                key={layout.id}
-                                type="button"
-                                onClick={() => setPosicaoTituloCapa(layout.id)}
-                                style={{
-                                  padding: '8px 10px',
-                                  borderRadius: 6,
-                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                  background: isSelected ? '#eff6ff' : '#ffffff',
-                                  textAlign: 'left',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#1d4ed8' : '#0f172a' }}>
-                                  {layout.label}
-                                </div>
-                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
-                                  {layout.detail}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* SELEÇÃO DO ESTILO VISUAL DA ARTE DE FUNDO */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                          Conceito Visual da Ilustração (IA):
-                        </label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                          {[
-                            { id: 'minimalist', label: 'Fotografia Editorial', desc: 'Natural e com espaço negativo' },
-                            { id: 'cinematic', label: 'Fotografia Cinematográfica', desc: 'Luz e textura naturais' },
-                            { id: 'concept', label: 'Ilustração Fine Art', desc: 'Pinceladas e materiais táteis' },
-                            { id: 'abstract', label: 'Arte Geométrica', desc: 'Formas autorais e assimétricas' }
-                          ].map((estilo) => {
-                            const isSelected = estiloArteVisual === estilo.id;
-                            return (
-                              <button
-                                key={estilo.id}
-                                type="button"
-                                onClick={() => setEstiloArteVisual(estilo.id as any)}
-                                style={{
-                                  padding: '8px 10px',
-                                  borderRadius: 6,
-                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                  background: isSelected ? '#eff6ff' : '#ffffff',
-                                  textAlign: 'left',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#1d4ed8' : '#0f172a' }}>
-                                  {estilo.label}
-                                </div>
-                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
-                                  {estilo.desc}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* CONTROLE DE NITIDEZ EDITORIAL DA CAPA (ZERO BLUR ARTIFICIAL) */}
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>
-                            Nitidez da Imagem de Fundo:
-                          </label>
-                          <span style={{ fontSize: 10, color: '#059669', fontWeight: 700 }}>
-                            Arte 100% Nítida (Zero Blur)
-                          </span>
-                        </div>
-                        <div style={{
-                          padding: '7px 10px',
-                          background: '#ecfdf5',
-                          borderRadius: 6,
-                          border: '1px solid #a7f3d0',
-                          fontSize: 11,
-                          color: '#065f46',
-                          lineHeight: 1.4
-                        }}>
-                          <b>Design Limpo:</b> A imagem de fundo é preservada com nitidez total, sem manchas ou blur artificial. Apenas o <b>Título</b>, <b>Subtítulo</b> e <b>Nome do Autor</b> são diagramados.
-                        </div>
-                      </div>
-
-                      {/* CAMPO DE DIRECIONAMENTO PERSONALIZADO DA ARTE */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                          Direcionamento Opcional da Arte (Palavras-chave):
-                        </label>
-                        <input
-                          type="text"
-                          value={customCoverPrompt}
-                          onChange={(e) => setCustomCoverPrompt(e.target.value)}
-                          placeholder="Ex: Tons esmeralda e dourado, arquitetura minimalista moderna..."
-                          style={{
-                            width: '100%',
-                            padding: '7px 10px',
-                            borderRadius: 6,
-                            border: '1px solid #cbd5e1',
-                            fontSize: 12
-                          }}
-                        />
-                      </div>
-
-                      {/* BOTÃO PARA REAPLICAR TIPOGRAFIA IMEDIATAMENTE NA IMAGEM ATUAL */}
-                      <div style={{ display: 'flex', gap: 10, paddingTop: 4, borderTop: '1px dashed #e2e8f0' }}>
-                        <button
-                          type="button"
-                          onClick={handleReaplicarTipografia}
-                          disabled={isReapplyingTypography || (!fundoImg && !capaFinal)}
-                          style={{
-                            flex: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            padding: '8px 12px',
-                            borderRadius: 6,
-                            background: '#f1f5f9',
-                            color: '#1e293b',
-                            border: '1px solid #cbd5e1',
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor: (!fundoImg && !capaFinal) || isReapplyingTypography ? 'not-allowed' : 'pointer'
-                          }}
-                          title="Troca o estilo da fonte ou ajusta a área limpa na imagem existente instantaneamente"
-                        >
-                          <Palette size={13} /> {isReapplyingTypography ? 'Reaplicando...' : 'Reaplicar Tipografia & Área Limpa'}
-                        </button>
-                      </div>
-
-                      {/* DIRETRIZES ATIVAS */}
-                      <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', lineHeight: 1.4 }}>
-                        🛡️ <strong>Diretriz de Design:</strong> Todas as capas são geradas sem medalhas ou carimbos para máxima autoridade comercial, com área desobstruída dedicada ao título.
-                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 

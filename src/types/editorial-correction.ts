@@ -260,6 +260,9 @@ export interface FinalBookRecord {
   projectId?: string;
   language?: string;
   tags?: string[];
+  keywords?: string[];
+  backCoverDataUrl?: string;
+  fullCoverPdf?: ArrayBuffer;
   kdpExportApproved?: boolean;
   validationReport?: any;
   audiobook?: import('./book-project').BookAudiobookAsset;

@@ -164,6 +164,28 @@ export const TOP_50_SEGMENTS_CATALOG: Record<string, SegmentTop50Collection> = {
       { rankPosition: 19, title: 'O Jardim das Borboletas', subtitle: 'Jovens aprisionadas por um colecionador sádico que as tatuou como borboletas', author: 'Dot Hutchison', rating: 4.7, reviews: 34500, rank: 92, rankType: 'BSR', price: 36.90, dominantHook: 'Sobrevivência Sobrevivente & Mistério de Cativeiro', estimatedMonthlyUnits: 3100, source: 'Amazon KDP' },
       { rankPosition: 20, title: 'Pedra, Papel e Tesoura', subtitle: 'Um casal em crise em um retiro isolado. Uma mentira que dura dez anos', author: 'Alice Feeney', rating: 4.7, reviews: 27800, rank: 98, rankType: 'BSR', price: 41.90, dominantHook: 'Cartas Não Entregues e Clima Gélido Opressivo', estimatedMonthlyUnits: 2900, source: 'Amazon KDP' }
     ]
+  },
+  children: {
+    segmentId: 'children',
+    segmentName: 'Infantil, Livros Ilustrados & Histórias Infantis',
+    totalMarketShareDesc: 'Segmento infantil com altíssima taxa de conversão em livros ilustrados coloridos, inteligência emocional e contos acolhedores para a primeira infância.',
+    books: [
+      { rankPosition: 1, title: 'O Monstro das Cores', subtitle: 'Um livro divertido para ajudar as crianças a entenderem suas emoções', author: 'Anna Llenas', rating: 4.9, reviews: 32000, rank: 1, rankType: 'BSR', price: 39.90, dominantHook: 'Alfabetização Emocional & Cores Lúdicas', estimatedMonthlyUnits: 14000, source: 'Amazon KDP Infantil #1' },
+      { rankPosition: 2, title: 'O Pequeno Príncipe', subtitle: 'O clássico atemporal sobre amizade, amor e imaginação', author: 'Antoine de Saint-Exupéry', rating: 4.9, reviews: 85000, rank: 2, rankType: 'BSR', price: 24.90, dominantHook: 'Poesia Visual & Lições Universais de Cuidado', estimatedMonthlyUnits: 12000, source: 'Amazon KDP Infantil #2' },
+      { rankPosition: 3, title: 'Amoras', subtitle: 'Um conto poético sobre orgulho, identidade e representatividade', author: 'Emicida', rating: 4.9, reviews: 29000, rank: 4, rankType: 'BSR', price: 34.90, dominantHook: 'Autoestima na Primeira Infância & Rimas Doces', estimatedMonthlyUnits: 10500, source: 'Amazon KDP Infantil #3' },
+      { rankPosition: 4, title: 'O Menino Maluquinho', subtitle: 'Uma aventura cheia de imaginação e alegria da infância brasileira', author: 'Ziraldo', rating: 4.9, reviews: 34000, rank: 7, rankType: 'BSR', price: 29.90, dominantHook: 'Espontaneidade & Liberdade Lúdica', estimatedMonthlyUnits: 9800, source: 'Amazon KDP' },
+      { rankPosition: 5, title: 'A Parte que Falta', subtitle: 'Uma jornada delicada sobre autodescoberta e amor próprio', author: 'Shel Silverstein', rating: 4.9, reviews: 31000, rank: 9, rankType: 'BSR', price: 42.00, dominantHook: 'Minimalismo Ilustrado & Filosofia Suave', estimatedMonthlyUnits: 9100, source: 'Amazon KDP' },
+      { rankPosition: 6, title: 'Onde Vivem os Monstros', subtitle: 'A clássica viagem de Max pela floresta da imaginação e acolhimento', author: 'Maurice Sendak', rating: 4.8, reviews: 26000, rank: 13, rankType: 'BSR', price: 45.00, dominantHook: 'Monstros Amigos & Catarse do Medo Infantil', estimatedMonthlyUnits: 8300, source: 'Amazon KDP' },
+      { rankPosition: 7, title: 'Não Abra Este Livro', subtitle: 'Uma divertida história interativa que desafia os pequenos leitores', author: 'Andy Lee', rating: 4.9, reviews: 21000, rank: 18, rankType: 'BSR', price: 32.90, dominantHook: 'Humor Interativo & Quebra da Quarta Parede', estimatedMonthlyUnits: 7500, source: 'Amazon KDP' },
+      { rankPosition: 8, title: 'O Urso Rabugento', subtitle: 'Uma história charmosa sobre empatia e gentileza entre amigos', author: 'Nick Bland', rating: 4.9, reviews: 18000, rank: 22, rankType: 'BSR', price: 36.00, dominantHook: 'Rimas Encantadoras & Resolução Amigável', estimatedMonthlyUnits: 6800, source: 'Amazon KDP' },
+      { rankPosition: 9, title: 'Até as Princesas Soltam Pum', subtitle: 'Desmistificando contos de fadas com muito bom humor e ternura', author: 'Ilan Brenman', rating: 4.8, reviews: 22000, rank: 28, rankType: 'BSR', price: 34.00, dominantHook: 'Humor Natural & Acolhimento Familiar', estimatedMonthlyUnits: 6200, source: 'Amazon KDP' },
+      { rankPosition: 10, title: 'Chapeuzinho Amarelo', subtitle: 'Como uma menina superou o medo do lobo com imaginação e coragem', author: 'Chico Buarque', rating: 4.9, reviews: 27000, rank: 33, rankType: 'BSR', price: 38.00, dominantHook: 'Superação do Medo com Brincadeira de Palavras', estimatedMonthlyUnits: 5800, source: 'Amazon KDP' },
+      { rankPosition: 11, title: 'O Pote Vazio', subtitle: 'A tocante lição de honestidade e coragem de um menino jardineiro', author: 'Demi', rating: 4.9, reviews: 14000, rank: 39, rankType: 'BSR', price: 39.00, dominantHook: 'Valores Morais Clássicos com Delicadeza', estimatedMonthlyUnits: 5200, source: 'Amazon KDP' },
+      { rankPosition: 12, title: 'Lino', subtitle: 'Uma história carinhosa sobre a saudade e novos começos', author: 'André Neves', rating: 4.8, reviews: 11500, rank: 45, rankType: 'BSR', price: 37.00, dominantHook: 'Aconchego Emocional & Brinquedos com Alma', estimatedMonthlyUnits: 4700, source: 'Amazon KDP' },
+      { rankPosition: 13, title: 'De Onde Vêm os Sentimentos', subtitle: 'Guiando crianças pelos altos e baixos do coração', author: 'Paula Pimenta', rating: 4.8, reviews: 9800, rank: 52, rankType: 'BSR', price: 32.00, dominantHook: 'Identificação Afetiva & Conversa de Família', estimatedMonthlyUnits: 4300, source: 'Amazon KDP' },
+      { rankPosition: 14, title: 'Como Pegar uma Estrela', subtitle: 'A determinação cheia de ternura de um menino em busca de um sonho', author: 'Oliver Jeffers', rating: 4.9, reviews: 19000, rank: 59, rankType: 'BSR', price: 44.00, dominantHook: 'Ilustração Encantadora & Poesia Visual', estimatedMonthlyUnits: 4000, source: 'Amazon KDP' },
+      { rankPosition: 15, title: 'O Grúfalo', subtitle: 'A esperteza de um ratinho no meio da floresta encantada', author: 'Julia Donaldson', rating: 4.9, reviews: 36000, rank: 65, rankType: 'BSR', price: 38.90, dominantHook: 'Astúcia & Rimas Traduzidas com Maestria', estimatedMonthlyUnits: 3800, source: 'Amazon KDP' }
+    ]
   }
 };
 
@@ -179,7 +201,9 @@ export async function getTop50BestsellersForSegment(
   
   // Tenta encontrar catálogo curado correspondente
   let matchedCatalog: SegmentTop50Collection | undefined;
-  if (/suspense|thriller|misteri|crime|policial|investig|terror|horror|morte|assassin/i.test(norm)) {
+  if (/infantil|crian|kids|children|bebe|bebê|ilustrado|faixa etaria|historinha|fábula|fabula/i.test(norm)) {
+    matchedCatalog = TOP_50_SEGMENTS_CATALOG['children'];
+  } else if (/suspense|thriller|misteri|crime|policial|investig|terror|horror|morte|assassin/i.test(norm)) {
     matchedCatalog = TOP_50_SEGMENTS_CATALOG['thriller'];
   } else if (/finan|dinheiro|invest|riqueza|rico|bolsa/i.test(norm)) {
     matchedCatalog = TOP_50_SEGMENTS_CATALOG['finance'];

@@ -11,7 +11,7 @@ import {
   CheckCircle2, Download, Eye, FileText, AlertCircle, Trash2,
   BookOpen, Calendar, Clock, ShieldCheck, X, Sparkles, Layers,
   FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package,
-  Rocket, Code2, Headphones, Sliders, Smartphone, Edit3
+  Rocket, Code2, Headphones, Sliders, Smartphone, Edit3, Copy, Check, Key
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
@@ -23,6 +23,8 @@ import { KdpHtmlGenerator } from '../../services/kdp-html-generator';
 import { EpubBuilder } from '../../services/formats/epub-builder';
 import { ManuscriptAccentRepairEngine } from '../../services/manuscript-accent-repair';
 import { useTranslation } from '../../services/i18n-service';
+import { PublishingMetadataService } from '../../services/publishing-metadata-service';
+import { PrintCoverService } from '../../services/print-cover-service';
 import { SequenceCreationModal } from './publishing/SequenceCreationModal';
 import { SeriesBoxCreationModal } from './publishing/SeriesBoxCreationModal';
 import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
@@ -64,6 +66,89 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
 
   // Estado para Abrir o Audiobook Studio com os arquivos do livro para reprodução e mixagem
   const [audiobookModalBook, setAudiobookModalBook] = useState<FinalBookRecord | null>(null);
+
+  // Estados para Gestão e Edição de Palavras-Chave KDP no Card
+  const [editingKeywordsBookId, setEditingKeywordsBookId] = useState<string | null>(null);
+  const [tempKeywords, setTempKeywords] = useState<string[]>([]);
+  const [copiedKeywordsBookId, setCopiedKeywordsBookId] = useState<string | null>(null);
+
+  const getBookKeywords = (book: FinalBookRecord): string[] => {
+    if (book.keywords && book.keywords.length > 0) {
+      return book.keywords;
+    }
+    return PublishingMetadataService.generateKdpKeywords({
+      title: book.title,
+      subtitle: book.subtitle,
+      author: book.author,
+      genre: book.genre,
+      targetAudience: 'Público Geral',
+      description: book.subtitle || book.title
+    });
+  };
+
+  const handleStartEditingKeywords = (book: FinalBookRecord) => {
+    setEditingKeywordsBookId(book.id);
+    const existing = getBookKeywords(book);
+    const padded = [...existing];
+    while (padded.length < 7) {
+      padded.push('');
+    }
+    setTempKeywords(padded.slice(0, 7));
+  };
+
+  const handleSaveEditedKeywords = async (book: FinalBookRecord) => {
+    const cleaned = tempKeywords.map(k => k.trim()).filter(k => k.length > 0);
+    const updatedBook: FinalBookRecord = {
+      ...book,
+      keywords: cleaned
+    };
+    await db.saveFinalBook(updatedBook);
+    setBooks(prev => prev.map(b => b.id === book.id ? updatedBook : b));
+    setEditingKeywordsBookId(null);
+  };
+
+  const handleCopyBookKeywords = async (book: FinalBookRecord) => {
+    const kws = getBookKeywords(book);
+    try {
+      await navigator.clipboard.writeText(kws.join(', '));
+      setCopiedKeywordsBookId(book.id);
+      setTimeout(() => setCopiedKeywordsBookId(null), 3000);
+    } catch {
+      alert('Não foi possível copiar as palavras-chave.');
+    }
+  };
+
+  const handleDownloadFullWrapCoverPdf = async (book: FinalBookRecord) => {
+    if (!book.coverDataUrl) {
+      alert('Este livro não possui capa gerada.');
+      return;
+    }
+    try {
+      const res = await PrintCoverService.generateFullWrapCoverPdf({
+        title: book.title,
+        subtitle: book.subtitle,
+        author: book.author,
+        genre: book.genre,
+        pageCount: book.pageCount || 100,
+        trimSize: (book.trimSize as any) || '6x9',
+        paperType: 'bw-white',
+        frontCoverDataUrl: book.coverDataUrl,
+        backCoverDataUrl: book.backCoverDataUrl || undefined,
+        frontIsAlreadyDiagrammed: true,
+        synopsisText: book.subtitle || undefined
+      });
+      const blob = new Blob([res.pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kdp-full-wrap-cover-${book.title.replace(/\s+/g, '_')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao gerar PDF da capa completa: ${err.message}`);
+    }
+  };
 
   // Abrir o livro diretamente no estúdio para edição ou reconstrução
   const handleEditBook = async (book: FinalBookRecord) => {
@@ -1026,6 +1111,245 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
                       ✓ {t('shelf.noBlankPages')}
                     </div>
                   </div>
+
+                  {/* BLOCO DAS 7 PALAVRAS-CHAVE OFICIAIS AMAZON KDP */}
+                  {(() => {
+                    const currentKeywords = getBookKeywords(book);
+                    const isEditingThis = editingKeywordsBookId === book.id;
+                    const isCopiedThis = copiedKeywordsBookId === book.id;
+
+                    return (
+                      <div style={{
+                        marginTop: 12,
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 8,
+                        padding: '10px 14px'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: 8,
+                          marginBottom: 8
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Key size={14} color="#2563eb" />
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                              7 Palavras-Chave de Busca Oficiais Amazon KDP:
+                            </span>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>
+                              (Indexação direta no catálogo)
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyBookKeywords(book)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '4px 10px',
+                                background: isCopiedThis ? '#ecfdf5' : '#ffffff',
+                                color: isCopiedThis ? '#059669' : '#1d4ed8',
+                                border: isCopiedThis ? '1px solid #a7f3d0' : '1px solid #bfdbfe',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                              title="Copiar as 7 palavras-chave para o painel do Amazon KDP"
+                            >
+                              {isCopiedThis ? <Check size={12} /> : <Copy size={12} />}
+                              <span>{isCopiedThis ? 'Copiadas!' : 'Copiar 7 Palavras-Chave'}</span>
+                            </button>
+
+                            {!isEditingThis ? (
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditingKeywords(book)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '4px 8px',
+                                  background: '#ffffff',
+                                  color: '#475569',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: 6,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Edit3 size={11} /> Editar
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {isEditingThis ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                              gap: 6
+                            }}>
+                              {tempKeywords.map((kw, kIdx) => (
+                                <div key={kIdx} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', width: 22 }}>
+                                    #{kIdx + 1}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={kw}
+                                    onChange={(e) => {
+                                      const next = [...tempKeywords];
+                                      next[kIdx] = e.target.value;
+                                      setTempKeywords(next);
+                                    }}
+                                    placeholder={`Palavra-chave #${kIdx + 1}`}
+                                    style={{
+                                      width: '100%',
+                                      padding: '5px 8px',
+                                      fontSize: 11,
+                                      border: '1px solid #cbd5e1',
+                                      borderRadius: 4
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEditedKeywords(book)}
+                                style={{
+                                  padding: '5px 12px',
+                                  background: '#059669',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                ✓ Salvar Palavras-Chave
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingKeywordsBookId(null)}
+                                style={{
+                                  padding: '5px 10px',
+                                  background: '#f1f5f9',
+                                  color: '#475569',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: 6,
+                                  fontSize: 11,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 6
+                          }}>
+                            {currentKeywords.slice(0, 7).map((kw, kIdx) => (
+                              <span
+                                key={kIdx}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  background: '#ffffff',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: 6,
+                                  padding: '3px 8px',
+                                  fontSize: 11,
+                                  color: '#1e293b'
+                                }}
+                              >
+                                <span style={{
+                                  fontSize: 9,
+                                  fontWeight: 800,
+                                  color: '#2563eb',
+                                  background: '#eff6ff',
+                                  padding: '1px 4px',
+                                  borderRadius: 3
+                                }}>
+                                  #{kIdx + 1}
+                                </span>
+                                <span style={{ fontWeight: 600 }}>{kw}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* BARRA DE DESTAQUE: PUBLICAR NO AMAZON KDP COM 1 CLIQUE */}
+                  <div style={{
+                    marginTop: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 10,
+                    background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                    border: '1px solid #fed7aa',
+                    padding: '8px 14px',
+                    borderRadius: 8
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>🚀</span>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#9a3412' }}>
+                          Pronto para Envio Amazon KDP
+                        </div>
+                        <div style={{ fontSize: 11, color: '#c2410c' }}>
+                          Miolo PDF, Capa diagramada e as 7 Palavras-Chave de Busca validadas
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBookForKdpPublish(book);
+                        setIsKdpModalOpen(true);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 16px',
+                        background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#9a3412'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'; }}
+                      title="Abrir o Publicador Direto Amazon KDP com metadados, precificação e palavras-chave já preenchidos"
+                    >
+                      <Rocket size={14} /> Publicar no Amazon KDP
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1177,6 +1501,34 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
                 >
                   <ImageIcon size={15} />
                   <span>{t('shelf.btnCoverPdf')}</span>
+                </button>
+
+                {/* 3.1 BAIXAR CAPA COMPLETA ABERTA (FULL WRAP PDF) */}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadFullWrapCoverPdf(book)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    padding: '10px 14px',
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#020617'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#0f172a'; }}
+                  title="Baixar Capa Completa KDP (Contracapa + Lombada + Frente) com código de barras e sangria oficial"
+                >
+                  <BookOpen size={15} color="#38bdf8" />
+                  <span>Capa Completa KDP (PDF)</span>
                 </button>
 
                 {/* 4. BAIXAR PDF DA PÁGINA DO LIVRO */}
@@ -1691,6 +2043,7 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
             title: selectedBookForKdpPublish.title || 'Livro KDP',
             subtitle: selectedBookForKdpPublish.subtitle,
             author: selectedBookForKdpPublish.author || 'Autor',
+            keywords: getBookKeywords(selectedBookForKdpPublish),
             capitulos: selectedBookForKdpPublish.chapters || [],
             coverUrl: selectedBookForKdpPublish.coverDataUrl || null,
             trimSize: selectedBookForKdpPublish.trimSize || '6x9'
