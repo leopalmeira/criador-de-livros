@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   BookOpen, Plus,
   HelpCircle, ChevronDown, ArrowRight,
-  Copy, Trash2, Sparkles, CheckCircle2, Play,
+  Clock, Search, Copy, Trash2, Sparkles, CheckCircle2, Play,
   DollarSign, Bot, LogOut, Zap, RefreshCw, Shield,
   GraduationCap, Headphones, FolderKanban, CheckCircle, Download, Layers, Grid3X3
 } from 'lucide-react';
@@ -351,30 +351,12 @@ export const BookIntelDashboard: React.FC<Props> = ({
 
               <button
                 className="sidebar-nav-item"
-                onClick={() => onOpenCover10Styles ? onOpenCover10Styles() : null}
-                title="Estúdio de Capas & Ilustrações"
-              >
-                <Palette size={16} color="#f59e0b" />
-                <span>Capas e Ilustrações</span>
-              </button>
-
-              <button
-                className="sidebar-nav-item"
                 onClick={() => alert('Audiobook Studio: conversão neural de capítulos em áudio imersivo está em fase final de testes.')}
                 title="Audiobook Studio (Em breve)"
               >
                 <Headphones size={16} color="#8b5cf6" />
                 <span>Audiobook Studio</span>
                 <span className="sidebar-badge soon">Em breve</span>
-              </button>
-
-              <button
-                className="sidebar-nav-item"
-                onClick={() => onOpenPublishing ? onOpenPublishing() : (onOpenKdpPublish ? onOpenKdpPublish() : null)}
-                title="Central de Exportações & Publicação"
-              >
-                <Download size={16} color="#10b981" />
-                <span>Exportações</span>
               </button>
             </div>
           </aside>

@@ -4,7 +4,7 @@ import {
   Play, Square, RefreshCw, Trash2, ArrowLeft, Check, Layers,
   Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight, ChevronLeft,
   ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2,
-  Award, Palette, Edit3, Star
+  Award, Palette, Edit3, Star, Sliders
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
