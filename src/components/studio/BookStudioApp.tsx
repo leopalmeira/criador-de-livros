@@ -728,7 +728,7 @@ export const BookStudioApp: React.FC = () => {
   // ============================================================
   if (mode === 'kdp-generator') {
     return (
-      <ErrorBoundary fallbackTitle="Gerador de Livros KDP Pro" onReset={() => setMode('project-list')}>
+      <ErrorBoundary fallbackTitle="Book Engin" onReset={() => setMode('project-list')}>
         <KdpBookGeneratorPro
           key={activeProject ? activeProject.id : newSessionId}
           initialProject={activeProject}

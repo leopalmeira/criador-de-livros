@@ -4,7 +4,7 @@ import {
   Play, Square, RefreshCw, Trash2, ArrowLeft, Check, Layers,
   Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight, ChevronLeft,
   ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2,
-  Award, Palette, Edit3, Star, Sliders
+  Award, Palette, Edit3, Star, Sliders, Compass, TrendingUp
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -521,7 +521,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [statusMsg, setStatusMsg] = useState('Pronto para iniciar');
   const [statusType, setStatusType] = useState<'normal' | 'ok' | 'error'>('normal');
   const [progressPercent, setProgressPercent] = useState(0);
-  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'planner' | 'audiobook'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'planner'>('preview');
   const [bookType, setBookType] = useState<BookType>('fiction-novel');
   const [creationSelectorValue, setCreationSelectorValue] = useState('format:fiction-novel');
 
@@ -2979,11 +2979,44 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           >
             <ArrowLeft size={16} /> {ui('Voltar à Dashboard', 'Back to Dashboard')}
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 20 }}>📚</span>
-            <h1 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-              {ui('Gerador de Livros KDP Pro', 'KDP Pro Book Generator')}
-            </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: '#0f172a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              fontWeight: 800,
+              fontSize: 15,
+              letterSpacing: '-0.02em'
+            }}>
+              BE
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                  Book Engin
+                </h1>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  padding: '2px 7px',
+                  borderRadius: 4,
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  letterSpacing: '0.04em'
+                }}>
+                  Editorial Suite
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
+                {ui('Sistema de Inteligência e Produção Editorial KDP', 'KDP Editorial Production & Market Intelligence')}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3032,74 +3065,93 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
             }}
           >
-            <h2
-              style={{
-                fontSize: 16,
+            {/* CABEÇALHO DO PAINEL EDITORIAL (ESTILO CRM PROFISSIONAL) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 14, borderBottom: '1px solid #f1f5f9', marginBottom: 16 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Compass size={18} color="#0284c7" /> {ui('Painel Editorial da Obra', 'Book Editorial Setup')}
+                </h2>
+                <p style={{ margin: '3px 0 0', fontSize: 12, color: '#64748b' }}>
+                  {ui('Fluxo guiado por inteligência de mercado Amazon KDP', 'Amazon KDP market intelligence guided workflow')}
+                </p>
+              </div>
+              <span style={{
+                fontSize: 11,
                 fontWeight: 700,
-                color: '#1e293b',
-                paddingBottom: 12,
-                borderBottom: '1px solid #f1f5f9',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                margin: '0 0 16px'
-              }}
-            >
-              <span>✍️</span> {ui('Parâmetros da Obra KDP', 'Book Setup')}
-            </h2>
+                color: '#0369a1',
+                background: '#f0f9ff',
+                padding: '3px 8px',
+                borderRadius: 6,
+                border: '1px solid #bae6fd'
+              }}>
+                {livro ? ui('Em Produção', 'In Production') : ui('Novo Projeto', 'New Project')}
+              </span>
+            </div>
 
-            <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 5 }}>
-                {ui('Tipo de livro / formato de criação', 'Book type / creation format')}
-              </label>
-              <select
-                value={creationSelectorValue}
-                onChange={event => {
-                  const selection = event.currentTarget.value;
-                  setCreationSelectorValue(selection);
-                  if (selection.startsWith('theme:')) {
-                    const themeId = selection.replace('theme:', '');
-                    const theme = getTheme(themeId) || BOOK_THEMES.find(item => `theme:${item.id}` === selection);
-                    if (theme) selectEditorialTheme(theme.label);
-                    return;
-                  }
-                  const selectedType = selection.replace('format:', '') as BookType;
-                  if (BOOK_TYPE_CONFIGS[selectedType]) {
-                    applyBookType(selectedType);
-                    const matchingTheme = BOOK_THEMES.find(t =>
-                      t.label.toLowerCase().includes(BOOK_TYPE_CONFIGS[selectedType].label.toLowerCase()) ||
-                      BOOK_TYPE_CONFIGS[selectedType].label.toLowerCase().includes(t.label.toLowerCase())
-                    );
-                    if (matchingTheme) {
-                      setTemaSelecionado(matchingTheme.label);
-                      setSubtemaSelecionado(matchingTheme.subthemes[0] || '');
-                      setGenero(matchingTheme.label);
-                      const q = matchingTheme.subthemes[0] || matchingTheme.marketQuery || matchingTheme.label;
-                      handleAnalisarMercado(false, q);
-                    }
-                  }
-                }}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #c7d2fe', fontSize: 12, background: '#ffffff', color: '#0f172a' }}
-              >
-                <optgroup label={ui('Formatos de criação', 'Creation formats')}>
-                  {Object.values(BOOK_TYPE_CONFIGS).map(config => (
-                    <option key={config.id} value={`format:${config.id}`}>
-                      [{bookTypeCategory(config.category)}] {bookTypeLabel(config.id)}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label={`${ui('Gêneros e temas', 'Genres and themes')} (${BOOK_THEMES.length})`}>
-                  {BOOK_THEMES.map(theme => (
-                    <option key={theme.id} value={`theme:${theme.id}`}>
-                      {themeLabel(theme.label)} {theme.childrenBook ? `👶 (${ui('Infantil', 'Children')})` : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-              <div style={{ marginTop: 5, fontSize: 10, color: '#475569' }}>
-                <strong>{ui('Formato selecionado:', 'Selected format:')}</strong> {bookTypeLabel(bookType)}.
-                {' '}{bookTypeDescription(bookType)}
-                {temaSelecionado && <> <strong>{ui('Gênero/tema:', 'Genre/theme:')}</strong> {themeLabel(temaSelecionado)}.</>}
+            {/* STEPPER DE ETAPAS EDITORIAL GUIADAS */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 6,
+              marginBottom: 14,
+              padding: '6px',
+              background: '#f8fafc',
+              borderRadius: 8,
+              border: '1px solid #e2e8f0'
+            }}>
+              {[
+                { step: 1, label: ui('1. Mercado', '1. Market'), done: Boolean(temaSelecionado) },
+                { step: 2, label: ui('2. Título', '2. Title'), done: Boolean(titulo.trim()) },
+                { step: 3, label: ui('3. Estratégia', '3. Strategy'), done: Boolean(uniqueAngle.trim() || bookPromise.trim()) },
+                { step: 4, label: ui('4. Capítulos', '4. Chapters'), done: Boolean(livro && livro.capitulos.length > 0) }
+              ].map(item => (
+                <div
+                  key={item.step}
+                  style={{
+                    textAlign: 'center',
+                    padding: '6px 4px',
+                    borderRadius: 6,
+                    background: item.done ? '#ecfdf5' : '#ffffff',
+                    border: `1px solid ${item.done ? '#a7f3d0' : '#e2e8f0'}`,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: item.done ? '#059669' : '#64748b',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {item.done ? `✓ ${item.label}` : item.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* CARD DE ORIENTAÇÃO INTELIGENTE: PRÓXIMO PASSO SUGERIDO PELA IA */}
+            <div style={{
+              marginBottom: 16,
+              padding: '10px 12px',
+              borderRadius: 8,
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderLeft: '4px solid #0284c7',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}>
+              <TrendingUp size={16} color="#0284c7" style={{ flexShrink: 0 }} />
+              <div style={{ fontSize: 11, color: '#334155', lineHeight: 1.4 }}>
+                <strong style={{ color: '#0f172a' }}>{ui('Próximo Passo Recomendado:', 'Recommended Next Step:')}</strong>{' '}
+                {!temaSelecionado
+                  ? ui('Selecione ou sorteie um nicho de alta demanda no ranking da Amazon para calibrar a inteligência do livro.', 'Select or find a high-demand niche in Amazon rankings to calibrate the book intelligence.')
+                  : !titulo.trim()
+                  ? ui('Nicho definido! Clique em "5 Sugestões Originais" ou "Top 50" para escolher um título de alta conversão.', 'Niche selected! Click "5 Original Suggestions" or "Top 50" to pick a high-converting title.')
+                  : !uniqueAngle.trim()
+                  ? ui('Título definido. Gere o Diferencial Editorial para posicionar seu livro acima dos concorrentes do KDP.', 'Title ready. Generate the Editorial Differentiation to outperform KDP competitors.')
+                  : ui('Estrutura pronta para produção. Ajuste o número de capítulos e inicie a geração do miolo.', 'Structure ready for production. Adjust chapter count and start generation.')}
               </div>
             </div>
 
@@ -3208,65 +3260,65 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   <button
                     type="button"
                     onClick={() => setIsTop50ModalOpen(true)}
-                    title="Explorar os 50 livros mais vendidos no segmento (#1 ao #200) e gerar sugestões com IA"
+                    title={ui('Explorar os 50 livros mais vendidos no segmento (#1 ao #200) e analisar concorrência', 'Explore top 50 bestsellers in this category')}
                     style={{
-                      padding: '4px 10px',
-                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      padding: '5px 10px',
+                      background: '#0f172a',
                       color: '#ffffff',
-                      border: 'none',
+                      border: '1px solid #1e293b',
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 700,
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 4,
-                      boxShadow: '0 2px 6px rgba(245, 158, 11, 0.25)'
+                      gap: 5
                     }}
                   >
-                    <Award size={12} /> Top 50 Bestsellers (#1-#200)
+                    <Award size={12} color="#f59e0b" /> Top 50 Bestsellers
                   </button>
                   <button
                     type="button"
                     onClick={() => handleAnalisarMercado(true)}
                     disabled={isAnalyzingMarket}
-                    title="Sortear outros títulos e referências dinamicamente do ranking de #1 a #200"
+                    title={ui('Sortear outros nichos e referências dinamicamente do ranking da Amazon', 'Find more niche opportunities in Amazon rankings')}
                     style={{
-                      padding: '4px 8px',
-                      background: '#2563eb',
-                      color: '#ffffff',
-                      border: 'none',
+                      padding: '5px 9px',
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: isAnalyzingMarket ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 4
                     }}
                   >
                     <RefreshCw size={11} className={isAnalyzingMarket ? 'spin' : ''} />
-                    {isAnalyzingMarket ? ui('Sorteando...', 'Finding more...') : `🔄 ${ui('Sortear Outros', 'Find More')}`}
+                    {isAnalyzingMarket ? ui('Sorteando...', 'Finding...') : ui('Sortear Nicho', 'Draw Niche')}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleAnalisarMercado(false)}
                     disabled={isAnalyzingMarket}
+                    title={ui('Consultar a inteligência de concorrência e demanda no catálogo Kindle', 'Analyze competitive landscape in Kindle store')}
                     style={{
-                      padding: '4px 10px',
-                      background: isAnalyzingMarket ? '#94a3b8' : '#0f172a',
+                      padding: '5px 10px',
+                      background: isAnalyzingMarket ? '#f1f5f9' : '#0284c7',
                       color: '#ffffff',
                       border: 'none',
                       borderRadius: 6,
                       fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer',
+                      fontWeight: 700,
+                      cursor: isAnalyzingMarket ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 4
+                      gap: 5
                     }}
                   >
-                    <Sparkles size={11} />
+                    <TrendingUp size={12} />
                     {isAnalyzingMarket ? ui('Analisando...', 'Analyzing...') : ui('Analisar Mercado', 'Analyze Market')}
                   </button>
                 </div>
@@ -3454,10 +3506,11 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     borderRadius: 6,
                     fontSize: 12,
                     fontWeight: 600,
-                    cursor: 'pointer'
+                    cursor: loadingSugestao === 'titulo' ? 'not-allowed' : 'pointer'
                   }}
+                  title={ui('Sugerir título com base na inteligência de mercado', 'Suggest title based on market intelligence')}
                 >
-                  <Wand2 size={12} color="#475569" /> IA
+                  <Sparkles size={12} color="#0284c7" /> {loadingSugestao === 'titulo' ? ui('...', '...') : ui('Sugerir', 'Suggest')}
                 </button>
               </div>
             </div>
@@ -3486,7 +3539,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     gap: 4
                   }}
                 >
-                  <Wand2 size={11} color="#475569" /> {isGeneratingSubtitulos ? ui('Gerando...', 'Generating...') : ui('5 Sugestões', '5 Suggestions')}
+                  <Sparkles size={11} color="#0284c7" /> {isGeneratingSubtitulos ? ui('Gerando...', 'Generating...') : ui('5 Sugestões', '5 Suggestions')}
                 </button>
               </div>
 
@@ -3554,11 +3607,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     borderRadius: 6,
                     fontSize: 12,
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: loadingSugestao === 'subtitulo' ? 'not-allowed' : 'pointer',
                     minHeight: 68
                   }}
+                  title={ui('Sugerir subtítulo com gancho de conversão', 'Suggest converting subtitle')}
                 >
-                  <Wand2 size={12} color="#475569" /> IA
+                  <Sparkles size={12} color="#0284c7" /> {loadingSugestao === 'subtitulo' ? ui('...', '...') : ui('Sugerir', 'Suggest')}
                 </button>
               </div>
 
@@ -3611,18 +3665,19 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     background: '#ffffff',
                     border: '1px solid #cbd5e1',
                     borderRadius: 6,
-                    padding: '3px 8px',
+                    padding: '4px 9px',
                     color: '#334155',
                     fontSize: 11,
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: isSuggestingDiferencial ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 4
                   }}
+                  title={ui('Preencher todos os diferenciais usando inteligência da categoria', 'Fill differentiation using category intelligence')}
                 >
-                  <Wand2 size={11} color="#475569" className={isSuggestingDiferencial ? 'spin' : ''} />
-                  {isSuggestingDiferencial ? ui('Gerando...', 'Generating...') : ui('Sugerir com IA', 'Suggest with AI')}
+                  <Sparkles size={11} color="#0284c7" className={isSuggestingDiferencial ? 'spin' : ''} />
+                  {isSuggestingDiferencial ? ui('Gerando...', 'Generating...') : ui('Sugerir Completo', 'Suggest All')}
                 </button>
               </div>
 
@@ -3667,11 +3722,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: loadingSugestao === 'uniqueAngle' ? 'not-allowed' : 'pointer',
                       minHeight: 46
                     }}
+                    title={ui('Sugerir ângulo diferencial', 'Suggest unique angle')}
                   >
-                    <Wand2 size={11} color="#475569" /> IA
+                    <Sparkles size={11} color="#0284c7" /> {loadingSugestao === 'uniqueAngle' ? '...' : ui('Sugerir', 'Suggest')}
                   </button>
                 </div>
               </div>
@@ -3717,11 +3773,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: loadingSugestao === 'bookPromise' ? 'not-allowed' : 'pointer',
                       minHeight: 46
                     }}
+                    title={ui('Sugerir promessa principal', 'Suggest core promise')}
                   >
-                    <Wand2 size={11} color="#475569" /> IA
+                    <Sparkles size={11} color="#0284c7" /> {loadingSugestao === 'bookPromise' ? '...' : ui('Sugerir', 'Suggest')}
                   </button>
                 </div>
               </div>
@@ -3767,11 +3824,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: loadingSugestao === 'targetReader' ? 'not-allowed' : 'pointer',
                       minHeight: 46
                     }}
+                    title={ui('Sugerir público-alvo', 'Suggest target reader')}
                   >
-                    <Wand2 size={11} color="#475569" /> IA
+                    <Sparkles size={11} color="#0284c7" /> {loadingSugestao === 'targetReader' ? '...' : ui('Sugerir', 'Suggest')}
                   </button>
                 </div>
               </div>
@@ -4395,15 +4453,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     padding: '8px 14px',
                     borderRadius: 6,
                     border: '1px solid',
-                    borderColor: activeTab === 'preview' ? '#2563eb' : '#e2e8f0',
-                    background: activeTab === 'preview' ? '#eff6ff' : '#ffffff',
-                    color: activeTab === 'preview' ? '#2563eb' : '#64748b',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    borderColor: activeTab === 'preview' ? '#0f172a' : '#e2e8f0',
+                    background: activeTab === 'preview' ? '#0f172a' : '#ffffff',
+                    color: activeTab === 'preview' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
                     cursor: 'pointer'
                   }}
                 >
-                  <BookOpen size={15} /> 📖 Livro Diagramado
+                  <BookOpen size={14} /> {ui('Livro Diagramado', 'Manuscript')}
                 </button>
 
                 <button
@@ -4416,15 +4474,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     padding: '8px 14px',
                     borderRadius: 6,
                     border: '1px solid',
-                    borderColor: activeTab === 'capa' ? '#2563eb' : '#e2e8f0',
-                    background: activeTab === 'capa' ? '#eff6ff' : '#ffffff',
-                    color: activeTab === 'capa' ? '#2563eb' : '#64748b',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    borderColor: activeTab === 'capa' ? '#0f172a' : '#e2e8f0',
+                    background: activeTab === 'capa' ? '#0f172a' : '#ffffff',
+                    color: activeTab === 'capa' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
                     cursor: 'pointer'
                   }}
                 >
-                  <ImageIcon size={15} /> 🎨 Capa KDP {capaFinal && '✓'}
+                  <ImageIcon size={14} /> {ui('Capa KDP', 'KDP Cover')} {capaFinal && '✓'}
                 </button>
 
                 <button
@@ -4437,15 +4495,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     padding: '8px 14px',
                     borderRadius: 6,
                     border: '1px solid',
-                    borderColor: activeTab === 'promo' ? '#7c3aed' : '#e2e8f0',
-                    background: activeTab === 'promo' ? '#f5f3ff' : '#ffffff',
-                    color: activeTab === 'promo' ? '#7c3aed' : '#64748b',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    borderColor: activeTab === 'promo' ? '#0f172a' : '#e2e8f0',
+                    background: activeTab === 'promo' ? '#0f172a' : '#ffffff',
+                    color: activeTab === 'promo' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
                     cursor: 'pointer'
                   }}
                 >
-                  <Sparkles size={15} /> ✨ Página Promocional {promoData && '✓'}
+                  <Sparkles size={14} /> {ui('Página Promocional', 'Promo Landing')} {promoData && '✓'}
                 </button>
 
                 <button
@@ -4458,15 +4516,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     padding: '8px 14px',
                     borderRadius: 6,
                     border: '1px solid',
-                    borderColor: activeTab === 'auditoria' ? '#059669' : '#e2e8f0',
-                    background: activeTab === 'auditoria' ? '#ecfdf5' : '#ffffff',
-                    color: activeTab === 'auditoria' ? '#059669' : '#64748b',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    borderColor: activeTab === 'auditoria' ? '#0f172a' : '#e2e8f0',
+                    background: activeTab === 'auditoria' ? '#0f172a' : '#ffffff',
+                    color: activeTab === 'auditoria' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
                     cursor: 'pointer'
                   }}
                 >
-                  <ShieldCheck size={15} /> 🔍 Auditoria & Verificadores {auditReport && `(${auditReport.score}%)`}
+                  <ShieldCheck size={14} /> {ui('Auditoria Editorial', 'Editorial Audit')} {auditReport && `(${auditReport.score}%)`}
                 </button>
 
                 <button
@@ -4479,37 +4537,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     padding: '8px 14px',
                     borderRadius: 6,
                     border: '1px solid',
-                    borderColor: activeTab === 'planner' ? '#7c3aed' : '#e2e8f0',
-                    background: activeTab === 'planner' ? '#f5f3ff' : '#ffffff',
-                    color: activeTab === 'planner' ? '#7c3aed' : '#64748b',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    borderColor: activeTab === 'planner' ? '#0f172a' : '#e2e8f0',
+                    background: activeTab === 'planner' ? '#0f172a' : '#ffffff',
+                    color: activeTab === 'planner' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
                     cursor: 'pointer'
                   }}
                 >
-                  <FileText size={15} /> Planner & Diário
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('audiobook')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: activeTab === 'audiobook' ? '#8b5cf6' : '#e2e8f0',
-                    background: activeTab === 'audiobook' ? '#f5f3ff' : '#ffffff',
-                    color: activeTab === 'audiobook' ? '#7c3aed' : '#64748b',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                  title="Abrir Audiobook Studio"
-                >
-                  <Headphones size={15} /> 🎧 Audiobook · Em breve
+                  <FileText size={14} /> {ui('Planner & Diário', 'Planner & Journal')}
                 </button>
               </div>
 
@@ -4544,74 +4580,358 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {/* PAINEL DO MOTOR DE SILHUETAS MARGINAIS COM 3% DE SANGRIA EXTERNA */}
                   {/* PAINEL DO MOTOR DE SILHUETAS ARTÍSTICAS & MARCAS D'ÁGUA P&B */}
+                  {/* PAINEL DIDÁTICO E VISUAL: ACABAMENTO EDITORIAL DE MIOLO (SILHUETA & MARCA D'ÁGUA P&B) */}
                   <div
                     style={{
                       background: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 8,
-                      padding: '12px 16px',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 10,
+                      padding: '16px 20px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 18 }}>🎨</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 280 }}>
+                        <div style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 8,
+                          background: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <Palette size={18} color="#0f172a" />
+                        </div>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-                            Silhueta Artística & Marca d'Água de Fundo P&B (Página Inteira / Marginal)
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                              {ui("Acabamento de Miolo KDP · Silhueta & Marca d'Água P&B", "KDP Interior Finish · B&W Silhouette & Watermark")}
+                            </h3>
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: 4,
+                              background: silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl ? '#ecfdf5' : '#f1f5f9',
+                              color: silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl ? '#059669' : '#64748b'
+                            }}>
+                              {silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl ? ui('Ativa no Miolo', 'Active in Interior') : ui('Opcional', 'Optional')}
+                            </span>
                           </div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>
-                            Posicionada atrás do texto ocupando todo o livro (vertical e horizontal) com transparência P&B para miolo KDP
-                          </div>
+                          <p style={{ fontSize: 12, color: '#475569', margin: '4px 0 0', lineHeight: 1.4 }}>
+                            {ui(
+                              "Recurso visual de edições de luxo e bestsellers da Amazon: insere uma ilustração monocromática sutil ao fundo das páginas para acabamento requintado no livro impresso.",
+                              "Luxury edition and Amazon bestseller feature: places a subtle monochrome illustration behind pages for a premium physical print finish."
+                            )}
+                          </p>
                         </div>
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#0f172a', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={silhuetaConfig.ativado}
                             onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, ativado: e.target.checked }))}
-                            style={{ width: 16, height: 16, cursor: 'pointer' }}
+                            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#0f172a' }}
                           />
-                          Ativar Silhueta no Livro
+                          {ui('Ativar no Livro', 'Enable in Book')}
                         </label>
                         <button
                           type="button"
                           onClick={() => setShowSilhuetaPanel(!showSilhuetaPanel)}
                           style={{
-                            background: showSilhuetaPanel ? '#e2e8f0' : '#f1f5f9',
+                            background: showSilhuetaPanel ? '#0f172a' : '#f8fafc',
+                            color: showSilhuetaPanel ? '#ffffff' : '#334155',
                             border: '1px solid #cbd5e1',
                             borderRadius: 6,
-                            padding: '4px 10px',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: '#1e293b',
-                            cursor: 'pointer'
+                            padding: '6px 12px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5
                           }}
                         >
-                          {showSilhuetaPanel ? 'Recolher Opções' : '⚙️ Configurar Silhueta P&B'}
+                          <Sliders size={13} />
+                          {showSilhuetaPanel ? ui('Recolher Controles', 'Collapse Controls') : ui('Configurar & Escolher Arte', 'Setup & Choose Art')}
                         </button>
                       </div>
                     </div>
 
+                    {/* MOCKUP VISUAL INTERATIVO DE LIVRO ABERTO (DEMONSTRAÇÃO REALISTA PARA O AUTOR APRENDER) */}
+                    <div style={{
+                      marginTop: 14,
+                      padding: 14,
+                      background: '#f8fafc',
+                      borderRadius: 8,
+                      border: '1px solid #e2e8f0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 10
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 540, alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Eye size={13} color="#0284c7" /> {ui('Prévia Visual de Impressão no Miolo (Simulação 6x9"):', 'Interior Print Visual Preview (6x9" Simulation):')}
+                        </span>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: '#059669',
+                          background: '#ecfdf5',
+                          padding: '1px 7px',
+                          borderRadius: 4,
+                          border: '1px solid #a7f3d0'
+                        }}>
+                          {silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl
+                            ? `${silhuetaConfig.opacidade || 10}% ${ui('Opacidade · Legibilidade 100%', 'Opacity · 100% Readable')}`
+                            : ui('Miolo Tradicional Limpo', 'Clean Traditional Interior')}
+                        </span>
+                      </div>
+
+                      {/* LIVRO ABERTO SIMULADO */}
+                      <div style={{
+                        width: '100%',
+                        maxWidth: 540,
+                        height: 170,
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 6,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}>
+                        {/* LOMBADA / DOBRA CENTRAL */}
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          bottom: 0,
+                          left: '50%',
+                          width: 2,
+                          background: 'linear-gradient(to bottom, #cbd5e1, #94a3b8, #cbd5e1)',
+                          zIndex: 3
+                        }} />
+
+                        {/* PÁGINA ESQUERDA (COM SILHUETA DE FUNDO EM TEMPO REAL) */}
+                        <div style={{
+                          padding: '14px 16px',
+                          position: 'relative',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          borderRight: '1px solid #f1f5f9'
+                        }}>
+                          {/* SILHUETA DE FUNDO RENDERIZADA COM A OPACIDADE EXATA */}
+                          {silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl && (
+                            <img
+                              src={silhuetaConfig.imagemDataUrl}
+                              alt="Silhueta"
+                              style={{
+                                position: 'absolute',
+                                ...(silhuetaConfig.modoCobertura === 'marginal'
+                                  ? { bottom: 6, right: 6, width: 64, height: 64 }
+                                  : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '80%', height: '80%' }),
+                                objectFit: 'contain',
+                                opacity: (silhuetaConfig.opacidade || 10) / 100,
+                                filter: 'grayscale(100%)',
+                                pointerEvents: 'none',
+                                zIndex: 1,
+                                transition: 'all 0.2s ease'
+                              }}
+                            />
+                          )}
+
+                          {/* CONTEÚDO SIMULADO DA PÁGINA ESQUERDA */}
+                          <div style={{ position: 'relative', zIndex: 2 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#94a3b8', marginBottom: 8, fontFamily: 'serif' }}>
+                              <span>12</span>
+                              <span>{livro?.titulo || titulo || 'Book Engin'}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              <div style={{ height: 4, background: '#cbd5e1', borderRadius: 2, width: '92%' }} />
+                              <div style={{ height: 4, background: '#e2e8f0', borderRadius: 2, width: '100%' }} />
+                              <div style={{ height: 4, background: '#cbd5e1', borderRadius: 2, width: '95%' }} />
+                              <div style={{ height: 4, background: '#e2e8f0', borderRadius: 2, width: '88%' }} />
+                              <div style={{ height: 4, background: '#cbd5e1', borderRadius: 2, width: '97%' }} />
+                              <div style={{ height: 4, background: '#e2e8f0', borderRadius: 2, width: '70%' }} />
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', position: 'relative', zIndex: 2 }}>
+                            Capítulo 1
+                          </div>
+                        </div>
+
+                        {/* PÁGINA DIREITA */}
+                        <div style={{
+                          padding: '14px 16px',
+                          position: 'relative',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between'
+                        }}>
+                          {silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl && silhuetaConfig.modoCobertura === 'full-page' && (
+                            <img
+                              src={silhuetaConfig.imagemDataUrl}
+                              alt="Silhueta"
+                              style={{
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                width: '80%',
+                                height: '80%',
+                                objectFit: 'contain',
+                                opacity: (silhuetaConfig.opacidade || 10) / 100,
+                                filter: 'grayscale(100%)',
+                                pointerEvents: 'none',
+                                zIndex: 1,
+                                transition: 'all 0.2s ease'
+                              }}
+                            />
+                          )}
+
+                          <div style={{ position: 'relative', zIndex: 2 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#94a3b8', marginBottom: 8, fontFamily: 'serif' }}>
+                              <span>{livro?.genero || genero || 'Ficção'}</span>
+                              <span>13</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              <div style={{ height: 4, background: '#cbd5e1', borderRadius: 2, width: '100%' }} />
+                              <div style={{ height: 4, background: '#e2e8f0', borderRadius: 2, width: '94%' }} />
+                              <div style={{ height: 4, background: '#cbd5e1', borderRadius: 2, width: '98%' }} />
+                              <div style={{ height: 4, background: '#e2e8f0', borderRadius: 2, width: '86%' }} />
+                              <div style={{ height: 4, background: '#cbd5e1', borderRadius: 2, width: '91%' }} />
+                              <div style={{ height: 4, background: '#e2e8f0', borderRadius: 2, width: '65%' }} />
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', position: 'relative', zIndex: 2 }}>
+                            Amazon KDP Ready
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', maxWidth: 520 }}>
+                        {silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl
+                          ? ui("A arte selecionada será impressa com suavidade por trás do texto, criando acabamento de alta qualidade em todas as páginas.", "Selected artwork will be printed subtly behind text, creating high-end finish across all pages.")
+                          : ui("Sem silhueta ativada: o miolo será gerado no estilo clean minimalista tradicional.", "No silhouette enabled: interior will be generated in traditional clean minimalist style.")}
+                      </div>
+                    </div>
+
+                    {/* CONTROLES EXPANDIDOS DE ESTILO, TRANSPARÊNCIA E GALERIA */}
                     {showSilhuetaPanel && (
-                      <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        {/* SELEÇÃO RÁPIDA: GALERIA EDITORIAL P&B PRONTA PARA KDP */}
+                      <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {/* 1. SELEÇÃO DE MODO DE APLICAÇÃO */}
                         <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>Galeria Rápida de Silhuetas P&B (Miolo KDP Monocromático):</span>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
+                            {ui('1. Modo de Aplicação na Página:', '1. Page Placement Mode:')}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                            {[
+                              { id: 'none', label: ui('Sem Silhueta', 'No Silhouette'), desc: ui('Miolo clássico limpo', 'Clean classic interior') },
+                              { id: 'marginal', label: ui('Vinheta Marginal', 'Marginal Vignette'), desc: ui('Sangria 3% no rodapé', '3% bleed at footer') },
+                              { id: 'full-page', label: ui('Marca d\'Água Central', 'Full Watermark'), desc: ui('Página inteira suave', 'Subtle full page') }
+                            ].map(mode => {
+                              const isModeSelected = mode.id === 'none'
+                                ? !silhuetaConfig.ativado
+                                : silhuetaConfig.ativado && (silhuetaConfig.modoCobertura || 'full-page') === mode.id;
+
+                              return (
+                                <button
+                                  key={mode.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (mode.id === 'none') {
+                                      setSilhuetaConfig(prev => ({ ...prev, ativado: false }));
+                                    } else {
+                                      setSilhuetaConfig(prev => ({
+                                        ...prev,
+                                        ativado: true,
+                                        modoCobertura: mode.id as any,
+                                        imagemDataUrl: prev.imagemDataUrl || GALERIA_SILHUETAS_PB[0]?.svgDataUrl
+                                      }));
+                                    }
+                                  }}
+                                  style={{
+                                    textAlign: 'left',
+                                    padding: '10px 12px',
+                                    borderRadius: 6,
+                                    border: isModeSelected ? '2px solid #0f172a' : '1px solid #cbd5e1',
+                                    background: isModeSelected ? '#f8fafc' : '#ffffff',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                                    {mode.label}
+                                  </div>
+                                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                                    {mode.desc}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* 2. SLIDER DE TRANSPARÊNCIA P&B RECOMENDADO AMAZON */}
+                        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                              {ui('2. Nível de Transparência P&B (Opacidade):', '2. B&W Transparency Level (Opacity):')}
+                            </label>
+                            <span style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: '#0f172a',
+                              background: '#ffffff',
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              border: '1px solid #cbd5e1'
+                            }}>
+                              {silhuetaConfig.opacidade || 10}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={4}
+                            max={25}
+                            step={1}
+                            value={silhuetaConfig.opacidade || 10}
+                            onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, opacidade: Number(e.target.value) }))}
+                            style={{ width: '100%', cursor: 'pointer', accentColor: '#0f172a' }}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', marginTop: 4 }}>
+                            <span>4% (Muito sutil)</span>
+                            <span style={{ color: '#059669', fontWeight: 600 }}>✓ 8%–12% {ui('Padrão Recomendado Amazon KDP', 'Amazon KDP Recommended')}</span>
+                            <span>25% (Mais visível)</span>
+                          </div>
+                        </div>
+
+                        {/* 3. GALERIA VISUAL EDITORIAL P&B */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                              {ui('3. Catálogo de Silhuetas Clássicas P&B (Clique para Aplicar):', '3. Classic B&W Silhouette Catalog (Click to Apply):')}
+                            </div>
                             {silhuetaConfig.imagemDataUrl && (
                               <button
                                 type="button"
                                 onClick={() => setSilhuetaConfig(prev => ({ ...prev, imagemDataUrl: undefined }))}
-                                style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 10, cursor: 'pointer', fontWeight: 600 }}
+                                style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
                               >
-                                Limpar Silhueta
+                                {ui('Remover Imagem', 'Remove Artwork')}
                               </button>
                             )}
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
                             {GALERIA_SILHUETAS_PB.map((item) => {
                               const isSelected = silhuetaConfig.imagemDataUrl === item.svgDataUrl;
                               return (
@@ -4630,10 +4950,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
-                                    padding: '8px',
+                                    padding: '10px 8px',
                                     borderRadius: 6,
-                                    border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                    background: isSelected ? '#eff6ff' : '#ffffff',
+                                    border: isSelected ? '2px solid #0f172a' : '1px solid #cbd5e1',
+                                    background: isSelected ? '#f8fafc' : '#ffffff',
                                     cursor: 'pointer',
                                     transition: 'all 0.15s ease'
                                   }}
@@ -4643,14 +4963,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                     src={item.svgDataUrl}
                                     alt={item.nome}
                                     style={{
-                                      width: 44,
-                                      height: 44,
+                                      width: 40,
+                                      height: 40,
                                       objectFit: 'contain',
-                                      marginBottom: 4,
+                                      marginBottom: 6,
                                       filter: 'grayscale(100%)'
                                     }}
                                   />
-                                  <span style={{ fontSize: 10, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#1d4ed8' : '#334155', textAlign: 'center' }}>
+                                  <span style={{ fontSize: 10, fontWeight: isSelected ? 700 : 500, color: '#0f172a', textAlign: 'center' }}>
                                     {item.nome}
                                   </span>
                                 </button>
@@ -4659,96 +4979,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           </div>
                         </div>
 
-                        {/* CONFIGURAÇÕES FINAS: COBERTURA, TRANSPARÊNCIA E DISTRIBUIÇÃO */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
-                          {/* MODO DE COBERTURA */}
-                          <div>
-                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                              Posicionamento da Silhueta
-                            </label>
-                            <select
-                              value={silhuetaConfig.modoCobertura || 'full-page'}
-                              onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, modoCobertura: e.target.value as any }))}
-                              style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
-                            >
-                              <option value="full-page">Página Inteira (100% Vertical & Horizontal)</option>
-                              <option value="marginal">Marginal (Sangria Externa 3%)</option>
-                            </select>
-                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
-                              Fica por trás do texto ocupando a folha inteira.
-                            </div>
-                          </div>
-
-                          {/* SLIDER DE TRANSPARÊNCIA / OPACIDADE */}
-                          <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                              <label style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>
-                                Transparência P&B
-                              </label>
-                              <span style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: '#1d4ed8',
-                                background: '#eff6ff',
-                                padding: '1px 6px',
-                                borderRadius: 4,
-                                border: '1px solid #bfdbfe'
-                              }}>
-                                {silhuetaConfig.opacidade || 10}%
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min={2}
-                              max={40}
-                              step={1}
-                              value={silhuetaConfig.opacidade || 10}
-                              onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, opacidade: Number(e.target.value) }))}
-                              style={{ width: '100%', cursor: 'pointer', accentColor: '#2563eb' }}
-                            />
-                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
-                              Recomendado: 8% a 15% para não ofuscar o texto no KDP.
-                            </div>
-                          </div>
-
-                          {/* REGRAS DE APLICAÇÃO POR PÁGINAS */}
-                          <div>
-                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                              Aplicação nas Páginas
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1e293b', marginBottom: 6, cursor: 'pointer' }}>
-                              <input
-                                type="checkbox"
-                                checked={silhuetaConfig.aplicarTodas !== false}
-                                onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, aplicarTodas: e.target.checked }))}
-                                style={{ width: 14, height: 14 }}
-                              />
-                              Aplicar em todas as páginas do livro
-                            </label>
-
-                            {!silhuetaConfig.aplicarTodas && (
-                              <select
-                                value={silhuetaConfig.modo}
-                                onChange={(e) => setSilhuetaConfig(prev => ({ ...prev, modo: e.target.value as any }))}
-                                style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11 }}
-                              >
-                                <option value="aleatorio">Aleatório Inteligente (ex: 10 págs)</option>
-                                <option value="intervalo">Intervalo Fixo (a cada X págs)</option>
-                                <option value="capitulos">Apenas Início de Cada Capítulo</option>
-                              </select>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* GERADOR REPLICATE FLUX (PERSONALIZADO VIA IA) */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, paddingTop: 10, borderTop: '1px dashed #e2e8f0' }}>
+                        {/* GERADOR DE ARTE PERSONALIZADA */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, paddingTop: 12, borderTop: '1px solid #e2e8f0' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 260 }}>
                             <input
                               type="text"
                               value={personagemSilhuetaFoco}
                               onChange={(e) => setPersonagemSilhuetaFoco(e.target.value)}
-                              placeholder="Ou crie com IA: ex: Detetive sob poste de luz, bússola antiga..."
-                              style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11 }}
+                              placeholder={ui('Conceito exclusivo: ex: Bússola naval antiga, skyline de metrópole...', 'Custom concept: e.g. Vintage naval compass, city skyline...')}
+                              style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
                             />
                             <button
                               type="button"
@@ -4758,12 +4997,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
-                                padding: '6px 12px',
+                                padding: '7px 14px',
                                 borderRadius: 6,
-                                background: '#3b82f6',
+                                background: '#0f172a',
                                 color: '#ffffff',
                                 border: 'none',
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: 700,
                                 cursor: isGeneratingSilhueta ? 'not-allowed' : 'pointer',
                                 whiteSpace: 'nowrap'
@@ -4771,36 +5010,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             >
                               {isGeneratingSilhueta ? (
                                 <>
-                                  <RefreshCw size={11} className="animate-spin" /> Gerando Silhueta...
+                                  <RefreshCw size={12} className="animate-spin" /> {ui('Gerando Arte...', 'Generating...')}
                                 </>
                               ) : (
                                 <>
-                                  <Sparkles size={11} /> Gerar com IA
+                                  <Sparkles size={12} color="#38bdf8" /> {ui('Gerar Ilustração', 'Generate Art')}
                                 </>
                               )}
                             </button>
                           </div>
-
-                          {silhuetaConfig.imagemDataUrl && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <img
-                                src={silhuetaConfig.imagemDataUrl}
-                                alt="Silhueta Ativa"
-                                style={{
-                                  height: 38,
-                                  width: 38,
-                                  objectFit: 'contain',
-                                  borderRadius: 4,
-                                  border: '1px solid #cbd5e1',
-                                  background: '#f8fafc',
-                                  filter: 'grayscale(100%)'
-                                }}
-                              />
-                              <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <CheckCircle2 size={13} /> Silhueta Ativa ({silhuetaConfig.opacidade || 10}%)
-                              </span>
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}
@@ -6444,23 +6662,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 />
               )}
 
-              {/* ABA 6: AUDIOBOOK STUDIO (LIVRO -> AUDIOBOOK) */}
-              {activeTab === 'audiobook' && (
-                <div style={{ maxHeight: 780, overflowY: 'auto' }}>
-                  <ErrorBoundary fallbackTitle="Audiobook Studio">
-                    <AudiobookStudio
-                      projectId={projectIdRef.current}
-                      initialTitle={titulo}
-                      initialSubtitle={subtitulo}
-                      initialAuthor={autor}
-                      initialChapters={livro?.capitulos?.map(c => ({ titulo: c.titulo, texto: c.texto })) || []}
-                      capaUrl={capaFinal}
-                      bookLanguage={idioma}
-                      onBack={() => setActiveTab('preview')}
-                    />
-                  </ErrorBoundary>
-                </div>
-              )}
+
             </div>
 
             {/* BARRA DE FERRAMENTAS DO RODAPÉ (LAYOUT PROFISSIONAL, SÓBRIO E CLEAN) */}
