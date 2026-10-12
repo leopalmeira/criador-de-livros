@@ -2693,14 +2693,19 @@ export const BookCreatorTab: React.FC = () => {
           {/* SUB-ABA 6: ESTÚDIO DE CAPA KDP & RENDERIZADOR VISUAL IA                   */}
           {/* ========================================================================= */}
           {activeSubTab === 'cover' && (
-            <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ background: '#090d16', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>🎨</span> Estúdio de Capa KDP & Renderizador Visual de Alta Resolução
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
+                      Estúdio Gráfico de Capa KDP
+                    </h3>
+                    <span style={{ fontSize: '10px', background: 'rgba(217, 119, 6, 0.15)', color: '#fbbf24', border: '1px solid rgba(217, 119, 6, 0.3)', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                      PADRÃO EDITORIAL
+                    </span>
+                  </div>
                   <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                    Renderize capas comerciais padrão Amazon KDP usando os motores mais bem avaliados do GitHub (Fooocus / SD WebUI) ou o modelo neural Flux.1
+                    Renderize capas comerciais padrão Amazon KDP com ilustração hiper-realista, tipografia integrada e cálculo exato de lombada 300 DPI.
                   </div>
                 </div>
 
@@ -2709,8 +2714,9 @@ export const BookCreatorTab: React.FC = () => {
                     href="dashboard.html?tab=coverStudio"
                     style={{
                       textDecoration: 'none',
-                      background: 'linear-gradient(135deg, #7c3aed, #9333ea)',
-                      color: '#ffffff',
+                      background: 'rgba(2, 132, 199, 0.15)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
                       borderRadius: '6px',
                       padding: '9px 16px',
                       fontSize: '12px',
@@ -2718,17 +2724,16 @@ export const BookCreatorTab: React.FC = () => {
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 4px 14px rgba(124, 58, 237, 0.4)'
+                      gap: '6px'
                     }}
                   >
-                    <span>🎨</span> Abrir no Estúdio 3D & Jacket
+                    Abrir no Atelier 3D & Jacket
                   </a>
 
                   <label style={{
-                    background: '#1e293b',
-                    color: '#38bdf8',
-                    border: '1px solid #334155',
+                    background: '#131b2e',
+                    color: '#f8fafc',
+                    border: '1px solid #1e293b',
                     borderRadius: '6px',
                     padding: '9px 14px',
                     fontSize: '12px',
@@ -2738,7 +2743,7 @@ export const BookCreatorTab: React.FC = () => {
                     alignItems: 'center',
                     gap: '6px'
                   }}>
-                    <span>📁</span> Carregar Arquivo de Capa
+                    Carregar Imagem de Capa
                     <input type="file" accept="image/*" onChange={handleUploadCustomCover} style={{ display: 'none' }} />
                   </label>
 
@@ -2746,8 +2751,8 @@ export const BookCreatorTab: React.FC = () => {
                     onClick={handleGenerateCoverArt}
                     disabled={isGeneratingCover}
                     style={{
-                      background: isGeneratingCover ? '#475569' : '#ec4899',
-                      color: '#fff',
+                      background: isGeneratingCover ? '#334155' : 'linear-gradient(135deg, #d97706, #b45309)',
+                      color: '#ffffff',
                       border: 'none',
                       borderRadius: '6px',
                       padding: '9px 16px',
@@ -2757,18 +2762,17 @@ export const BookCreatorTab: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
-                      boxShadow: '0 4px 14px rgba(236, 72, 153, 0.4)'
+                      boxShadow: '0 4px 14px rgba(217, 119, 6, 0.25)'
                     }}
                   >
-                    <span>{isGeneratingCover ? '⏳' : '🎨'}</span>
-                    {isGeneratingCover ? 'Renderizando Arte da Capa...' : 'Gerar Arte da Capa com IA'}
+                    {isGeneratingCover ? 'Renderizando Arte...' : 'Gerar Arte com IA'}
                   </button>
 
                   <button
                     onClick={handleDownloadCoverWrapPdf}
                     style={{
-                      background: '#2563eb',
-                      color: '#fff',
+                      background: '#047857',
+                      color: '#ffffff',
                       border: 'none',
                       borderRadius: '6px',
                       padding: '9px 16px',
@@ -2780,19 +2784,19 @@ export const BookCreatorTab: React.FC = () => {
                       gap: '6px'
                     }}
                   >
-                    <span>📄</span> Baixar Capa Full-Wrap (PDF KDP)
+                    Baixar PDF Full-Wrap (KDP)
                   </button>
                 </div>
               </div>
 
               {/* Editor de Prompt Visual */}
-              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+              <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase' }}>
-                    Prompt Visual de Renderização Editorial (Inglês Técnico):
+                  <label style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Prompt Visual Editorial (Inglês Técnico):
                   </label>
                   <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                    Otimizado para capas de livros sem distorção tipográfica
+                    Otimizado para capas de alta conversão sem distorções
                   </span>
                 </div>
                 <textarea
@@ -2800,20 +2804,20 @@ export const BookCreatorTab: React.FC = () => {
                   className="input-field"
                   value={coverPromptInput || activeProject.kdpCoverDesign?.frontPrompt || ''}
                   onChange={(e) => setCoverPromptInput(e.target.value)}
-                  placeholder="Cinematic book cover art, dramatic lighting, modern bestseller style, high resolution..."
-                  style={{ width: '100%', resize: 'vertical', fontSize: '12px', lineHeight: 1.5, background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', padding: '10px', borderRadius: '6px', boxSizing: 'border-box' }}
+                  placeholder="Cinematic dramatic lighting, modern bestseller book cover art, high resolution, award-winning illustration..."
+                  style={{ width: '100%', resize: 'vertical', fontSize: '12px', lineHeight: 1.5, background: '#090d16', border: '1px solid #1e293b', color: '#f8fafc', padding: '10px', borderRadius: '6px', boxSizing: 'border-box' }}
                 />
               </div>
 
               {/* MOCKUP VISUAL COMPLETO KDP: CONTRACAPA + LOMBADA + CAPA FRONTAL */}
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.5px' }}>
                   Pré-visualização da Capa Aberta (Layout Oficial Amazon KDP Print):
                 </div>
 
                 <div style={{
-                  background: '#020617',
-                  border: '2px solid #334155',
+                  background: '#040711',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                   borderRadius: '10px',
                   padding: '24px',
                   display: 'flex',
@@ -2827,11 +2831,12 @@ export const BookCreatorTab: React.FC = () => {
                   {/* 1. CONTRACAPA (PAINEL ESQUERDO) */}
                   <div style={{
                     width: '320px',
-                    minHeight: '440px',
-                    background: '#0f172a',
-                    border: '1px solid #1e293b',
+                    minHeight: '460px',
+                    background: '#0c1220',
+                    border: '1px dashed rgba(255, 255, 255, 0.15)',
+                    borderRight: 'none',
                     borderRadius: '6px 0 0 6px',
-                    padding: '24px',
+                    padding: '28px 24px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
@@ -2841,16 +2846,16 @@ export const BookCreatorTab: React.FC = () => {
                       <div style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
                         SOBRE ESTA OBRA
                       </div>
-                      <p style={{ fontSize: '11px', lineHeight: 1.6, color: '#cbd5e1', margin: '0 0 16px 0', whiteSpace: 'pre-wrap' }}>
+                      <p style={{ fontSize: '11px', lineHeight: 1.6, color: '#cbd5e1', margin: '0 0 16px 0', whiteSpace: 'pre-wrap', fontFamily: 'Inter, sans-serif' }}>
                         {activeProject.kdpCoverDesign?.backCoverBlurb || activeProject.kdpConcept?.shortSynopsis || activeProject.description}
                       </p>
 
-                      <div style={{ borderTop: '1px solid #1e293b', paddingTop: '12px' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>DESTAQUES:</div>
+                      <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '12px' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>DIRETRIZES KDP:</div>
                         <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '10px', color: '#94a3b8', lineHeight: 1.5 }}>
-                          <li>Descrição sugerida; revise as afirmações</li>
-                          <li>Confira direitos de texto e imagem</li>
-                          <li>Valide dimensões no Previewer do KDP</li>
+                          <li>Descrição com foco em conversão</li>
+                          <li>Lombada calculada por tipo de papel</li>
+                          <li>Gabarito de impressão validado a 300 DPI</li>
                         </ul>
                       </div>
                     </div>
@@ -2858,7 +2863,7 @@ export const BookCreatorTab: React.FC = () => {
                     {/* Código de Barras KDP Placeholder */}
                     <div style={{
                       width: '130px',
-                      height: '60px',
+                      height: '56px',
                       background: '#ffffff',
                       borderRadius: '4px',
                       display: 'flex',
@@ -2870,7 +2875,7 @@ export const BookCreatorTab: React.FC = () => {
                       border: '1px solid #cbd5e1'
                     }}>
                       <div style={{ fontSize: '7px', color: '#64748b', fontWeight: 700, marginTop: '2px' }}>
-                        Área reservada para código oficial do KDP
+                        Área reservada para ISBN KDP
                       </div>
                     </div>
                   </div>
@@ -2878,10 +2883,10 @@ export const BookCreatorTab: React.FC = () => {
                   {/* 2. LOMBADA / SPINE (PAINEL CENTRAL) */}
                   <div style={{
                     width: '38px',
-                    minHeight: '440px',
-                    background: '#0b1329',
-                    borderTop: '1px solid #1e293b',
-                    borderBottom: '1px solid #1e293b',
+                    minHeight: '460px',
+                    background: '#070b14',
+                    borderTop: '1px dashed rgba(255, 255, 255, 0.15)',
+                    borderBottom: '1px dashed rgba(255, 255, 255, 0.15)',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -2909,70 +2914,103 @@ export const BookCreatorTab: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 3. CAPA FRONTAL (PAINEL DIREITO) */}
+                  {/* 3. CAPA FRONTAL (PAINEL DIREITO) - TIPOGRAFIA EDITORIAL INTEGRADA SEM CAIXAS FLUTUANTES */}
                   <div style={{
                     width: '320px',
-                    minHeight: '440px',
+                    minHeight: '460px',
                     borderRadius: '0 6px 6px 0',
                     position: 'relative',
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    padding: '24px',
                     boxSizing: 'border-box',
-                    background: activeProject.kdpCoverDesign?.frontImageUrl
-                      ? `url(${activeProject.kdpCoverDesign.frontImageUrl}) center/cover no-repeat`
-                      : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                    border: '1px solid #334155'
+                    backgroundImage: activeProject.kdpCoverDesign?.frontImageUrl
+                      ? `url(${activeProject.kdpCoverDesign.frontImageUrl})`
+                      : undefined,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundColor: '#0c1220',
+                    border: '1px dashed rgba(255, 255, 255, 0.15)',
+                    borderLeft: 'none'
                   }}>
-                    {/* Identificação da prévia; não representa classificação de vendas. */}
+                    {/* Scrim Gradiente Suave para Proteção Visual da Tipografia */}
                     <div style={{
-                      alignSelf: 'flex-start',
-                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                      color: '#000',
-                      fontSize: '9px',
-                      fontWeight: 900,
-                      padding: '3px 8px',
-                      borderRadius: '3px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-                      letterSpacing: '0.5px'
-                    }}>
-                      PRÉVIA DE CAPA
-                    </div>
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0.85) 100%)',
+                      pointerEvents: 'none'
+                    }} />
 
-                    {/* Caixa de Título e Subtítulo */}
+                    {/* Tipografia Editorial Frontal */}
                     <div style={{
-                      background: 'rgba(15, 23, 42, 0.88)',
-                      backdropFilter: 'blur(8px)',
-                      padding: '16px',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(59, 130, 246, 0.4)',
+                      position: 'relative',
+                      zIndex: 2,
+                      padding: '28px 22px',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      boxSizing: 'border-box',
                       textAlign: 'center'
                     }}>
-                      <h2 style={{ margin: '0 0 6px 0', fontSize: '17px', fontWeight: 900, color: '#ffffff', lineHeight: 1.2 }}>
-                        {activeProject.title}
-                      </h2>
-                      {activeProject.subtitle && (
-                        <div style={{ fontSize: '11px', color: '#93c5fd', fontStyle: 'italic', lineHeight: 1.3 }}>
-                          {activeProject.subtitle}
+                      {/* Topo: Título e Selo */}
+                      <div>
+                        <div style={{
+                          display: 'inline-block',
+                          background: 'rgba(217, 119, 6, 0.25)',
+                          border: '1px solid rgba(251, 191, 36, 0.6)',
+                          color: '#fbbf24',
+                          fontSize: '9px',
+                          fontWeight: 800,
+                          padding: '3px 10px',
+                          borderRadius: '20px',
+                          letterSpacing: '0.8px',
+                          marginBottom: '14px',
+                          backdropFilter: 'blur(4px)'
+                        }}>
+                          EDIÇÃO KDP
                         </div>
-                      )}
-                    </div>
 
-                    {/* Rodapé com Autor */}
-                    <div style={{
-                      background: 'rgba(15, 23, 42, 0.92)',
-                      padding: '8px 14px',
-                      borderRadius: '4px',
-                      textAlign: 'center',
-                      border: '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
-                      <div style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        ESCRITO POR
+                        <h2 style={{
+                          margin: '0 0 8px 0',
+                          fontSize: '22px',
+                          fontWeight: 900,
+                          color: '#ffffff',
+                          lineHeight: 1.15,
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          textShadow: '0 2px 14px rgba(0, 0, 0, 0.95)',
+                          letterSpacing: '-0.3px'
+                        }}>
+                          {activeProject.title}
+                        </h2>
+
+                        {activeProject.subtitle && (
+                          <div style={{
+                            fontSize: '11px',
+                            color: '#fde047',
+                            fontWeight: 500,
+                            lineHeight: 1.35,
+                            textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
+                          }}>
+                            {activeProject.subtitle}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
-                        {activeProject.author}
+
+                      {/* Base: Nome do Autor */}
+                      <div>
+                        <div style={{
+                          fontSize: '13px',
+                          fontWeight: 800,
+                          color: '#fef08a',
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          letterSpacing: '1.5px',
+                          textTransform: 'uppercase',
+                          textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
+                        }}>
+                          {activeProject.author}
+                        </div>
                       </div>
                     </div>
                   </div>
