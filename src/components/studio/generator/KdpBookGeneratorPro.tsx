@@ -3079,6 +3079,16 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           >
 
 
+            {/* CABEÇALHO ELEGANTE DO PAINEL */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #f1f5f9' }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Compass size={17} color="#0284c7" /> {ui('Configuração da Obra', 'Book Production Setup')}
+              </h2>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+                {livro ? `${livro.capitulos.length} caps gerados` : 'Novo Projeto'}
+              </span>
+            </div>
+
             {/* CARD DO AGENTE COAUTHOR (CONVERSACIONAL & FÓRMULA BESTSELLER AMAZON) */}
             <CoAuthorCard
               contextData={coAuthorContext}
