@@ -4,7 +4,7 @@ import {
   Play, Square, RefreshCw, Trash2, ArrowLeft, Check, Layers,
   Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight, ChevronLeft,
   ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2,
-  Award, Palette, Edit3, Star, Sliders, Compass, TrendingUp
+  Award, Palette, Edit3, Star, Sliders, Compass, TrendingUp, Bot
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -40,6 +40,11 @@ import { KdpTourGuideModal } from './KdpTourGuideModal';
 import { KdpPageReviewerModal } from './KdpPageReviewerModal';
 import { Top50BestsellersModal } from './Top50BestsellersModal';
 import { ErrorBoundary } from '../../common/ErrorBoundary';
+import {
+  CoAuthorCard,
+  CoAuthorWorkspace,
+  type CoAuthorContextData
+} from './CoAuthorAgentSuite';
 import {
   orchestrateEditorialPlan,
   buildFallbackEditorialPlan,
@@ -521,9 +526,16 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [statusMsg, setStatusMsg] = useState('Pronto para iniciar');
   const [statusType, setStatusType] = useState<'normal' | 'ok' | 'error'>('normal');
   const [progressPercent, setProgressPercent] = useState(0);
-  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'planner'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'planner' | 'coauthor'>('preview');
   const [bookType, setBookType] = useState<BookType>('fiction-novel');
   const [creationSelectorValue, setCreationSelectorValue] = useState('format:fiction-novel');
+
+  // Estado do Co-Autor Inteligente (3 caixas de contexto para geração conversacional)
+  const [coAuthorContext, setCoAuthorContext] = useState<CoAuthorContextData>({
+    premissaVisao: '',
+    elementosChave: '',
+    formulaBestseller: ''
+  });
 
   // Sistema de Eficiência Máxima de API (Modo Ultra Econômico Google Gemini)
   const [modoEconomico, setModoEconomico] = useState(true);
@@ -3155,6 +3167,42 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
             </div>
 
+            {/* CARD DO AGENTE COAUTHOR (CONVERSACIONAL & FÓRMULA BESTSELLER AMAZON) */}
+            <CoAuthorCard
+              contextData={coAuthorContext}
+              onChangeContext={setCoAuthorContext}
+              onStartCoAuthor={() => {
+                if (coAuthorContext.premissaVisao.trim() && !topico.trim()) {
+                  setTopico(coAuthorContext.premissaVisao.trim());
+                }
+                if (coAuthorContext.formulaBestseller.trim() && !bookPromise.trim()) {
+                  setBookPromise(coAuthorContext.formulaBestseller.trim());
+                }
+                if (coAuthorContext.elementosChave.trim() && !uniqueAngle.trim()) {
+                  setUniqueAngle(coAuthorContext.elementosChave.trim());
+                }
+                setActiveTab('coauthor');
+                setStatusMsg('Estúdio CoAuthor ativado. Converse com o agente e coescreva seu bestseller!');
+                setStatusType('ok');
+              }}
+              onApplyToStandardForm={() => {
+                if (coAuthorContext.premissaVisao.trim()) setTopico(coAuthorContext.premissaVisao.trim());
+                if (coAuthorContext.elementosChave.trim()) setUniqueAngle(coAuthorContext.elementosChave.trim());
+                if (coAuthorContext.formulaBestseller.trim()) setBookPromise(coAuthorContext.formulaBestseller.trim());
+                setStatusMsg('Contexto do CoAuthor aplicado às etapas tradicionais da obra.');
+                setStatusType('ok');
+              }}
+              tituloAtual={titulo}
+              subtituloAtual={subtitulo}
+              generoAtual={genero}
+              idiomaAtual={idioma}
+              totalCaps={totalCaps || maxCapitulos || 8}
+              onUpdateTitleSubtitle={(novoTit, novoSub) => {
+                setTitulo(novoTit);
+                setSubtitulo(novoSub);
+              }}
+            />
+
             {/* ETAPA 1 — ESCOLHA DO TEMA DO LIVRO */}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
@@ -4546,6 +4594,28 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   }}
                 >
                   <FileText size={14} /> {ui('Planner & Diário', 'Planner & Journal')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('coauthor')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    borderColor: activeTab === 'coauthor' ? '#0284c7' : '#e2e8f0',
+                    background: activeTab === 'coauthor' ? 'linear-gradient(135deg, #0284c7, #4f46e5)' : '#ffffff',
+                    color: activeTab === 'coauthor' ? '#ffffff' : '#0369a1',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: activeTab === 'coauthor' ? '0 2px 8px rgba(2, 132, 199, 0.25)' : 'none'
+                  }}
+                >
+                  <Bot size={14} /> {ui('Agente CoAuthor', 'CoAuthor Agent')} ✨
                 </button>
               </div>
 
@@ -6659,6 +6729,29 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     setCreditModalMotivo('A geração de um planner ou diário completo requer 1 crédito editorial.');
                     setIsCreditModalOpen(true);
                   }}
+                />
+              )}
+
+              {activeTab === 'coauthor' && (
+                <CoAuthorWorkspace
+                  contextData={coAuthorContext}
+                  bookState={livro}
+                  onUpdateBookState={(newBook) => {
+                    setLivro(newBook);
+                    if (newBook.titulo && (!titulo.trim() || titulo === 'Livro Sem Título')) {
+                      setTitulo(newBook.titulo);
+                    }
+                    if (newBook.subtitulo && !subtitulo.trim()) {
+                      setSubtitulo(newBook.subtitulo);
+                    }
+                  }}
+                  onSaveProgress={(novoLivro) => {
+                    salvarProgressoLocal(novoLivro);
+                  }}
+                  onNavigateToPreview={() => setActiveTab('preview')}
+                  onNavigateToCover={() => setActiveTab('capa')}
+                  totalCapsDesejado={totalCaps || maxCapitulos || 8}
+                  paginasAlvo={paginasAlvo || 80}
                 />
               )}
 
