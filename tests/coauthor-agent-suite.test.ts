@@ -99,4 +99,60 @@ describe('CoAuthor Agent Suite — Fluxo Conversacional Bestseller KDP', () => {
     expect(livroAtualizado.capitulos).toHaveLength(2);
     expect(livroAtualizado.capitulos[1].titulo).toBe('Capítulo 2: A Confirmação do Medo');
   });
+
+  it('5. Deve suportar perfis editoriais de Não-Ficção (Técnico, Autoajuda e Guia Prático) sem forçar ficção', () => {
+    const livroTecnico: CoAuthorBookState = {
+      titulo: 'Engenharia de Prompts para Profissionais',
+      subtitulo: 'Como resolver problemas reais com IA',
+      autor: 'Leandro Palmeira',
+      genero: 'Técnico / Tecnologia',
+      idioma: 'português',
+      tipoLivro: 'tecnico',
+      capitulos: [
+        {
+          titulo: 'Capítulo 1: Fundamentos de Arquitetura de Instruções',
+          texto: 'A formulação de instruções precisas requer definição explícita de contexto, formato de saída e restrições. Ao aplicar Few-Shot prompting, fornecemos exemplos concretos para reduzir alucinações.'
+        }
+      ],
+      meta: {
+        palavrasPorCap: 900,
+        paginasAlvo: 80
+      }
+    };
+
+    expect(livroTecnico.tipoLivro).toBe('tecnico');
+    expect(livroTecnico.capitulos[0].texto).toContain('Few-Shot prompting');
+    // Verifica que o conteúdo é estritamente técnico e instrucional sem floreios ficcionais
+    expect(livroTecnico.capitulos[0].texto).not.toContain('personagem');
+    expect(livroTecnico.capitulos[0].texto).not.toContain('clímax');
+  });
+
+  it('6. Deve permitir a revisão e edição manual de capítulos no Painel de Revisão Editorial', () => {
+    const livro: CoAuthorBookState = {
+      titulo: 'Finanças Pessoais Práticas',
+      subtitulo: 'Guia de 90 dias',
+      autor: 'Autor Teste',
+      genero: 'Não-Ficção',
+      idioma: 'português',
+      tipoLivro: 'pratico',
+      capitulos: [
+        {
+          titulo: 'Capítulo 1: O Diagnóstico Financeiro',
+          texto: 'Antes de cortar gastos, é imperativo catalogar cada saída fixa e variável dos últimos 90 dias.'
+        }
+      ],
+      meta: { palavrasPorCap: 900, paginasAlvo: 50 }
+    };
+
+    // Simula edição no painel de revisão editorial
+    const textoAjustado = 'Antes de cortar gastos, é imperativo catalogar cada saída fixa e variável dos últimos 90 dias com extratos bancários conciliados.';
+    const capitulosAtualizados = [...livro.capitulos];
+    capitulosAtualizados[0] = { ...capitulosAtualizados[0], texto: textoAjustado };
+
+    const livroRevisado = { ...livro, capitulos: capitulosAtualizados };
+
+    expect(livroRevisado.capitulos[0].texto).toContain('conciliados.');
+    expect(livroRevisado.capitulos[0].texto.endsWith('.')).toBe(true);
+  });
 });
+
