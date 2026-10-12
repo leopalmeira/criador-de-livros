@@ -13,7 +13,8 @@ import {
   SolutionsPerPage,
   TRIM_DIMENSIONS,
   CompilationResult,
-  PuzzleLanguage
+  PuzzleLanguage,
+  GeneratedPuzzleItem
 } from '../../../modules/puzzles/types';
 import { WordSearchEngine, WORD_THEMES_BY_LANG } from '../../../modules/puzzles/wordsearch-engine';
 import { PuzzleInteriorPdfBuilder } from '../../../modules/puzzles/puzzle-interior-pdf-builder';
@@ -25,6 +26,7 @@ import {
   AmazonPuzzleBestseller,
   getBestsellersForLanguage
 } from '../../../modules/puzzles/amazon-puzzle-bestsellers';
+import { PuzzlePagePreviewer } from './PuzzlePagePreviewer';
 
 interface Props {
   onBackToDashboard: () => void;
@@ -160,12 +162,17 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
   const [aiPromptCustom, setAiPromptCustom] = useState(() => selectedBestseller.replicatePrompt);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  // Estado da Compilação Final
+  // Estado da Compilação Final & Progresso em Tempo Real
   const [isCompiling, setIsCompiling] = useState(false);
   const [compilationProgress, setCompilationProgress] = useState(0);
   const [compilationStatus, setCompilationStatus] = useState('');
   const [compilationResult, setCompilationResult] = useState<CompilationResult | null>(null);
   const [compilationError, setCompilationError] = useState<string | null>(null);
+
+  // Estado do Visualizador Interativo de Páginas
+  const [previewPuzzles, setPreviewPuzzles] = useState<GeneratedPuzzleItem[]>([]);
+  const [previewPage, setPreviewPage] = useState<number>(1);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
 
   // Troca de Idioma e Atualização de Metadados
   const handleLanguageChange = (newLang: PuzzleLanguage) => {
@@ -193,6 +200,14 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     setConfig(updatedConfig);
     setSelectedBestseller(newBestseller);
     setAiPromptCustom(newBestseller.replicatePrompt || PuzzleCoverAiService.buildReplicatePrompt(updatedConfig));
+
+    // Atualiza preview dos puzzles no novo idioma
+    try {
+      const updatedPuzzles = PuzzleBookCoordinator.generateAllPuzzles(updatedConfig);
+      setPreviewPuzzles(updatedPuzzles);
+    } catch (e) {
+      console.warn('Erro ao atualizar amostra:', e);
+    }
   };
 
   // Cálculo de páginas estimadas em tempo real
@@ -206,6 +221,31 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
   const estimatedPages = PuzzleInteriorPdfBuilder.estimateTotalPages(config);
   const isKdpCompliant = estimatedPages >= 24;
+
+  // Gera amostra inicial de puzzles para o visualizador
+  useEffect(() => {
+    if (previewPuzzles.length === 0) {
+      try {
+        const initial = PuzzleBookCoordinator.generateAllPuzzles(config);
+        setPreviewPuzzles(initial);
+      } catch (e) {
+        console.warn('Falha ao gerar amostra inicial:', e);
+      }
+    }
+  }, []);
+
+  // Atualiza amostra manual de puzzles
+  const handleRefreshPreviewPuzzles = () => {
+    setIsGeneratingPreview(true);
+    try {
+      const refreshed = PuzzleBookCoordinator.generateAllPuzzles(config);
+      setPreviewPuzzles(refreshed);
+    } catch (err) {
+      console.error('Erro ao atualizar preview dos puzzles:', err);
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
 
   // Renderiza o Canvas de Preview da Capa
   useEffect(() => {
@@ -221,7 +261,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     }
   }, [currentStep, config, estimatedPages, showCoverGuides, coverRefreshTrigger]);
 
-  // Função para Gerar Arte de Capa com IA Replicate (Primeira vez ou Nova Variação)
+  // Função para Gerar Arte de Capa com IA Replicate
   const handleGenerateReplicateCover = async () => {
     setIsGeneratingAiCover(true);
     setAiError(null);
@@ -246,19 +286,16 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     }
   };
 
-  // Seleciona uma capa do histórico
   const handleSelectHistoryCover = (item: CoverHistoryItem) => {
     setActiveCoverHistoryId(item.id);
     setConfig(prev => ({ ...prev, coverIllustrationUrl: item.url }));
   };
 
-  // Remove a arte da capa e volta para a renderização vetorial pura
   const handleRemoveCoverArt = () => {
     setActiveCoverHistoryId(null);
     setConfig(prev => ({ ...prev, coverIllustrationUrl: undefined }));
   };
 
-  // Remove uma capa do histórico
   const handleDeleteHistoryCover = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const remaining = coverHistory.filter(c => c.id !== id);
@@ -274,7 +311,6 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     }
   };
 
-  // Seleciona um Bestseller de Referência da Amazon
   const handleSelectBestseller = (bs: AmazonPuzzleBestseller) => {
     setSelectedBestseller(bs);
     setAiPromptCustom(bs.replicatePrompt);
@@ -286,7 +322,6 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     }));
   };
 
-  // Copia as palavras-chave do Bestseller para a área de transferência
   const handleCopyKeywords = () => {
     if (!selectedBestseller.keywords || selectedBestseller.keywords.length === 0) return;
     const textToCopy = selectedBestseller.keywords.join(', ');
@@ -295,7 +330,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     setTimeout(() => setCopiedKeywords(false), 2500);
   };
 
-  // Compilação do Livro Completo
+  // Compilação do Livro Completo com Rastreamento em Tempo Real
   const handleStartCompilation = async () => {
     setIsCompiling(true);
     setCompilationProgress(0);
@@ -304,6 +339,14 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
     setCompilationResult(null);
 
     try {
+      // 1. Gera puzzles e atualiza o estado para permitir visualização de todas as páginas
+      const generated = PuzzleBookCoordinator.generateAllPuzzles(config, (percent, status) => {
+        setCompilationProgress(percent);
+        setCompilationStatus(status);
+      });
+      setPreviewPuzzles(generated);
+
+      // 2. Compila PDF do Miolo e da Capa
       const result = await PuzzleBookCoordinator.compileFullBook(config, (percent, status) => {
         setCompilationProgress(percent);
         setCompilationStatus(status);
@@ -349,17 +392,18 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0b0f19', color: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
-      {/* 1. TOP BAR DO ESTÚDIO */}
+    <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a', display: 'flex', flexDirection: 'column' }}>
+      {/* 1. TOP BAR DO ESTÚDIO (TEMA CLARO & ELEGANTE) */}
       <header style={{
         padding: '16px 28px',
-        background: '#111827',
-        borderBottom: '1px solid #1f2937',
+        background: '#ffffff',
+        borderBottom: '1px solid #e2e8f0',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: 12
+        gap: 12,
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
@@ -368,14 +412,15 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: 'rgba(255, 255, 255, 0.08)',
-              color: '#cbd5e1',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: '#f1f5f9',
+              color: '#334155',
+              border: '1px solid #cbd5e1',
               borderRadius: 8,
               padding: '7px 12px',
               fontSize: 13,
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
             }}
           >
             <ChevronLeft size={16} /> Voltar à Dashboard
@@ -383,23 +428,23 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 36,
-              height: 36,
-              borderRadius: 8,
+              width: 38,
+              height: 38,
+              borderRadius: 10,
               background: 'linear-gradient(135deg, #0284c7, #0369a1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)'
+              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
             }}>
-              <Grid3X3 size={20} color="#ffffff" />
+              <Grid3X3 size={22} color="#ffffff" />
             </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: '#ffffff' }}>
+              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>
                 Puzzle & Sudoku Book Engine Pro
               </h1>
-              <span style={{ fontSize: 12, color: '#38bdf8', fontWeight: 600 }}>
-                Capas com IA Replicate & Miolo Trilíngue (PT / EN / ES)
+              <span style={{ fontSize: 12, color: '#0284c7', fontWeight: 700 }}>
+                Gerador de Livros de Passatempos • Formatos Bestseller Amazon KDP
               </span>
             </div>
           </div>
@@ -408,10 +453,10 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
         {/* BADGES DE CONFORMIDADE KDP & REPLICATE */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{
-            background: 'rgba(245, 158, 11, 0.15)',
-            color: '#fbbf24',
-            border: '1px solid rgba(245, 158, 11, 0.4)',
-            padding: '4px 10px',
+            background: '#fffbeb',
+            color: '#b45309',
+            border: '1px solid #fde68a',
+            padding: '5px 12px',
             borderRadius: 6,
             fontSize: 11,
             fontWeight: 800,
@@ -419,14 +464,14 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
             alignItems: 'center',
             gap: 5
           }}>
-            <Sparkles size={14} /> REPLICATE AI COVERS
+            <Sparkles size={14} color="#d97706" /> REPLICATE AI COVERS
           </span>
 
           <span style={{
-            background: 'rgba(16, 185, 129, 0.15)',
-            color: '#34d399',
-            border: '1px solid rgba(16, 185, 129, 0.4)',
-            padding: '4px 10px',
+            background: '#ecfdf5',
+            color: '#059669',
+            border: '1px solid #a7f3d0',
+            padding: '5px 12px',
             borderRadius: 6,
             fontSize: 11,
             fontWeight: 800,
@@ -434,25 +479,26 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
             alignItems: 'center',
             gap: 5
           }}>
-            <ShieldCheck size={14} /> KDP PRINT-READY
+            <ShieldCheck size={14} color="#059669" /> KDP PRINT-READY (300 DPI)
           </span>
         </div>
       </header>
 
-      {/* 2. BARRA DE ETAPAS (WIZARD DE 4 PASSOS) */}
+      {/* 2. BARRA DE ETAPAS (WIZARD DE 4 PASSOS EM TEMA CLARO) */}
       <nav style={{
-        background: '#0f172a',
-        borderBottom: '1px solid #1e293b',
+        background: '#ffffff',
+        borderBottom: '1px solid #e2e8f0',
         padding: '12px 28px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 16,
-        overflowX: 'auto'
+        gap: 12,
+        overflowX: 'auto',
+        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)'
       }}>
         {[
           { step: 1, label: '1. Idioma & Formato KDP' },
-          { step: 2, label: '2. Puzzles & Estimativa' },
+          { step: 2, label: '2. Puzzles & Prévia das Páginas' },
           { step: 3, label: '3. Capa Bestseller & Replicate' },
           { step: 4, label: '4. Compilação & Download' }
         ].map(item => {
@@ -466,15 +512,20 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                background: isActive ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isPassed ? 'rgba(16, 185, 129, 0.15)' : 'transparent'),
-                color: isActive ? '#ffffff' : (isPassed ? '#34d399' : '#64748b'),
-                border: isActive ? '1px solid #38bdf8' : (isPassed ? '1px solid #059669' : '1px solid transparent'),
+                background: isActive
+                  ? 'linear-gradient(135deg, #0284c7, #0369a1)'
+                  : (isPassed ? '#ecfdf5' : '#f8fafc'),
+                color: isActive ? '#ffffff' : (isPassed ? '#059669' : '#64748b'),
+                border: isActive
+                  ? '1px solid #0284c7'
+                  : (isPassed ? '1px solid #a7f3d0' : '1px solid #e2e8f0'),
                 borderRadius: 8,
                 padding: '8px 16px',
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
-                transition: 'all 0.2s'
+                transition: 'all 0.15s ease',
+                boxShadow: isActive ? '0 2px 8px rgba(2, 132, 199, 0.25)' : 'none'
               }}
             >
               {isPassed ? <Check size={14} /> : null}
@@ -485,37 +536,37 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
       </nav>
 
       {/* 3. CONTEÚDO PRINCIPAL DO PASSO */}
-      <main style={{ flex: 1, padding: '28px', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
+      <main style={{ flex: 1, padding: '28px', maxWidth: 1260, width: '100%', margin: '0 auto' }}>
         {/* ======================================================== */}
         {/* PASSO 1: IDIOMA, FORMATO E METADADOS */}
         {/* ======================================================== */}
         {currentStep === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>
+              <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 6px', color: '#0f172a' }}>
                 Passo 1: Idioma do Livro & Formato Físico KDP
               </h2>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-                Selecione o idioma de publicação (Português, Inglês ou Espanhol). O miolo e a capa serão gerados 100% no idioma escolhido.
+              <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
+                Selecione o idioma de publicação (Português, Inglês ou Espanhol) e as dimensões físicas dos livros mais bem vendidos na Amazon KDP.
               </p>
             </div>
 
             {/* SELETOR DE IDIOMA EM DESTAQUE */}
             <div style={{
-              background: 'linear-gradient(145deg, #131b2e 0%, #1e293b 100%)',
-              border: '2px solid #38bdf8',
+              background: '#ffffff',
+              border: '2px solid #bae6fd',
               borderRadius: 14,
               padding: 22,
-              boxShadow: '0 4px 20px rgba(56, 189, 248, 0.15)'
+              boxShadow: '0 4px 16px rgba(2, 132, 199, 0.08)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <Globe size={20} color="#38bdf8" />
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#ffffff' }}>
+                <Globe size={22} color="#0284c7" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
                   Escolha o Idioma do Livro (Miolo + Capa + Puzzles):
                 </h3>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
                 {[
                   { code: 'pt' as PuzzleLanguage, flag: '🇧🇷', name: 'Português (Brasil)', desc: 'Caça-palavras e regras em Português' },
                   { code: 'en' as PuzzleLanguage, flag: '🇺🇸', name: 'English (US / UK)', desc: 'Word search and instructions in English' },
@@ -527,27 +578,28 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       key={lang.code}
                       onClick={() => handleLanguageChange(lang.code)}
                       style={{
-                        border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
-                        background: isSelected ? 'rgba(56, 189, 248, 0.15)' : '#0f172a',
-                        padding: '14px 18px',
+                        border: isSelected ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                        background: isSelected ? '#f0f9ff' : '#ffffff',
+                        padding: '16px 18px',
                         borderRadius: 10,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        transition: 'all 0.2s'
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? '0 2px 10px rgba(2, 132, 199, 0.15)' : 'none'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: 28 }}>{lang.flag}</span>
+                        <span style={{ fontSize: 30 }}>{lang.flag}</span>
                         <div>
-                          <strong style={{ display: 'block', fontSize: 14, color: isSelected ? '#38bdf8' : '#ffffff' }}>
+                          <strong style={{ display: 'block', fontSize: 15, color: isSelected ? '#0284c7' : '#0f172a' }}>
                             {lang.name}
                           </strong>
-                          <span style={{ fontSize: 11, color: '#94a3b8' }}>{lang.desc}</span>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>{lang.desc}</span>
                         </div>
                       </div>
-                      {isSelected && <CheckCircle2 size={20} color="#38bdf8" />}
+                      {isSelected && <CheckCircle2 size={22} color="#0284c7" />}
                     </div>
                   );
                 })}
@@ -555,40 +607,85 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
             </div>
 
             {/* FORMATO FÍSICO E COR DO PAPEL */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
-              {/* Trim Size */}
-              <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 10 }}>
-                  Dimensões de Impressão (Trim Size):
-                </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+              {/* Trim Size (FORMATOS MAIS BEM VENDIDOS NA AMAZON) */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 14,
+                padding: 22,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <label style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                    Dimensões de Impressão (Trim Size):
+                  </label>
+                  <span style={{
+                    fontSize: 11,
+                    background: '#fef3c7',
+                    color: '#b45309',
+                    border: '1px solid #fde68a',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    fontWeight: 800
+                  }}>
+                    Padrão Amazon KDP
+                  </span>
+                </div>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {(['8.5x11', '6x9', '8.25x11'] as TrimSize[]).map(size => {
                     const info = TRIM_DIMENSIONS[size];
                     const selected = config.trimSize === size;
+                    const isBestseller = size === '8.5x11';
                     return (
                       <div
                         key={size}
                         onClick={() => setConfig({ ...config, trimSize: size })}
                         style={{
-                          border: selected ? '2px solid #0284c7' : '1px solid #334155',
-                          background: selected ? 'rgba(2, 132, 199, 0.12)' : '#0f172a',
-                          padding: '12px 16px',
-                          borderRadius: 8,
+                          border: selected ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                          background: selected ? '#f0f9ff' : (isBestseller ? '#fafafa' : '#ffffff'),
+                          padding: '14px 16px',
+                          borderRadius: 10,
                           cursor: 'pointer',
                           display: 'flex',
                           justifyContent: 'space-between',
-                          alignItems: 'center'
+                          alignItems: 'center',
+                          transition: 'all 0.15s ease',
+                          boxShadow: selected ? '0 2px 10px rgba(2, 132, 199, 0.15)' : 'none'
                         }}
                       >
                         <div>
-                          <span style={{ fontWeight: 800, color: selected ? '#38bdf8' : '#ffffff', fontSize: 14, display: 'block' }}>
-                            {info.name}
-                          </span>
-                          <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                            {size === '8.5x11' ? 'Ideal para jogos, letras grandes e passatempos.' : 'Formato compacto e prático.'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 900, color: selected ? '#0284c7' : '#0f172a', fontSize: 14 }}>
+                              {info.name}
+                            </span>
+                            {isBestseller && (
+                              <span style={{
+                                fontSize: 10,
+                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                color: '#ffffff',
+                                fontWeight: 900,
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                letterSpacing: '0.04em',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3
+                              }}>
+                                ⭐ #1 MAIS VENDIDO NA AMAZON (85% das vendas)
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: 12, color: '#64748b', lineHeight: 1.4, display: 'block' }}>
+                            {size === '8.5x11'
+                              ? 'Formato líder absoluto em vendas de livros de passatempos na Amazon KDP (Letras Grandes / Large Print para adultos e idosos).'
+                              : (size === '6x9'
+                                ? '#2 Mais vendido: Formato de Bolso / Viagem (Trade edition portátil).'
+                                : 'Formato especial para edições de colecionador e revistas encadernadas.')}
                           </span>
                         </div>
-                        {selected && <CheckCircle2 size={18} color="#0284c7" />}
+                        {selected && <CheckCircle2 size={22} color="#0284c7" />}
                       </div>
                     );
                   })}
@@ -596,85 +693,99 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               </div>
 
               {/* Cor do Papel */}
-              <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 10 }}>
-                  Cor do Papel do Miolo (Interior):
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 14,
+                padding: 22,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+              }}>
+                <label style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', display: 'block', marginBottom: 12 }}>
+                  Cor do Papel do Miolo (Interior KDP):
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <div
                     onClick={() => setConfig({ ...config, paperColor: 'white' })}
                     style={{
-                      border: config.paperColor === 'white' ? '2px solid #0284c7' : '1px solid #334155',
-                      background: config.paperColor === 'white' ? 'rgba(2, 132, 199, 0.12)' : '#0f172a',
+                      border: config.paperColor === 'white' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      background: config.paperColor === 'white' ? '#f0f9ff' : '#ffffff',
                       padding: 16,
-                      borderRadius: 8,
+                      borderRadius: 10,
                       cursor: 'pointer',
-                      textAlign: 'center'
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    <div style={{ width: 32, height: 32, background: '#ffffff', borderRadius: 6, margin: '0 auto 8px', border: '1px solid #ccc' }} />
-                    <span style={{ fontWeight: 800, fontSize: 14, color: '#ffffff', display: 'block' }}>Papel Branco</span>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>Maior contraste e nitidez B&W</span>
+                    <div style={{ width: 34, height: 34, background: '#ffffff', borderRadius: 8, margin: '0 auto 8px', border: '1.5px solid #cbd5e1' }} />
+                    <span style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', display: 'block' }}>Papel Branco</span>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>Maior contraste e nitidez B&W (Recomendado)</span>
                   </div>
 
                   <div
                     onClick={() => setConfig({ ...config, paperColor: 'cream' })}
                     style={{
-                      border: config.paperColor === 'cream' ? '2px solid #0284c7' : '1px solid #334155',
-                      background: config.paperColor === 'cream' ? 'rgba(2, 132, 199, 0.12)' : '#0f172a',
+                      border: config.paperColor === 'cream' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      background: config.paperColor === 'cream' ? '#f0f9ff' : '#ffffff',
                       padding: 16,
-                      borderRadius: 8,
+                      borderRadius: 10,
                       cursor: 'pointer',
-                      textAlign: 'center'
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    <div style={{ width: 32, height: 32, background: '#fef3c7', borderRadius: 6, margin: '0 auto 8px', border: '1px solid #fde68a' }} />
-                    <span style={{ fontWeight: 800, fontSize: 14, color: '#ffffff', display: 'block' }}>Papel Creme</span>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>Aspecto vintage e leitura suave</span>
+                    <div style={{ width: 34, height: 34, background: '#fef3c7', borderRadius: 8, margin: '0 auto 8px', border: '1.5px solid #fde68a' }} />
+                    <span style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', display: 'block' }}>Papel Creme</span>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>Aspecto clássico e leitura suave</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Metadados: Título, Subtítulo e Autor */}
-            <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 22 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 16px' }}>
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: 14,
+              padding: 24,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+            }}>
+              <h3 style={{ fontSize: 16, fontWeight: 900, margin: '0 0 16px', color: '#0f172a' }}>
                 Metadados do Livro para Amazon KDP ({config.language.toUpperCase()})
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }}>
                     Título Principal:
                   </label>
                   <input
                     type="text"
                     value={config.title}
                     onChange={e => setConfig({ ...config, title: e.target.value })}
-                    style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', color: '#ffffff', fontSize: 14, outline: 'none' }}
+                    style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '10px 14px', color: '#0f172a', fontSize: 14, outline: 'none' }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }}>
                     Subtítulo do Livro:
                   </label>
                   <input
                     type="text"
                     value={config.subtitle}
                     onChange={e => setConfig({ ...config, subtitle: e.target.value })}
-                    style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', color: '#ffffff', fontSize: 14, outline: 'none' }}
+                    style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '10px 14px', color: '#0f172a', fontSize: 14, outline: 'none' }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }}>
                     Nome do Autor / Marca Editorial:
                   </label>
                   <input
                     type="text"
                     value={config.author}
                     onChange={e => setConfig({ ...config, author: e.target.value })}
-                    style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', color: '#ffffff', fontSize: 14, outline: 'none' }}
+                    style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '10px 14px', color: '#0f172a', fontSize: 14, outline: 'none' }}
                   />
                 </div>
               </div>
@@ -688,122 +799,170 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   background: 'linear-gradient(135deg, #0284c7, #0369a1)',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: 8,
-                  padding: '12px 24px',
+                  borderRadius: 10,
+                  padding: '13px 26px',
                   fontSize: 14,
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)'
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
                 }}
               >
-                Avançar para Seleção de Puzzles <ArrowRight size={16} />
+                Avançar para Seleção de Puzzles & Páginas <ArrowRight size={16} />
               </button>
             </div>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* PASSO 2: SELEÇÃO DE PUZZLES E TEMAS POR IDIOMA */}
+        {/* PASSO 2: SELEÇÃO DE PUZZLES E VISUALIZADOR DE PÁGINAS */}
         {/* ======================================================== */}
         {currentStep === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>
-                Passo 2: Configuração dos Puzzles no Idioma {config.language === 'en' ? 'Inglês' : (config.language === 'es' ? 'Espanhol' : 'Português')}
-              </h2>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-                Personalize a quantidade de Sudokus, Caça-Palavras com temas no idioma correto e Labirintos.
-              </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 6px', color: '#0f172a' }}>
+                  Passo 2: Configuração dos Puzzles & Visualização de Páginas ({config.language.toUpperCase()})
+                </h2>
+                <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
+                  Personalize as quantidades de cada desafio e folheie as páginas do livro em tempo real com diagramação KDP.
+                </p>
+              </div>
+
+              <button
+                onClick={handleRefreshPreviewPuzzles}
+                disabled={isGeneratingPreview}
+                style={{
+                  background: '#ffffff',
+                  color: '#0284c7',
+                  border: '1px solid #0284c7',
+                  borderRadius: 8,
+                  padding: '9px 16px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}
+              >
+                <RefreshCw size={14} className={isGeneratingPreview ? 'animate-spin' : ''} />
+                {isGeneratingPreview ? 'Atualizando Páginas...' : 'Atualizar Amostra das Páginas'}
+              </button>
             </div>
+
+            {/* VISUALIZADOR REAL DE PÁGINAS DO LIVRO (NO TOPO / DESTAQUE) */}
+            <PuzzlePagePreviewer
+              config={config}
+              puzzles={previewPuzzles}
+              currentPage={previewPage}
+              totalPages={estimatedPages}
+              onPageChange={setPreviewPage}
+              showGuidesDefault={false}
+            />
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
               {/* CONTROLES DOS PUZZLES */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* 1. Sudoku Controls */}
-                <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: 22,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+                }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                    <Grid3X3 size={18} color="#38bdf8" />
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Sudokus (Solução Única Garantida)</h3>
+                    <Grid3X3 size={20} color="#0284c7" />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+                      Sudokus (Solução Única Garantida e Verificada)
+                    </h3>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 14 }}>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Fácil (36-40 pistas):</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Fácil (36-40 pistas):</label>
                       <input
                         type="number"
                         min="0"
                         max="200"
                         value={config.sudokuFacilCount}
                         onChange={e => setConfig({ ...config, sudokuFacilCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Médio (30-35 pistas):</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Médio (30-35 pistas):</label>
                       <input
                         type="number"
                         min="0"
                         max="200"
                         value={config.sudokuMedioCount}
                         onChange={e => setConfig({ ...config, sudokuMedioCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Difícil (26-29 pistas):</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Difícil (26-29 pistas):</label>
                       <input
                         type="number"
                         min="0"
                         max="200"
                         value={config.sudokuDificilCount}
                         onChange={e => setConfig({ ...config, sudokuDificilCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Extremo (22-25 pistas):</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Extremo (22-25 pistas):</label>
                       <input
                         type="number"
                         min="0"
                         max="200"
                         value={config.sudokuExtremoCount}
                         onChange={e => setConfig({ ...config, sudokuExtremoCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* 2. Caça-Palavras Controls */}
-                <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: 22,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+                }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                    <FileText size={18} color="#34d399" />
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+                    <FileText size={20} color="#059669" />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
                       Caça-Palavras ({config.language === 'en' ? 'Word Search' : (config.language === 'es' ? 'Sopa de Letras' : 'Caça-Palavras')})
                     </h3>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Quantidade de Puzzles:</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Quantidade de Puzzles:</label>
                       <input
                         type="number"
                         min="0"
                         max="200"
                         value={config.wordSearchCount}
                         onChange={e => setConfig({ ...config, wordSearchCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Tamanho da Grade:</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Tamanho da Grade:</label>
                       <select
                         value={config.wordSearchGridSize}
                         onChange={e => setConfig({ ...config, wordSearchGridSize: parseInt(e.target.value) as any })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       >
                         <option value={15}>15 x 15 (Padrão Equilibrado)</option>
                         <option value={18}>18 x 18 (Médio Desafiador)</option>
@@ -813,8 +972,8 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   </div>
 
                   {/* Temas selecionáveis no idioma corrente */}
-                  <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 8 }}>
-                    Temas Disponíveis em {config.language === 'en' ? 'Inglês' : (config.language === 'es' ? 'Espanhol' : 'Português')}:
+                  <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 8, fontWeight: 700 }}>
+                    Temas Selecionados ({config.language === 'en' ? 'Inglês' : (config.language === 'es' ? 'Espanhol' : 'Português')}):
                   </label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {(WORD_THEMES_BY_LANG[config.language] || WORD_THEMES_BY_LANG.pt).map(theme => {
@@ -829,13 +988,13 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                             setConfig({ ...config, wordSearchThemes: updated });
                           }}
                           style={{
-                            background: isSelected ? 'rgba(16, 185, 129, 0.2)' : '#0f172a',
-                            color: isSelected ? '#34d399' : '#64748b',
-                            border: isSelected ? '1px solid #10b981' : '1px solid #334155',
+                            background: isSelected ? '#ecfdf5' : '#f8fafc',
+                            color: isSelected ? '#059669' : '#64748b',
+                            border: isSelected ? '1px solid #10b981' : '1px solid #cbd5e1',
                             padding: '4px 10px',
                             borderRadius: 6,
                             fontSize: 12,
-                            fontWeight: 600,
+                            fontWeight: 700,
                             cursor: 'pointer'
                           }}
                         >
@@ -847,30 +1006,38 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 </div>
 
                 {/* 3. Labirintos Controls */}
-                <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: 22,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+                }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                    <Layers size={18} color="#f59e0b" />
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Labirintos (Resolução Vetorial DFS)</h3>
+                    <Layers size={20} color="#d97706" />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+                      Labirintos (Resolução Vetorial DFS)
+                    </h3>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Quantidade de Labirintos:</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Quantidade de Labirintos:</label>
                       <input
                         type="number"
                         min="0"
                         max="200"
                         value={config.mazeCount}
                         onChange={e => setConfig({ ...config, mazeCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Nível de Complexidade:</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Nível de Complexidade:</label>
                       <select
                         value={config.mazeDifficulty}
                         onChange={e => setConfig({ ...config, mazeDifficulty: e.target.value as any })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       >
                         <option value="facil">Fácil (Grade 13x13)</option>
                         <option value="medio">Médio (Grade 17x17)</option>
@@ -881,19 +1048,27 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 </div>
 
                 {/* 4. Diagramação do Layout */}
-                <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: 22,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+                }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                    <Sliders size={18} color="#c084fc" />
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Diagramação & Distribuição nas Páginas</h3>
+                    <Sliders size={20} color="#7c3aed" />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+                      Diagramação & Distribuição nas Páginas
+                    </h3>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Puzzles por Página:</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Puzzles por Página:</label>
                       <select
                         value={config.puzzlesPerPage}
                         onChange={e => setConfig({ ...config, puzzlesPerPage: parseInt(e.target.value) as PuzzlesPerPage })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       >
                         <option value={1}>1 por página (Letras Grandes / Máxima Legibilidade)</option>
                         <option value={2}>2 por página (Mais Econômico e Equilibrado)</option>
@@ -901,11 +1076,11 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       </select>
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4 }}>Soluções / Gabarito por Página:</label>
+                      <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4, fontWeight: 700 }}>Soluções / Gabarito por Página:</label>
                       <select
                         value={config.solutionsPerPage}
                         onChange={e => setConfig({ ...config, solutionsPerPage: parseInt(e.target.value) as SolutionsPerPage })}
-                        style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 14 }}
+                        style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', color: '#0f172a', fontSize: 14 }}
                       >
                         <option value={4}>4 por página</option>
                         <option value={6}>6 por página (Recomendado KDP)</option>
@@ -920,56 +1095,56 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               {/* RESUMO EM TEMPO REAL */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{
-                  background: '#131b2e',
-                  border: isKdpCompliant ? '1px solid #10b981' : '1px solid #f59e0b',
-                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: isKdpCompliant ? '2px solid #10b981' : '2px solid #f59e0b',
+                  borderRadius: 14,
                   padding: 22,
-                  boxShadow: isKdpCompliant ? '0 4px 20px rgba(16, 185, 129, 0.12)' : 'none'
+                  boxShadow: isKdpCompliant ? '0 4px 16px rgba(16, 185, 129, 0.12)' : 'none'
                 }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 800 }}>
+                  <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 900, color: '#0f172a' }}>
                     Auditoria KDP em Tempo Real
                   </h3>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ color: '#94a3b8' }}>Total de Puzzles:</span>
-                      <strong style={{ color: '#ffffff' }}>{totalPuzzles}</strong>
+                      <span style={{ color: '#64748b' }}>Total de Puzzles:</span>
+                      <strong style={{ color: '#0f172a' }}>{totalPuzzles}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ color: '#94a3b8' }}>Páginas de Puzzles:</span>
-                      <strong style={{ color: '#ffffff' }}>{Math.ceil(totalPuzzles / config.puzzlesPerPage)}</strong>
+                      <span style={{ color: '#64748b' }}>Páginas de Puzzles:</span>
+                      <strong style={{ color: '#0f172a' }}>{Math.ceil(totalPuzzles / config.puzzlesPerPage)}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ color: '#94a3b8' }}>Páginas de Soluções:</span>
-                      <strong style={{ color: '#ffffff' }}>{Math.ceil(totalPuzzles / config.solutionsPerPage)}</strong>
+                      <span style={{ color: '#64748b' }}>Páginas de Soluções:</span>
+                      <strong style={{ color: '#0f172a' }}>{Math.ceil(totalPuzzles / config.solutionsPerPage)}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ color: '#94a3b8' }}>Folha de Rosto & Regras:</span>
-                      <strong style={{ color: '#ffffff' }}>2 págs</strong>
+                      <span style={{ color: '#64748b' }}>Folha de Rosto & Regras:</span>
+                      <strong style={{ color: '#0f172a' }}>2 págs</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ color: '#94a3b8' }}>Divisória de Gabarito:</span>
-                      <strong style={{ color: '#ffffff' }}>1 pág</strong>
+                      <span style={{ color: '#64748b' }}>Divisória de Gabarito:</span>
+                      <strong style={{ color: '#0f172a' }}>1 pág</strong>
                     </div>
 
-                    <div style={{ height: 1, background: '#334155', margin: '4px 0' }} />
+                    <div style={{ height: 1, background: '#e2e8f0', margin: '4px 0' }} />
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16 }}>
-                      <span style={{ fontWeight: 800 }}>Total Final Estimado:</span>
-                      <strong style={{ color: '#38bdf8', fontSize: 18 }}>{estimatedPages} págs</strong>
+                      <span style={{ fontWeight: 800, color: '#0f172a' }}>Total Final do Livro:</span>
+                      <strong style={{ color: '#0284c7', fontSize: 19 }}>{estimatedPages} págs</strong>
                     </div>
                   </div>
 
                   {isKdpCompliant ? (
                     <div style={{
-                      background: 'rgba(16, 185, 129, 0.15)',
+                      background: '#ecfdf5',
                       border: '1px solid #10b981',
                       borderRadius: 8,
                       padding: '10px 14px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
-                      color: '#34d399',
+                      color: '#059669',
                       fontSize: 12,
                       fontWeight: 700
                     }}>
@@ -978,14 +1153,14 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     </div>
                   ) : (
                     <div style={{
-                      background: 'rgba(245, 158, 11, 0.15)',
+                      background: '#fffbeb',
                       border: '1px solid #f59e0b',
                       borderRadius: 8,
                       padding: '10px 14px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
-                      color: '#fcd34d',
+                      color: '#b45309',
                       fontSize: 12,
                       fontWeight: 700
                     }}>
@@ -1002,9 +1177,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               <button
                 onClick={() => setCurrentStep(1)}
                 style={{
-                  background: 'transparent',
-                  color: '#cbd5e1',
-                  border: '1px solid #334155',
+                  background: '#ffffff',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
                   padding: '12px 20px',
                   fontSize: 14,
@@ -1015,7 +1190,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   gap: 6
                 }}
               >
-                <ArrowLeft size={16} /> Voltar
+                <ArrowLeft size={16} /> Voltar ao Formato
               </button>
 
               <button
@@ -1024,7 +1199,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   background: 'linear-gradient(135deg, #0284c7, #0369a1)',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   padding: '12px 24px',
                   fontSize: 14,
                   fontWeight: 800,
@@ -1032,7 +1207,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)'
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
                 }}
               >
                 Avançar para Capa Bestseller com IA <ArrowRight size={16} />
@@ -1047,10 +1222,10 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
         {currentStep === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>
+              <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 6px', color: '#0f172a' }}>
                 Passo 3: Capa Bestseller Amazon KDP & Geração com IA (Replicate)
               </h2>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
                 Layout profissional inspirado nos maiores best-sellers da Amazon com tipografia hierárquica, efeito de livro aberto 3D e renderização via Replicate.
               </p>
             </div>
@@ -1061,24 +1236,24 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
                 {/* 1. REFERÊNCIA BESTSELLER AMAZON (KDP TOP RANKED) */}
                 <div style={{
-                  background: 'linear-gradient(145deg, #131b2e 0%, #0f172a 100%)',
-                  border: '1px solid #1e293b',
-                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
                   padding: 18,
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Star size={18} color="#fbbf24" fill="#fbbf24" />
-                      <strong style={{ fontSize: 14, color: '#ffffff' }}>Referência Bestseller Amazon (Segmento KDP):</strong>
+                      <Star size={18} color="#d97706" fill="#f59e0b" />
+                      <strong style={{ fontSize: 14, color: '#0f172a' }}>Referência Bestseller Amazon:</strong>
                     </div>
-                    <span style={{ fontSize: 11, background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', border: '1px solid #d97706', padding: '2px 8px', borderRadius: 4, fontWeight: 800 }}>
+                    <span style={{ fontSize: 11, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: 4, fontWeight: 800 }}>
                       KDP Top Ranked
                     </span>
                   </div>
 
-                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 12px', lineHeight: 1.4 }}>
-                    Selecione o best-seller do mesmo nicho para absorver a identidade visual de sucesso, paleta cromática, prompt editorial de IA e palavras-chave ranqueadas na Amazon:
+                  <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px', lineHeight: 1.4 }}>
+                    Selecione o best-seller do mesmo nicho para absorver a identidade visual de sucesso, paleta cromática e prompt editorial de IA:
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1089,8 +1264,8 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                           key={bs.id}
                           onClick={() => handleSelectBestseller(bs)}
                           style={{
-                            background: isSelected ? 'rgba(56, 189, 248, 0.12)' : '#0b1120',
-                            border: isSelected ? '2px solid #38bdf8' : '1px solid #1e293b',
+                            background: isSelected ? '#f0f9ff' : '#f8fafc',
+                            border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
                             borderRadius: 8,
                             padding: '10px 12px',
                             cursor: 'pointer',
@@ -1110,7 +1285,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                               }}>
                                 {bs.badge}
                               </span>
-                              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>ASIN: {bs.asin}</span>
+                              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>ASIN: {bs.asin}</span>
                             </div>
                             <div style={{ display: 'flex', gap: 3 }}>
                               <span style={{ width: 12, height: 12, borderRadius: '50%', background: bs.palettePrimary, display: 'inline-block' }} />
@@ -1119,17 +1294,17 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                             </div>
                           </div>
 
-                          <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff', marginBottom: 2 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 2 }}>
                             {bs.title}
                           </div>
-                          <div style={{ fontSize: 11, color: '#cbd5e1', lineHeight: 1.3 }}>
+                          <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.3 }}>
                             {bs.subtitle}
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, fontSize: 11, color: '#fbbf24' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, fontSize: 11, color: '#d97706' }}>
                             <span>★ {bs.rating} ({bs.reviewsCount.toLocaleString()} avaliações)</span>
-                            <span style={{ color: '#64748b' }}>•</span>
-                            <span style={{ color: '#94a3b8' }}>Estilo: {bs.coverVisualTheme}</span>
+                            <span style={{ color: '#cbd5e1' }}>•</span>
+                            <span style={{ color: '#64748b' }}>Estilo: {bs.coverVisualTheme}</span>
                           </div>
                         </div>
                       );
@@ -1139,392 +1314,251 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
                 {/* 2. PALAVRAS-CHAVE DO BESTSELLER PARA O KDP */}
                 <div style={{
-                  background: '#131b2e',
-                  border: '1px solid #1e293b',
-                  borderRadius: 12,
-                  padding: 16
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: 16,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <FileText size={16} color="#34d399" />
-                      <strong style={{ fontSize: 13, color: '#ffffff' }}>Palavras-Chave de Alta Conversão (Amazon SEO):</strong>
+                      <FileText size={16} color="#059669" />
+                      <strong style={{ fontSize: 13, color: '#0f172a' }}>Palavras-Chave de Alta Conversão (Amazon SEO):</strong>
                     </div>
                     <button
                       onClick={handleCopyKeywords}
                       style={{
-                        background: copiedKeywords ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.15)',
-                        color: copiedKeywords ? '#34d399' : '#38bdf8',
-                        border: copiedKeywords ? '1px solid #10b981' : '1px solid #0284c7',
+                        background: copiedKeywords ? '#ecfdf5' : '#f8fafc',
+                        color: copiedKeywords ? '#059669' : '#475569',
+                        border: copiedKeywords ? '1px solid #10b981' : '1px solid #cbd5e1',
                         borderRadius: 6,
-                        padding: '4px 10px',
+                        padding: '4px 8px',
                         fontSize: 11,
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 5,
-                        transition: 'all 0.2s'
+                        gap: 4
                       }}
                     >
-                      {copiedKeywords ? <CheckCheck size={13} /> : <Copy size={13} />}
-                      {copiedKeywords ? 'Palavras Copiadas!' : 'Copiar Palavras-Chave'}
+                      {copiedKeywords ? <CheckCheck size={12} /> : <Copy size={12} />}
+                      {copiedKeywords ? 'Copiado!' : 'Copiar'}
                     </button>
                   </div>
 
-                  <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 10px' }}>
-                    Palavras-chave extraídas dos termos de busca reais do bestseller para indexação direta no cadastro da Amazon KDP:
-                  </p>
-
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {selectedBestseller.keywords.map(kw => (
-                      <span
-                        key={kw}
-                        style={{
-                          background: '#0b1120',
-                          border: '1px solid #334155',
-                          borderRadius: 4,
-                          padding: '3px 8px',
-                          fontSize: 11,
-                          color: '#e2e8f0',
-                          fontWeight: 600
-                        }}
-                      >
-                        #{kw}
+                    {selectedBestseller.keywords.map((kw, i) => (
+                      <span key={i} style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                        {kw}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                {/* 3. MÓDULO REPLICATE AI COM BOTÃO DE GERAR OUTRA CAPA & HISTÓRICO */}
+                {/* 3. GERADOR DE ARTE VIA REPLICATE */}
                 <div style={{
-                  background: 'linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%)',
-                  border: '2px solid #818cf8',
-                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
                   padding: 18,
-                  boxShadow: '0 4px 18px rgba(129, 140, 248, 0.2)'
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Wand2 size={18} color="#818cf8" />
-                      <strong style={{ fontSize: 14, color: '#ffffff' }}>Arte de Fundo com IA (Replicate):</strong>
-                    </div>
-                    <span style={{ fontSize: 11, background: '#4338ca', color: '#c7d2fe', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                      FLUX.1 Schnell
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <Sparkles size={18} color="#0284c7" />
+                    <strong style={{ fontSize: 14, color: '#0f172a' }}>Arte da Capa com IA (Replicate):</strong>
                   </div>
 
-                  <p style={{ fontSize: 12, color: '#c7d2fe', margin: '0 0 10px', lineHeight: 1.4 }}>
-                    Gera renderização fotográfica 3D realista de livro aberto com lápis e iluminação de estúdio limpa, perfeitamente alinhada com as margens seguras KDP.
-                  </p>
-
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
-                        Prompt Editorial da IA:
-                      </label>
-                      <button
-                        onClick={() => setAiPromptCustom(selectedBestseller.replicatePrompt)}
-                        style={{
-                          background: 'transparent',
-                          color: '#818cf8',
-                          border: 'none',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textDecoration: 'underline'
-                        }}
-                      >
-                        Restaurar Prompt do Bestseller
-                      </button>
-                    </div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                      Prompt Editorial Personalizado:
+                    </label>
                     <textarea
                       rows={3}
                       value={aiPromptCustom}
                       onChange={e => setAiPromptCustom(e.target.value)}
-                      style={{ width: '100%', background: '#0f172a', border: '1px solid #4338ca', borderRadius: 6, padding: '8px 10px', color: '#fff', fontSize: 11, resize: 'vertical' }}
+                      style={{
+                        width: '100%',
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 8,
+                        padding: '8px 10px',
+                        color: '#0f172a',
+                        fontSize: 12,
+                        lineHeight: 1.4,
+                        resize: 'vertical',
+                        outline: 'none'
+                      }}
                     />
                   </div>
 
-                  {/* BOTÕES DE GERAÇÃO: GERAR ARTE OU GERAR OUTRA CAPA */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
                       onClick={handleGenerateReplicateCover}
                       disabled={isGeneratingAiCover}
                       style={{
-                        width: '100%',
-                        background: isGeneratingAiCover
-                          ? '#4338ca'
-                          : (coverHistory.length > 0
-                            ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                            : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'),
+                        background: isGeneratingAiCover ? '#94a3b8' : 'linear-gradient(135deg, #0284c7, #0369a1)',
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: 8,
-                        padding: '12px 18px',
+                        padding: '9px 16px',
                         fontSize: 13,
-                        fontWeight: 800,
-                        cursor: isGeneratingAiCover ? 'wait' : 'pointer',
+                        fontWeight: 700,
+                        cursor: isGeneratingAiCover ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        boxShadow: coverHistory.length > 0
-                          ? '0 4px 14px rgba(16, 185, 129, 0.4)'
-                          : '0 4px 14px rgba(99, 102, 241, 0.4)',
-                        transition: 'all 0.2s'
+                        gap: 6
                       }}
                     >
-                      {isGeneratingAiCover ? (
-                        <>
-                          <RefreshCw size={16} className="animate-spin" />
-                          <span>Gerando Arte no Replicate FLUX (aguarde)...</span>
-                        </>
-                      ) : (
-                        coverHistory.length > 0 ? (
-                          <>
-                            <RefreshCw size={16} />
-                            <span>🔄 Gerar Outra Capa (Nova Variação com IA)</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={16} />
-                            <span>✨ Gerar Arte de Capa com Replicate</span>
-                          </>
-                        )
-                      )}
+                      <Wand2 size={14} />
+                      {isGeneratingAiCover ? 'Gerando com Replicate...' : 'Gerar Arte com Replicate'}
                     </button>
 
-                    {/* Botão de apoio para alternar ou remover arte */}
                     {config.coverIllustrationUrl && (
                       <button
                         onClick={handleRemoveCoverArt}
                         style={{
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          color: '#cbd5e1',
-                          border: '1px solid #334155',
-                          borderRadius: 6,
-                          padding: '6px 12px',
-                          fontSize: 11,
-                          fontWeight: 600,
+                          background: '#fee2e2',
+                          color: '#b91c1c',
+                          border: '1px solid #fca5a5',
+                          borderRadius: 8,
+                          padding: '9px 12px',
+                          fontSize: 12,
+                          fontWeight: 700,
                           cursor: 'pointer'
                         }}
                       >
-                        🎨 Usar Apenas Layout Vetorial Puro (Sem Imagem IA)
+                        Remover Arte
                       </button>
                     )}
                   </div>
 
                   {aiError && (
-                    <div style={{ marginTop: 8, fontSize: 11, color: '#fca5a5' }}>
+                    <div style={{ marginTop: 10, background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 10px', color: '#b91c1c', fontSize: 11 }}>
                       {aiError}
                     </div>
                   )}
 
-                  {/* HISTÓRICO DE VARIAÇÕES DE CAPAS GERADAS */}
+                  {/* Histórico de Capas */}
                   {coverHistory.length > 0 && (
-                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #312e81' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#e0e7ff' }}>
-                          Galeria de Variações ({coverHistory.length} geradas):
-                        </span>
-                        <span style={{ fontSize: 10, color: '#a5b4fc' }}>
-                          Clique para alternar a capa
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
-                        {coverHistory.map((item, idx) => {
-                          const isCurrent = config.coverIllustrationUrl === item.url;
-                          const variationNumber = coverHistory.length - idx;
-                          return (
-                            <div
-                              key={item.id}
-                              onClick={() => handleSelectHistoryCover(item)}
+                    <div style={{ marginTop: 14 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>
+                        Variações Geradas ({coverHistory.length}):
+                      </span>
+                      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                        {coverHistory.map(item => (
+                          <div
+                            key={item.id}
+                            onClick={() => handleSelectHistoryCover(item)}
+                            style={{
+                              position: 'relative',
+                              width: 54,
+                              height: 72,
+                              borderRadius: 6,
+                              overflow: 'hidden',
+                              border: activeCoverHistoryId === item.id ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                          >
+                            <img src={item.url} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <button
+                              onClick={e => handleDeleteHistoryCover(item.id, e)}
                               style={{
-                                position: 'relative',
-                                minWidth: 90,
-                                width: 90,
-                                height: 115,
-                                borderRadius: 8,
-                                overflow: 'hidden',
-                                border: isCurrent ? '2px solid #38bdf8' : '1px solid #4338ca',
-                                boxShadow: isCurrent ? '0 0 12px rgba(56, 189, 248, 0.5)' : 'none',
-                                cursor: 'pointer',
-                                background: '#0b1120',
-                                flexShrink: 0
+                                position: 'absolute',
+                                top: 2,
+                                right: 2,
+                                background: 'rgba(0,0,0,0.6)',
+                                border: 'none',
+                                borderRadius: 4,
+                                color: '#fff',
+                                padding: 2,
+                                cursor: 'pointer'
                               }}
                             >
-                              <img
-                                src={item.url}
-                                alt={`Variação ${variationNumber}`}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              />
-                              <div style={{
-                                position: 'absolute',
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                background: 'rgba(0, 0, 0, 0.75)',
-                                padding: '2px 4px',
-                                fontSize: 9,
-                                fontWeight: 700,
-                                color: '#ffffff',
-                                textAlign: 'center'
-                              }}>
-                                {isCurrent ? '✓ Ativa' : `Var. #${variationNumber}`}
-                              </div>
-
-                              <button
-                                onClick={(e) => handleDeleteHistoryCover(item.id, e)}
-                                title="Excluir variação"
-                                style={{
-                                  position: 'absolute',
-                                  top: 3,
-                                  right: 3,
-                                  background: 'rgba(239, 68, 68, 0.85)',
-                                  border: 'none',
-                                  borderRadius: 4,
-                                  width: 18,
-                                  height: 18,
-                                  color: '#fff',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  cursor: 'pointer',
-                                  padding: 0
-                                }}
-                              >
-                                <Trash2 size={10} />
-                              </button>
-                            </div>
-                          );
-                        })}
+                              <Trash2 size={10} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* 4. ESTILOS DE COR BESTSELLER AMAZON */}
-                <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 12 }}>
-                    Estilos Cromáticos Bestseller Amazon:
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {PRESET_COVER_STYLES.map(style => {
-                      const isSelected = config.coverPrimaryColor === style.palettePrimary;
-                      return (
-                        <div
-                          key={style.id}
-                          onClick={() => setConfig({
-                            ...config,
-                            coverPrimaryColor: style.palettePrimary,
-                            coverSecondaryColor: style.paletteSecondary,
-                            coverAccentColor: style.paletteAccent
-                          })}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '8px 12px',
-                            borderRadius: 8,
-                            background: isSelected ? 'rgba(56, 189, 248, 0.12)' : '#0f172a',
-                            border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#ffffff' }}>{style.name}</span>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: style.palettePrimary }} />
-                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: style.paletteSecondary }} />
-                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: style.paletteAccent }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 5. TIPOGRAFIA HIERÁRQUICA DA CAPA (PROTEÇÃO ANTI-ESTOURO) */}
-                <div style={{ background: '#131b2e', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                    <ShieldCheck size={16} color="#38bdf8" />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1' }}>
+                {/* 4. TIPOGRAFIA HIERÁRQUICA */}
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: 16,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <ShieldCheck size={16} color="#0284c7" />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
                       Tipografia Hierárquica da Capa (Anti-Estouro KDP):
                     </span>
                   </div>
 
                   <div style={{ marginBottom: 10 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Badge Superior de Novidade (ex: NEW 2026 / NOVO 2026):
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                      Badge Superior de Novidade:
                     </label>
                     <input
                       type="text"
                       value={config.yearBadge || ''}
                       onChange={e => setConfig({ ...config, yearBadge: e.target.value })}
-                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 12 }}
+                      style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '7px 10px', color: '#0f172a', fontSize: 12 }}
                     />
                   </div>
 
                   <div style={{ marginBottom: 10 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Número Hero em Destaque (ex: 10,000 / 100+):
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                      Número Hero em Destaque:
                     </label>
                     <input
                       type="text"
                       value={config.heroCountText || ''}
                       onChange={e => setConfig({ ...config, heroCountText: e.target.value })}
-                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 12 }}
+                      style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '7px 10px', color: '#0f172a', fontSize: 12 }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                      Banner Central Estilizado (Faixa Azul):
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                      Banner Central Estilizado:
                     </label>
                     <input
                       type="text"
                       value={config.bannerTagText || ''}
                       onChange={e => setConfig({ ...config, bannerTagText: e.target.value })}
-                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '7px 10px', color: '#fff', fontSize: 12 }}
+                      style={{ width: '100%', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '7px 10px', color: '#0f172a', fontSize: 12 }}
                     />
-                  </div>
-
-                  <div style={{
-                    marginTop: 12,
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    background: 'rgba(56, 189, 248, 0.08)',
-                    border: '1px solid rgba(56, 189, 248, 0.2)',
-                    fontSize: 11,
-                    color: '#93c5fd',
-                    lineHeight: 1.4
-                  }}>
-                    🛡️ <strong>Algoritmo Anti-Estouro Ativo:</strong> Todo texto é auto-escalonado matematicamente dentro da Safe Zone KDP. Zero corte nas bordas e zero vazamento na lombada.
                   </div>
                 </div>
               </div>
 
               {/* PREVIEW EM CANVAS DA CAPA ABERTA */}
               <div style={{
-                background: '#131b2e',
-                border: '1px solid #1e293b',
-                borderRadius: 12,
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 14,
                 padding: 20,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 12
+                gap: 12,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#cbd5e1' }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
                     Pré-visualização da Capa Aberta Oficial KDP:
                   </span>
 
                   <button
                     onClick={() => setShowCoverGuides(!showCoverGuides)}
                     style={{
-                      background: showCoverGuides ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                      color: showCoverGuides ? '#f87171' : '#cbd5e1',
-                      border: showCoverGuides ? '1px solid #ef4444' : '1px solid #334155',
+                      background: showCoverGuides ? '#fee2e2' : '#f8fafc',
+                      color: showCoverGuides ? '#b91c1c' : '#475569',
+                      border: showCoverGuides ? '1px solid #fca5a5' : '1px solid #cbd5e1',
                       borderRadius: 6,
                       padding: '5px 10px',
                       fontSize: 12,
@@ -1540,10 +1574,10 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 </div>
 
                 <div style={{
-                  background: '#0a0e17',
-                  border: '1px solid #1f2937',
-                  borderRadius: 8,
-                  padding: 10,
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 10,
+                  padding: 12,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1556,30 +1590,30 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                       maxHeight: 480,
                       objectFit: 'contain',
                       borderRadius: 4,
-                      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)'
+                      boxShadow: '0 6px 20px rgba(0, 0, 0, 0.15)'
                     }}
                   />
                 </div>
 
                 {/* Legenda das Guias */}
                 {showCoverGuides && (
-                  <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#94a3b8' }}>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#64748b' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ width: 10, height: 10, background: '#ef4444', display: 'inline-block', borderRadius: 2 }} /> Sangria de Corte (0.125")
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ width: 10, height: 10, background: '#38bdf8', display: 'inline-block', borderRadius: 2 }} /> Dobras da Lombada
+                      <span style={{ width: 10, height: 10, background: '#0284c7', display: 'inline-block', borderRadius: 2 }} /> Dobras da Lombada
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ width: 10, height: 10, background: '#ffffff', display: 'inline-block', borderRadius: 2 }} /> Reserva Código de Barras KDP (2"x1.2")
+                      <span style={{ width: 10, height: 10, background: '#475569', display: 'inline-block', borderRadius: 2 }} /> Código de Barras KDP
                     </span>
                   </div>
                 )}
 
                 {/* Métricas Milimétricas Oficiais KDP */}
                 <div style={{
-                  background: '#0f172a',
-                  border: '1px solid #1e293b',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
                   borderRadius: 8,
                   padding: '12px 14px',
                   display: 'grid',
@@ -1589,23 +1623,23 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                 }}>
                   <div>
                     <span style={{ color: '#64748b', display: 'block', marginBottom: 2 }}>Formato Fechado:</span>
-                    <strong style={{ color: '#ffffff', fontSize: 12 }}>{config.trimSize}</strong>
+                    <strong style={{ color: '#0f172a', fontSize: 12 }}>{config.trimSize}</strong>
                   </div>
                   <div>
                     <span style={{ color: '#64748b', display: 'block', marginBottom: 2 }}>Capa Aberta KDP:</span>
-                    <strong style={{ color: '#38bdf8', fontSize: 12 }}>
+                    <strong style={{ color: '#0284c7', fontSize: 12 }}>
                       {PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).totalWidth.toFixed(2)}" x {PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).totalHeight.toFixed(2)}"
                     </strong>
                   </div>
                   <div>
                     <span style={{ color: '#64748b', display: 'block', marginBottom: 2 }}>Lombada (Spine):</span>
-                    <strong style={{ color: '#fbbf24', fontSize: 12 }}>
-                      {PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).spineWidth.toFixed(3)}" ({ (PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).spineWidth * 25.4).toFixed(1) }mm)
+                    <strong style={{ color: '#d97706', fontSize: 12 }}>
+                      {PuzzleCoverBuilder.calculateCoverSpecs(config, estimatedPages).spineWidth.toFixed(3)}"
                     </strong>
                   </div>
                   <div>
                     <span style={{ color: '#64748b', display: 'block', marginBottom: 2 }}>Status KDP:</span>
-                    <strong style={{ color: '#34d399', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <strong style={{ color: '#059669', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <CheckCircle2 size={13} /> 100% Conforme
                     </strong>
                   </div>
@@ -1618,9 +1652,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               <button
                 onClick={() => setCurrentStep(2)}
                 style={{
-                  background: 'transparent',
-                  color: '#cbd5e1',
-                  border: '1px solid #334155',
+                  background: '#ffffff',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
                   padding: '12px 20px',
                   fontSize: 14,
@@ -1640,7 +1674,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   background: 'linear-gradient(135deg, #0284c7, #0369a1)',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   padding: '12px 24px',
                   fontSize: 14,
                   fontWeight: 800,
@@ -1648,7 +1682,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)'
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
                 }}
               >
                 Avançar para Compilação Final <ArrowRight size={16} />
@@ -1658,50 +1692,51 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
         )}
 
         {/* ======================================================== */}
-        {/* PASSO 4: COMPILAÇÃO E DOWNLOADS */}
+        {/* PASSO 4: COMPILAÇÃO E DOWNLOADS COM VISUALIZADOR */}
         {/* ======================================================== */}
         {currentStep === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>
+              <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 6px', color: '#0f172a' }}>
                 Passo 4: Compilação & Download dos Arquivos KDP
               </h2>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
                 Gere o Miolo em PDF vetorial 300 DPI, a Capa Aberta calculada com IA e o Pacote Completo no idioma {config.language.toUpperCase()}.
               </p>
             </div>
 
             {!compilationResult && !isCompiling && (
               <div style={{
-                background: '#131b2e',
-                border: '1px solid #1e293b',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
                 borderRadius: 14,
                 padding: '36px 24px',
                 textAlign: 'center',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: 16
+                gap: 16,
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)'
               }}>
                 <div style={{
-                  width: 60,
-                  height: 60,
+                  width: 64,
+                  height: 64,
                   borderRadius: 16,
                   background: 'linear-gradient(135deg, #0284c7, #0369a1)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 6px 20px rgba(2, 132, 199, 0.4)'
+                  boxShadow: '0 6px 20px rgba(2, 132, 199, 0.3)'
                 }}>
-                  <Sparkles size={32} color="#ffffff" />
+                  <Sparkles size={34} color="#ffffff" />
                 </div>
 
-                <div style={{ maxWidth: 540 }}>
-                  <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 800 }}>
+                <div style={{ maxWidth: 580 }}>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 21, fontWeight: 900, color: '#0f172a' }}>
                     Pronto para Compilar seu Livro KDP ({config.language.toUpperCase()})!
                   </h3>
-                  <p style={{ margin: 0, color: '#94a3b8', fontSize: 14, lineHeight: 1.5 }}>
-                    O motor processará {totalPuzzles} puzzles no idioma selecionado, montará as soluções cruzadas com Gutter KDP e gerará a capa aberta com acabamento de best-seller.
+                  <p style={{ margin: 0, color: '#64748b', fontSize: 14, lineHeight: 1.5 }}>
+                    O motor processará {totalPuzzles} puzzles no idioma {config.language.toUpperCase()}, formatará as soluções cruzadas com Gutter KDP e montará o pacote pronto para publicação direta.
                   </p>
                 </div>
 
@@ -1712,101 +1747,105 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: 10,
-                    padding: '14px 32px',
+                    padding: '14px 34px',
                     fontSize: 16,
                     fontWeight: 900,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
-                    boxShadow: '0 6px 24px rgba(16, 185, 129, 0.4)'
+                    boxShadow: '0 6px 20px rgba(16, 185, 129, 0.35)'
                   }}
                 >
-                  <Sparkles size={18} /> Iniciar Compilação do Livro
+                  <Sparkles size={18} /> Iniciar Compilação do Livro (Miolo + Capa)
                 </button>
               </div>
             )}
 
             {isCompiling && (
               <div style={{
-                background: '#131b2e',
-                border: '1px solid #0284c7',
+                background: '#ffffff',
+                border: '2px solid #0284c7',
                 borderRadius: 14,
                 padding: '36px 24px',
                 textAlign: 'center',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: 20
+                gap: 20,
+                boxShadow: '0 6px 24px rgba(2, 132, 199, 0.15)'
               }}>
-                <RefreshCw size={36} color="#38bdf8" className="animate-spin" />
+                <RefreshCw size={38} color="#0284c7" className="animate-spin" />
                 <div>
-                  <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, color: '#ffffff' }}>
+                  <h3 style={{ margin: '0 0 6px', fontSize: 19, fontWeight: 900, color: '#0f172a' }}>
                     Compilando Livro de Passatempos ({config.language.toUpperCase()})...
                   </h3>
-                  <span style={{ fontSize: 14, color: '#38bdf8', fontWeight: 600 }}>
+                  <span style={{ fontSize: 15, color: '#0284c7', fontWeight: 700 }}>
                     {compilationStatus}
                   </span>
                 </div>
 
-                <div style={{ width: '100%', maxWidth: 480, height: 10, background: '#1e293b', borderRadius: 999, overflow: 'hidden' }}>
+                <div style={{ width: '100%', maxWidth: 500, height: 12, background: '#f1f5f9', borderRadius: 999, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
                   <div style={{
                     width: `${compilationProgress}%`,
                     height: '100%',
                     background: 'linear-gradient(90deg, #0284c7, #38bdf8)',
                     borderRadius: 999,
-                    transition: 'width 0.2s ease'
+                    transition: 'width 0.25s ease'
                   }} />
                 </div>
-                <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 700 }}>
-                  {compilationProgress}% Concluído
+                <span style={{ fontSize: 14, color: '#475569', fontWeight: 800 }}>
+                  {compilationProgress}% Concluído • Processando algoritmo KDP
                 </span>
               </div>
             )}
 
             {compilationError && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.15)',
+                background: '#fee2e2',
                 border: '1px solid #ef4444',
                 borderRadius: 10,
                 padding: '16px 20px',
-                color: '#fca5a5',
+                color: '#b91c1c',
                 fontSize: 14
               }}>
-                <strong>Erro:</strong> {compilationError}
+                <strong>Erro na compilação:</strong> {compilationError}
               </div>
             )}
 
             {compilationResult && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Banner de Sucesso */}
                 <div style={{
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 78, 59, 0.3) 100%)',
-                  border: '1px solid #10b981',
+                  background: '#ecfdf5',
+                  border: '1.5px solid #10b981',
                   borderRadius: 14,
                   padding: '24px 28px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   flexWrap: 'wrap',
-                  gap: 16
+                  gap: 16,
+                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 12,
+                      width: 50,
+                      height: 50,
+                      borderRadius: 14,
                       background: '#10b981',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
                     }}>
-                      <CheckCircle2 size={28} color="#ffffff" />
+                      <CheckCircle2 size={30} color="#ffffff" />
                     </div>
                     <div>
-                      <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 900, color: '#ffffff' }}>
+                      <h3 style={{ margin: '0 0 4px', fontSize: 19, fontWeight: 900, color: '#065f46' }}>
                         Livro Pronto para Publicação Direta na Amazon KDP!
                       </h3>
-                      <span style={{ fontSize: 13, color: '#a7f3d0' }}>
+                      <span style={{ fontSize: 13, color: '#047857', fontWeight: 600 }}>
                         Idioma: {config.language.toUpperCase()} • {compilationResult.pageCount} páginas • Lombada: {compilationResult.coverSpecs.spineWidth.toFixed(4)}" • Formato {config.trimSize}
                       </span>
                     </div>
@@ -1815,9 +1854,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   <button
                     onClick={handleStartCompilation}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      color: '#ffffff',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      background: '#ffffff',
+                      color: '#059669',
+                      border: '1px solid #10b981',
                       borderRadius: 8,
                       padding: '8px 14px',
                       fontSize: 12,
@@ -1832,24 +1871,36 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                   </button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+                {/* VISUALIZADOR DE PÁGINAS GERADAS */}
+                <PuzzlePagePreviewer
+                  config={config}
+                  puzzles={previewPuzzles}
+                  currentPage={previewPage}
+                  totalPages={compilationResult.pageCount || estimatedPages}
+                  onPageChange={setPreviewPage}
+                  showGuidesDefault={false}
+                />
+
+                {/* CARDS DE DOWNLOAD */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
                   {/* Miolo */}
                   <div style={{
-                    background: '#131b2e',
-                    border: '1px solid #1e293b',
-                    borderRadius: 12,
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 14,
                     padding: 22,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    gap: 16
+                    gap: 16,
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                   }}>
                     <div>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-                        <FileText size={20} color="#38bdf8" />
+                      <div style={{ width: 42, height: 42, borderRadius: 10, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                        <FileText size={22} color="#0284c7" />
                       </div>
-                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>Baixar Miolo ({config.language.toUpperCase()})</h4>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>
+                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>Baixar Miolo ({config.language.toUpperCase()})</h4>
+                      <p style={{ margin: 0, color: '#64748b', fontSize: 12, lineHeight: 1.5 }}>
                         Arquivo PDF com {compilationResult.pageCount} páginas, números e palavras em {config.language.toUpperCase()}, margem Gutter e gabarito final.
                       </p>
                     </div>
@@ -1861,14 +1912,15 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: 8,
-                        padding: '10px 16px',
+                        padding: '11px 16px',
                         fontSize: 13,
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 8
+                        gap: 8,
+                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)'
                       }}
                     >
                       <Download size={15} /> Baixar interior_kdp.pdf
@@ -1877,21 +1929,22 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
                   {/* Capa */}
                   <div style={{
-                    background: '#131b2e',
-                    border: '1px solid #1e293b',
-                    borderRadius: 12,
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 14,
                     padding: 22,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    gap: 16
+                    gap: 16,
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                   }}>
                     <div>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-                        <Palette size={20} color="#f59e0b" />
+                      <div style={{ width: 42, height: 42, borderRadius: 10, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                        <Palette size={22} color="#d97706" />
                       </div>
-                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>Baixar Capa Bestseller PDF</h4>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>
+                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>Baixar Capa Bestseller PDF</h4>
+                      <p style={{ margin: 0, color: '#64748b', fontSize: 12, lineHeight: 1.5 }}>
                         Capa aberta completa ({compilationResult.coverSpecs.totalWidth.toFixed(4)}" x {compilationResult.coverSpecs.totalHeight.toFixed(4)}") calculada milimetricamente para KDP.
                       </p>
                     </div>
@@ -1903,14 +1956,15 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: 8,
-                        padding: '10px 16px',
+                        padding: '11px 16px',
                         fontSize: 13,
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 8
+                        gap: 8,
+                        boxShadow: '0 2px 8px rgba(217, 119, 6, 0.25)'
                       }}
                     >
                       <Download size={15} /> Baixar cover_kdp.pdf
@@ -1919,22 +1973,22 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
 
                   {/* Pacote Completo */}
                   <div style={{
-                    background: 'linear-gradient(145deg, #131b2e 0%, #1e293b 100%)',
+                    background: '#ffffff',
                     border: '2px solid #10b981',
-                    borderRadius: 12,
+                    borderRadius: 14,
                     padding: 22,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
                     gap: 16,
-                    boxShadow: '0 4px 16px rgba(16, 185, 129, 0.2)'
+                    boxShadow: '0 4px 16px rgba(16, 185, 129, 0.15)'
                   }}>
                     <div>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-                        <Download size={20} color="#34d399" />
+                      <div style={{ width: 42, height: 42, borderRadius: 10, background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                        <Download size={22} color="#059669" />
                       </div>
-                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 900, color: '#ffffff' }}>Pacote Completo (.ZIP)</h4>
-                      <p style={{ margin: 0, color: '#cbd5e1', fontSize: 12, lineHeight: 1.5 }}>
+                      <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 900, color: '#065f46' }}>Pacote Completo (.ZIP)</h4>
+                      <p style={{ margin: 0, color: '#475569', fontSize: 12, lineHeight: 1.5 }}>
                         Contém Miolo PDF, Capa Aberta PDF, metadados KDP em JSON e arquivo TXT com instruções completas.
                       </p>
                     </div>
@@ -1946,7 +2000,7 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: 8,
-                        padding: '10px 16px',
+                        padding: '11px 16px',
                         fontSize: 13,
                         fontWeight: 900,
                         cursor: 'pointer',
@@ -1969,9 +2023,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               <button
                 onClick={() => setCurrentStep(3)}
                 style={{
-                  background: 'transparent',
-                  color: '#cbd5e1',
-                  border: '1px solid #334155',
+                  background: '#ffffff',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
                   borderRadius: 8,
                   padding: '12px 20px',
                   fontSize: 14,
@@ -1988,9 +2042,9 @@ export const PuzzleBookStudio: React.FC<Props> = ({ onBackToDashboard }) => {
               <button
                 onClick={onBackToDashboard}
                 style={{
-                  background: '#1e293b',
+                  background: '#0f172a',
                   color: '#ffffff',
-                  border: '1px solid #475569',
+                  border: 'none',
                   borderRadius: 8,
                   padding: '12px 24px',
                   fontSize: 14,
