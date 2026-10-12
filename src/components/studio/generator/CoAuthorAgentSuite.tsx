@@ -5,9 +5,9 @@ import {
   AlertCircle, ArrowRight, Zap, Award, Edit3, Trash2, Eye,
   ShieldCheck, FileText, CornerDownLeft, Compass, RotateCw,
   Wrench, HeartHandshake, Layers, BookCheck, ClipboardCheck,
-  ChevronDown, ChevronUp, Save, X
+  ChevronDown, ChevronUp, Save, X, Key, Lightbulb, UserCheck
 } from 'lucide-react';
-import { chamarGeminiTexto } from '../../../services/kdp-ai-engine';
+import { chamarGeminiTexto, getAvailableApiKeys } from '../../../services/kdp-ai-engine';
 import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrity-engine';
 import {
   orchestrateEditorialPlan,
@@ -29,7 +29,7 @@ export interface CoAuthorMessage {
   sender: 'agent' | 'user' | 'system';
   timestamp: string;
   text: string;
-  stepPrompt?: number; // 1 = premissa, 2 = elementos, 3 = formula
+  stepPrompt?: number;
   chapterPreview?: {
     numero: number;
     titulo: string;
@@ -37,6 +37,15 @@ export interface CoAuthorMessage {
     palavras: number;
     trechoFinal: string;
     textoCompleto: string;
+  };
+  alignmentCard?: {
+    titulo: string;
+    subtitulo: string;
+    tipo: CoAuthorBookType;
+    premissa: string;
+    elementos: string;
+    diretriz: string;
+    totalCaps: number;
   };
   suggestedActions?: Array<{
     label: string;
@@ -63,11 +72,12 @@ export interface CoAuthorBookState {
   };
 }
 
-// Exemplos pré-calibrados de alta conversão Amazon KDP para diferentes tipos de livro
+// Exemplos pré-calibrados de alta conversão Amazon KDP para teste e inspiração
 const EXEMPLOS_PRONTOS: Array<{
   nome: string;
   tipo: CoAuthorBookType;
   badge: string;
+  promptInicial: string;
   premissa: string;
   elementos: string;
   formula: string;
@@ -76,30 +86,34 @@ const EXEMPLOS_PRONTOS: Array<{
     nome: 'Livro Técnico: Engenharia de Prompts & IA',
     tipo: 'tecnico',
     badge: '⚙️ Técnico / Resolução de Problemas',
+    promptInicial: 'Quero escrever um livro técnico que ensina profissionais a usarem IA e engenharia de prompts para resolver problemas práticos de automação e dados, sem ficção ou floreios.',
     premissa: 'Um livro técnico e didático que ensina profissionais a resolverem problemas reais de automação, dados e fluxos de trabalho usando IA, sem jargões desnecessários.',
     elementos: 'Arquitetura de comandos estruturados, técnicas de Few-Shot e Chain-of-Thought, como evitar alucinações de dados, automação de tarefas repetitivas e resolução de erros comuns.',
     formula: 'Didática 100% direta e objetiva, sem ficção ou floreios. Cada capítulo apresenta um conceito, o passo a passo de aplicação, exemplos práticos e soluções para problemas frequentes.'
   },
   {
-    nome: 'Autoajuda & Foco: Vencendo a Distração Digital',
+    nome: 'Autoajuda: Foco Profundo contra Distração',
     tipo: 'autoajuda',
     badge: '📘 Autoajuda & Desenvolvimento',
+    promptInicial: 'Quero escrever um livro de desenvolvimento pessoal para ajudar pessoas a vencerem a distração digital, recuperando 4 horas de foco diário sem ansiedade.',
     premissa: 'Um livro de desenvolvimento pessoal focado em ajudar profissionais a vencerem a sobrecarga mental e reconquistarem 4 horas diárias de foco profundo com serenidade.',
     elementos: 'O método dos blocos de 45 minutos; rotinas matinais sem notificações; estudos de caso reais de superação; desintoxicação de dopamina rápida e checklists acionáveis.',
     formula: 'Linguagem popular, inspiradora e encorajadora. Cada capítulo traz um problema concreto do dia a dia e uma ferramenta prática aplicável nas próximas 24 horas.'
   },
   {
-    nome: 'Guia Prático: Como Sair das Dívidas em 90 Dias',
+    nome: 'Guia Prático: Sair das Dívidas em 90 Dias',
     tipo: 'pratico',
     badge: '🛠️ Guia Prático Passo a Passo',
+    promptInicial: 'Quero criar um guia prático passo a passo para pessoas que precisam sair das dívidas, renegociar com bancos e criar uma reserva de segurança em 90 dias.',
     premissa: 'Um guia prático e pragmático para diagnosticar vazamentos financeiros, negociar dívidas com credores e montar uma reserva de segurança sem fórmulas mágicas.',
     elementos: 'Planilha de diagnóstico em 3 passos; roteiro de negociação com bancos; cortes de gastos sem sofrimento; reestruturação de renda extra e plano blindado de 90 dias.',
     formula: 'Passo a passo numerado, orientações diretas ao ponto, advertências de armadilhas comuns e lista de verificação de ação imediata ao final de cada capítulo.'
   },
   {
-    nome: 'Thriller Médico & Conspiração: O Diagnóstico Oculto',
+    nome: 'Ficção & Mistério: O Diagnóstico Oculto',
     tipo: 'ficcao',
     badge: '📖 Ficção & Narrativa',
+    promptInicial: 'Quero escrever um thriller médico sobre um cirurgião que descobre mortes suspeitas causadas por uma conspiração hospitalar, no estilo Dan Brown.',
     premissa: 'Um cirurgião descobre que o novo sistema de IA do hospital prevê a morte de pacientes antes dos sintomas, e sua própria filha é a próxima na lista.',
     elementos: 'A diretora ambiciosa ocultando falhas; invasão tensa ao data center subterrâneo; uma aliada na corregedoria; reviravoltas intensas e clímax conclusivo.',
     formula: 'Capítulos dinâmicos com cliffhangers intensos no final de cada um, ritmo acelerado estilo Dan Brown, vocabulário popular e desfecho 100% definitivo.'
@@ -108,7 +122,12 @@ const EXEMPLOS_PRONTOS: Array<{
 
 // Utilitário para renderizar texto formatado sem deixar asteriscos crus de markdown
 function renderRichText(text: string): React.ReactNode {
-  const lines = text.split('\n');
+  // Limpa possíveis tags estruturais da IA que não devem ser mostradas ao leitor
+  const clean = text
+    .replace(/<<<ALINHAMENTO_CONCLUIDO>>>[\s\S]*?<<<FIM_ALINHAMENTO>>>/g, '')
+    .trim();
+
+  const lines = clean.split('\n');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {lines.map((line, lIdx) => {
@@ -116,8 +135,8 @@ function renderRichText(text: string): React.ReactNode {
           return <div key={lIdx} style={{ height: 4 }} />;
         }
 
-        const isBullet = line.trim().startsWith('•') || line.trim().startsWith('-');
-        const cleanLine = isBullet ? line.trim().replace(/^[•-]\s*/, '') : line;
+        const isBullet = line.trim().startsWith('•') || line.trim().startsWith('-') || /^\d+\.\s/.test(line.trim());
+        const cleanLine = isBullet ? line.trim().replace(/^[•-]\s*|^\d+\.\s*/, '') : line;
 
         const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
 
@@ -134,9 +153,9 @@ function renderRichText(text: string): React.ReactNode {
 
         if (isBullet) {
           return (
-            <div key={lIdx} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-              <span style={{ color: '#0284c7', fontWeight: 700 }}>•</span>
-              <span>{renderedLine}</span>
+            <div key={lIdx} style={{ display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+              <span style={{ color: '#0284c7', fontWeight: 800 }}>•</span>
+              <span style={{ flex: 1 }}>{renderedLine}</span>
             </div>
           );
         }
@@ -182,53 +201,53 @@ export const CoAuthorCard: React.FC<CoAuthorCardProps> = ({
   return (
     <div
       style={{
-        background: 'linear-gradient(145deg, #ffffff 0%, #f0f9ff 100%)',
+        background: '#ffffff',
         border: '1.5px solid #0284c7',
-        borderRadius: 10,
-        padding: 14,
+        borderRadius: 12,
+        padding: 16,
         marginBottom: 16,
         boxShadow: '0 4px 14px rgba(2, 132, 199, 0.08)',
         position: 'relative'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div
             style={{
-              width: 30,
-              height: 30,
+              width: 32,
+              height: 32,
               borderRadius: 8,
               background: 'linear-gradient(135deg, #0284c7, #0369a1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#ffffff',
-              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)'
+              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
             }}
           >
-            <Bot size={17} />
+            <Bot size={18} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
                 Agente CoAuthor KDP
               </h3>
               <span
                 style={{
                   fontSize: 9,
-                  fontWeight: 700,
-                  color: '#0369a1',
+                  fontWeight: 800,
+                  color: '#0284c7',
                   background: '#e0f2fe',
-                  padding: '2px 5px',
+                  padding: '2px 6px',
                   borderRadius: 4,
                   textTransform: 'uppercase'
                 }}
               >
-                Chat Guiado
+                Gemini AI Real
               </span>
             </div>
             <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
-              Técnico, Autoajuda, Prático ou Ficção
+              Conversa real e estruturada com IA
             </p>
           </div>
         </div>
@@ -236,20 +255,20 @@ export const CoAuthorCard: React.FC<CoAuthorCardProps> = ({
         <span
           style={{
             fontSize: 10,
-            fontWeight: 700,
+            fontWeight: 800,
             color: temBriefing ? '#059669' : '#0284c7',
             background: temBriefing ? '#ecfdf5' : '#f0f9ff',
-            padding: '2px 7px',
+            padding: '2px 8px',
             borderRadius: 12,
             border: `1px solid ${temBriefing ? '#a7f3d0' : '#bae6fd'}`
           }}
         >
-          {temBriefing ? '✓ Configurado' : '🟢 Pronto'}
+          {temBriefing ? '✓ Alinhado' : '🟢 Ativo'}
         </span>
       </div>
 
-      <p style={{ margin: '0 0 10px', fontSize: 11, color: '#334155', lineHeight: 1.4 }}>
-        O CoAuthor calibra o tom para o seu tipo de livro (sem emoção ou drama em obras técnicas, focado em resolver problemas) e coescreve com você capítulo a capítulo.
+      <p style={{ margin: '0 0 12px', fontSize: 11, color: '#334155', lineHeight: 1.45 }}>
+        O CoAuthor conversa com você via Gemini, compreende seu tema (técnico, autoajuda, guia ou ficção) sem respostas prontas e coescreve o livro com você.
       </p>
 
       {/* BOTÃO PRINCIPAL DE ENTRADA NO CHAT */}
@@ -262,13 +281,13 @@ export const CoAuthorCard: React.FC<CoAuthorCardProps> = ({
           alignItems: 'center',
           justifyContent: 'center',
           gap: 8,
-          padding: '10px 14px',
+          padding: '11px 16px',
           background: 'linear-gradient(135deg, #0284c7, #0369a1)',
           color: '#ffffff',
           border: 'none',
           borderRadius: 8,
           fontSize: 12,
-          fontWeight: 700,
+          fontWeight: 800,
           cursor: 'pointer',
           boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
           transition: 'all 0.15s ease'
@@ -281,7 +300,7 @@ export const CoAuthorCard: React.FC<CoAuthorCardProps> = ({
 };
 
 // ============================================================================
-// 2. COMPONENTE: CO-AUTHOR STUDIO WORKSPACE (AMBIENTE DE TELA PARADA & ESTÁTICA)
+// 2. COMPONENTE: CO-AUTHOR STUDIO WORKSPACE (LAYOUT PROFISSIONAL & IA REAL)
 // ============================================================================
 
 interface CoAuthorWorkspaceProps {
@@ -308,7 +327,7 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   // Aba ativa interna: 'chat' ou 'revisao'
   const [internalTab, setInternalTab] = useState<'chat' | 'revisao'>('chat');
 
-  // Tipo de Livro Selecionado (Técnico, Autoajuda, Guia Prático, Ficção)
+  // Tipo de Livro Selecionado
   const [tipoLivro, setTipoLivro] = useState<CoAuthorBookType>(() => {
     return contextData.tipoLivro || bookState?.tipoLivro || 'tecnico';
   });
@@ -317,17 +336,26 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   const [userInput, setUserInput] = useState<string>('');
   const [isAiProcessing, setIsAiProcessing] = useState<boolean>(false);
   const [aiLoadingStatus, setAiLoadingStatus] = useState<string>('');
-  const [currentStep, setCurrentStep] = useState<number>(1); // 1 = Premissa, 2 = Elementos, 3 = Formula, 4 = Escrita
   const [autoPilotActive, setAutoPilotActive] = useState<boolean>(false);
   const [isCopiedChapter, setIsCopiedChapter] = useState<number | null>(null);
   const [editorialPlan, setEditorialPlan] = useState<KdpEditorialPlan | null>(null);
+
+  // Modal para chave de API do Gemini do usuário
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [customKeyInput, setCustomKeyInput] = useState(() => {
+    try {
+      return localStorage.getItem('kdp_gemini_api_key') || localStorage.getItem('gemini_api_key') || '';
+    } catch {
+      return '';
+    }
+  });
 
   // Estados para edição manual no painel de revisão editorial
   const [editingChapterIdx, setEditingChapterIdx] = useState<number | null>(null);
   const [editedChapterText, setEditedChapterText] = useState<string>('');
   const [expandedChapterIdx, setExpandedChapterIdx] = useState<number | null>(null);
 
-  // Armazena temporariamente as respostas das 3 perguntas
+  // Armazena o briefing alinhado
   const [respostasBriefing, setRespostasBriefing] = useState<{
     premissa: string;
     elementos: string;
@@ -338,11 +366,11 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
     formula: contextData.formulaBestseller || ''
   });
 
-  // REF APENAS PARA O SCROLL INTERNO DO CHAT (SEM MEXER NA TELA OU NA JANELA)
+  // REF APENAS PARA O SCROLL INTERNO DO CHAT (SEM MEXER NA TELA PRINCIPAL)
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
   const autoPilotStopRef = useRef<boolean>(false);
 
-  // ROLAGEM EXCLUSIVAMENTE INTERNA: nunca usa scrollIntoView para não movimentar a tela principal
+  // ROLAGEM EXCLUSIVAMENTE INTERNA (NUNCA usa scrollIntoView)
   const scrollToBottomInternal = () => {
     if (chatScrollContainerRef.current) {
       chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
@@ -350,107 +378,49 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   };
 
   useEffect(() => {
-    // Só rola o container interno quando uma nova mensagem é adicionada
     scrollToBottomInternal();
   }, [messages.length]);
 
-  // Inicialização do Chat Guiado
+  // Mensagem de boas-vindas inicial natural
   useEffect(() => {
     if (messages.length === 0) {
-      iniciarConversaGuiada(tipoLivro);
+      iniciarConversaNatural(tipoLivro);
     }
   }, []);
 
-  // Textos das perguntas adaptados ao Tipo de Livro
-  const getPergunta1Texto = (tipo: CoAuthorBookType) => {
-    switch (tipo) {
-      case 'tecnico':
-        return `**Pergunta 1 de 3: Qual é o tema técnico ou problema prático que o livro ensinará a resolver?**
-*(Me diga qual conceito, ferramenta, método ou habilidade você vai ensinar e para qual nível de leitor: iniciante, intermediário ou profissional).*`;
-      case 'autoajuda':
-        return `**Pergunta 1 de 3: Qual é a grande transformação pessoal que o livro proporciona ao leitor?**
-*(Qual dor, hábito nocivo, ansiedade ou obstáculo mental a obra ensina a superar e qual é o método central).*`;
-      case 'pratico':
-        return `**Pergunta 1 de 3: Qual processo passo a passo ou tarefa prática a obra ensinará a executar do início ao fim?**
-*(Qual é o objetivo concreto, quais ferramentas/materiais serão usados e qual o resultado esperado).*`;
-      case 'ficcao':
-      default:
-        return `**Pergunta 1 de 3: Sobre o que é a história e quem são os protagonistas?**
-*(Me conte a ideia central do enredo, quem são os personagens principais e o grande conflito da obra).*`;
-    }
-  };
-
-  const getPergunta2Texto = (tipo: CoAuthorBookType) => {
-    switch (tipo) {
-      case 'tecnico':
-        return `**Pergunta 2 de 3: Quais conceitos fundamentais, métodos práticos, ferramentas e erros comuns NÃO podem faltar nos capítulos?**
-*(Cite metodologias, boas práticas, casos práticos de resolução de problemas e advertências essenciais).*`;
-      case 'autoajuda':
-        return `**Pergunta 2 de 3: Quais princípios, hábitos, lições práticas e exercícios NÃO podem faltar na obra?**
-*(Cite estudos de caso reais de superação, rotinas diárias e ferramentas de autodomínio que o leitor precisa aplicar).*`;
-      case 'pratico':
-        return `**Pergunta 2 de 3: Quais etapas sequenciais, instruções práticas e advertências NÃO podem faltar?**
-*(Cite passos essenciais, macetes de execução, materiais e erros comuns que o leitor deve evitar).*`;
-      case 'ficcao':
-      default:
-        return `**Pergunta 2 de 3: Quais personagens vitais, cenas marcantes ou reviravoltas NÃO podem faltar na obra?**
-*(Cite segredos a desvendar, antagonistas, conflitos secundários e clímax esperado).*`;
-    }
-  };
-
-  const getPergunta3Texto = (tipo: CoAuthorBookType) => {
-    switch (tipo) {
-      case 'tecnico':
-        return `**Pergunta 3 de 3: Qual abordagem didática você prefere para os capítulos?**
-*(Ex: 100% direto ao ponto sem enrolação, com passos numerados, explicações claras de cada termo e dicas de como diagnosticar e resolver erros comuns).*`;
-      case 'autoajuda':
-        return `**Pergunta 3 de 3: Qual o tom da obra e formato de aplicação diária?**
-*(Ex: Tom encorajador e pragmático, sem metáforas abstratas, com um plano de ação imediato para as próximas 24 horas ao final de cada capítulo).*`;
-      case 'pratico':
-        return `**Pergunta 3 de 3: Como você quer que as instruções sejam entregues?**
-*(Ex: Passo a passo claro com tópicos de ação rápida, dicas de especialista e checklist de verificação final).*`;
-      case 'ficcao':
-      default:
-        return `**Pergunta 3 de 3: Qual o ritmo da leitura e como você quer que a história termine?**
-*(Ex: Ritmo dinâmico, ganchos nos finais de cada capítulo para o Kindle e desfecho 100% definitivo com ponto final).*`;
-    }
-  };
-
-  const iniciarConversaGuiada = (tipoAtivo: CoAuthorBookType) => {
-    const nomePerfil =
-      tipoAtivo === 'tecnico'
-        ? 'Livro Técnico / Didático (Resolução de Problemas)'
-        : tipoAtivo === 'autoajuda'
+  const iniciarConversaNatural = (tipo: CoAuthorBookType) => {
+    const nomeTipo =
+      tipo === 'tecnico'
+        ? 'Livro Técnico / Didático (Foco em Resolução de Problemas)'
+        : tipo === 'autoajuda'
         ? 'Autoajuda & Desenvolvimento Pessoal'
-        : tipoAtivo === 'pratico'
+        : tipo === 'pratico'
         ? 'Guia Prático Passo a Passo (How-To)'
         : 'Ficção & Narrativa';
 
-    const msg1: CoAuthorMessage = {
+    const msgInicial: CoAuthorMessage = {
       id: `msg-${Date.now()}`,
       sender: 'agent',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      stepPrompt: 1,
-      text: `Olá! Eu sou seu **Agente CoAuthor Editorial** do Book Engin. 📚✨
+      text: `Olá! Eu sou seu **Agente CoAuthor Editorial** do Book Engin, integrado diretamente com a inteligência do Gemini. 📚✨
 
-Estou calibrado para o perfil: **${nomePerfil}**. Aqui os capítulos são desenvolvidos com **linguagem direta, sem floreios desnecessários e 100% focados no objetivo da sua obra**.
+Estou calibrado para o formato: **${nomeTipo}**.
 
-Para começarmos a arquitetura editorial do seu livro, responda à primeira pergunta abaixo:
+Aqui conversamos de verdade: vou entender exatamente o que você quer construir, sem respostas genéricas ou roteiros fechados. Se o seu livro for **técnico ou de autoajuda**, nosso foco será **didática pura, zero enrolação, passo a passo e resolução prática de problemas**.
 
-${getPergunta1Texto(tipoAtivo)}`,
+Para darmos o primeiro passo, me conte: **Qual é o tema, a ideia central ou o problema concreto que você quer resolver com este livro?**`,
       suggestedActions: [
-        { label: '⚙️ Exemplo: Livro Técnico & IA', action: 'exemplo_0' },
-        { label: '📘 Exemplo: Autoajuda & Foco', action: 'exemplo_1' },
-        { label: '🛠️ Exemplo: Guia Prático Financeiro', action: 'exemplo_2' },
-        { label: '📖 Exemplo: Ficção & Mistério', action: 'exemplo_3' }
+        { label: '⚙️ Livro Técnico & IA', action: 'exemplo_0' },
+        { label: '📘 Autoajuda & Foco Diário', action: 'exemplo_1' },
+        { label: '🛠️ Guia Prático Financeiro', action: 'exemplo_2' },
+        { label: '📖 Ficção & Mistério', action: 'exemplo_3' }
       ]
     };
 
-    setMessages([msg1]);
-    setCurrentStep(1);
+    setMessages([msgInicial]);
   };
 
-  // Troca manual do Perfil Editorial pelo usuário
+  // Troca de Perfil Editorial pelo usuário
   const handleChangeTipoLivro = (novoTipo: CoAuthorBookType) => {
     setTipoLivro(novoTipo);
     if (bookState) {
@@ -459,11 +429,11 @@ ${getPergunta1Texto(tipoAtivo)}`,
 
     const nomePerfil =
       novoTipo === 'tecnico'
-        ? 'Livro Técnico & Didático'
+        ? 'Livro Técnico & Didático (Resolução de Problemas)'
         : novoTipo === 'autoajuda'
         ? 'Autoajuda & Desenvolvimento Pessoal'
         : novoTipo === 'pratico'
-        ? 'Guia Prático Passo a Passo'
+        ? 'Guia Prático Passo a Passo (How-To)'
         : 'Ficção & Narrativa';
 
     setMessages(prev => [
@@ -472,18 +442,42 @@ ${getPergunta1Texto(tipoAtivo)}`,
         id: `msg-${Date.now()}`,
         sender: 'system',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `🔄 **Perfil Editorial alterado para: ${nomePerfil}**. A inteligência do CoAuthor agora calibrará o tom, regras de escrita e ganchos especificamente para este formato.`
+        text: `🔄 **Perfil Editorial ajustado para: ${nomePerfil}**. A inteligência do Gemini agora calibrará tom, exemplos e estrutura especificamente para esse formato.`
       }
     ]);
   };
 
-  // Enviar resposta do usuário
+  // Salvar chave de API customizada
+  const handleSaveCustomKey = () => {
+    try {
+      if (customKeyInput.trim()) {
+        localStorage.setItem('kdp_gemini_api_key', customKeyInput.trim());
+      } else {
+        localStorage.removeItem('kdp_gemini_api_key');
+      }
+      setIsApiKeyModalOpen(false);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}`,
+          sender: 'system',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `🔑 **Chave Gemini API atualizada com sucesso!** Suas conversas e capítulos usarão sua credencial configurada.`
+        }
+      ]);
+    } catch (e) {
+      console.error('Erro ao salvar chave:', e);
+    }
+  };
+
+  // ENVIO DA MENSAGEM DO AUTOR COM PROCESSAMENTO REAL VIA GEMINI
   const handleSendUserInput = async () => {
     const texto = userInput.trim();
     if (!texto || isAiProcessing) return;
 
     setUserInput('');
 
+    // Mensagem do usuário
     const userMsg: CoAuthorMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
@@ -493,129 +487,174 @@ ${getPergunta1Texto(tipoAtivo)}`,
 
     const newMsgs = [...messages, userMsg];
     setMessages(newMsgs);
+    setIsAiProcessing(true);
+    setAiLoadingStatus('CoAuthor está analisando seu pedido e formulando resposta com o Gemini...');
 
-    // FLUXO PASSO A PASSO (3 PERGUNTAS)
-    if (currentStep === 1) {
-      setRespostasBriefing(prev => ({ ...prev, premissa: texto }));
-      setIsAiProcessing(true);
-      setAiLoadingStatus('Analisando o tema e calibrando a estrutura da obra...');
+    try {
+      // Constrói o histórico conversacional real para a IA
+      const historicoRecente = newMsgs.slice(-8).map(m => {
+        const autorTag = m.sender === 'user' ? 'AUTOR' : (m.sender === 'agent' ? 'COAUTHOR_EDITORIAL' : 'SISTEMA');
+        return `${autorTag}: ${m.text}`;
+      }).join('\n\n');
 
-      await new Promise(r => setTimeout(r, 400));
+      let diretrizEstilo = '';
+      if (tipoLivro === 'tecnico') {
+        diretrizEstilo = `DIRETRIZ EDITORIAL: LIVRO TÉCNICO & RESOLUÇÃO DE PROBLEMAS
+- Este livro NÃO É FICÇÃO. Não há personagens, dramas emocionais nem metáforas literárias.
+- O objetivo é ENSINAR uma técnica, ferramenta ou método para resolver problemas reais.
+- Didática clara, estrutura em tópicos, boas práticas e vocabulário popular e acessível.`;
+      } else if (tipoLivro === 'autoajuda') {
+        diretrizEstilo = `DIRETRIZ EDITORIAL: AUTOAJUDA & DESENVOLVIMENTO PESSOAL
+- Foco em transformação pessoal, hábitos, clareza mental e superação.
+- Linguagem encorajadora, sem poesia abstrata. Cada capítulo deve ter exercícios práticos e plano de ação imediato.`;
+      } else if (tipoLivro === 'pratico') {
+        diretrizEstilo = `DIRETRIZ EDITORIAL: GUIA PRÁTICO PASSO A PASSO (HOW-TO)
+- Instrução direta e pragmática em etapas numeradas, macetes de execução e erros comuns a evitar.`;
+      } else {
+        diretrizEstilo = `DIRETRIZ EDITORIAL: FICÇÃO & NARRATIVA
+- Personagens consistentes, ambientação visual sem metáforas prolixas, ganchos de retenção e desfecho conclusivo.`;
+      }
+
+      const systemInstruction = `Você é o CoAuthor Editorial AI do Book Engin, um assistente editorial inteligente de altíssimo nível (como ChatGPT e Gemini) para autores que publicam na Amazon KDP.
+
+PERFIL ATIVO: ${tipoLivro.toUpperCase()}
+${diretrizEstilo}
+
+SUA ATITUDE CONVERSACIONAL:
+1. VOCÊ CONVERSA DE VERDADE COM O AUTOR:
+   - Se o autor mandar uma saudação ("ola", "oi", "bom dia"), responda cordialmente e pergunte sobre o tema da obra. NUNCA finja que ele deu um briefing completo!
+   - Se o autor disser "não é isso", "está errado" ou corrigir o rumo: compreenda a correção com elegância, adapte o foco e pergunte qual é a visão real dele.
+   - Se o autor digitar algo muito curto ou vago (ex: apenas uma palavra sem sentido, uma letra ou "teste"): peça gentilmente para ele explicar melhor a ideia.
+   - Se o autor trouxer uma ideia ou tema: comente os pontos fortes para o mercado Amazon KDP, sugira títulos comerciais e ajude a desenhar a estrutura dos capítulos.
+
+2. QUANDO HOUVER ALINHAMENTO COMPLETO:
+   Quando o tema, os tópicos e a estrutura estiverem bem definidos (ou quando o autor disser "pode começar", "escreva o capítulo 1" ou similar), inclua no final da sua resposta o bloco estruturado:
+   <<<ALINHAMENTO_CONCLUIDO>>>
+   TITULO: [Título Comercial Sugerido]
+   SUBTITULO: [Subtítulo de Alta Conversão]
+   TIPO: [tecnico | autoajuda | pratico | ficcao]
+   PREMISSA: [Resumo de 2 linhas do tema e promessa da obra]
+   ELEMENTOS: [Tópicos-chave inegociáveis]
+   DIRETRIZ: [Diretriz de escrita dos capítulos]
+   TOTAL_CAPS: [Quantidade sugerida de capítulos, ex: 8]
+   <<<FIM_ALINHAMENTO>>>
+
+3. LINGUAGEM: Sempre em Português do Brasil, profissional, estimulante, sem asteriscos ou formatações quebradas.`;
+
+      const promptCompleto = `━━━ HISTÓRICO CONVERSACIONAL RECENTE ━━━
+${historicoRecente}
+
+━━━ ÚLTIMA MENSAGEM DO AUTOR ━━━
+${texto}
+
+Responda como o CoAuthor AI, compreendendo o pedido do autor e avançando o alinhamento editorial:`;
+
+      const resAi = await chamarGeminiTexto(promptCompleto, {
+        temperature: 0.7,
+        systemInstruction,
+        onStatusUpdate: (st) => setAiLoadingStatus(st)
+      });
+
+      const respostaTexto = resAi.texto;
+
+      // Verifica se houve alinhamento editorial completo
+      let alignmentCardData: any = null;
+      let suggestedActionsList: Array<{ label: string; action: string; primary?: boolean }> = [];
+
+      const matchAlinhamento = respostaTexto.match(/<<<ALINHAMENTO_CONCLUIDO>>>([\s\S]*?)<<<FIM_ALINHAMENTO>>>/);
+
+      if (matchAlinhamento) {
+        const bloco = matchAlinhamento[1];
+        const mTit = bloco.match(/TITULO:\s*(.+)/i);
+        const mSub = bloco.match(/SUBTITULO:\s*(.+)/i);
+        const mTipo = bloco.match(/TIPO:\s*(.+)/i);
+        const mPrem = bloco.match(/PREMISSA:\s*(.+)/i);
+        const mElem = bloco.match(/ELEMENTOS:\s*(.+)/i);
+        const mDir = bloco.match(/DIRETRIZ:\s*(.+)/i);
+        const mCaps = bloco.match(/TOTAL_CAPS:\s*(\d+)/i);
+
+        const novoTitulo = mTit ? mTit[1].trim() : (bookState?.titulo || 'Nova Obra KDP');
+        const novoSubtitulo = mSub ? mSub[1].trim() : (bookState?.subtitulo || '');
+        const novoTipo = (mTipo ? mTipo[1].trim().toLowerCase() : tipoLivro) as CoAuthorBookType;
+        const novaPremissa = mPrem ? mPrem[1].trim() : texto;
+        const novosElementos = mElem ? mElem[1].trim() : 'Estrutura técnica e prática';
+        const novaDiretriz = mDir ? mDir[1].trim() : 'Didática clara e popular';
+        const capsSugeridos = mCaps ? parseInt(mCaps[1], 10) : (totalCapsDesejado || 8);
+
+        alignmentCardData = {
+          titulo: novoTitulo,
+          subtitulo: novoSubtitulo,
+          tipo: novoTipo,
+          premissa: novaPremissa,
+          elementos: novosElementos,
+          diretriz: novaDiretriz,
+          totalCaps: capsSugeridos
+        };
+
+        setRespostasBriefing({
+          premissa: novaPremissa,
+          elementos: novosElementos,
+          formula: novaDiretriz
+        });
+
+        if (bookState) {
+          onUpdateBookState({
+            ...bookState,
+            titulo: novoTitulo,
+            subtitulo: novoSubtitulo,
+            tipoLivro: novoTipo
+          });
+        }
+
+        suggestedActionsList = [
+          { label: '✍️ Iniciar Produção do Capítulo 1', action: 'iniciar_cap_1', primary: true },
+          { label: '🔄 Ajustar Tópicos ou Título', action: 'ajustar_briefing' }
+        ];
+      } else {
+        suggestedActionsList = [
+          { label: '💡 Pode começar a escrever!', action: 'iniciar_cap_1', primary: true },
+          { label: '⚙️ Quero uma abordagem 100% prática', action: 'pedir_mais_pratico' },
+          { label: '📚 Sugira os títulos dos capítulos', action: 'pedir_sumario' }
+        ];
+      }
+
+      const msgResposta: CoAuthorMessage = {
+        id: `msg-${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: respostaTexto,
+        alignmentCard: alignmentCardData,
+        suggestedActions: suggestedActionsList
+      };
+
+      setMessages(prev => [...prev, msgResposta]);
+    } catch (err: any) {
+      console.error('Erro na resposta conversacional do CoAuthor:', err);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}`,
+          sender: 'agent',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `⚠️ Houve uma instabilidade momentânea na conexão com o Gemini: ${err?.message || 'Falha de comunicação'}. Verifique sua chave de API ou tente novamente.`
+        }
+      ]);
+    } finally {
       setIsAiProcessing(false);
-
-      const msg2: CoAuthorMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: 'agent',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        stepPrompt: 2,
-        text: `Excelente tema! O foco da obra está muito bem delineado. 💡
-
-Vamos para o segundo ponto:
-
-${getPergunta2Texto(tipoLivro)}`
-      };
-
-      setMessages([...newMsgs, msg2]);
-      setCurrentStep(2);
-      return;
+      setAiLoadingStatus('');
     }
-
-    if (currentStep === 2) {
-      setRespostasBriefing(prev => ({ ...prev, elementos: texto }));
-      setIsAiProcessing(true);
-      setAiLoadingStatus('Estruturando os pilares fundamentais dos capítulos...');
-
-      await new Promise(r => setTimeout(r, 400));
-      setIsAiProcessing(false);
-
-      const msg3: CoAuthorMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: 'agent',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        stepPrompt: 3,
-        text: `Perfeito! Os tópicos centrais já formam uma espinha dorsal sólida. 🎯
-
-Para fecharmos o alinhamento editorial:
-
-${getPergunta3Texto(tipoLivro)}`
-      };
-
-      setMessages([...newMsgs, msg3]);
-      setCurrentStep(3);
-      return;
-    }
-
-    if (currentStep === 3) {
-      const briefingFinal = {
-        ...respostasBriefing,
-        formula: texto
-      };
-      setRespostasBriefing(briefingFinal);
-      setCurrentStep(4);
-
-      const tipoNome =
-        tipoLivro === 'tecnico'
-          ? 'Livro Técnico'
-          : tipoLivro === 'autoajuda'
-          ? 'Autoajuda'
-          : tipoLivro === 'pratico'
-          ? 'Guia Prático'
-          : 'Ficção';
-
-      const msgInicioEscrita: CoAuthorMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: 'agent',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `Sensacional! Com as suas 3 respostas, a **Bíblia Editorial da Obra** está 100% calibrada. 🚀
-
-• **Formato:** ${tipoNome}
-• **Diretriz de Escrita:** Linguagem clara e popular, sem metáforas abstratas, foco total em entregar valor e encerramento de frases com ponto final.
-
-**Escrevendo o Capítulo 1 agora mesmo com o Book Engin...**`
-      };
-
-      setMessages([...newMsgs, msgInicioEscrita]);
-      await executarEscritaCapitulo(1, briefingFinal);
-      return;
-    }
-
-    // Se já estiver no passo 4 (em coautoria contínua), processa instrução do autor para o próximo capítulo
-    await executarEscritaCapitulo((bookState?.capitulos?.length || 0) + 1, respostasBriefing, texto);
   };
 
-  // Carrega exemplo pronto
+  // Carrega exemplo pronto de forma conversacional
   const aplicarExemploPronto = async (idx: number) => {
     const ex = EXEMPLOS_PRONTOS[idx];
     if (!ex) return;
 
     setTipoLivro(ex.tipo);
-    const briefingFinal = {
-      premissa: ex.premissa,
-      elementos: ex.elementos,
-      formula: ex.formula
-    };
-
-    setRespostasBriefing(briefingFinal);
-    setCurrentStep(4);
-
-    const msgExemplo: CoAuthorMessage = {
-      id: `msg-${Date.now()}`,
-      sender: 'agent',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text: `✨ **Exemplo Carregado: "${ex.nome}"** (${ex.badge})
-
-• **Tema Central:** ${ex.premissa}
-• **Tópicos Inegociáveis:** ${ex.elementos}
-• **Diretriz Editorial:** ${ex.formula}
-
-**Iniciando a produção do Capítulo 1 com o Book Engin...**`
-    };
-
-    setMessages(prev => [...prev, msgExemplo]);
-    await executarEscritaCapitulo(1, briefingFinal);
+    setUserInput(ex.promptInicial);
   };
 
-  // Motor de Escrita Capítulo a Capítulo com Calibração Específica por Perfil
+  // Motor de Escrita de Capítulos
   const executarEscritaCapitulo = async (
     numCapitulo: number,
     briefing: { premissa: string; elementos: string; formula: string },
@@ -634,7 +673,7 @@ ${getPergunta3Texto(tipoLivro)}`
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           text: `🎉 **Obra concluída com sucesso! Todos os ${totalCaps} capítulos foram escritos com desfecho definitivo.**
 
-Agora você pode revisar todo o editorial da obra capítulo por capítulo, ajustar detalhes ou folhear o livro diagramado pronto para a Amazon KDP.`,
+Agora você pode revisar todo o editorial da obra capítulo por capítulo, fazer ajustes no texto ou folhear o livro diagramado pronto para a Amazon KDP.`,
           suggestedActions: [
             { label: '📋 Abrir Revisão Editorial Completa', action: 'abrir_revisao', primary: true },
             { label: '📖 Folhear Livro Diagramado', action: 'ir_preview' },
@@ -661,10 +700,9 @@ Agora você pode revisar todo o editorial da obra capítulo por capítulo, ajust
     };
 
     try {
-      // 1. Orquestração do Plano Editorial KDP se ainda não existir
       let plano = editorialPlan;
       if (!plano) {
-        setAiLoadingStatus('Orquestrando arquitetura e tópicos estruturados...');
+        setAiLoadingStatus('Estruturando plano de capítulos com o Gemini...');
         try {
           plano = await orchestrateEditorialPlan(
             {
@@ -674,7 +712,7 @@ Agora você pode revisar todo o editorial da obra capítulo por capítulo, ajust
               language: livroAtual.idioma,
               topic: `${briefing.premissa} | Elementos: ${briefing.elementos}`,
               promise: briefing.formula,
-              differentiator: `Padrão de alta conversão Amazon KDP para ${tipoLivro}`
+              differentiator: `Padrão editorial Amazon KDP para ${tipoLivro}`
             },
             totalCaps
           );
@@ -695,7 +733,7 @@ Agora você pode revisar todo o editorial da obra capítulo por capítulo, ajust
         }
       }
 
-      setAiLoadingStatus(`Redigindo conteúdo com didática do Capítulo ${numCapitulo}...`);
+      setAiLoadingStatus(`Redigindo texto completo do Capítulo ${numCapitulo}...`);
 
       const diretrizCap = plano.chapters[numCapitulo - 1] || {
         title: `Capítulo ${numCapitulo}`,
@@ -704,7 +742,6 @@ Agora você pode revisar todo o editorial da obra capítulo por capítulo, ajust
         transition: 'Conectar ao próximo tópico'
       };
 
-      // Histórico de continuidade
       const historicoEnredo = livroAtual.capitulos.length > 0
         ? livroAtual.capitulos.map((c, idx) => {
             const inicio = c.texto.slice(0, 140);
@@ -718,55 +755,39 @@ Agora você pode revisar todo o editorial da obra capítulo por capítulo, ajust
         ? `O Capítulo anterior encerrou com este trecho exato:\n"${ultimoCap.texto.slice(-280)}"`
         : 'Abertura do livro.';
 
-      const isEnBook = /ingl|en/i.test(livroAtual.idioma);
-      const isEsBook = /espanh|es/i.test(livroAtual.idioma);
-
-      const regraIdioma = isEnBook
-        ? 'MANDATORY LANGUAGE: 100% natural, clear ENGLISH (US/UK).'
-        : isEsBook
-        ? 'IDIOMA OBRIGATORIO: 100% en ESPAÑOL.'
-        : 'IDIOMA OBRIGATÓRIO: PORTUGUÊS. Utilize vocabulário popular e corrente.';
-
       const isFinal = numCapitulo === totalCaps;
 
-      // PROMPT CALIBRADO CONFORME O TIPO DE LIVRO
       let diretrizEstiloPorTipo = '';
-
       if (tipoLivro === 'tecnico') {
         diretrizEstiloPorTipo = `ESTILO OBRIGATÓRIO: LIVRO TÉCNICO & RESOLUÇÃO DE PROBLEMAS
-- NÃO É FICÇÃO: Zero personagens inventados, zero diálogos ficcionais e zero emoção dramática artificial.
+- NÃO É FICÇÃO: Zero personagens fictícios, zero diálogos inventados e zero drama emocional.
 - DIDÁTICA PURA: Explique conceitos técnicos de forma clara, lógica e estruturada. Use passos numerados, boas práticas e solução de problemas concretos.
 - FOCO PRÁTICO: O leitor comprou o livro para aprender a fazer e resolver problemas. Cada explicação deve ser aplicável.
 - ZERO METÁFORAS: Linguagem 100% literal, técnica e objetiva.`;
       } else if (tipoLivro === 'autoajuda') {
         diretrizEstiloPorTipo = `ESTILO OBRIGATÓRIO: AUTOAJUDA & DESENVOLVIMENTO PESSOAL
-- FOCO EM TRANSFORMAÇÃO PESSOAL: Linguagem encorajadora, empática e orientada para a ação real na vida do leitor.
-- EXERCÍCIOS E HÁBITOS: Cada capítulo deve abordar um obstáculo mental, apresentar uma solução comprovada e entregar passos aplicáveis nas próximas 24 horas.
-- ZERO METÁFORAS PROLIXAS: Sem poesia vazia ou abstrações. Seja direto e pragmático.`;
+- FOCO EM TRANSFORMAÇÃO PESSOAL: Linguagem encorajadora, empática e orientada para a ação real.
+- EXERCÍCIOS E HÁBITOS: Aborde um obstáculo, apresente a solução e entregue passos aplicáveis nas próximas 24 horas.
+- ZERO METÁFORAS PROLIXAS: Sem poesia vazia. Direto e pragmático.`;
       } else if (tipoLivro === 'pratico') {
         diretrizEstiloPorTipo = `ESTILO OBRIGATÓRIO: GUIA PRÁTICO PASSO A PASSO (HOW-TO)
-- INSTRUÇÃO DIRETA: Estrutura em etapas claras, passos numerados, advertências de erros comuns e macetes de execução.
-- PRAGMATISMO TOTAL: Vá direto ao ponto. Explique o que fazer, como fazer e como verificar se deu certo.`;
+- INSTRUÇÃO DIRETA: Etapas claras, passos numerados, advertências de erros comuns e dicas de execução.`;
       } else {
         diretrizEstiloPorTipo = `ESTILO OBRIGATÓRIO: FICÇÃO & NARRATIVA
-- PERSONAGENS CONSISTENTES: Mantenha rigorosamente os nomes, personalidades e tom dos personagens.
-- CONTINUIDADE: Desenvolva a cena com ritmo e ganchos de retenção.
-- ZERO METÁFORAS: Linguagem visual e realista sem floreios poéticos rebuscados.`;
+- Personagens consistentes, enredo dinâmico, ganchos de retenção e clímax conclusivo.`;
       }
 
       const systemInstruction = `Você é o Co-Autor e escritor especialista na Amazon KDP do Book Engin.
-REGRAS OBRIGATÓRIAS INEGOCIÁVEIS:
-${regraIdioma}
 ${diretrizEstiloPorTipo}
 1. VOCABULÁRIO POPULAR: Palavras acessíveis, claras e sem jargões desnecessários sem explicação.
 2. FECHAMENTO SEM CORTES: O último parágrafo DEVE terminar com frase 100% completa terminando com ponto final (.).
 3. ${isFinal
-  ? 'ESTE É O CAPÍTULO FINAL DA OBRA. Entregue um desfecho completo, encerre todos os ensinamentos/tramas com uma conclusão definitiva.'
+  ? 'ESTE É O CAPÍTULO FINAL DA OBRA. Entregue um desfecho completo e conclusão definitiva com ponto final.'
   : 'Conecte suavemente o final do capítulo ao próximo tópico para manter a retenção no Kindle.'}
 4. Texto puro pronto para diagramação KDP.
 
 FORMATO ESTRITO:
-TITULO: ${isEnBook ? `Chapter ${numCapitulo}: Title` : `Capítulo ${numCapitulo}: Título`}
+TITULO: Capítulo ${numCapitulo}: Título
 TEXTO:
 (Parágrafos separados por linha em branco)`;
 
@@ -804,7 +825,6 @@ ${historicoEnredo}`;
         onStatusUpdate: (st) => setAiLoadingStatus(st)
       });
 
-      // Sanitização e fechamento íntegro
       const mt = res.texto.match(/TITULO:\s*(.+)/i);
       const mx = res.texto.match(/TEXTO:\s*([\s\S]+)/i);
       let textoLimpo = mx ? mx[1].trim() : res.texto.trim();
@@ -879,7 +899,6 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
 
       setMessages(prev => [...prev, msgCapituloConcluido]);
 
-      // Piloto automático com pausa suave de 1.2s entre capítulos
       if (autoPilotActive && !autoPilotStopRef.current && numCapitulo < totalCaps) {
         setAiLoadingStatus('Aguardando 1.2s para iniciar o próximo capítulo do Piloto Automático...');
         setTimeout(() => {
@@ -898,7 +917,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
           id: `msg-${Date.now()}`,
           sender: 'agent',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `⚠️ Houve uma breve oscilação na conexão com a inteligência editorial: ${err?.message || 'Erro temporário'}.`,
+          text: `⚠️ Houve uma oscilação na conexão com a inteligência editorial: ${err?.message || 'Erro temporário'}.`,
           suggestedActions: [
             { label: '🔄 Tentar Novamente', action: 'proximo_cap', primary: true }
           ]
@@ -916,6 +935,8 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
     if (action.startsWith('exemplo_')) {
       const idx = parseInt(action.replace('exemplo_', ''), 10);
       await aplicarExemploPronto(idx);
+    } else if (action === 'iniciar_cap_1') {
+      await executarEscritaCapitulo(1, respostasBriefing);
     } else if (action === 'proximo_cap') {
       const proximo = (bookState?.capitulos?.length || 0) + 1;
       await executarEscritaCapitulo(proximo, respostasBriefing);
@@ -942,47 +963,12 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
       onNavigateToPreview();
     } else if (action === 'ir_capa') {
       onNavigateToCover();
-    }
-  };
-
-  // Sugestões de mensagens rápidas no chat calibradas por tipo de livro
-  const getSugestoesPorTipo = (tipo: CoAuthorBookType) => {
-    switch (tipo) {
-      case 'tecnico':
-        return [
-          '✍️ Escrever próximo capítulo',
-          '🛠️ Adicionar passo a passo de resolução',
-          '💡 Exemplo prático de aplicação no mundo real',
-          '🔍 Aprofundar conceitos técnicos essenciais',
-          '⚠️ Alertas de erros comuns e como diagnosticar',
-          '📋 Resumo dos pontos-chave deste capítulo'
-        ];
-      case 'autoajuda':
-        return [
-          '✍️ Escrever próximo capítulo',
-          '🎯 Exercício prático para o leitor',
-          '💡 Estudo de caso real de superação',
-          '⚡ Plano de ação para as próximas 24 horas',
-          '🧠 Mudança de mentalidade prática',
-          '📋 Resumo e compromisso pessoal do leitor'
-        ];
-      case 'pratico':
-        return [
-          '✍️ Escrever próximo capítulo',
-          '🛠️ Passo a passo detalhado numerado',
-          '⚠️ O que NUNCA fazer (erros frequentes)',
-          '🔍 Dica de especialista para acelerar',
-          '📋 Checklist de execução imediata'
-        ];
-      case 'ficcao':
-      default:
-        return [
-          '✍️ Escrever próximo capítulo',
-          '⚡ Mais suspense e ritmo rápido',
-          '👥 Diálogos dinâmicos',
-          '🔍 Revelação surpreendente',
-          '🎯 Rumo ao clímax final'
-        ];
+    } else if (action === 'pedir_mais_pratico') {
+      setUserInput('Quero que o livro seja ainda mais prático e direto ao ponto, com passos numerados para resolver os problemas.');
+    } else if (action === 'pedir_sumario') {
+      setUserInput('Por favor, me mostre uma proposta detalhada de sumário com os títulos de cada capítulo antes de começarmos.');
+    } else if (action === 'ajustar_briefing') {
+      setUserInput('Gostei, mas quero fazer alguns ajustes na estrutura antes de começarmos.');
     }
   };
 
@@ -991,7 +977,6 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
   const totalPalavras = (bookState?.capitulos || []).reduce((acc, c) => acc + c.texto.split(/\s+/).filter(Boolean).length, 0);
   const progressoPercent = Math.min(100, Math.round((capsConcluidos / totalCaps) * 100));
 
-  // Salvar edição manual de um capítulo
   const handleSaveEditedChapter = (idx: number) => {
     if (!bookState) return;
     const novosCaps = [...bookState.capitulos];
@@ -1013,25 +998,24 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
         height: '730px',
         maxHeight: 'calc(100vh - 160px)',
         background: '#ffffff',
-        borderRadius: 12,
-        border: '1px solid #cbd5e1',
-        boxShadow: '0 4px 20px rgba(15, 23, 42, 0.06)',
+        borderRadius: 14,
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.07)',
         overflow: 'hidden',
         position: 'relative',
         boxSizing: 'border-box'
       }}
     >
-      {/* 1. CABEÇALHO FIXO DO AMBIENTE (TELA 100% ESTÁTICA) */}
+      {/* 1. TOP BAR DO ESTÚDIO PROFISSIONAL */}
       <div
         style={{
           flexShrink: 0,
           padding: '12px 18px',
-          background: '#0f172a',
-          color: '#ffffff',
+          background: '#ffffff',
+          borderBottom: '1px solid #f1f5f9',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: '1px solid #1e293b',
           flexWrap: 'wrap',
           gap: 10
         }}
@@ -1039,90 +1023,121 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: '#0284c7',
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff'
+              color: '#ffffff',
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)'
             }}
           >
-            <Bot size={18} />
+            <Sparkles size={20} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700 }}>
-                CoAuthor Agent · Estúdio Interativo
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                CoAuthor Studio Pro
               </span>
               <span
                 style={{
                   fontSize: 10,
-                  fontWeight: 700,
-                  background: '#0284c7',
-                  color: '#ffffff',
+                  fontWeight: 800,
+                  background: '#e0f2fe',
+                  color: '#0284c7',
+                  border: '1px solid #bae6fd',
                   padding: '1px 6px',
                   borderRadius: 4
                 }}
               >
-                Amazon Bestseller Mode
+                Gemini 2.5 / Flash
               </span>
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>
-              {currentStep < 4
-                ? `Fase de Calibração: Pergunta ${currentStep} de 3`
-                : `${capsConcluidos} de ${totalCaps} Capítulos Escritos (${totalPalavras.toLocaleString()} palavras)`}
+            <div style={{ fontSize: 11, color: '#64748b' }}>
+              {capsConcluidos === 0
+                ? 'Diálogo inteligente de alinhamento com IA em tempo real'
+                : `${capsConcluidos} de ${totalCaps} capítulos prontos (${totalPalavras.toLocaleString()} palavras)`}
             </div>
           </div>
         </div>
 
-        {/* CONTROLES E ABAS DO COAUTHOR (CHAT OU REVISÃO EDITORIAL) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* CONTROLES: CHAVE API + ABAS DE VISUALIZAÇÃO */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* Botão Configurar Chave Gemini */}
           <button
             type="button"
-            onClick={() => setInternalTab('chat')}
+            onClick={() => setIsApiKeyModalOpen(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 5,
-              padding: '6px 12px',
+              padding: '6px 10px',
               borderRadius: 6,
-              background: internalTab === 'chat' ? '#0284c7' : 'rgba(255, 255, 255, 0.1)',
-              border: internalTab === 'chat' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#ffffff',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              color: '#334155',
               fontSize: 11,
               fontWeight: 700,
               cursor: 'pointer'
             }}
+            title="Configurar ou verificar sua chave de API do Gemini"
           >
-            <MessageSquare size={13} /> Chat com CoAuthor
+            <Key size={12} color="#0284c7" />
+            <span>API Key Gemini</span>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
           </button>
 
-          <button
-            type="button"
-            onClick={() => setInternalTab('revisao')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
-              borderRadius: 6,
-              background: internalTab === 'revisao' ? '#059669' : 'rgba(255, 255, 255, 0.1)',
-              border: internalTab === 'revisao' ? '1px solid #34d399' : '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#ffffff',
-              fontSize: 11,
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            <BookCheck size={13} /> Revisão Editorial da Obra
-            {capsConcluidos > 0 && (
-              <span style={{ background: '#10b981', color: '#fff', borderRadius: 10, padding: '1px 5px', fontSize: 10 }}>
-                {capsConcluidos}
-              </span>
-            )}
-          </button>
+          {/* Alternador Chat vs Revisão Editorial */}
+          <div style={{ display: 'flex', background: '#f1f5f9', padding: 2, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+            <button
+              type="button"
+              onClick={() => setInternalTab('chat')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: internalTab === 'chat' ? '#ffffff' : 'transparent',
+                color: internalTab === 'chat' ? '#0284c7' : '#64748b',
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: internalTab === 'chat' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+              }}
+            >
+              <MessageSquare size={13} /> Chat CoAuthor
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setInternalTab('revisao')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: internalTab === 'revisao' ? '#ffffff' : 'transparent',
+                color: internalTab === 'revisao' ? '#059669' : '#64748b',
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: internalTab === 'revisao' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+              }}
+            >
+              <BookCheck size={13} /> Revisão Editorial
+              {capsConcluidos > 0 && (
+                <span style={{ background: '#10b981', color: '#fff', borderRadius: 10, padding: '1px 5px', fontSize: 10 }}>
+                  {capsConcluidos}
+                </span>
+              )}
+            </button>
+          </div>
 
           <button
             type="button"
@@ -1133,12 +1148,13 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               gap: 5,
               padding: '6px 11px',
               borderRadius: 6,
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              color: '#cbd5e1',
+              background: '#0284c7',
+              border: 'none',
+              color: '#ffffff',
               fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer'
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
             }}
           >
             <BookOpen size={13} /> Livro Diagramado
@@ -1146,7 +1162,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
         </div>
       </div>
 
-      {/* SELETOR DE PERFIL EDITORIAL (TÉCNICO, AUTOAJUDA, GUIA PRÁTICO, FICÇÃO) */}
+      {/* SELETOR DE PERFIL EDITORIAL (SEGMENTED CONTROL MODERNO) */}
       <div
         style={{
           flexShrink: 0,
@@ -1160,7 +1176,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
         }}
       >
         <span style={{ fontSize: 11, fontWeight: 800, color: '#475569', whiteSpace: 'nowrap' }}>
-          Perfil Editorial do Livro:
+          Perfil Editorial da Obra:
         </span>
 
         {[
@@ -1180,7 +1196,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 display: 'flex',
                 alignItems: 'center',
                 gap: 5,
-                padding: '4px 10px',
+                padding: '5px 12px',
                 borderRadius: 6,
                 fontSize: 11,
                 fontWeight: 700,
@@ -1213,7 +1229,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
       </div>
 
       {/* ==================================================================== */}
-      {/* MODO 1: CHAT COM COAUTHOR (100% ESTÁTICO, ROLAGEM APENAS INTERNA) */}
+      {/* MODO 1: CHAT COM COAUTHOR (100% ESTÁTICO & INTELIGÊNCIA REAL GEMINI) */}
       {/* ==================================================================== */}
       {internalTab === 'chat' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1223,10 +1239,10 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             style={{
               flex: 1,
               overflowY: 'auto',
-              padding: '16px 20px',
+              padding: '18px 22px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 14,
+              gap: 16,
               background: '#f8fafc'
             }}
           >
@@ -1242,19 +1258,19 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               >
                 <div
                   style={{
-                    maxWidth: msg.sender === 'user' ? '76%' : '86%',
+                    maxWidth: msg.sender === 'user' ? '76%' : '88%',
                     background: msg.sender === 'user'
                       ? 'linear-gradient(135deg, #0284c7, #0369a1)'
                       : msg.sender === 'system'
                       ? '#f1f5f9'
                       : '#ffffff',
                     color: msg.sender === 'user' ? '#ffffff' : '#0f172a',
-                    padding: '12px 16px',
-                    borderRadius: 10,
+                    padding: '14px 18px',
+                    borderRadius: msg.sender === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                     border: msg.sender === 'user' ? 'none' : '1px solid #e2e8f0',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
                     fontSize: 13,
-                    lineHeight: 1.5,
+                    lineHeight: 1.6,
                     wordBreak: 'break-word'
                   }}
                 >
@@ -1264,18 +1280,18 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6,
-                      marginBottom: 6,
-                      fontSize: 10,
-                      fontWeight: 700,
+                      marginBottom: 8,
+                      fontSize: 11,
+                      fontWeight: 800,
                       color: msg.sender === 'user' ? '#bae6fd' : '#64748b'
                     }}
                   >
-                    {msg.sender === 'agent' && <Bot size={12} color="#0284c7" />}
+                    {msg.sender === 'agent' && <Bot size={14} color="#0284c7" />}
                     <span>
                       {msg.sender === 'agent'
-                        ? 'Agente CoAuthor'
+                        ? 'CoAuthor AI'
                         : msg.sender === 'user'
-                        ? 'Você'
+                        ? 'Você (Autor)'
                         : 'Sistema'}
                     </span>
                     <span>• {msg.timestamp}</span>
@@ -1284,12 +1300,66 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                   {/* CONTEÚDO FORMATADO */}
                   <div>{renderRichText(msg.text)}</div>
 
+                  {/* CARD DE ALINHAMENTO CONCLUÍDO (SE GERADO PELO GEMINI) */}
+                  {msg.alignmentCard && (
+                    <div
+                      style={{
+                        marginTop: 14,
+                        padding: 16,
+                        background: '#f0fdf4',
+                        border: '1.5px solid #10b981',
+                        borderRadius: 10,
+                        color: '#0f172a'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <CheckCircle2 size={18} color="#059669" />
+                        <strong style={{ fontSize: 13, color: '#065f46' }}>
+                          Estrutura Editorial Aprovada e Pronta para Escrita!
+                        </strong>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                        <div><strong>Título:</strong> {msg.alignmentCard.titulo}</div>
+                        {msg.alignmentCard.subtitulo && (
+                          <div><strong>Subtítulo:</strong> {msg.alignmentCard.subtitulo}</div>
+                        )}
+                        <div><strong>Perfil:</strong> {msg.alignmentCard.tipo.toUpperCase()}</div>
+                        <div><strong>Tema:</strong> {msg.alignmentCard.premissa}</div>
+                        <div><strong>Capítulos Planejados:</strong> {msg.alignmentCard.totalCaps} capítulos</div>
+                      </div>
+
+                      <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleActionClick('iniciar_cap_1')}
+                          style={{
+                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                            color: '#ffffff',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                          }}
+                        >
+                          ✍️ Iniciar Produção do Capítulo 1
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* PRÉVIA DO CAPÍTULO CONCLUÍDO */}
                   {msg.chapterPreview && (
                     <div
                       style={{
-                        marginTop: 10,
-                        padding: 12,
+                        marginTop: 12,
+                        padding: 14,
                         background: '#f8fafc',
                         border: '1px solid #cbd5e1',
                         borderRadius: 8,
@@ -1304,7 +1374,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                           marginBottom: 6
                         }}
                       >
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: '#0284c7' }}>
                           Capítulo {msg.chapterPreview.numero}: {msg.chapterPreview.titulo}
                         </span>
                         <button
@@ -1320,29 +1390,29 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                             display: 'flex',
                             alignItems: 'center',
                             gap: 4,
-                            padding: '3px 8px',
+                            padding: '4px 10px',
                             background: '#ffffff',
                             border: '1px solid #cbd5e1',
                             borderRadius: 4,
-                            fontSize: 10,
-                            fontWeight: 600,
+                            fontSize: 11,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             color: '#475569'
                           }}
                         >
                           {isCopiedChapter === msg.chapterPreview.numero ? (
                             <>
-                              <Check size={11} color="#059669" /> Copiado!
+                              <Check size={12} color="#059669" /> Copiado!
                             </>
                           ) : (
                             <>
-                              <Copy size={11} /> Copiar Texto
+                              <Copy size={12} /> Copiar Texto
                             </>
                           )}
                         </button>
                       </div>
 
-                      <p style={{ margin: '0 0 6px', fontSize: 11, color: '#475569', fontStyle: 'italic' }}>
+                      <p style={{ margin: '0 0 8px', fontSize: 12, color: '#475569', fontStyle: 'italic', lineHeight: 1.5 }}>
                         "{msg.chapterPreview.resumo}"
                       </p>
 
@@ -1351,16 +1421,16 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          fontSize: 10,
-                          fontWeight: 600,
+                          fontSize: 11,
+                          fontWeight: 700,
                           color: '#059669',
                           background: '#ecfdf5',
-                          padding: '4px 8px',
-                          borderRadius: 4,
+                          padding: '6px 10px',
+                          borderRadius: 6,
                           border: '1px solid #a7f3d0'
                         }}
                       >
-                        <span>✓ Salvo no Manuscrito Oficial KDP ({msg.chapterPreview.palavras} palavras)</span>
+                        <span>✓ Manuscrito Oficial KDP ({msg.chapterPreview.palavras} palavras)</span>
                         <button
                           type="button"
                           onClick={() => setInternalTab('revisao')}
@@ -1368,8 +1438,8 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                             background: 'transparent',
                             border: 'none',
                             color: '#059669',
-                            fontWeight: 700,
-                            fontSize: 10,
+                            fontWeight: 800,
+                            fontSize: 11,
                             cursor: 'pointer',
                             textDecoration: 'underline'
                           }}
@@ -1387,10 +1457,10 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                         display: 'flex',
                         flexWrap: 'wrap',
                         gap: 6,
-                        marginTop: 10,
-                        paddingTop: 8,
+                        marginTop: 12,
+                        paddingTop: 10,
                         borderTop: '1px solid',
-                        borderColor: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.2)' : '#e2e8f0'
+                        borderColor: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.2)' : '#f1f5f9'
                       }}
                     >
                       {msg.suggestedActions.map((act, i) => (
@@ -1403,7 +1473,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                             padding: '6px 12px',
                             borderRadius: 6,
                             fontSize: 11,
-                            fontWeight: 700,
+                            fontWeight: 800,
                             cursor: isAiProcessing ? 'not-allowed' : 'pointer',
                             background: act.primary
                               ? 'linear-gradient(135deg, #0284c7, #0369a1)'
@@ -1430,13 +1500,13 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 10,
-                  padding: '12px 16px',
+                  gap: 12,
+                  padding: '12px 18px',
                   background: '#ffffff',
-                  borderRadius: 10,
+                  borderRadius: 12,
                   border: '1.5px solid #0284c7',
                   width: 'fit-content',
-                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.15)'
+                  boxShadow: '0 4px 16px rgba(2, 132, 199, 0.15)'
                 }}
               >
                 <div
@@ -1450,11 +1520,11 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                   }}
                 />
                 <div>
-                  <div style={{ fontSize: 12, color: '#0369a1', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Sparkles size={13} color="#0284c7" /> {aiLoadingStatus || 'Processando com inteligência editorial...'}
+                  <div style={{ fontSize: 12, color: '#0369a1', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Sparkles size={13} color="#0284c7" /> {aiLoadingStatus || 'Processando com inteligência Gemini...'}
                   </div>
-                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
-                    O Book Engin está mantendo integridade e calibração de estilo ({tipoLivro.toUpperCase()}).
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                    Consultando modelo Gemini e estruturando resposta sob medida.
                   </div>
                 </div>
 
@@ -1463,14 +1533,14 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                     type="button"
                     onClick={() => handleActionClick('parar_piloto')}
                     style={{
-                      marginLeft: 10,
-                      padding: '4px 10px',
+                      marginLeft: 12,
+                      padding: '5px 12px',
                       background: '#fee2e2',
                       color: '#dc2626',
                       border: '1px solid #fca5a5',
                       borderRadius: 6,
                       fontSize: 11,
-                      fontWeight: 700,
+                      fontWeight: 800,
                       cursor: 'pointer'
                     }}
                   >
@@ -1493,34 +1563,38 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               gap: 8
             }}
           >
-            {/* SUGESTÕES RÁPIDAS CALIBRADAS POR PERFIL */}
-            {currentStep >= 4 && (
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-                {getSugestoesPorTipo(tipoLivro).map((sugestao, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    disabled={isAiProcessing}
-                    onClick={() => {
-                      setUserInput(sugestao.replace(/^..\s*/, ''));
-                    }}
-                    style={{
-                      whiteSpace: 'nowrap',
-                      padding: '4px 9px',
-                      borderRadius: 4,
-                      background: '#f1f5f9',
-                      color: '#475569',
-                      border: '1px solid #e2e8f0',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: isAiProcessing ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {sugestao}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* SUGESTÕES RÁPIDAS DE CONTINUAÇÃO */}
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+              {[
+                '✍️ Escrever próximo capítulo',
+                '💡 Quero um livro técnico e didático',
+                '📘 Quero um livro de autoajuda e foco',
+                '🛠️ Quero um guia prático passo a passo',
+                '🔍 Sugira os títulos dos capítulos'
+              ].map((sugestao, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  disabled={isAiProcessing}
+                  onClick={() => {
+                    setUserInput(sugestao.replace(/^..\s*/, ''));
+                  }}
+                  style={{
+                    whiteSpace: 'nowrap',
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    background: '#f8fafc',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: isAiProcessing ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {sugestao}
+                </button>
+              ))}
+            </div>
 
             {/* FORMULÁRIO DE ENVIO */}
             <form
@@ -1537,24 +1611,19 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 disabled={isAiProcessing}
                 placeholder={
                   isAiProcessing
-                    ? 'Aguarde... o Agente CoAuthor está gerando o conteúdo...'
-                    : currentStep === 1
-                    ? 'Digite sua resposta: qual é a ideia central e o tema do seu livro?'
-                    : currentStep === 2
-                    ? 'Digite sua resposta: quais tópicos ou elementos inegociáveis?'
-                    : currentStep === 3
-                    ? 'Digite sua resposta: qual deve ser a abordagem e tom dos capítulos?'
-                    : 'Fale com o CoAuthor: peça ajustes, novos tópicos ou continue o livro...'
+                    ? 'Aguarde... o Agente CoAuthor está processando com o Gemini...'
+                    : 'Digite sua mensagem ou instrução para o CoAuthor (ex: ideia do livro, correção ou pedido)...'
                 }
                 style={{
                   flex: 1,
-                  padding: '10px 14px',
+                  padding: '11px 16px',
                   borderRadius: 8,
-                  border: '1px solid #cbd5e1',
+                  border: '1.5px solid #cbd5e1',
                   fontSize: 13,
                   background: isAiProcessing ? '#f1f5f9' : '#f8fafc',
                   color: '#0f172a',
-                  outline: 'none'
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
                 }}
               />
 
@@ -1565,7 +1634,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  padding: '10px 18px',
+                  padding: '11px 20px',
                   borderRadius: 8,
                   background: !userInput.trim() || isAiProcessing
                     ? '#cbd5e1'
@@ -1573,13 +1642,14 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                   color: '#ffffff',
                   border: 'none',
                   fontSize: 13,
-                  fontWeight: 700,
-                  cursor: !userInput.trim() || isAiProcessing ? 'not-allowed' : 'pointer'
+                  fontWeight: 800,
+                  cursor: !userInput.trim() || isAiProcessing ? 'not-allowed' : 'pointer',
+                  boxShadow: userInput.trim() && !isAiProcessing ? '0 2px 8px rgba(2, 132, 199, 0.3)' : 'none'
                 }}
               >
                 {isAiProcessing ? (
                   <>
-                    <RefreshCw size={14} className="spin" /> Gerando...
+                    <RefreshCw size={14} className="animate-spin" /> Gerando...
                   </>
                 ) : (
                   <>
@@ -1618,7 +1688,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 </h3>
                 <span style={{
                   fontSize: 11,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   background: '#ecfdf5',
                   color: '#059669',
                   border: '1px solid #a7f3d0',
@@ -1667,7 +1737,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                   border: 'none',
                   color: '#ffffff',
                   fontSize: 12,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   cursor: 'pointer',
                   boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)'
                 }}
@@ -1748,7 +1818,6 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                       boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
                     }}
                   >
-                    {/* LINHA DE TÍTULO DO CAPÍTULO */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{
@@ -1786,7 +1855,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                             border: '1px solid #cbd5e1',
                             borderRadius: 6,
                             fontSize: 11,
-                            fontWeight: 600,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             color: '#334155'
                           }}
@@ -1811,7 +1880,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                             border: '1px solid #0284c7',
                             borderRadius: 6,
                             fontSize: 11,
-                            fontWeight: 600,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             color: '#0284c7'
                           }}
@@ -1835,7 +1904,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                             border: '1px solid #cbd5e1',
                             borderRadius: 6,
                             fontSize: 11,
-                            fontWeight: 600,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             color: '#475569'
                           }}
@@ -1846,12 +1915,11 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                       </div>
                     </div>
 
-                    {/* CONTEÚDO EXPANDIDO / MODO DE EDIÇÃO */}
                     {isExpanded && (
                       <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
                         {isEditing ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#0284c7' }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: '#0284c7' }}>
                               ✏️ Editando texto do Capítulo {idx + 1}:
                             </span>
                             <textarea
@@ -1881,7 +1949,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                                   background: '#f1f5f9',
                                   border: '1px solid #cbd5e1',
                                   fontSize: 12,
-                                  fontWeight: 600,
+                                  fontWeight: 700,
                                   cursor: 'pointer',
                                   color: '#475569'
                                 }}
@@ -1900,7 +1968,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                                   background: '#059669',
                                   border: 'none',
                                   fontSize: 12,
-                                  fontWeight: 700,
+                                  fontWeight: 800,
                                   cursor: 'pointer',
                                   color: '#ffffff'
                                 }}
@@ -1929,6 +1997,115 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 );
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* MODAL PARA CONFIGURAÇÃO DA CHAVE GEMINI API DO USUÁRIO */}
+      {/* ==================================================================== */}
+      {isApiKeyModalOpen && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.55)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100,
+          padding: 20
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 14,
+            padding: 24,
+            maxWidth: 480,
+            width: '100%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid #cbd5e1'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Key size={18} color="#0284c7" />
+                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                  Chave Gemini API do Autor
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsApiKeyModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 14px', fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+              O CoAuthor utiliza a inteligência do <strong>Google Gemini</strong> para conversar de forma real com você e escrever os capítulos. Se desejar usar sua própria chave de API (Google AI Studio), insira-a abaixo:
+            </p>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 6 }}>
+                Sua Gemini API Key (ex: AIzaSy...):
+              </label>
+              <input
+                type="text"
+                value={customKeyInput}
+                onChange={(e) => setCustomKeyInput(e.target.value)}
+                placeholder="Cole sua chave AIzaSy... aqui (ou deixe em branco para chave padrão)"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 13,
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginTop: 4 }}>
+                A chave é salva com segurança no armazenamento local do seu navegador (localStorage).
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setIsApiKeyModalOpen(false)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 6,
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  color: '#475569'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCustomKey}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 6,
+                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  color: '#ffffff'
+                }}
+              >
+                Salvar Chave
+              </button>
+            </div>
           </div>
         </div>
       )}
