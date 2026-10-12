@@ -34,14 +34,29 @@ type AppMode = 'project-list' | 'settings' | 'kdp-generator' | 'admin' | 'cinema
 export const BookStudioApp: React.FC = () => {
   const [projects, setProjects] = useState<BookProject[]>([]);
   const [activeProject, setActiveProject] = useState<BookProject | null>(null);
-  const authenticatedUserIdRef = useRef<string | null>(null);
+  const authenticatedUserIdRef = useRef<string | null>(authClient.getStoredUser()?.id || null);
 
-  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(() => authClient.getStoredUser());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => Boolean(authClient.getStoredUser()));
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(() => !authClient.getStoredUser());
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
 
-  const [mode, setMode] = useState<AppMode>('project-list');
+  const [mode, setModeState] = useState<AppMode>(() => {
+    if (typeof localStorage === 'undefined') return 'project-list';
+    const savedMode = localStorage.getItem('kdp_active_mode') as AppMode | null;
+    if (savedMode && ['project-list', 'kdp-generator', 'cinematic-novel', 'course-generator', 'puzzle-generator'].includes(savedMode)) {
+      return savedMode;
+    }
+    return 'project-list';
+  });
+
+  const setMode = useCallback((newMode: AppMode) => {
+    setModeState(newMode);
+    try {
+      localStorage.setItem('kdp_active_mode', newMode);
+    } catch {}
+  }, []);
+
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
 
   // Romance Cinematográfico Realista
@@ -103,18 +118,28 @@ export const BookStudioApp: React.FC = () => {
     authClient.getSession()
       .then(user => {
         if (!isMounted) return;
-        setCurrentUser(user);
-        authenticatedUserIdRef.current = user?.id || null;
-        db.setAuthenticatedUser(user?.id || null);
-        setIsAuthenticated(Boolean(user));
+        if (user) {
+          setCurrentUser(user);
+          authenticatedUserIdRef.current = user.id;
+          db.setAuthenticatedUser(user.id);
+          setIsAuthenticated(true);
+        } else if (!authClient.getStoredUser()) {
+          setCurrentUser(null);
+          authenticatedUserIdRef.current = null;
+          db.setAuthenticatedUser(null);
+          setIsAuthenticated(false);
+        }
       })
       .catch(error => {
         console.error('Não foi possível validar a sessão no servidor:', error);
         if (!isMounted) return;
-        setCurrentUser(null);
-        authenticatedUserIdRef.current = null;
-        db.setAuthenticatedUser(null);
-        setIsAuthenticated(false);
+        // Se já temos usuário em cache com token, não desloga
+        if (!authClient.getStoredUser()) {
+          setCurrentUser(null);
+          authenticatedUserIdRef.current = null;
+          db.setAuthenticatedUser(null);
+          setIsAuthenticated(false);
+        }
       })
       .finally(() => {
         if (isMounted) setIsAuthChecking(false);
@@ -131,6 +156,7 @@ export const BookStudioApp: React.FC = () => {
       console.error('Não foi possível encerrar a sessão no servidor:', error);
     }
     try {
+      localStorage.removeItem('kdp_active_mode');
       localStorage.removeItem('kdp_last_active_project_id');
       localStorage.removeItem('kdp_book_generator_state_v1');
       localStorage.removeItem('kdp_book_generator_last_saved');
@@ -144,19 +170,32 @@ export const BookStudioApp: React.FC = () => {
     setActiveCinematicProject(null);
     setActiveCourseProject(null);
     setProjectLoadError(null);
+    setMode('project-list');
   };
 
-  // Sincronização de rotas com URL hash (#landing, #dashboard, #studio)
+  // Sincronização de rotas com URL hash explícito (#dashboard, #landing)
   useEffect(() => {
     const handleHash = () => {
       const h = (window.location.hash || '').toLowerCase();
-      if (h.includes('dashboard') || h.includes('landing') || h === '' || h === '#') {
+      if (h.includes('dashboard') || h.includes('landing')) {
         setMode('project-list');
       }
     };
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
-  }, []);
+  }, [setMode]);
+
+  // Restaura automaticamente o projeto ativo salvo se estiver no modo kdp-generator
+  useEffect(() => {
+    if (mode === 'kdp-generator' && !activeProject && typeof localStorage !== 'undefined') {
+      const lastId = localStorage.getItem('kdp_last_active_project_id');
+      if (lastId) {
+        db.getBookProject(lastId).then(proj => {
+          if (proj) setActiveProject(proj);
+        }).catch(() => {});
+      }
+    }
+  }, [mode, activeProject]);
 
   // Carregar projetos do IndexedDB
   const reloadProjects = useCallback(async () => {
@@ -245,6 +284,9 @@ export const BookStudioApp: React.FC = () => {
       }
 
       setActiveProject(found);
+      try {
+        localStorage.setItem('kdp_last_active_project_id', found.id);
+      } catch {}
       setMode('kdp-generator');
     }
   };
@@ -506,6 +548,9 @@ export const BookStudioApp: React.FC = () => {
     await db.saveBookProject(newProject);
     setProjects(prev => [newProject, ...prev]);
     setActiveProject(newProject);
+    try {
+      localStorage.setItem('kdp_last_active_project_id', newProject.id);
+    } catch {}
     setMode('kdp-generator');
   };
 
@@ -553,6 +598,9 @@ export const BookStudioApp: React.FC = () => {
     await db.saveBookProject(newProject);
     setProjects(prev => [newProject, ...prev]);
     setActiveProject(newProject);
+    try {
+      localStorage.setItem('kdp_last_active_project_id', newProject.id);
+    } catch {}
     setMode('kdp-generator');
   };
 

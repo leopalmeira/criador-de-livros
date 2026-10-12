@@ -306,59 +306,77 @@ export class PrintCoverService {
     }
 
     // --- PAINEL TRASEIRO (CONTRACAPA ESQUERDA) ---
-    const backContent = params.backCoverContent || this.generateSmartBackCover(params.title, '', 'Ficção');
-
-    // Gancho Comercial
-    doc.setTextColor(245, 158, 11); // Dourado / Âmbar
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    const hookLines = doc.splitTextToSize(backContent.hookHeadline, trimWidthMm - 32);
-    doc.text(hookLines, backCoverX + 16, bleedMm + 28);
-
-    doc.setDrawColor(245, 158, 11);
-    doc.setLineWidth(0.4);
-    const hookY = bleedMm + 30 + (hookLines.length * 6);
-    doc.line(backCoverX + 16, hookY, backCoverX + 65, hookY);
-
-    // Texto da Sinopse
-    doc.setTextColor(226, 232, 240); // Slate 200
-    doc.setFont('times', 'normal');
-    doc.setFontSize(10);
-    const synLines = doc.splitTextToSize(backContent.synopsisText, trimWidthMm - 32);
-    doc.text(synLines, backCoverX + 16, hookY + 8);
-
-    // Benefícios da Leitura (Bullet points)
-    let bulletY = hookY + 12 + (synLines.length * 5);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(203, 213, 225);
-
-    backContent.readerBenefits.forEach(b => {
-      if (bulletY < totalHeightMm - 60) {
-        doc.setFillColor(245, 158, 11);
-        doc.circle(backCoverX + 18, bulletY - 1, 1, 'F');
-        const bLines = doc.splitTextToSize(b, trimWidthMm - 38);
-        doc.text(bLines, backCoverX + 22, bulletY);
-        bulletY += Math.max(7, bLines.length * 4.5);
+    if (params.backCoverDataUrl && params.backCoverDataUrl.startsWith('data:image')) {
+      try {
+        const isPng = params.backCoverDataUrl.includes('image/png');
+        doc.addImage(
+          params.backCoverDataUrl,
+          isPng ? 'PNG' : 'JPEG',
+          backCoverX,
+          0,
+          trimWidthMm,
+          totalHeightMm,
+          undefined,
+          'FAST'
+        );
+      } catch (err) {
+        console.warn('[PrintCoverService] Falha ao renderizar imagem da contracapa personalizada:', err);
       }
-    });
+    } else {
+      const backContent = params.backCoverContent || this.generateSmartBackCover(params.title, '', 'Ficção');
 
-    // Área Oficial Reservada para Código de Barras KDP (50.8mm x 30.5mm / 2" x 1.2")
-    const barcodeWidth = 50.8;
-    const barcodeHeight = 30.5;
-    const barcodeX = backCoverX + 16;
-    const barcodeY = totalHeightMm - bleedMm - barcodeHeight - 12;
+      // Gancho Comercial
+      doc.setTextColor(245, 158, 11); // Dourado / Âmbar
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      const hookLines = doc.splitTextToSize(backContent.hookHeadline, trimWidthMm - 32);
+      doc.text(hookLines, backCoverX + 16, bleedMm + 28);
 
-    doc.setFillColor(255, 255, 255);
-    doc.rect(barcodeX, barcodeY, barcodeWidth, barcodeHeight, 'F');
-    doc.setDrawColor(203, 213, 225);
-    doc.rect(barcodeX, barcodeY, barcodeWidth, barcodeHeight, 'S');
+      doc.setDrawColor(245, 158, 11);
+      doc.setLineWidth(0.4);
+      const hookY = bleedMm + 30 + (hookLines.length * 6);
+      doc.line(backCoverX + 16, hookY, backCoverX + 65, hookY);
 
-    doc.setTextColor(100, 116, 139);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.text('Área Reservada KDP', barcodeX + (barcodeWidth / 2), barcodeY + (barcodeHeight / 2) - 2, { align: 'center' });
-    doc.text('(Código de barras gerado pela Amazon)', barcodeX + (barcodeWidth / 2), barcodeY + (barcodeHeight / 2) + 3, { align: 'center' });
+      // Texto da Sinopse
+      doc.setTextColor(226, 232, 240); // Slate 200
+      doc.setFont('times', 'normal');
+      doc.setFontSize(10);
+      const synLines = doc.splitTextToSize(backContent.synopsisText, trimWidthMm - 32);
+      doc.text(synLines, backCoverX + 16, hookY + 8);
+
+      // Benefícios da Leitura (Bullet points)
+      let bulletY = hookY + 12 + (synLines.length * 5);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(203, 213, 225);
+
+      backContent.readerBenefits.forEach(b => {
+        if (bulletY < totalHeightMm - 60) {
+          doc.setFillColor(245, 158, 11);
+          doc.circle(backCoverX + 18, bulletY - 1, 1, 'F');
+          const bLines = doc.splitTextToSize(b, trimWidthMm - 38);
+          doc.text(bLines, backCoverX + 22, bulletY);
+          bulletY += Math.max(7, bLines.length * 4.5);
+        }
+      });
+
+      // Área Oficial Reservada para Código de Barras KDP (50.8mm x 30.5mm / 2" x 1.2")
+      const barcodeWidth = 50.8;
+      const barcodeHeight = 30.5;
+      const barcodeX = backCoverX + 16;
+      const barcodeY = totalHeightMm - bleedMm - barcodeHeight - 12;
+
+      doc.setFillColor(255, 255, 255);
+      doc.rect(barcodeX, barcodeY, barcodeWidth, barcodeHeight, 'F');
+      doc.setDrawColor(203, 213, 225);
+      doc.rect(barcodeX, barcodeY, barcodeWidth, barcodeHeight, 'S');
+
+      doc.setTextColor(100, 116, 139);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text('Área Reservada KDP', barcodeX + (barcodeWidth / 2), barcodeY + (barcodeHeight / 2) - 2, { align: 'center' });
+      doc.text('(Código de barras gerado pela Amazon)', barcodeX + (barcodeWidth / 2), barcodeY + (barcodeHeight / 2) + 3, { align: 'center' });
+    }
 
     const arrayBuffer = doc.output('arraybuffer');
     return {
@@ -383,6 +401,9 @@ export class PrintCoverService {
     paperType?: PaperType;
     trimSize?: TrimSize;
     primaryColorHex?: string;
+    textAlign?: 'left' | 'center' | 'right';
+    authorPhotoUrl?: string;
+    authorPhotoSize?: number;
   }): Promise<string> {
     const canvas = document.createElement('canvas');
     canvas.width = 1600;
@@ -391,6 +412,7 @@ export class PrintCoverService {
     if (!ctx) throw new Error('Não foi possível obter contexto 2D para a contracapa');
 
     const isKids = Boolean(params.isKids);
+    const align = params.textAlign || 'left';
 
     // 1. Fundo Gradiente Elegante
     const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -411,12 +433,15 @@ export class PrintCoverService {
     const marginX = 140;
     const maxTextW = canvas.width - (marginX * 2);
 
+    // Posição X de ancoragem conforme alinhamento
+    const anchorX = align === 'center' ? canvas.width / 2 : align === 'right' ? canvas.width - marginX : marginX;
+
     // Dados da contracapa
     const backContent = this.generateSmartBackCover(params.title, params.synopsis, params.genre || 'Ficção');
     const headline = params.hookHeadline || backContent.hookHeadline;
 
     // 2. Gancho Comercial / Headline no topo
-    ctx.textAlign = 'left';
+    ctx.textAlign = align;
     ctx.fillStyle = isKids ? '#fef08a' : '#f59e0b'; // Amarelo luminoso ou Âmbar dourado
     ctx.font = isKids ? 'bold 60px "Fredoka", "Quicksand", sans-serif' : 'bold 58px Georgia, serif';
     ctx.shadowColor = 'rgba(0,0,0,0.85)';
@@ -425,7 +450,7 @@ export class PrintCoverService {
     const headlineLines = this.quebrarLinhasTexto(ctx, headline, maxTextW);
     let y = 220;
     headlineLines.forEach(line => {
-      ctx.fillText(line, marginX, y);
+      ctx.fillText(line, anchorX, y);
       y += 74;
     });
 
@@ -434,20 +459,29 @@ export class PrintCoverService {
     ctx.strokeStyle = isKids ? 'rgba(254, 240, 138, 0.45)' : 'rgba(245, 158, 11, 0.45)';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(marginX, y + 14);
-    ctx.lineTo(marginX + 220, y + 14);
+    if (align === 'center') {
+      ctx.moveTo(canvas.width / 2 - 110, y + 14);
+      ctx.lineTo(canvas.width / 2 + 110, y + 14);
+    } else if (align === 'right') {
+      ctx.moveTo(canvas.width - marginX - 220, y + 14);
+      ctx.lineTo(canvas.width - marginX, y + 14);
+    } else {
+      ctx.moveTo(marginX, y + 14);
+      ctx.lineTo(marginX + 220, y + 14);
+    }
     ctx.stroke();
     y += 56;
 
     // 3. Sinopse da Obra
     const synopsis = params.synopsis || backContent.synopsisText;
+    ctx.textAlign = align;
     ctx.fillStyle = '#f1f5f9';
     ctx.font = isKids ? '500 42px "Quicksand", sans-serif' : '400 40px Georgia, serif';
     ctx.shadowBlur = 8;
     const synLines = this.quebrarLinhasTexto(ctx, synopsis, maxTextW);
     synLines.forEach(line => {
-      if (y < 1280) {
-        ctx.fillText(line, marginX, y);
+      if (y < 1240) {
+        ctx.fillText(line, anchorX, y);
         y += 58;
       }
     });
@@ -457,31 +491,99 @@ export class PrintCoverService {
     // 4. Benefícios / Destaques da Leitura (Bullet points)
     const benefits = params.benefits || backContent.readerBenefits;
     benefits.forEach(b => {
-      if (y < 1720) {
-        // Bullet circle
-        ctx.fillStyle = isKids ? '#fef08a' : '#f59e0b';
-        ctx.beginPath();
-        ctx.arc(marginX + 14, y - 12, 7, 0, Math.PI * 2);
-        ctx.fill();
+      if (y < 1620) {
+        if (align === 'center') {
+          ctx.fillStyle = '#cbd5e1';
+          ctx.font = '500 36px sans-serif';
+          ctx.textAlign = 'center';
+          const bLines = this.quebrarLinhasTexto(ctx, `✦ ${b}`, maxTextW);
+          bLines.forEach(bl => {
+            ctx.fillText(bl, canvas.width / 2, y);
+            y += 50;
+          });
+          y += 8;
+        } else if (align === 'right') {
+          ctx.fillStyle = '#cbd5e1';
+          ctx.font = '500 36px sans-serif';
+          ctx.textAlign = 'right';
+          const bLines = this.quebrarLinhasTexto(ctx, `${b} •`, maxTextW - 50);
+          bLines.forEach(bl => {
+            ctx.fillText(bl, canvas.width - marginX, y);
+            y += 50;
+          });
+          y += 8;
+        } else {
+          // Bullet circle tradicional à esquerda
+          ctx.fillStyle = isKids ? '#fef08a' : '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(marginX + 14, y - 12, 7, 0, Math.PI * 2);
+          ctx.fill();
 
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = '500 36px sans-serif';
-        const bLines = this.quebrarLinhasTexto(ctx, b, maxTextW - 50);
-        bLines.forEach(bl => {
-          ctx.fillText(bl, marginX + 40, y);
-          y += 50;
-        });
-        y += 10;
+          ctx.fillStyle = '#cbd5e1';
+          ctx.font = '500 36px sans-serif';
+          ctx.textAlign = 'left';
+          const bLines = this.quebrarLinhasTexto(ctx, b, maxTextW - 50);
+          bLines.forEach(bl => {
+            ctx.fillText(bl, marginX + 40, y);
+            y += 50;
+          });
+          y += 10;
+        }
       }
     });
 
+    // 4.5. Foto do Autor / Imagem da Contracapa (se fornecida)
+    if (params.authorPhotoUrl && params.authorPhotoUrl.startsWith('data:image')) {
+      try {
+        const photoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Falha ao carregar foto do autor'));
+          img.src = params.authorPhotoUrl!;
+        });
+
+        const pSize = Math.max(90, Math.min(320, params.authorPhotoSize || 180));
+        let photoX = marginX;
+        if (align === 'center') {
+          photoX = (canvas.width - pSize) / 2;
+        } else if (align === 'right') {
+          photoX = canvas.width - marginX - pSize;
+        }
+        const photoY = Math.min(y + 20, canvas.height - 480);
+
+        // Desenhar moldura circular elegante com sombra
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.arc(photoX + pSize / 2, photoY + pSize / 2, pSize / 2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(photoImg, photoX, photoY, pSize, pSize);
+        ctx.restore();
+
+        // Borda dourada em torno da foto
+        ctx.save();
+        ctx.strokeStyle = isKids ? '#fef08a' : '#f59e0b';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(photoX + pSize / 2, photoY + pSize / 2, pSize / 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } catch (err) {
+        console.warn('[PrintCoverService] Não foi possível estampar a foto na contracapa:', err);
+      }
+    }
+
     // 5. Rodapé Editorial / Autor
+    ctx.textAlign = align;
     ctx.fillStyle = '#94a3b8';
     ctx.font = '600 32px sans-serif';
-    ctx.fillText(`${params.author.toUpperCase()}`, marginX, canvas.height - 270);
+    ctx.fillText(`${params.author.toUpperCase()}`, anchorX, canvas.height - 270);
     ctx.fillStyle = '#64748b';
     ctx.font = '400 26px sans-serif';
-    ctx.fillText('Edição Oficial Amazon KDP • Diagramação Editorial', marginX, canvas.height - 228);
+    ctx.fillText('Edição Oficial Amazon KDP • Diagramação Editorial', anchorX, canvas.height - 228);
 
     // 6. Área Oficial Reservada para Código de Barras KDP (2" x 1.2" / 50.8mm x 30.5mm)
     const barcodeW = 420;

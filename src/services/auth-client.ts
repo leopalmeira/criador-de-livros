@@ -113,13 +113,38 @@ async function request<T extends ApiResponse>(
   return payload as T;
 }
 
+const USER_KEY = 'kdp_session_user';
+
+function getStoredUser(): AuthenticatedUser | null {
+  if (typeof localStorage === 'undefined') return null;
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthenticatedUser;
+  } catch {
+    return null;
+  }
+}
+
+function setStoredUser(user: AuthenticatedUser | null): void {
+  if (typeof localStorage === 'undefined') return;
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
 export const authClient = {
+  getStoredUser,
+
   async login(email: string, password: string, rememberMe: boolean): Promise<AuthenticatedUser> {
     const response = await request<ApiResponse>('/api/auth/login', 'POST', { email, password, rememberMe });
     if (!response.user) throw new AuthApiError('A resposta de autenticação está incompleta.', 'INVALID_AUTH_RESPONSE', 502);
     if (response.token) {
       setStoredToken(response.token);
     }
+    setStoredUser(response.user);
     return response.user;
   },
 
@@ -129,16 +154,31 @@ export const authClient = {
     if (response.token) {
       setStoredToken(response.token);
     }
+    setStoredUser(response.user);
     return response.user;
   },
 
   async getSession(): Promise<AuthenticatedUser | null> {
+    const cachedUser = getStoredUser();
+    const token = getStoredToken();
     try {
       const response = await request<ApiResponse>('/api/auth/session', 'GET');
-      if (response.user) return response.user;
-      return null;
+      if (response.user) {
+        setStoredUser(response.user);
+        return response.user;
+      }
+      // Se a rota retornou sem erro mas sem user e não temos token
+      if (!token) {
+        setStoredUser(null);
+        return null;
+      }
+      return cachedUser;
     } catch {
-      return null;
+      // Falha temporária de rede ou servidor reiniciando: preserva o usuário logado
+      if (token && cachedUser) {
+        return cachedUser;
+      }
+      return cachedUser || null;
     }
   },
 
@@ -147,6 +187,7 @@ export const authClient = {
       await request<ApiResponse>('/api/auth/logout', 'POST', {});
     } finally {
       setStoredToken(null);
+      setStoredUser(null);
     }
   },
 

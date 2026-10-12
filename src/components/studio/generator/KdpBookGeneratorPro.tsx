@@ -45,6 +45,7 @@ import {
   CoAuthorWorkspace,
   type CoAuthorContextData
 } from './CoAuthorAgentSuite';
+import { CoAuthorFloatingAssistant } from './CoAuthorFloatingAssistant';
 import {
   orchestrateEditorialPlan,
   buildFallbackEditorialPlan,
@@ -488,6 +489,16 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [showKdpGuides, setShowKdpGuides] = useState<boolean>(true);
   const [contracapaTexto, setContracapaTexto] = useState<{ hookHeadline: string; synopsisText: string; readerBenefits: string[] } | null>(null);
   const [isEditingBackCover, setIsEditingBackCover] = useState(false);
+  const [contracapaAlign, setContracapaAlign] = useState<'left' | 'center' | 'right'>('left');
+  const [contracapaAuthorPhotoUrl, setContracapaAuthorPhotoUrl] = useState<string | null>(null);
+  const [contracapaAuthorPhotoSize, setContracapaAuthorPhotoSize] = useState<number>(180);
+
+  // Estados de Personalização da Capa Frontal (Mover título, tamanho da fonte e estilo)
+  const [isEditingFrontCover, setIsEditingFrontCover] = useState(false);
+  const [capaTituloOffsetY, setCapaTituloOffsetY] = useState<number>(0);
+  const [capaTituloFontSize, setCapaTituloFontSize] = useState<number>(110);
+  const [capaTituloFontFamily, setCapaTituloFontFamily] = useState<string>('serif');
+
   const [keywordsKdp, setKeywordsKdp] = useState<string[]>([]);
   const [isEditingKeywords, setIsEditingKeywords] = useState(false);
   const [promoData, setPromoData] = useState<BookPromotionalPageData | null>(null);
@@ -1695,7 +1706,12 @@ ${ganchoImediato}`;
     obraPremissa: string,
     tipoEstilo: 'modern-magazine' | 'luxury-serif' | 'bold-impact' = estiloCapaTipo,
     zonaLimpa: 'suave' | 'media' | 'forte' = intensidadeZonaLimpa,
-    layoutTitulo: CoverTitleLayout = posicaoTituloCapa
+    layoutTitulo: CoverTitleLayout = posicaoTituloCapa,
+    customTituloConfig?: {
+      offsetY?: number;
+      fontSize?: number;
+      fontFamily?: string;
+    }
   ): Promise<string> => {
     const canvas = document.createElement('canvas');
     canvas.width = 1600;
@@ -1728,15 +1744,20 @@ ${ganchoImediato}`;
       { isKids: isObraInfantil, bookType, ageBand: faixaEtaria }
     );
 
-    // Dimensionamento harmônico do título
-    let fontSizeTit = 110;
-    if (obraTitulo.length > 50) fontSizeTit = 74;
-    else if (obraTitulo.length > 32) fontSizeTit = 86;
-    else if (obraTitulo.length > 20) fontSizeTit = 98;
-    else if (obraTitulo.length < 14) fontSizeTit = 122; // Títulos concisos ganham presença imponente
+    // Dimensionamento harmônico do título (ou personalizado pelo autor)
+    let fontSizeTit = customTituloConfig?.fontSize || 110;
+    if (!customTituloConfig?.fontSize) {
+      if (obraTitulo.length > 50) fontSizeTit = 74;
+      else if (obraTitulo.length > 32) fontSizeTit = 86;
+      else if (obraTitulo.length > 20) fontSizeTit = 98;
+      else if (obraTitulo.length < 14) fontSizeTit = 122; // Títulos concisos ganham presença imponente
+    }
 
-    const centroTitulo = layoutTitulo === 'topo' ? 440 : 1040;
-    ctx.font = `${configTipo.fontWeightTitle} ${fontSizeTit}px ${configTipo.fontFamilyTitle}`;
+    const baseCentroTitulo = layoutTitulo === 'topo' ? 440 : 1040;
+    const centroTitulo = baseCentroTitulo + (customTituloConfig?.offsetY || 0);
+
+    const chosenFontFamily = customTituloConfig?.fontFamily || configTipo.fontFamilyTitle;
+    ctx.font = `${configTipo.fontWeightTitle} ${fontSizeTit}px ${chosenFontFamily}`;
     ctx.shadowColor = configTipo.shadowColor;
     ctx.shadowBlur = configTipo.shadowBlur;
 
@@ -1888,7 +1909,12 @@ ${ganchoImediato}`;
     autorParam?: string,
     generoParam?: string,
     sinopseParam?: string,
-    customTexto?: { hookHeadline: string; synopsisText: string; readerBenefits: string[] }
+    customTexto?: { hookHeadline: string; synopsisText: string; readerBenefits: string[] },
+    customContracapaConfig?: {
+      textAlign?: 'left' | 'center' | 'right';
+      authorPhotoUrl?: string;
+      authorPhotoSize?: number;
+    }
   ) => {
     try {
       const obTitle = tituloParam || livro?.titulo || titulo.trim() || 'Obra Editorial';
@@ -1907,7 +1933,10 @@ ${ganchoImediato}`;
         benefits: customTexto?.readerBenefits,
         isKids,
         trimSize: (formato as any) || '6x9',
-        paperType: 'bw-white'
+        paperType: 'bw-white',
+        textAlign: customContracapaConfig?.textAlign || contracapaAlign,
+        authorPhotoUrl: customContracapaConfig?.authorPhotoUrl !== undefined ? customContracapaConfig.authorPhotoUrl : (contracapaAuthorPhotoUrl || undefined),
+        authorPhotoSize: customContracapaConfig?.authorPhotoSize || contracapaAuthorPhotoSize
       });
 
       setContracapaFinal(backDataUrl);
@@ -1972,7 +2001,7 @@ ${ganchoImediato}`;
 
   const handleReaplicarContracapa = async () => {
     if (!capaFinal) return;
-    setStatusMsg('🔄 Reaplicando texto personalizado na Contracapa...');
+    setStatusMsg('🔄 Reaplicando texto e alinhamento na Contracapa...');
     setStatusType('normal');
     await gerarContracapaEWrap(
       capaFinal,
@@ -1980,11 +2009,123 @@ ${ganchoImediato}`;
       livro?.autor || autor,
       livro?.genero || genero,
       contracapaTexto?.synopsisText,
-      contracapaTexto || undefined
+      contracapaTexto || undefined,
+      {
+        textAlign: contracapaAlign,
+        authorPhotoUrl: contracapaAuthorPhotoUrl || undefined,
+        authorPhotoSize: contracapaAuthorPhotoSize
+      }
     );
     setStatusMsg('✓ Contracapa atualizada com sucesso!');
     setStatusType('ok');
     setIsEditingBackCover(false);
+  };
+
+  // Recomposição tipográfica da Capa Frontal com posição e fonte customizadas
+  const handleReaplicarCapaFrontal = async () => {
+    if (!fundoImg && !capaFinal) {
+      setStatusMsg('Nenhuma imagem base de capa disponível.');
+      setStatusType('error');
+      return;
+    }
+    const imgBase = fundoImg || capaFinal!;
+    setStatusMsg('🎨 Recompondo tipografia e posição do título na Capa...');
+    setStatusType('normal');
+
+    try {
+      const obTitle = livro?.titulo || titulo.trim() || 'Obra Editorial';
+      const obSubtitle = livro?.subtitulo || subtitulo.trim() || '';
+      const obAuthor = livro?.autor || autor.trim() || 'Autor';
+      const obGenre = livro?.genero || genero || 'Ficção';
+      const obPremise = topico.trim() || obTitle;
+
+      const fontFamilies: Record<string, string> = {
+        'serif': 'Georgia, "Cinzel", "Times New Roman", serif',
+        'impact': 'Impact, "Bebas Neue", "Trebuchet MS", sans-serif',
+        'sans': 'Montserrat, "Inter", "Helvetica", Arial, sans-serif',
+        'display': '"Playfair Display", "Didot", "Garamond", serif',
+        'brutal': '"Arial Black", Impact, sans-serif'
+      };
+      const selectedFontFamily = fontFamilies[capaTituloFontFamily] || fontFamilies['serif'];
+
+      const novaCapaDataUrl = await diagramarCapaCanvas(
+        imgBase,
+        obTitle,
+        obSubtitle,
+        obAuthor,
+        obGenre,
+        obPremise,
+        estiloCapaTipo,
+        intensidadeZonaLimpa,
+        posicaoTituloCapa,
+        {
+          offsetY: capaTituloOffsetY,
+          fontSize: capaTituloFontSize,
+          fontFamily: selectedFontFamily
+        }
+      );
+
+      setCapaFinal(novaCapaDataUrl);
+
+      // Atualiza o wrap completo KDP com a nova capa frontal
+      if (contracapaFinal) {
+        const numPags = livro?.capitulos?.length ? Math.max(24, livro.capitulos.length * 6) : paginasAlvo;
+        const wrapUrl = await PrintCoverService.diagramarWrapCompositeCanvas({
+          frontCoverDataUrl: novaCapaDataUrl,
+          backCoverDataUrl: contracapaFinal,
+          title: obTitle,
+          author: obAuthor,
+          pageCount: numPags,
+          trimSize: (formato as any) || '6x9',
+          paperType: 'bw-white',
+          showGuides: showKdpGuides
+        });
+        setWrapPreviewUrl(wrapUrl);
+      }
+
+      if (livro) {
+        salvarProgressoLocal(livro, novaCapaDataUrl, imgBase, promoData || undefined);
+      }
+
+      setStatusMsg('✓ Capa frontal atualizada com nova posição e estilo de fonte!');
+      setStatusType('ok');
+      setIsEditingFrontCover(false);
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg(`Erro ao atualizar capa: ${err.message}`);
+      setStatusType('error');
+    }
+  };
+
+  // Aplicação de sugestão de enriquecimento do CoAuthor diretamente no texto do livro gerado
+  const handleApplyEnrichmentFromCoAuthor = (chapterNumber: number, additionText: string) => {
+    if (!livro || !livro.capitulos || livro.capitulos.length === 0) {
+      setStatusMsg('Nenhum livro gerado ativo para enriquecer.');
+      setStatusType('error');
+      return;
+    }
+    const idx = chapterNumber - 1;
+    if (idx < 0 || idx >= livro.capitulos.length) return;
+
+    const novosCapitulos = [...livro.capitulos];
+    const capAtual = novosCapitulos[idx];
+    const textoBase = capAtual.texto || '';
+    const novoTexto = textoBase ? `${textoBase}\n\n${additionText.trim()}` : additionText.trim();
+
+    novosCapitulos[idx] = {
+      ...capAtual,
+      texto: novoTexto
+    };
+
+    const novoLivro: LivroGerado = {
+      ...livro,
+      capitulos: novosCapitulos
+    };
+
+    setLivro(novoLivro);
+    salvarProgressoLocal(novoLivro, capaFinal || undefined, fundoImg || undefined, promoData || undefined);
+    setStatusMsg(`✓ Sugestão do CoAuthor incorporada com sucesso ao Capítulo ${chapterNumber}!`);
+    setStatusType('ok');
   };
 
   const baixarCapaCompletaPdf = async () => {
@@ -5921,7 +6062,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           <Copy size={14} /> Copiar
                         </button>
 
-                        {/* 5. PERSONALIZAR TEXTO DA CONTRACAPA */}
+                        {/* 5. PERSONALIZAR TEXTO E ALINHAMENTO DA CONTRACAPA */}
                         <button
                           type="button"
                           onClick={() => {
@@ -5938,6 +6079,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                               });
                             }
                             setIsEditingBackCover(!isEditingBackCover);
+                            if (!isEditingBackCover) setIsEditingFrontCover(false);
                           }}
                           style={{
                             display: 'flex',
@@ -5952,12 +6094,37 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             fontWeight: 600,
                             cursor: 'pointer'
                           }}
-                          title="Personalizar Headline, Sinopse e 3 Benefícios da Contracapa"
+                          title="Personalizar Alinhamento, Foto, Headline e Sinopse da Contracapa"
                         >
-                          <Sliders size={14} /> {isEditingBackCover ? 'Ocultar Edição' : 'Personalizar Contracapa'}
+                          <Sliders size={14} /> {isEditingBackCover ? 'Ocultar Contracapa' : 'Personalizar Contracapa'}
                         </button>
 
-                        {/* 6. GERAR OUTRA CAPA COM IA */}
+                        {/* 6. AJUSTAR TIPOGRAFIA E POSIÇÃO DA CAPA FRONTAL */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditingFrontCover(!isEditingFrontCover);
+                            if (!isEditingFrontCover) setIsEditingBackCover(false);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '9px 13px',
+                            borderRadius: 6,
+                            background: isEditingFrontCover ? '#fef3c7' : '#ffffff',
+                            color: isEditingFrontCover ? '#b45309' : '#334155',
+                            border: isEditingFrontCover ? '1px solid #fcd34d' : '1px solid #cbd5e1',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                          title="Mover o título para cima/baixo, alterar o tamanho e mudar o estilo da fonte da capa frontal"
+                        >
+                          <Palette size={14} /> {isEditingFrontCover ? 'Ocultar Ajuste Capa' : 'Ajustar Capa Frontal'}
+                        </button>
+
+                        {/* 7. GERAR OUTRA CAPA COM IA */}
                         <button
                           type="button"
                           onClick={handleGerarOutraCapa}
@@ -5989,23 +6156,177 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         </button>
                       </div>
 
-                      {/* PAINEL DE PERSONALIZAÇÃO DA CONTRACAPA (SE ATIVADO) */}
+                      {/* PAINEL DE PERSONALIZAÇÃO DA CONTRACAPA */}
                       {isEditingBackCover && contracapaTexto && (
                         <div style={{
                           width: '100%',
                           background: '#ffffff',
                           border: '1px solid #cbd5e1',
-                          borderRadius: 8,
+                          borderRadius: 10,
                           padding: 16,
                           marginTop: 16,
                           textAlign: 'left',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
+                          boxShadow: '0 4px 10px rgba(0,0,0,0.06)'
                         }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>
-                            ✏️ Personalizar Conteúdo Comercial da Contracapa
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                              ✏️ Personalização Editorial da Contracapa
+                            </div>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>
+                              Alinhamento, foto e textos diagramados
+                            </span>
                           </div>
 
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {/* CONTROLE DE ALINHAMENTO DO TEXTO */}
+                            <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                                ↔️ Alinhamento Geral dos Textos da Contracapa:
+                              </label>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setContracapaAlign('left')}
+                                  style={{
+                                    flex: 1,
+                                    padding: '7px 10px',
+                                    borderRadius: 6,
+                                    border: contracapaAlign === 'left' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                                    background: contracapaAlign === 'left' ? '#f0f9ff' : '#ffffff',
+                                    color: contracapaAlign === 'left' ? '#0369a1' : '#475569',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ⬅️ Alinhar à Esquerda
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setContracapaAlign('center')}
+                                  style={{
+                                    flex: 1,
+                                    padding: '7px 10px',
+                                    borderRadius: 6,
+                                    border: contracapaAlign === 'center' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                                    background: contracapaAlign === 'center' ? '#f0f9ff' : '#ffffff',
+                                    color: contracapaAlign === 'center' ? '#0369a1' : '#475569',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ↔️ Centralizado (Recomendado)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setContracapaAlign('right')}
+                                  style={{
+                                    flex: 1,
+                                    padding: '7px 10px',
+                                    borderRadius: 6,
+                                    border: contracapaAlign === 'right' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                                    background: contracapaAlign === 'right' ? '#f0f9ff' : '#ffffff',
+                                    color: contracapaAlign === 'right' ? '#0369a1' : '#475569',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ➡️ Alinhar à Direita
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* FOTO DA CONTRACAPA / IMAGEM DO AUTOR */}
+                            <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                                📷 Foto do Autor / Imagem da Contracapa (Opcional):
+                              </label>
+                              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onload = (ev) => {
+                                        setContracapaAuthorPhotoUrl(ev.target?.result as string);
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                  style={{ fontSize: 11, color: '#475569' }}
+                                />
+
+                                {contracapaAuthorPhotoUrl && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <img
+                                      src={contracapaAuthorPhotoUrl}
+                                      alt="Foto Autor"
+                                      style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '2px solid #f59e0b' }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setContracapaAuthorPhotoUrl(null)}
+                                      style={{
+                                        background: '#fee2e2',
+                                        color: '#b91c1c',
+                                        border: '1px solid #fca5a5',
+                                        padding: '4px 8px',
+                                        borderRadius: 4,
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      Remover Foto
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* TAMANHO DA FOTO */}
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                  <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>
+                                    Tamanho da Foto na Contracapa: <strong>{contracapaAuthorPhotoSize}px</strong>
+                                  </span>
+                                  <div style={{ display: 'flex', gap: 4 }}>
+                                    {[120, 180, 240].map((sz) => (
+                                      <button
+                                        key={sz}
+                                        type="button"
+                                        onClick={() => setContracapaAuthorPhotoSize(sz)}
+                                        style={{
+                                          padding: '2px 6px',
+                                          borderRadius: 4,
+                                          fontSize: 10,
+                                          fontWeight: 700,
+                                          border: contracapaAuthorPhotoSize === sz ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                                          background: contracapaAuthorPhotoSize === sz ? '#e0f2fe' : '#ffffff',
+                                          color: contracapaAuthorPhotoSize === sz ? '#0369a1' : '#475569',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        {sz === 120 ? 'P' : sz === 180 ? 'M' : 'G'} ({sz}px)
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="90"
+                                  max="300"
+                                  step="10"
+                                  value={contracapaAuthorPhotoSize}
+                                  onChange={(e) => setContracapaAuthorPhotoSize(Number(e.target.value))}
+                                  style={{ width: '100%', cursor: 'pointer' }}
+                                />
+                              </div>
+                            </div>
+
                             <div>
                               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                                 Gancho / Headline de Impacto (Topo da Contracapa):
@@ -6058,7 +6379,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                               style={{
                                 alignSelf: 'flex-start',
                                 marginTop: 6,
-                                padding: '8px 16px',
+                                padding: '9px 18px',
                                 background: '#059669',
                                 color: '#ffffff',
                                 border: 'none',
@@ -6069,6 +6390,221 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                               }}
                             >
                               ✓ Atualizar e Reaplicar na Contracapa
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* PAINEL DE AJUSTE DA CAPA FRONTAL (POSIÇÃO VERTICAL, TAMANHO E ESTILO DA FONTE) */}
+                      {isEditingFrontCover && (
+                        <div style={{
+                          width: '100%',
+                          background: '#ffffff',
+                          border: '1px solid #fcd34d',
+                          borderRadius: 10,
+                          padding: 16,
+                          marginTop: 16,
+                          textAlign: 'left',
+                          boxShadow: '0 4px 10px rgba(0,0,0,0.06)'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#92400e' }}>
+                              🎨 Ajustar Tipografia & Posição da Capa Frontal
+                            </div>
+                            <span style={{ fontSize: 11, color: '#78350f' }}>
+                              Ajuste visual antes de baixar o PDF
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {/* 1. MOVER O TÍTULO PARA CIMA OU PARA BAIXO */}
+                            <div style={{ background: '#fefce8', padding: 10, borderRadius: 8, border: '1px solid #fef08a' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <label style={{ fontSize: 11, fontWeight: 700, color: '#713f12' }}>
+                                  ↕️ Posição Vertical do Título (Mover para Cima / Baixo):
+                                </label>
+                                <span style={{ fontSize: 11, fontWeight: 800, color: '#854d0e' }}>
+                                  Offset: {capaTituloOffsetY > 0 ? `+${capaTituloOffsetY}` : capaTituloOffsetY}px
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setCapaTituloOffsetY(-240)}
+                                  style={{
+                                    flex: 1,
+                                    padding: '6px 8px',
+                                    borderRadius: 5,
+                                    background: capaTituloOffsetY === -240 ? '#fde047' : '#ffffff',
+                                    border: '1px solid #ca8a04',
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    color: '#713f12',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ⬆️ Topo (-240px)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCapaTituloOffsetY(0)}
+                                  style={{
+                                    flex: 1,
+                                    padding: '6px 8px',
+                                    borderRadius: 5,
+                                    background: capaTituloOffsetY === 0 ? '#fde047' : '#ffffff',
+                                    border: '1px solid #ca8a04',
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    color: '#713f12',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  🎯 Centro (0px)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCapaTituloOffsetY(180)}
+                                  style={{
+                                    flex: 1,
+                                    padding: '6px 8px',
+                                    borderRadius: 5,
+                                    background: capaTituloOffsetY === 180 ? '#fde047' : '#ffffff',
+                                    border: '1px solid #ca8a04',
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    color: '#713f12',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ⬇️ Baixo (+180px)
+                                </button>
+                              </div>
+
+                              <input
+                                type="range"
+                                min="-350"
+                                max="350"
+                                step="10"
+                                value={capaTituloOffsetY}
+                                onChange={(e) => setCapaTituloOffsetY(Number(e.target.value))}
+                                style={{ width: '100%', cursor: 'pointer' }}
+                              />
+                            </div>
+
+                            {/* 2. TAMANHO DA FONTE DA CAPA */}
+                            <div style={{ background: '#fefce8', padding: 10, borderRadius: 8, border: '1px solid #fef08a' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <label style={{ fontSize: 11, fontWeight: 700, color: '#713f12' }}>
+                                  🔠 Tamanho da Fonte do Título:
+                                </label>
+                                <span style={{ fontSize: 11, fontWeight: 800, color: '#854d0e' }}>
+                                  {capaTituloFontSize}px
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setCapaTituloFontSize(prev => Math.max(60, prev - 10))}
+                                  style={{
+                                    padding: '5px 12px',
+                                    borderRadius: 5,
+                                    background: '#ffffff',
+                                    border: '1px solid #ca8a04',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: '#713f12',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  - 10px
+                                </button>
+                                <div style={{ flex: 1, textAlign: 'center', fontSize: 11, color: '#854d0e', fontWeight: 600 }}>
+                                  Escala Tipográfica Oficial KDP
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setCapaTituloFontSize(prev => Math.min(160, prev + 10))}
+                                  style={{
+                                    padding: '5px 12px',
+                                    borderRadius: 5,
+                                    background: '#ffffff',
+                                    border: '1px solid #ca8a04',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: '#713f12',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  + 10px
+                                </button>
+                              </div>
+
+                              <input
+                                type="range"
+                                min="60"
+                                max="160"
+                                step="4"
+                                value={capaTituloFontSize}
+                                onChange={(e) => setCapaTituloFontSize(Number(e.target.value))}
+                                style={{ width: '100%', cursor: 'pointer' }}
+                              />
+                            </div>
+
+                            {/* 3. ESTILO E FAMÍLIA DA FONTE DA CAPA */}
+                            <div style={{ background: '#fefce8', padding: 10, borderRadius: 8, border: '1px solid #fef08a' }}>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#713f12', marginBottom: 6 }}>
+                                🖋️ Estilo da Fonte da Capa:
+                              </label>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 6 }}>
+                                {[
+                                  { id: 'serif', label: '🏛️ Serif Bestseller', sub: 'Georgia / Cinzel' },
+                                  { id: 'impact', label: '💥 Sans Impact', sub: 'Impact / Bebas' },
+                                  { id: 'display', label: '✨ Editorial Display', sub: 'Playfair / Didot' },
+                                  { id: 'sans', label: '🌐 Modern Clean', sub: 'Montserrat / Arial' },
+                                  { id: 'brutal', label: '🖤 Brutal Black', sub: 'Arial Black' }
+                                ].map((style) => (
+                                  <button
+                                    key={style.id}
+                                    type="button"
+                                    onClick={() => setCapaTituloFontFamily(style.id)}
+                                    style={{
+                                      padding: '8px 8px',
+                                      borderRadius: 6,
+                                      border: capaTituloFontFamily === style.id ? '2px solid #b45309' : '1px solid #cbd5e1',
+                                      background: capaTituloFontFamily === style.id ? '#fef3c7' : '#ffffff',
+                                      color: capaTituloFontFamily === style.id ? '#78350f' : '#475569',
+                                      cursor: 'pointer',
+                                      textAlign: 'left'
+                                    }}
+                                  >
+                                    <div style={{ fontSize: 11, fontWeight: 800 }}>{style.label}</div>
+                                    <div style={{ fontSize: 9.5, opacity: 0.8 }}>{style.sub}</div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleReaplicarCapaFrontal}
+                              style={{
+                                alignSelf: 'flex-start',
+                                marginTop: 6,
+                                padding: '9px 18px',
+                                background: 'linear-gradient(135deg, #d97706, #b45309)',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 4px rgba(180, 83, 9, 0.25)'
+                              }}
+                            >
+                              ✓ Aplicar Ajustes na Capa Frontal
                             </button>
                           </div>
                         </div>
@@ -7012,6 +7548,13 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         isOpen={isCreditModalOpen}
         onClose={() => setIsCreditModalOpen(false)}
         motivo={creditModalMotivo}
+      />
+
+      {/* AGENTE COAUTHOR NO RODAPÉ DA TELA (CHAT DE ASSISTÊNCIA EDITORIAL E ENRIQUECIMENTO DA OBRA) */}
+      <CoAuthorFloatingAssistant
+        bookState={livro}
+        onApplyEnrichment={handleApplyEnrichmentFromCoAuthor}
+        onOpenFullStudio={() => setActiveTab('coauthor')}
       />
     </div>
   );
