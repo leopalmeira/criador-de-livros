@@ -1,6 +1,6 @@
 {
   "name": "criador-de-livros",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "BookEngin - Plataforma Editorial e Inteligência de Mercado para Amazon KDP, Google Play Books e Apple Books",
   "main": "server.js",
   "scripts": {
