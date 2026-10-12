@@ -3077,95 +3077,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
             }}
           >
-            {/* CABEÇALHO DO PAINEL EDITORIAL (ESTILO CRM PROFISSIONAL) */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 14, borderBottom: '1px solid #f1f5f9', marginBottom: 16 }}>
-              <div>
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Compass size={18} color="#0284c7" /> {ui('Painel Editorial da Obra', 'Book Editorial Setup')}
-                </h2>
-                <p style={{ margin: '3px 0 0', fontSize: 12, color: '#64748b' }}>
-                  {ui('Fluxo guiado por inteligência de mercado Amazon KDP', 'Amazon KDP market intelligence guided workflow')}
-                </p>
-              </div>
-              <span style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#0369a1',
-                background: '#f0f9ff',
-                padding: '3px 8px',
-                borderRadius: 6,
-                border: '1px solid #bae6fd'
-              }}>
-                {livro ? ui('Em Produção', 'In Production') : ui('Novo Projeto', 'New Project')}
-              </span>
-            </div>
 
-            {/* STEPPER DE ETAPAS EDITORIAL GUIADAS */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 6,
-              marginBottom: 14,
-              padding: '6px',
-              background: '#f8fafc',
-              borderRadius: 8,
-              border: '1px solid #e2e8f0'
-            }}>
-              {[
-                { step: 1, label: ui('1. Mercado', '1. Market'), done: Boolean(temaSelecionado) },
-                { step: 2, label: ui('2. Título', '2. Title'), done: Boolean(titulo.trim()) },
-                { step: 3, label: ui('3. Estratégia', '3. Strategy'), done: Boolean(uniqueAngle.trim() || bookPromise.trim()) },
-                { step: 4, label: ui('4. Capítulos', '4. Chapters'), done: Boolean(livro && livro.capitulos.length > 0) }
-              ].map(item => (
-                <div
-                  key={item.step}
-                  style={{
-                    textAlign: 'center',
-                    padding: '6px 4px',
-                    borderRadius: 6,
-                    background: item.done ? '#ecfdf5' : '#ffffff',
-                    border: `1px solid ${item.done ? '#a7f3d0' : '#e2e8f0'}`,
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: item.done ? '#059669' : '#64748b',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {item.done ? `✓ ${item.label}` : item.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* CARD DE ORIENTAÇÃO INTELIGENTE: PRÓXIMO PASSO SUGERIDO PELA IA */}
-            <div style={{
-              marginBottom: 16,
-              padding: '10px 12px',
-              borderRadius: 8,
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderLeft: '4px solid #0284c7',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10
-            }}>
-              <TrendingUp size={16} color="#0284c7" style={{ flexShrink: 0 }} />
-              <div style={{ fontSize: 11, color: '#334155', lineHeight: 1.4 }}>
-                <strong style={{ color: '#0f172a' }}>{ui('Próximo Passo Recomendado:', 'Recommended Next Step:')}</strong>{' '}
-                {!temaSelecionado
-                  ? ui('Selecione ou sorteie um nicho de alta demanda no ranking da Amazon para calibrar a inteligência do livro.', 'Select or find a high-demand niche in Amazon rankings to calibrate the book intelligence.')
-                  : !titulo.trim()
-                  ? ui('Nicho definido! Clique em "5 Sugestões Originais" ou "Top 50" para escolher um título de alta conversão.', 'Niche selected! Click "5 Original Suggestions" or "Top 50" to pick a high-converting title.')
-                  : !uniqueAngle.trim()
-                  ? ui('Título definido. Gere o Diferencial Editorial para posicionar seu livro acima dos concorrentes do KDP.', 'Title ready. Generate the Editorial Differentiation to outperform KDP competitors.')
-                  : ui('Estrutura pronta para produção. Ajuste o número de capítulos e inicie a geração do miolo.', 'Structure ready for production. Adjust chapter count and start generation.')}
-              </div>
-            </div>
 
             {/* CARD DO AGENTE COAUTHOR (CONVERSACIONAL & FÓRMULA BESTSELLER AMAZON) */}
             <CoAuthorCard
@@ -3411,38 +3323,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
-            {/* DIRETRIZES DO MOTOR NARRATIVO EDITORIAL (SEM METÁFORAS & VOCABULÁRIO POPULAR) */}
-            <div style={{
-              marginBottom: 12,
-              padding: '10px 12px',
-              borderRadius: 8,
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <ShieldCheck size={13} color="#059669" /> Diretriz Editorial Ativa
-                </span>
-                <span style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: '#059669',
-                  background: '#ecfdf5',
-                  padding: '1px 6px',
-                  borderRadius: 4,
-                  border: '1px solid #a7f3d0'
-                }}>
-                  {ui('Ativa no Motor', 'Enabled in the Engine')}
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.4 }}>
-                • <b>{ui('Sem Metáforas:', 'No Metaphors:')}</b> {ui('Texto 100% literal e claro (infantil ou adulto)', '100% literal and clear text (for children or adults)')}<br />
-                • <b>{ui('Vocabulário Popular:', 'Everyday Vocabulary:')}</b> {ui('Palavras simples e comuns para coisas, pessoas e objetos', 'Simple, common words for things, people, and objects')}
-              </div>
-            </div>
+
 
             {/* ETAPA 3 — TÍTULO DO LIVRO (COM IA E VALIDADOR DE ORIGINALIDADE) */}
             <div style={{ marginBottom: 12 }}>
