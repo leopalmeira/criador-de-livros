@@ -772,34 +772,14 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   }, [initialProject, isNewProject]);
 
   // Salvar no localStorage e sincronizar automaticamente no IndexedDB
+  // Salvar rascunho leve no localStorage e sincronizar dados completos e imagens no IndexedDB
   const salvarProgressoLocal = async (novoLivro: LivroGerado, capa?: string, fundo?: string, promo?: BookPromotionalPageData, novoHistorico?: ItemHistoricoCapa[]) => {
-    const historicoParaSalvar = novoHistorico !== undefined ? novoHistorico : historicoCapas;
-    const payload = {
-      livro: novoLivro,
-      capaFinal: capa !== undefined ? capa : capaFinal,
-      fundoImg: fundo !== undefined ? fundo : fundoImg,
-      contracapaFinal: contracapaFinal || undefined,
-      wrapPreviewUrl: wrapPreviewUrl || undefined,
-      keywordsKdp: keywordsKdp || [],
-      promoData: promo !== undefined ? promo : promoData,
-      historicoCapas: historicoParaSalvar.slice(0, 20),
-      totalCaps,
-      capAtual: novoLivro.capitulos.length,
-      config: {
-        titulo, subtitulo, autor, genero, topico, paginasAlvo, maxCapitulos, formato, idioma, bookType
-      },
-      ts: Date.now()
-    };
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch {}
+    const projId = projectIdRef.current || `proj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    projectIdRef.current = projId;
 
-    // Gravação contínua no IndexedDB: Garante que se o usuário der F5 ou a página recarregar,
-    // o livro gerado até então APARECE IMEDIATAMENTE NA DASHBOARD como Rascunho / Em Andamento!
+    // 1. Gravação contínua no IndexedDB: Suporta centenas de Megabytes sem limite de 5MB do localStorage.
+    // Salva imagens completas, capas, contracapa e todos os capítulos gerados!
     try {
-      const projId = projectIdRef.current || `proj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-      projectIdRef.current = projId;
-
       const isConcluido = novoLivro.capitulos.length >= Math.max(1, totalCaps);
       const projAutoSave: BookProject = {
         id: projId,
@@ -849,14 +829,50 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       };
 
       await db.saveBookProject(projAutoSave);
-      if (onProjectSaved) onProjectSaved(projAutoSave);
-
-      try {
-        localStorage.setItem('kdp_last_active_project_id', projId);
-      } catch {}
-    } catch (err) {
-      console.warn('Erro ao salvar no banco local:', err);
+      if (onProjectSaved) {
+        onProjectSaved(projAutoSave);
+      }
+    } catch (errDb) {
+      console.warn('[IndexedDB] Erro ao gravar projeto:', errDb);
     }
+
+    // 2. Rascunho leve no localStorage: NÃO salvar imagens base64 gigantes (evita QuotaExceededError)
+    const capaLeve = (capa !== undefined ? capa : capaFinal);
+    const payloadLeve = {
+      livro: novoLivro,
+      // Guarda capa apenas se for URL leve ou string menor que 50KB (nunca base64 de 2MB)
+      capaFinal: (capaLeve && capaLeve.length < 50000) ? capaLeve : undefined,
+      keywordsKdp: keywordsKdp || [],
+      totalCaps,
+      capAtual: novoLivro.capitulos.length,
+      config: {
+        titulo, subtitulo, autor, genero, topico, paginasAlvo, maxCapitulos, formato, idioma, bookType
+      },
+      ts: Date.now()
+    };
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payloadLeve));
+    } catch {
+      // Se houver erro de cota, limpa chaves antigas de projetos que não sejam o atual
+      try {
+        if (typeof localStorage !== 'undefined') {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('kdp_projeto_pro_v11_') && k !== STORAGE_KEY) {
+              localStorage.removeItem(k);
+            }
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payloadLeve));
+        }
+      } catch {}
+    }
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('kdp_last_active_project_id', projId);
+      }
+    } catch {}
   };
 
   // Análise de Mercado Amazon KDP (TOP 1-200) com sorteio dinâmico e randômico

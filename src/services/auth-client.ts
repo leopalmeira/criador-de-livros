@@ -56,18 +56,107 @@ interface ApiResponse {
 }
 
 const TOKEN_KEY = 'kdp_session_token';
+const USER_KEY = 'kdp_session_user';
+
+// Cache síncrono em memória para tolerar restrições severas de storage
+let inMemoryToken: string | null = null;
+let inMemoryUser: AuthenticatedUser | null = null;
+
+// Limpeza de chaves pesadas (ex: rascunhos antigos com imagens em base64 que estouram os 5MB do localStorage)
+function cleanHeavyStorage(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      // Nunca remover credenciais essenciais ou chave da API Gemini do autor
+      if (k === TOKEN_KEY || k === USER_KEY || k === 'kdp_gemini_api_key' || k === 'kdp_active_mode' || k === 'kdp_last_active_project_id') {
+        continue;
+      }
+      // Rascunhos com imagens base64 ou chaves de projeto volumosas
+      if (k.startsWith('kdp_projeto_pro_v11_') || k.startsWith('kdp_livro_gerado_') || k.startsWith('course_ebook_')) {
+        keysToRemove.push(k);
+        continue;
+      }
+      try {
+        const val = localStorage.getItem(k);
+        if (val && (val.length > 50000 || val.includes('data:image/'))) {
+          keysToRemove.push(k);
+        }
+      } catch {}
+    }
+    for (const k of keysToRemove) {
+      try {
+        localStorage.removeItem(k);
+      } catch {}
+    }
+  } catch {}
+}
+
+// Execução preventiva rápida ao carregar o módulo
+try {
+  cleanHeavyStorage();
+} catch {}
+
+function safeSetItem(key: string, value: string): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // QuotaExceededError ou Storage restrito: limpa itens pesados e tenta novamente
+    try {
+      cleanHeavyStorage();
+      localStorage.setItem(key, value);
+    } catch {
+      // Fallback para sessionStorage
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem(key, value);
+        }
+      } catch {}
+    }
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+  } catch {}
+  try {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(key);
+  } catch {}
+}
 
 function getStoredToken(): string | null {
-  if (typeof localStorage === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+  if (inMemoryToken) return inMemoryToken;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const t = localStorage.getItem(TOKEN_KEY);
+      if (t) {
+        inMemoryToken = t;
+        return t;
+      }
+    }
+  } catch {}
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const t = sessionStorage.getItem(TOKEN_KEY);
+      if (t) {
+        inMemoryToken = t;
+        return t;
+      }
+    }
+  } catch {}
+  return null;
 }
 
 function setStoredToken(token: string | null): void {
-  if (typeof localStorage === 'undefined') return;
+  inMemoryToken = token;
   if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
+    safeSetItem(TOKEN_KEY, token);
   } else {
-    localStorage.removeItem(TOKEN_KEY);
+    safeRemoveItem(TOKEN_KEY);
   }
 }
 
@@ -113,25 +202,37 @@ async function request<T extends ApiResponse>(
   return payload as T;
 }
 
-const USER_KEY = 'kdp_session_user';
-
 function getStoredUser(): AuthenticatedUser | null {
-  if (typeof localStorage === 'undefined') return null;
-  const raw = localStorage.getItem(USER_KEY);
-  if (!raw) return null;
+  if (inMemoryUser) return inMemoryUser;
   try {
-    return JSON.parse(raw) as AuthenticatedUser;
-  } catch {
-    return null;
-  }
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(USER_KEY);
+      if (raw) {
+        const u = JSON.parse(raw) as AuthenticatedUser;
+        inMemoryUser = u;
+        return u;
+      }
+    }
+  } catch {}
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const raw = sessionStorage.getItem(USER_KEY);
+      if (raw) {
+        const u = JSON.parse(raw) as AuthenticatedUser;
+        inMemoryUser = u;
+        return u;
+      }
+    }
+  } catch {}
+  return null;
 }
 
 function setStoredUser(user: AuthenticatedUser | null): void {
-  if (typeof localStorage === 'undefined') return;
+  inMemoryUser = user;
   if (user) {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    safeSetItem(USER_KEY, JSON.stringify(user));
   } else {
-    localStorage.removeItem(USER_KEY);
+    safeRemoveItem(USER_KEY);
   }
 }
 
