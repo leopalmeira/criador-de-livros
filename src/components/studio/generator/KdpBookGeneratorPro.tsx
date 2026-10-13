@@ -2037,15 +2037,16 @@ ${ganchoImediato}`;
     setIsEditingBackCover(false);
   };
 
-  // Recomposição tipográfica da Capa Frontal com posição e fonte customizadas
+  // Recomposição tipográfica da Capa Frontal com posição e fonte customizadas (a partir do fundo limpo)
   const handleReaplicarCapaFrontal = async () => {
     if (!fundoImg && !capaFinal) {
       setStatusMsg('Nenhuma imagem base de capa disponível.');
       setStatusType('error');
       return;
     }
+    // Sempre priorizar fundoImg limpo para nunca sobrepor texto a uma imagem já rasterizada
     const imgBase = fundoImg || capaFinal!;
-    setStatusMsg('🎨 Recompondo tipografia e posição do título na Capa...');
+    setStatusMsg('🎨 Consolidando tipografia e gerando capa frontal em alta resolução...');
     setStatusType('normal');
 
     try {
@@ -2100,10 +2101,10 @@ ${ganchoImediato}`;
       }
 
       if (livro) {
-        salvarProgressoLocal(livro, novaCapaDataUrl, imgBase, promoData || undefined);
+        salvarProgressoLocal(livro, novaCapaDataUrl, fundoImg || undefined, promoData || undefined);
       }
 
-      setStatusMsg('✓ Capa frontal atualizada com nova posição e estilo de fonte!');
+      setStatusMsg('✓ Capa frontal confirmada e finalizada com sucesso!');
       setStatusType('ok');
       setIsEditingFrontCover(false);
     } catch (err: any) {
@@ -2113,7 +2114,7 @@ ${ganchoImediato}`;
     }
   };
 
-  // Aplicação de sugestão de enriquecimento do CoAuthor diretamente no texto do livro gerado
+  // Aplicação de sugestão pontual do CoAuthor diretamente no capítulo focado
   const handleApplyEnrichmentFromCoAuthor = (chapterNumber: number, additionText: string) => {
     if (!livro || !livro.capitulos || livro.capitulos.length === 0) {
       setStatusMsg('Nenhum livro gerado ativo para enriquecer.');
@@ -2142,6 +2143,125 @@ ${ganchoImediato}`;
     salvarProgressoLocal(novoLivro, capaFinal || undefined, fundoImg || undefined, promoData || undefined);
     setStatusMsg(`✓ Sugestão do CoAuthor incorporada com sucesso ao Capítulo ${chapterNumber}!`);
     setStatusType('ok');
+  };
+
+  // Aplicação de enriquecimento em lote para a OBRA INTEIRA de uma só vez (Revisão Global)
+  const handleApplyFullBookEnrichmentFromCoAuthor = (enrichments: Array<{ chapterNumber: number; additionText: string }>) => {
+    if (!livro || !livro.capitulos || livro.capitulos.length === 0) {
+      setStatusMsg('Nenhum livro gerado ativo para enriquecer.');
+      setStatusType('error');
+      return;
+    }
+
+    const novosCapitulos = [...livro.capitulos];
+    let totalAlterados = 0;
+
+    for (const item of enrichments) {
+      const idx = item.chapterNumber - 1;
+      if (idx >= 0 && idx < novosCapitulos.length && item.additionText.trim()) {
+        const capAtual = novosCapitulos[idx];
+        const textoBase = capAtual.texto || '';
+        novosCapitulos[idx] = {
+          ...capAtual,
+          texto: textoBase ? `${textoBase}\n\n${item.additionText.trim()}` : item.additionText.trim()
+        };
+        totalAlterados++;
+      }
+    }
+
+    if (totalAlterados > 0) {
+      const novoLivro: LivroGerado = {
+        ...livro,
+        capitulos: novosCapitulos
+      };
+
+      setLivro(novoLivro);
+      salvarProgressoLocal(novoLivro, capaFinal || undefined, fundoImg || undefined, promoData || undefined);
+      setStatusMsg(`✓ Revisão Global concluída! ${totalAlterados} capítulos foram enriquecidos e salvos na obra.`);
+      setStatusType('ok');
+    }
+  };
+
+  // Incorporação direta de Capa Autoral gerada pelo CoAuthor no Livro
+  const handleSetCoverFromCoAuthor = async (coverDataUrl: string) => {
+    try {
+      setStatusMsg('🎨 Incorporando arte autoral do CoAuthor à capa do livro...');
+      setStatusType('normal');
+      setFundoImg(coverDataUrl);
+
+      const obTitle = livro?.titulo || titulo.trim() || 'Obra Editorial';
+      const obSubtitle = livro?.subtitulo || subtitulo.trim() || '';
+      const obAuthor = livro?.autor || autor.trim() || 'Autor';
+      const obGenre = livro?.genero || genero || 'Ficção';
+      const obPremise = topico.trim() || obTitle;
+
+      const fontFamilies: Record<string, string> = {
+        'serif': 'Georgia, "Cinzel", "Times New Roman", serif',
+        'impact': 'Impact, "Bebas Neue", "Trebuchet MS", sans-serif',
+        'sans': 'Montserrat, "Inter", "Helvetica", Arial, sans-serif',
+        'display': '"Playfair Display", "Didot", "Garamond", serif',
+        'brutal': '"Arial Black", Impact, sans-serif'
+      };
+      const selectedFontFamily = fontFamilies[capaTituloFontFamily] || fontFamilies['serif'];
+
+      const novaCapaFinal = await diagramarCapaCanvas(
+        coverDataUrl,
+        obTitle,
+        obSubtitle,
+        obAuthor,
+        obGenre,
+        obPremise,
+        estiloCapaTipo,
+        intensidadeZonaLimpa,
+        posicaoTituloCapa,
+        {
+          offsetY: capaTituloOffsetY,
+          fontSize: capaTituloFontSize,
+          fontFamily: selectedFontFamily
+        }
+      );
+
+      setCapaFinal(novaCapaFinal);
+
+      // Adiciona ao carrossel de capas
+      const novoItem: ItemHistoricoCapa = {
+        id: `capa_coauthor_${Date.now()}`,
+        dataUrl: novaCapaFinal,
+        fundoUrl: coverDataUrl,
+        timestamp: Date.now(),
+        estilo: estiloCapaTipo,
+        conceito: 'Capa autoral refinada com CoAuthor Editorial'
+      };
+      setHistoricoCapas(prev => [novoItem, ...prev]);
+      setIndiceCapaCarrossel(0);
+
+      // Atualiza o wrap KDP
+      if (contracapaFinal) {
+        const numPags = livro?.capitulos?.length ? Math.max(24, livro.capitulos.length * 6) : paginasAlvo;
+        const wrapUrl = await PrintCoverService.diagramarWrapCompositeCanvas({
+          frontCoverDataUrl: novaCapaFinal,
+          backCoverDataUrl: contracapaFinal,
+          title: obTitle,
+          author: obAuthor,
+          pageCount: numPags,
+          trimSize: (formato as any) || '6x9',
+          paperType: 'bw-white',
+          showGuides: showKdpGuides
+        });
+        setWrapPreviewUrl(wrapUrl);
+      }
+
+      if (livro) {
+        salvarProgressoLocal(livro, novaCapaFinal, coverDataUrl, promoData || undefined);
+      }
+
+      setStatusMsg('✓ Nova Capa Autoral incorporada com sucesso ao livro!');
+      setStatusType('ok');
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg(`Erro ao incorporar capa autoral: ${err.message || 'Falha na diagramação'}`);
+      setStatusType('error');
+    }
   };
 
   const baixarCapaCompletaPdf = async () => {
@@ -5934,17 +6054,92 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         )}
 
                         {viewModeCapa === 'front' && (
-                          <img
-                            src={capaFinal}
-                            alt="Capa Frontal do Livro"
-                            style={{
-                              maxHeight: 420,
-                              maxWidth: '100%',
-                              borderRadius: 6,
-                              display: 'block',
-                              margin: '0 auto'
-                            }}
-                          />
+                          <div style={{
+                            position: 'relative',
+                            display: 'inline-block',
+                            borderRadius: 6,
+                            overflow: 'hidden',
+                            maxWidth: '100%',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.18)'
+                          }}>
+                            <img
+                              src={(isEditingFrontCover ? (fundoImg || capaFinal) : (capaFinal || fundoImg)) || ''}
+                              alt="Capa Frontal do Livro"
+                              style={{
+                                maxHeight: 440,
+                                maxWidth: '100%',
+                                borderRadius: 6,
+                                display: 'block',
+                                margin: '0 auto'
+                              }}
+                            />
+
+                            {/* CAMADA VIVA DE TIPOGRAFIA POR CIMA DO FUNDO (NUNCA QUEIMA NEM SOBREPÕE O FUNDO) */}
+                            {isEditingFrontCover && (
+                              <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                pointerEvents: 'none',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                padding: '24px 18px',
+                                textAlign: 'center',
+                                boxSizing: 'border-box'
+                              }}>
+                                {/* Título com Offset Y e Fonte em Tempo Real */}
+                                <div style={{
+                                  transform: `translateY(${Math.round(capaTituloOffsetY * 0.22)}px)`,
+                                  transition: 'transform 0.08s ease-out'
+                                }}>
+                                  <h1 style={{
+                                    margin: 0,
+                                    fontSize: `${Math.round(capaTituloFontSize * 0.20)}px`,
+                                    fontFamily: capaTituloFontFamily === 'impact' ? 'Impact, "Bebas Neue", sans-serif' :
+                                      capaTituloFontFamily === 'sans' ? 'Montserrat, Arial, sans-serif' :
+                                      capaTituloFontFamily === 'display' ? '"Playfair Display", Didot, serif' :
+                                      capaTituloFontFamily === 'brutal' ? '"Arial Black", Impact, sans-serif' :
+                                      'Georgia, "Cinzel", serif',
+                                    color: '#ffffff',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '1px',
+                                    lineHeight: 1.15,
+                                    textShadow: '0 2px 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.9), 1px 1px 2px #000'
+                                  }}>
+                                    {livro?.titulo || titulo || 'Título da Obra'}
+                                  </h1>
+
+                                  {(livro?.subtitulo || subtitulo) && (
+                                    <p style={{
+                                      margin: '6px auto 0 auto',
+                                      maxWidth: '92%',
+                                      fontSize: '9.5px',
+                                      fontWeight: 600,
+                                      color: '#f8fafc',
+                                      lineHeight: 1.3,
+                                      textShadow: '0 1px 6px rgba(0,0,0,0.9)'
+                                    }}>
+                                      {livro?.subtitulo || subtitulo}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Nome do Autor no Rodapé */}
+                                <div>
+                                  <div style={{
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    color: '#f8fafc',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '2px',
+                                    textShadow: '0 2px 6px rgba(0,0,0,0.9)'
+                                  }}>
+                                    {livro?.autor || autor || 'Autor'}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
 
                         {viewModeCapa === 'back' && (contracapaFinal || capaFinal) && (
@@ -6119,8 +6314,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         <button
                           type="button"
                           onClick={() => {
-                            setIsEditingFrontCover(!isEditingFrontCover);
-                            if (!isEditingFrontCover) setIsEditingBackCover(false);
+                            const nextVal = !isEditingFrontCover;
+                            setIsEditingFrontCover(nextVal);
+                            if (nextVal) {
+                              setIsEditingBackCover(false);
+                              setViewModeCapa('front');
+                            }
                           }}
                           style={{
                             display: 'flex',
@@ -6603,25 +6802,54 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                               </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={handleReaplicarCapaFrontal}
-                              style={{
-                                alignSelf: 'flex-start',
-                                marginTop: 6,
-                                padding: '9px 18px',
-                                background: 'linear-gradient(135deg, #d97706, #b45309)',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: 6,
-                                fontSize: 12,
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                boxShadow: '0 2px 4px rgba(180, 83, 9, 0.25)'
-                              }}
-                            >
-                              ✓ Aplicar Ajustes na Capa Frontal
-                            </button>
+                            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              <div style={{ fontSize: 11, color: '#854d0e', background: '#fef3c7', padding: '8px 12px', borderRadius: 6, border: '1px solid #fde047' }}>
+                                💡 <b>Ajuste em Tempo Real:</b> O título e o autor flutuam por cima do fundo sem queimar a imagem. Ajuste o controle vertical e o tamanho da fonte, e quando estiver perfeito, clique no botão verde para confirmar!
+                              </div>
+
+                              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={handleReaplicarCapaFrontal}
+                                  style={{
+                                    padding: '10px 18px',
+                                    background: 'linear-gradient(135deg, #059669, #047857)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    boxShadow: '0 2px 5px rgba(5, 150, 105, 0.3)'
+                                  }}
+                                >
+                                  ✨ Confirmar e Finalizar Capa Frontal
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={handleGerarOutraCapa}
+                                  style={{
+                                    padding: '9px 15px',
+                                    background: '#ffffff',
+                                    color: '#b45309',
+                                    border: '1px solid #f59e0b',
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6
+                                  }}
+                                >
+                                  🔄 Gerar Novo Fundo Limpo com IA (Sem Texto)
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -7566,10 +7794,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         motivo={creditModalMotivo}
       />
 
-      {/* AGENTE COAUTHOR NO RODAPÉ DA TELA (CHAT DE ASSISTÊNCIA EDITORIAL E ENRIQUECIMENTO DA OBRA) */}
+      {/* AGENTE COAUTHOR NO RODAPÉ DA TELA (CHAT DE ASSISTÊNCIA EDITORIAL, REVISÃO GLOBAL E CAPA AUTORAL) */}
       <CoAuthorFloatingAssistant
         bookState={livro}
         onApplyEnrichment={handleApplyEnrichmentFromCoAuthor}
+        onApplyFullBookEnrichment={handleApplyFullBookEnrichmentFromCoAuthor}
+        onSetBookCover={handleSetCoverFromCoAuthor}
         onOpenFullStudio={() => setActiveTab('coauthor')}
       />
     </div>
