@@ -11,7 +11,7 @@ import {
   CheckCircle2, Download, Eye, FileText, AlertCircle, Trash2,
   BookOpen, Calendar, Clock, ShieldCheck, X, Sparkles, Layers,
   FileDown, Image as ImageIcon, Archive, ExternalLink, RefreshCw, Package,
-  Rocket, Code2, Headphones, Sliders, Smartphone, Edit3, Copy, Check, Key
+  Rocket, Code2, Headphones, Sliders, Smartphone, Edit3, Copy, Check, Key, Search
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
@@ -24,6 +24,7 @@ import { EpubBuilder } from '../../services/formats/epub-builder';
 import { ManuscriptAccentRepairEngine } from '../../services/manuscript-accent-repair';
 import { useTranslation } from '../../services/i18n-service';
 import { PublishingMetadataService } from '../../services/publishing-metadata-service';
+import { AmazonLiveService } from '../../services/amazon-live-service';
 import { PrintCoverService } from '../../services/print-cover-service';
 import { SequenceCreationModal } from './publishing/SequenceCreationModal';
 import { SeriesBoxCreationModal } from './publishing/SeriesBoxCreationModal';
@@ -71,11 +72,21 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
   const [editingKeywordsBookId, setEditingKeywordsBookId] = useState<string | null>(null);
   const [tempKeywords, setTempKeywords] = useState<string[]>([]);
   const [copiedKeywordsBookId, setCopiedKeywordsBookId] = useState<string | null>(null);
+  const [copiedSingleKeywordKey, setCopiedSingleKeywordKey] = useState<string | null>(null);
+  const [isSyncingAmazonKeywordsBookId, setIsSyncingAmazonKeywordsBookId] = useState<string | null>(null);
 
   const getBookKeywords = (book: FinalBookRecord): string[] => {
+    const rawGenre = (book.genre || '').toLowerCase();
+    const isFictionOrThriller = rawGenre.includes('thriller') || rawGenre.includes('suspense') || rawGenre.includes('ficcao') || rawGenre.includes('ficção') || rawGenre.includes('mister') || rawGenre.includes('terror') || rawGenre.includes('horror');
+
     if (book.keywords && book.keywords.length > 0) {
-      return book.keywords;
+      // Se for ficção/thriller/terror, mas as palavras salvas anteriormente tiverem termos de autoajuda (herança antiga), descarta e recalcula
+      const hasSelfHelpClash = isFictionOrThriller && book.keywords.some(k => k.toLowerCase().includes('desenvolvimento pessoal') || k.toLowerCase().includes('autoajuda') || k.toLowerCase().includes('evolucao pessoal'));
+      if (!hasSelfHelpClash) {
+        return book.keywords;
+      }
     }
+
     return PublishingMetadataService.generateKdpKeywords({
       title: book.title,
       subtitle: book.subtitle,
@@ -115,6 +126,44 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
       setTimeout(() => setCopiedKeywordsBookId(null), 3000);
     } catch {
       alert('Não foi possível copiar as palavras-chave.');
+    }
+  };
+
+  const handleCopySingleKeyword = async (bookId: string, kw: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(kw);
+      setCopiedSingleKeywordKey(`${bookId}_${index}`);
+      setTimeout(() => setCopiedSingleKeywordKey(null), 2000);
+    } catch {
+      console.error('Erro ao copiar palavra-chave individual');
+    }
+  };
+
+  const handleSyncAmazonKeywords = async (book: FinalBookRecord) => {
+    try {
+      setIsSyncingAmazonKeywordsBookId(book.id);
+      const liveKeywords = await AmazonLiveService.fetchLiveAmazonKeywords({
+        title: book.title,
+        subtitle: book.subtitle,
+        genre: book.genre,
+        topic: book.genre
+      });
+
+      if (liveKeywords && liveKeywords.length > 0) {
+        const updatedBook: FinalBookRecord = {
+          ...book,
+          keywords: liveKeywords
+        };
+        await db.saveFinalBook(updatedBook);
+        setBooks(prev => prev.map(b => b.id === book.id ? updatedBook : b));
+        setCopiedKeywordsBookId(book.id);
+        setTimeout(() => setCopiedKeywordsBookId(null), 3000);
+      }
+    } catch (err) {
+      console.error('Erro ao sincronizar palavras-chave com Amazon:', err);
+      alert('Não foi possível sincronizar com a Amazon no momento. Tente novamente.');
+    } finally {
+      setIsSyncingAmazonKeywordsBookId(null);
     }
   };
 
@@ -1140,11 +1189,46 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
                               7 Palavras-Chave de Busca Oficiais Amazon KDP:
                             </span>
                             <span style={{ fontSize: 11, color: '#64748b' }}>
-                              (Indexação direta no catálogo)
+                              (Indexação direta no catálogo da Amazon)
                             </span>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            {/* BOTÃO: SINCRONIZAR COM API DE BUSCAS DA AMAZON */}
+                            <button
+                              type="button"
+                              onClick={() => handleSyncAmazonKeywords(book)}
+                              disabled={isSyncingAmazonKeywordsBookId === book.id}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '4px 9px',
+                                background: isSyncingAmazonKeywordsBookId === book.id ? '#f1f5f9' : '#f0fdf4',
+                                color: isSyncingAmazonKeywordsBookId === book.id ? '#64748b' : '#166534',
+                                border: '1px solid #86efac',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: isSyncingAmazonKeywordsBookId === book.id ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title="Consulta a API oficial de buscas da Amazon para obter as pesquisas mais digitadas pelos leitores deste nicho"
+                            >
+                              {isSyncingAmazonKeywordsBookId === book.id ? (
+                                <>
+                                  <RefreshCw size={12} className="animate-spin" />
+                                  <span>Buscando na Amazon...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Search size={12} color="#16a34a" />
+                                  <span>Sincronizar com Busca Amazon</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* BOTÃO: COPIAR TODAS */}
                             <button
                               type="button"
                               onClick={() => handleCopyBookKeywords(book)}
@@ -1159,9 +1243,10 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
                                 borderRadius: 6,
                                 fontSize: 11,
                                 fontWeight: 700,
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
                               }}
-                              title="Copiar as 7 palavras-chave para o painel do Amazon KDP"
+                              title="Copiar todas as 7 palavras-chave separadas por vírgula para o painel KDP"
                             >
                               {isCopiedThis ? <Check size={12} /> : <Copy size={12} />}
                               <span>{isCopiedThis ? 'Copiadas!' : 'Copiar 7 Palavras-Chave'}</span>
@@ -1263,34 +1348,50 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
                             flexWrap: 'wrap',
                             gap: 6
                           }}>
-                            {currentKeywords.slice(0, 7).map((kw, kIdx) => (
-                              <span
-                                key={kIdx}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  background: '#ffffff',
-                                  border: '1px solid #cbd5e1',
-                                  borderRadius: 6,
-                                  padding: '3px 8px',
-                                  fontSize: 11,
-                                  color: '#1e293b'
-                                }}
-                              >
-                                <span style={{
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  color: '#2563eb',
-                                  background: '#eff6ff',
-                                  padding: '1px 4px',
-                                  borderRadius: 3
-                                }}>
-                                  #{kIdx + 1}
-                                </span>
-                                <span style={{ fontWeight: 600 }}>{kw}</span>
-                              </span>
-                            ))}
+                            {currentKeywords.slice(0, 7).map((kw, kIdx) => {
+                              const isSingleCopied = copiedSingleKeywordKey === `${book.id}_${kIdx}`;
+                              return (
+                                <button
+                                  key={kIdx}
+                                  type="button"
+                                  onClick={() => handleCopySingleKeyword(book.id, kw, kIdx)}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    background: isSingleCopied ? '#ecfdf5' : '#ffffff',
+                                    border: isSingleCopied ? '1.5px solid #10b981' : '1px solid #cbd5e1',
+                                    borderRadius: 6,
+                                    padding: '4px 9px',
+                                    fontSize: 11.5,
+                                    color: isSingleCopied ? '#065f46' : '#1e293b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                                  }}
+                                  title="Clique para copiar esta palavra-chave individualmente"
+                                >
+                                  <span style={{
+                                    fontSize: 9.5,
+                                    fontWeight: 800,
+                                    color: isSingleCopied ? '#059669' : '#2563eb',
+                                    background: isSingleCopied ? '#d1fae5' : '#eff6ff',
+                                    padding: '1px 5px',
+                                    borderRadius: 3
+                                  }}>
+                                    #{kIdx + 1}
+                                  </span>
+                                  <span style={{ fontWeight: 600 }}>{kw}</span>
+                                  {isSingleCopied ? (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: '#059669', fontSize: 10, fontWeight: 700 }}>
+                                      <Check size={11} /> Copiada!
+                                    </span>
+                                  ) : (
+                                    <Copy size={11} color="#94a3b8" />
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

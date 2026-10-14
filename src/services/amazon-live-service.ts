@@ -151,17 +151,229 @@ export class AmazonLiveService {
   }
 
   /**
-   * Puxa sugestões de busca em tempo real da API oficial da Amazon.
+   * Puxa sugestões de busca em tempo real da API oficial da Amazon (Kindle e Livros físicos).
    */
-  public static async getLiveSuggestions(prefix: string): Promise<string[]> {
+  public static async getLiveSuggestions(prefix: string, market: 'br' | 'us' = 'br'): Promise<string[]> {
     try {
-      const url = `https://completion.amazon.com/api/2017/suggestions?mid=ATVPDKIKX0DER&alias=stripbooks&prefix=${encodeURIComponent(prefix)}`;
-      const res = await fetch(url);
-      if (!res.ok) return [];
-      const json = await res.json();
-      return (json.suggestions || []).map((s: any) => s.value).filter(Boolean);
+      // 1. Tenta rota interna do backend (sem problemas de CORS)
+      try {
+        const localRes = await fetch(`/api/amazon/suggestions?prefix=${encodeURIComponent(prefix)}&market=${market}`);
+        if (localRes.ok) {
+          const data = await localRes.json();
+          if (data?.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+            return data.suggestions;
+          }
+        }
+      } catch {
+        // segue para chamada direta
+      }
+
+      // 2. Chamada direta de fallback à API oficial da Amazon 2017
+      const mid = market === 'br' ? 'A2Q3Y263D00KWC' : 'ATVPDKIKX0DER';
+      const urlDigital = `https://completion.amazon.com/api/2017/suggestions?mid=${mid}&alias=digital-text&prefix=${encodeURIComponent(prefix)}`;
+      const res = await fetch(urlDigital);
+      if (res.ok) {
+        const json = await res.json();
+        const terms = (json.suggestions || []).map((s: any) => s.value).filter(Boolean);
+        if (terms.length > 0) return terms;
+      }
+
+      const urlBooks = `https://completion.amazon.com/api/2017/suggestions?mid=${mid}&alias=stripbooks&prefix=${encodeURIComponent(prefix)}`;
+      const resBooks = await fetch(urlBooks);
+      if (resBooks.ok) {
+        const json = await resBooks.json();
+        return (json.suggestions || []).map((s: any) => s.value).filter(Boolean);
+      }
+
+      return [];
     } catch {
       return [];
     }
   }
+
+  /**
+   * Gera exatamente 7 palavras-chave de busca de alto tráfego
+   * consultando em tempo real as pesquisas reais dos leitores na barra de busca da Amazon.
+   */
+  public static async fetchLiveAmazonKeywords(params: {
+    title: string;
+    subtitle?: string;
+    genre?: string;
+    topic?: string;
+  }): Promise<string[]> {
+    const rawGenre = (params.genre || '').toLowerCase();
+    const rawTitle = (params.title || '').toLowerCase();
+    const titleWords = new Set(
+      `${params.title} ${params.subtitle || ''}`
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .split(/\W+/)
+        .filter(w => w.length > 2)
+    );
+
+    // Mapeamento de termos sementes que leitores reais digitam na Amazon por gênero
+    let seedTerms: string[] = [];
+
+    if (rawGenre.includes('thriller') || rawGenre.includes('suspense') || rawGenre.includes('policial') || rawGenre.includes('crime') || rawGenre.includes('investig')) {
+      seedTerms = ['suspense', 'livros de suspense', 'suspense psicologico', 'ficcao policial', 'misterio', 'investigacao criminal', 'thriller livros'];
+    } else if (rawGenre.includes('terror') || rawGenre.includes('horror') || rawGenre.includes('medo') || rawGenre.includes('sobrenatural')) {
+      seedTerms = ['terror', 'livros de terror', 'terror psicologico', 'horror', 'suspense e terror', 'misterio sombrio', 'historias de terror'];
+    } else if (rawGenre.includes('autoajuda') || rawGenre.includes('habito') || rawGenre.includes('desenvolvimento') || rawGenre.includes('mindset')) {
+      seedTerms = ['autoajuda', 'habitos', 'desenvolvimento pessoal', 'inteligencia emocional', 'disciplina', 'produtividade pessoal', 'mudanca de vida'];
+    } else if (rawGenre.includes('negoc') || rawGenre.includes('lider') || rawGenre.includes('finan') || rawGenre.includes('empreend')) {
+      seedTerms = ['lideranca', 'gestao de pessoas', 'financas pessoais', 'empreendedorismo', 'negocios', 'produtividade profissional', 'gestao estrategica'];
+    } else if (rawGenre.includes('romance') || rawGenre.includes('amor') || rawGenre.includes('drama')) {
+      seedTerms = ['romance', 'romance contemporaneo', 'livros de romance', 'comedia romantica', 'drama familiar', 'ficcao feminina', 'historia de amor'];
+    } else if (rawGenre.includes('fantasia') || rawGenre.includes('magia') || rawGenre.includes('ficcao cientifica') || rawGenre.includes('sci-fi')) {
+      seedTerms = ['fantasia', 'livros de fantasia', 'ficcao cientifica', 'aventura', 'fantasia epica', 'distopia', 'universos fantasticos'];
+    } else if (rawGenre.includes('tecnico') || rawGenre.includes('guia') || rawGenre.includes('pratico') || rawGenre.includes('tecnologia')) {
+      seedTerms = ['guia pratico', 'manual pratico', 'inteligencia artificial', 'passo a passo', 'aprendizado rapido', 'metodologia pratica', 'ferramentas e tecnicas'];
+    } else if (rawGenre.includes('ficcao') || rawGenre.includes('ficção') || rawGenre.includes('narrativa')) {
+      seedTerms = ['ficcao', 'livros de ficcao', 'literatura brasileira', 'suspense literario', 'narrativas envolventes', 'novela literaria', 'romance moderno'];
+    } else {
+      seedTerms = ['livros recomendados', 'leitura rapida', 'livros kindle unlimited', 'desenvolvimento pessoal', 'habitos', 'leitura inspiradora', 'livros de sucesso'];
+    }
+
+    // Termos proibidos pelo regulamento do KDP
+    const forbiddenKdp = ['gratis', 'grátis', 'free', 'promocao', 'promoção', 'barato', 'frete gratis', 'bestseller', 'best seller', 'mais vendido', 'livro do ano'];
+
+    // Coleta termos da API de completion da Amazon
+    const collectedCandidates: string[] = [];
+    try {
+      const promises = seedTerms.map(st => this.getLiveSuggestions(st, 'br'));
+      const results = await Promise.all(promises);
+
+      for (const list of results) {
+        for (const term of list) {
+          const lower = term.toLowerCase().trim();
+          // Ignora se for muito longo (> 50 chars é a recomendação KDP)
+          if (lower.length > 50 || lower.length < 4) continue;
+          // Ignora termos proibidos pela Amazon
+          if (forbiddenKdp.some(f => lower.includes(f))) continue;
+          // Ignora repetição exata do título
+          const words = lower.split(/\s+/);
+          const hasTitleOverlap = words.some(w => titleWords.has(w) && w.length > 3);
+          if (hasTitleOverlap && words.length <= 2) continue;
+
+          if (!collectedCandidates.includes(lower)) {
+            collectedCandidates.push(lower);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[AmazonLiveService] Falha na coleta de sugestões:', err);
+    }
+
+    // Fallbacks validados e calibrados por nicho para garantir 7 palavras-chave impecáveis
+    const fallbackByGenre: Record<string, string[]> = {
+      thriller: [
+        'suspense psicologico reviravoltas impressionantes',
+        'investigacao criminal segredos e pistas',
+        'ficcao policial ritmo acelerado leitura viciante',
+        'crime misterio e paranoia psicologica',
+        'livros de suspense com final surpreendente',
+        'conflitos intensos e atmosfera sombria',
+        'historia intrigante para fas de investigacao'
+      ],
+      terror: [
+        'terror psicologico e misterio sombrio',
+        'livros de horror e suspense sobrenatural',
+        'ficcao sombria leitura assustadora',
+        'casas assombradas e segredos macabros',
+        'contos de horror com final perturbador',
+        'suspense sobrenatural e tensao constante',
+        'livros assustadores para ler a noite'
+      ],
+      autoajuda: [
+        'desenvolvimento pessoal habitos e disciplina',
+        'autoconhecimento inteligencia emocional',
+        'transformacao de rotina e clareza mental',
+        'superacao de limites e foco continuo',
+        'leitura inspiradora para mudanca de vida',
+        'principios de sucesso e resiliencia diaria',
+        'guia passo a passo para evolucao pessoal'
+      ],
+      negocios: [
+        'estrategias de gestao e tomada de decisao',
+        'desenvolvimento de lideranca de alto impacto',
+        'planejamento estrategico e mentalidade empreendedora',
+        'produtividade profissional foco e resultados',
+        'guia pratico de crescimento de carreira',
+        'organizacao financeira e gestao de negocios',
+        'principios comprovados para profissionais modernos'
+      ],
+      romance: [
+        'romance contemporaneo emocionante',
+        'encontros e desencontros segunda chance',
+        'historia de amor envolvente e tocante',
+        'drama familiar lacos e superacao',
+        'relacionamentos intensos dilemas do coracao',
+        'ficcao feminina escolhas e recomecos',
+        'romance literario leitura que aquece a alma'
+      ],
+      fantasia: [
+        'fantasia epica mundos magicos e batalhas',
+        'ficcao especulativa universos fascinantes',
+        'aventura fantastica com magia e misterio',
+        'saga literaria de fantasia e herois',
+        'livros de ficcao cientifica e tecnologia futura',
+        'magia misterios e reinos em perigo',
+        'leitura imersiva para fas de fantasia'
+      ],
+      tecnico: [
+        'guia pratico passo a passo para iniciantes',
+        'manual profissional de aplicacao direta',
+        'metodologias ageis e resolucao de problemas',
+        'tecnicas avancadas e boas praticas de mercado',
+        'aprendizado rapido e aplicacao no dia a dia',
+        'ferramentas modernas e casos práticos reais',
+        'guia definitivo de implementacao e resultados'
+      ],
+      ficcao: [
+        'literatura brasileira e narrativas envolventes',
+        'ficcao contemporanea com drama e reflexao',
+        'historias de personagens complexos e intensos',
+        'conflitos humanos escolhas e reviravoltas',
+        'prosa literaria ritmo envolvente',
+        'livros de ficcao com enredo inesquecivel',
+        'leitura marcante e transformadora'
+      ]
+    };
+
+    let targetFallback = fallbackByGenre.autoajuda;
+    if (rawGenre.includes('thriller') || rawGenre.includes('suspense') || rawGenre.includes('policial') || rawGenre.includes('crime') || rawGenre.includes('mister')) {
+      targetFallback = fallbackByGenre.thriller;
+    } else if (rawGenre.includes('terror') || rawGenre.includes('horror') || rawGenre.includes('medo')) {
+      targetFallback = fallbackByGenre.terror;
+    } else if (rawGenre.includes('negoc') || rawGenre.includes('lider') || rawGenre.includes('finan')) {
+      targetFallback = fallbackByGenre.negocios;
+    } else if (rawGenre.includes('romance') || rawGenre.includes('amor')) {
+      targetFallback = fallbackByGenre.romance;
+    } else if (rawGenre.includes('fantasia') || rawGenre.includes('sci-fi') || rawGenre.includes('cientifica')) {
+      targetFallback = fallbackByGenre.fantasia;
+    } else if (rawGenre.includes('tecnico') || rawGenre.includes('pratico')) {
+      targetFallback = fallbackByGenre.tecnico;
+    } else if (rawGenre.includes('ficcao') || rawGenre.includes('ficção')) {
+      targetFallback = fallbackByGenre.ficcao;
+    }
+
+    // Combina termos capturados da API da Amazon com os termos de fallback calibrados
+    const finalKeywords: string[] = [];
+    for (const term of collectedCandidates) {
+      if (finalKeywords.length >= 7) break;
+      if (!finalKeywords.includes(term)) {
+        finalKeywords.push(term);
+      }
+    }
+
+    for (const fb of targetFallback) {
+      if (finalKeywords.length >= 7) break;
+      if (!finalKeywords.includes(fb)) {
+        finalKeywords.push(fb);
+      }
+    }
+
+    return finalKeywords.slice(0, 7);
+  }
 }
+

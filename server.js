@@ -405,13 +405,29 @@ async function handleAmazonSearch(query, limit = 20, options = {}) {
 }
 
 // Handler de Sugestões Amazon
-async function handleAmazonSuggestions(prefix) {
+async function handleAmazonSuggestions(prefix, market = 'br') {
   try {
-    const url = `https://completion.amazon.com/api/2017/suggestions?mid=ATVPDKIKX0DER&alias=stripbooks&prefix=${encodeURIComponent(prefix || '')}`;
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const json = await res.json();
-    return (json.suggestions || []).map(s => s.value).filter(Boolean);
+    const mid = market === 'us' ? 'ATVPDKIKX0DER' : 'A2Q3Y263D00KWC';
+    const cleanPrefix = encodeURIComponent(prefix || '');
+
+    const [resDigital, resBooks] = await Promise.allSettled([
+      fetch(`https://completion.amazon.com/api/2017/suggestions?mid=${mid}&alias=digital-text&prefix=${cleanPrefix}`).then(r => r.ok ? r.json() : null),
+      fetch(`https://completion.amazon.com/api/2017/suggestions?mid=${mid}&alias=stripbooks&prefix=${cleanPrefix}`).then(r => r.ok ? r.json() : null)
+    ]);
+
+    const terms = new Set();
+    if (resDigital.status === 'fulfilled' && resDigital.value?.suggestions) {
+      for (const s of resDigital.value.suggestions) {
+        if (s?.value) terms.add(s.value);
+      }
+    }
+    if (resBooks.status === 'fulfilled' && resBooks.value?.suggestions) {
+      for (const s of resBooks.value.suggestions) {
+        if (s?.value) terms.add(s.value);
+      }
+    }
+
+    return Array.from(terms);
   } catch {
     return [];
   }
@@ -580,7 +596,8 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/amazon/suggestions') {
       const prefix = reqUrl.searchParams.get('prefix') || '';
-      const suggestions = await handleAmazonSuggestions(prefix);
+      const market = reqUrl.searchParams.get('market') || 'br';
+      const suggestions = await handleAmazonSuggestions(prefix, market);
       return sendJson(res, 200, { success: true, suggestions });
     }
   }

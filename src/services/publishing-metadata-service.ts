@@ -90,15 +90,23 @@ export class PublishingMetadataService {
     const candidates: string[] = [];
     const g = genre.toLowerCase();
 
-    if (g.includes('thriller') || g.includes('suspense') || g.includes('mister')) {
+    if (g.includes('thriller') || g.includes('suspense') || g.includes('mister') || g.includes('policial') || g.includes('crime') || g.includes('investig')) {
       candidates.push('suspense psicologico reviravoltas impressionantes');
-      candidates.push('investigacao criminal segredos de familia');
+      candidates.push('investigacao criminal segredos e pistas');
       candidates.push('ficcao policial ritmo acelerado leitura viciante');
       candidates.push('crime misterio e paranoia psicologica');
       candidates.push('livros de suspense com final surpreendente');
       candidates.push('conflitos intensos e atmosfera sombria');
       candidates.push('historia intrigante para fas de investigacao');
-    } else if (g.includes('romance') || g.includes('drama')) {
+    } else if (g.includes('terror') || g.includes('horror') || g.includes('medo') || g.includes('sobrenatural')) {
+      candidates.push('terror psicologico e misterio sombrio');
+      candidates.push('livros de horror e suspense sobrenatural');
+      candidates.push('ficcao sombria leitura assustadora');
+      candidates.push('casas assombradas e segredos macabros');
+      candidates.push('contos de horror com final perturbador');
+      candidates.push('suspense sobrenatural e tensao constante');
+      candidates.push('livros assustadores para ler a noite');
+    } else if (g.includes('romance') || g.includes('drama') || g.includes('amor')) {
       candidates.push('romance contemporaneo emocionante');
       candidates.push('encontros e desencontros segunda chance');
       candidates.push('historia de amor envolvente e tocante');
@@ -106,7 +114,7 @@ export class PublishingMetadataService {
       candidates.push('relacionamentos intensos dilemas do coracao');
       candidates.push('ficcao feminina escolhas e recomecos');
       candidates.push('romance literario leitura que aquece a alma');
-    } else if (g.includes('negoc') || g.includes('lider') || g.includes('finan')) {
+    } else if (g.includes('negoc') || g.includes('lider') || g.includes('finan') || g.includes('empreend')) {
       candidates.push('estrategias de gestao e tomada de decisao');
       candidates.push('desenvolvimento de lideranca de alto impacto');
       candidates.push('planejamento estrategico e mentalidade empreendedora');
@@ -114,13 +122,37 @@ export class PublishingMetadataService {
       candidates.push('guia pratico de crescimento de carreira');
       candidates.push('organizacao financeira e gestao de negocios');
       candidates.push('principios comprovados para profissionais modernos');
+    } else if (g.includes('fantasia') || g.includes('sci-fi') || g.includes('cientifica') || g.includes('aventura')) {
+      candidates.push('fantasia epica mundos magicos e batalhas');
+      candidates.push('ficcao especulativa universos fascinantes');
+      candidates.push('aventura fantastica com magia e misterio');
+      candidates.push('saga literaria de fantasia e herois');
+      candidates.push('livros de ficcao cientifica e tecnologia futura');
+      candidates.push('magia misterios e reinos em perigo');
+      candidates.push('leitura imersiva para fas de fantasia');
+    } else if (g.includes('tecnico') || g.includes('guia') || g.includes('pratico') || g.includes('didat') || g.includes('tecnolog')) {
+      candidates.push('guia pratico passo a passo para iniciantes');
+      candidates.push('manual profissional de aplicacao direta');
+      candidates.push('metodologias ageis e resolucao de problemas');
+      candidates.push('tecnicas avancadas e boas praticas de mercado');
+      candidates.push('aprendizado rapido e aplicacao no dia a dia');
+      candidates.push('ferramentas modernas e casos praticos reais');
+      candidates.push('guia definitivo de implementacao e resultados');
+    } else if (g.includes('ficcao') || g.includes('ficção') || g.includes('literat') || g.includes('narrat')) {
+      candidates.push('literatura brasileira e narrativas envolventes');
+      candidates.push('ficcao contemporanea com drama e reflexao');
+      candidates.push('historias de personagens complexos e intensos');
+      candidates.push('conflitos humanos escolhas e reviravoltas');
+      candidates.push('prosa literaria ritmo envolvente');
+      candidates.push('livros de ficcao com enredo inesquecivel');
+      candidates.push('leitura marcante e transformadora');
     } else {
       candidates.push('desenvolvimento pessoal habitos e disciplina');
       candidates.push('autoconhecimento inteligencia emocional');
       candidates.push('transformacao de rotina e clareza mental');
       candidates.push('superacao de limites e foco continuo');
       candidates.push('leitura inspiradora para mudanca de vida');
-      candidates.push('principios de sucesso e resiliencia diária');
+      candidates.push('principios de sucesso e resiliencia diaria');
       candidates.push('guia passo a passo para evolucao pessoal');
     }
 
