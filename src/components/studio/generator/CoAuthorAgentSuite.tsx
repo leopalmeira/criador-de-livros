@@ -7,7 +7,7 @@ import {
   Wrench, HeartHandshake, Layers, BookCheck, ClipboardCheck,
   ChevronDown, ChevronUp, Save, X, Lightbulb, UserCheck,
   ArrowLeft, Download, Maximize2, Minimize2, CheckSquare, Search,
-  FileCheck, ExternalLink, Bookmark, HelpCircle
+  FileCheck, ExternalLink, Bookmark, HelpCircle, Volume2, VolumeX
 } from 'lucide-react';
 import { chamarGeminiTexto } from '../../../services/kdp-ai-engine';
 import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrity-engine';
@@ -32,6 +32,8 @@ import {
   type ChapterEnrichmentProposal,
   type GlobalReviewResult
 } from '../../../services/ready-books-service';
+import { coAuthorVoiceService } from '../../../services/coauthor-voice-service';
+import { CoAuthorVoiceToggle } from './CoAuthorVoiceToggle';
 
 export type CoAuthorBookType = 'tecnico' | 'autoajuda' | 'pratico' | 'ficcao';
 
@@ -438,6 +440,20 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   const [showReadyBooksModal, setShowReadyBooksModal] = useState<boolean>(false);
   const [bookSearchFilter, setBookSearchFilter] = useState<string>('');
 
+  // Controle de Áudio e Voz Feminina do CoAuthor
+  const [currentlySpeakingId, setCurrentlySpeakingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = coAuthorVoiceService.subscribe((state) => {
+      setCurrentlySpeakingId(state.isSpeaking ? state.currentMessageId : null);
+    });
+
+    return () => {
+      unsubscribe();
+      coAuthorVoiceService.stop();
+    };
+  }, []);
+
   const carregarLivrosProntos = async () => {
     try {
       const books = await fetchAllReadyBooks();
@@ -485,6 +501,7 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
     };
 
     setMessages(prev => [...prev, msgCarregado]);
+    coAuthorVoiceService.speak(msgCarregado.text, msgCarregado.id);
   };
 
   // REVISÃO EDITORIAL GLOBAL DE TODA A OBRA DE UMA VEZ
@@ -576,6 +593,7 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
       };
 
       setMessages(prev => [...prev, agentReply]);
+      coAuthorVoiceService.speak(agentReply.text, agentReply.id);
     } catch (err: any) {
       setMessages(prev => [
         ...prev,
@@ -663,6 +681,7 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
       };
 
       setMessages(prev => [...prev, agentReply]);
+      coAuthorVoiceService.speak(agentReply.text, agentReply.id);
     } catch (err: any) {
       setMessages(prev => [
         ...prev,
@@ -852,6 +871,7 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
     };
 
     setMessages([msgInicial]);
+    coAuthorVoiceService.speak(msgInicial.text, msgInicial.id);
   };
 
   // Iniciar Nova Obra 100% Individualizada em Branco
@@ -1285,6 +1305,7 @@ Responda como o CoAuthor humano, parceiro e experiente:`;
       };
 
       setMessages(prev => [...prev, msgResposta]);
+      coAuthorVoiceService.speak(respostaTexto, msgResposta.id);
     } catch (err: any) {
       console.error('Erro na resposta conversacional do CoAuthor:', err);
       setMessages(prev => [
@@ -2159,6 +2180,9 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               <Download size={15} /> Exportar KDP
             </button>
           </div>
+
+          {/* TOGGLE DE VOZ FEMININA DO COAUTHOR */}
+          <CoAuthorVoiceToggle />
 
           {/* BOTÃO DA BASE DE LIVROS PRONTOS */}
           <button
@@ -3341,6 +3365,46 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                         : 'Sistema Editorial'}
                     </span>
                     <span>• {msg.timestamp}</span>
+                    {msg.sender === 'agent' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentlySpeakingId === msg.id) {
+                            coAuthorVoiceService.stop();
+                          } else {
+                            coAuthorVoiceService.speak(msg.text, msg.id, { forcePlay: true });
+                          }
+                        }}
+                        style={{
+                          background: currentlySpeakingId === msg.id ? '#fdf2f8' : '#f1f5f9',
+                          border: currentlySpeakingId === msg.id ? '1px solid #fbcfe8' : '1px solid #cbd5e1',
+                          color: currentlySpeakingId === msg.id ? '#db2777' : '#475569',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          marginLeft: 8,
+                          transition: 'all 0.15s ease'
+                        }}
+                        title={currentlySpeakingId === msg.id ? 'Parar leitura de voz' : 'Ouvir resposta com a voz feminina do CoAuthor'}
+                      >
+                        {currentlySpeakingId === msg.id ? (
+                          <>
+                            <VolumeX size={13} color="#db2777" />
+                            <span>Parar</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 size={13} color="#475569" />
+                            <span>Ouvir</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {/* CONTEÚDO FORMATADO COM FONTES GRANDES E NÍTIDAS */}

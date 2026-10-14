@@ -3,7 +3,7 @@ import {
   Bot, Sparkles, Send, X, Minimize2, Check, RefreshCw,
   BookOpen, ChevronRight, CheckCircle2, MessageSquare, Lightbulb,
   CornerDownLeft, ShieldCheck, Layers, Award, ArrowUpRight, Palette,
-  Image as ImageIcon, Download, CheckSquare, Search
+  Image as ImageIcon, Download, CheckSquare, Search, Volume2, VolumeX
 } from 'lucide-react';
 import { chamarGeminiTexto, chamarImagen } from '../../../services/kdp-ai-engine';
 import { cleanChapterTitle } from '../../../services/kdp-editorial-review';
@@ -14,6 +14,8 @@ import {
   type ReadyBookRecord
 } from '../../../services/ready-books-service';
 import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
+import { coAuthorVoiceService } from '../../../services/coauthor-voice-service';
+import { CoAuthorVoiceToggle } from './CoAuthorVoiceToggle';
 
 export interface CoAuthorFloatingAssistantProps {
   bookState: any | null;
@@ -115,7 +117,21 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
       text: `Carreguei a obra **"${book.title}"** aqui na nossa bancada! Ela possui ${book.capitulos.length} capítulos e cerca de ${book.totalWords.toLocaleString()} palavras (Perfil: **${book.tipoLivro.toUpperCase()}**).\n\nPodemos fazer uma revisão de ponta a ponta na obra toda, aprofundar ${book.tipoLivro === 'ficcao' ? 'a história e os diálogos' : 'o conteúdo prático e exemplos'}, ou lapidar um capítulo específico. Me conta o que você prefere atacar!`
     };
     setMessages(prev => [...prev, msgLoaded]);
+    coAuthorVoiceService.speak(msgLoaded.text, msgLoaded.id);
   };
+
+  const [currentlySpeakingId, setCurrentlySpeakingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = coAuthorVoiceService.subscribe((state) => {
+      setCurrentlySpeakingId(state.isSpeaking ? state.currentMessageId : null);
+    });
+
+    return () => {
+      unsubscribe();
+      coAuthorVoiceService.stop();
+    };
+  }, []);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -199,6 +215,7 @@ Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
       };
 
       setMessages(prev => [...prev, agentMsg]);
+      coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
     } catch (err: any) {
       const errM: Message = {
         id: `msg_err_${Date.now()}`,
@@ -360,6 +377,7 @@ Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneç
         };
 
         setMessages(prev => [...prev, agentMsg]);
+        coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
       } else {
         // MODO PONTUAL (Capítulo Específico ou Pergunta Geral)
         setLoadingStatus(`CoAuthor analisando Capítulo ${selectedChapter}...`);
@@ -445,6 +463,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
         };
 
         setMessages(prev => [...prev, agentMsg]);
+        coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
       }
     } catch (err: any) {
       const errorMsg: Message = {
@@ -712,6 +731,9 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                 <span>Base ({readyBooks.length})</span>
               </button>
 
+              {/* TOGGLE DE VOZ FEMININA DO COAUTHOR */}
+              <CoAuthorVoiceToggle compact />
+
               <button
                 type="button"
                 onClick={() => setIsMinimized(!isMinimized)}
@@ -730,7 +752,10 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
               </button>
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  coAuthorVoiceService.stop();
+                  setIsOpen(false);
+                }}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -1301,9 +1326,49 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                         )}
                       </div>
 
-                      <span style={{ fontSize: 9.5, color: '#94a3b8', margin: '0 4px' }}>
-                        {msg.timestamp}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 4px' }}>
+                        <span style={{ fontSize: 9.5, color: '#94a3b8' }}>
+                          {msg.timestamp}
+                        </span>
+                        {isAgent && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (currentlySpeakingId === msg.id) {
+                                coAuthorVoiceService.stop();
+                              } else {
+                                coAuthorVoiceService.speak(msg.text, msg.id, { forcePlay: true });
+                              }
+                            }}
+                            style={{
+                              background: currentlySpeakingId === msg.id ? '#fdf2f8' : 'transparent',
+                              border: currentlySpeakingId === msg.id ? '1px solid #fbcfe8' : 'none',
+                              color: currentlySpeakingId === msg.id ? '#db2777' : '#94a3b8',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 2,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: '1px 5px',
+                              borderRadius: 4
+                            }}
+                            title={currentlySpeakingId === msg.id ? 'Parar leitura de voz' : 'Ouvir resposta com voz feminina'}
+                          >
+                            {currentlySpeakingId === msg.id ? (
+                              <>
+                                <VolumeX size={11} color="#db2777" />
+                                <span style={{ color: '#db2777' }}>Parar</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 size={11} />
+                                <span>Ouvir</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
