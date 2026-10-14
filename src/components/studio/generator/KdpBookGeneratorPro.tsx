@@ -2196,6 +2196,57 @@ ${ganchoImediato}`;
     }
   };
 
+  // Iniciar Nova Obra 100% Individualizada a partir do CoAuthor Studio
+  const handleStartNewBookFromCoAuthor = (novoPerfil?: string) => {
+    const novoId = `proj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    projectIdRef.current = novoId;
+    const isAutoajuda = novoPerfil === 'autoajuda';
+    const isTecnico = novoPerfil === 'tecnico';
+    const isPratico = novoPerfil === 'pratico';
+    const tituloPadrao = isAutoajuda
+      ? 'O Poder da Transformação Pessoal'
+      : isTecnico
+      ? 'Guia Prático Definitivo'
+      : isPratico
+      ? 'Manual Passo a Passo de Execução'
+      : 'Nova Obra KDP';
+    const generoPadrao = isAutoajuda
+      ? 'Autoajuda & Desenvolvimento Pessoal'
+      : isTecnico
+      ? 'Técnico / Profissional'
+      : isPratico
+      ? 'Guia Prático (How-To)'
+      : 'Geral';
+
+    const novoLivro: LivroGerado = {
+      titulo: tituloPadrao,
+      subtitulo: isAutoajuda ? 'Passos Diários para Mudar sua Realidade' : 'Fundamentos e Aplicação Prática',
+      autor: autor || 'Autor Book Engin',
+      genero: generoPadrao,
+      idioma: idioma === 'inglês' ? 'inglês' : 'português',
+      capitulos: [],
+      meta: {
+        palavrasPorCap: 900,
+        paginasAlvo: paginasAlvo || 80
+      }
+    };
+
+    setLivro(novoLivro);
+    setTitulo(novoLivro.titulo);
+    setSubtitulo(novoLivro.subtitulo);
+    setGenero(novoLivro.genero);
+    setTopico(isAutoajuda ? 'Desenvolvimento pessoal, foco, disciplina e hábitos diários' : 'Aplicação prática e resolução de problemas');
+    setCapAtual(0);
+    setTotalCaps(8);
+    setCapaFinal(null);
+    setFundoImg(null);
+    setPromoData(null);
+    salvarProgressoLocal(novoLivro);
+    setStatusMsg(`✨ Nova obra individualizada de ${generoPadrao} iniciada com sucesso!`);
+    setStatusType('ok');
+    return novoLivro;
+  };
+
   // Incorporação direta de Capa Autoral gerada pelo CoAuthor no Livro
   const handleSetCoverFromCoAuthor = async (coverDataUrl: string) => {
     try {
@@ -7443,6 +7494,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   autorAtual={autor || 'Autor Book Engin'}
                   generoAtual={genero || 'Não Ficção'}
                   idiomaAtual={idioma || 'Português'}
+                  onStartNewBook={handleStartNewBookFromCoAuthor}
                 />
               )}
 

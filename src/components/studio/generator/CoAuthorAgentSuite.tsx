@@ -19,6 +19,8 @@ import {
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
 import { PublishingMetadataService } from '../../../services/publishing-metadata-service';
 import { KdpBookVerifier } from '../../../services/kdp-book-verifier';
+import { cleanChapterTitle } from '../../../services/kdp-editorial-review';
+import { KdpHumanizerEngine } from '../../../services/kdp-humanizer-engine';
 
 export type CoAuthorBookType = 'tecnico' | 'autoajuda' | 'pratico' | 'ficcao';
 
@@ -332,6 +334,7 @@ export interface CoAuthorWorkspaceProps {
   autorAtual?: string;
   generoAtual?: string;
   idiomaAtual?: string;
+  onStartNewBook?: (perfil?: CoAuthorBookType) => any;
 }
 
 export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
@@ -348,7 +351,8 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   formato = '6x9',
   autorAtual = 'Autor Book Engin',
   generoAtual = 'Geral',
-  idiomaAtual = 'Português'
+  idiomaAtual = 'Português',
+  onStartNewBook
 }) => {
   // Aba ativa interna do estúdio: 'chat' | 'diagramado' | 'revisao' | 'exportar'
   const [internalTab, setInternalTab] = useState<'chat' | 'diagramado' | 'revisao' | 'exportar'>('chat');
@@ -384,6 +388,33 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
 
+  // Controle do Stepper Interativo do Processo Editorial (1: Tema, 2: Título, 3: Sumário, null: Chat)
+  const [activeFlowStep, setActiveFlowStep] = useState<1 | 2 | 3 | null>(null);
+
+  // Alerta de Divergência de Gênero (ex: escolheu Autoajuda mas tem capítulos de Ficção)
+  const [genreMismatchModal, setGenreMismatchModal] = useState<{
+    oldGenre: string;
+    newGenre: CoAuthorBookType;
+    count: number;
+  } | null>(null);
+
+  // Modal de confirmação para iniciar Novo Livro em Branco
+  const [showNewBookConfirm, setShowNewBookConfirm] = useState<boolean>(false);
+
+  // Estados do Motor de Humanização
+  const [isHumanizingChapter, setIsHumanizingChapter] = useState<number | null>(null);
+  const [humanizeSuccessToast, setHumanizeSuccessToast] = useState<string | null>(null);
+
+  // Sugestões de Título geradas por IA no Passo 2
+  const [isSuggestingTitles, setIsSuggestingTitles] = useState<boolean>(false);
+  const [titleSuggestions, setTitleSuggestions] = useState<Array<{ title: string; subtitle: string; rationale: string }>>([]);
+
+  // Estados dos campos de edição direta do fluxo
+  const [flowTema, setFlowTema] = useState<string>(() => contextData.premissaVisao || '');
+  const [flowTitulo, setFlowTitulo] = useState<string>(() => bookState?.titulo || '');
+  const [flowSubtitulo, setFlowSubtitulo] = useState<string>(() => bookState?.subtitulo || '');
+  const [flowPublico, setFlowPublico] = useState<string>('Público Geral KDP');
+
   // Armazena o briefing alinhado
   const [respostasBriefing, setRespostasBriefing] = useState<{
     premissa: string;
@@ -407,10 +438,10 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   };
 
   useEffect(() => {
-    if (internalTab === 'chat') {
+    if (internalTab === 'chat' && activeFlowStep === null) {
       scrollToBottomInternal();
     }
-  }, [messages.length, isAiProcessing, internalTab]);
+  }, [messages.length, isAiProcessing, internalTab, activeFlowStep]);
 
   // Mensagem de boas-vindas inicial natural
   useEffect(() => {
@@ -443,7 +474,7 @@ Nós vamos cumprir todas as etapas do processo base editorial:
 1. **Tema & Ideia**: Definir o conceito central, público-alvo e nicho KDP.
 2. **Título & Subtítulo**: Formulação comercial de alto impacto.
 3. **Sumário de Capítulos**: Estruturar a espinha dorsal da obra.
-4. **Redação & Coautoria**: Escrever capítulo por capítulo com máxima qualidade.
+4. **Redação & Coautoria**: Escrever capítulo por capítulo com máxima qualidade e voz humanizada.
 5. **Revisão & Checagem Editorial**: Enredo, coesão do texto, diagramação e preparação para o Amazon KDP.
 
 Para começarmos o primeiro passo: **Qual é o tema central, a ideia ou o problema concreto que seu livro vai resolver?**`,
@@ -458,11 +489,65 @@ Para começarmos o primeiro passo: **Qual é o tema central, a ideia ou o proble
     setMessages([msgInicial]);
   };
 
-  // Troca de Perfil Editorial pelo usuário
+  // Iniciar Nova Obra 100% Individualizada em Branco
+  const handleStartNewBook = (novoPerfil?: CoAuthorBookType) => {
+    const perfilFinal = novoPerfil || tipoLivro;
+    const novoLivroCriado = onStartNewBook ? onStartNewBook(perfilFinal) : null;
+
+    setTipoLivro(perfilFinal);
+    setGenreMismatchModal(null);
+    setShowNewBookConfirm(false);
+    setEditorialPlan(null);
+    setRespostasBriefing({ premissa: '', elementos: '', formula: '' });
+    setFlowTema('');
+    setFlowTitulo(novoLivroCriado?.titulo || (perfilFinal === 'autoajuda' ? 'O Poder da Transformação Pessoal' : 'Nova Obra KDP'));
+    setFlowSubtitulo(novoLivroCriado?.subtitulo || '');
+    setTitleSuggestions([]);
+
+    if (!novoLivroCriado) {
+      const novoLivro: CoAuthorBookState = {
+        titulo: perfilFinal === 'autoajuda' ? 'O Poder da Transformação Pessoal' : 'Nova Obra KDP',
+        subtitulo: '',
+        autor: autorAtual,
+        genero: perfilFinal === 'autoajuda' ? 'Autoajuda & Desenvolvimento Pessoal' : (perfilFinal === 'tecnico' ? 'Técnico' : 'Geral'),
+        idioma: idiomaAtual,
+        tipoLivro: perfilFinal,
+        capitulos: [],
+        meta: { palavrasPorCap: 900, paginasAlvo: paginasAlvo || 80 }
+      };
+      onUpdateBookState(novoLivro);
+      onSaveProgress(novoLivro);
+    }
+
+    iniciarConversaNatural(perfilFinal);
+    setActiveFlowStep(1); // Abre a etapa 1 para o autor digitar o tema da nova obra
+    setInternalTab('chat');
+  };
+
+  // Troca de Perfil Editorial pelo usuário com detecção inteligente de incompatibilidade
   const handleChangeTipoLivro = (novoTipo: CoAuthorBookType) => {
+    const totalCapsAtuais = bookState?.capitulos?.length || 0;
+    const generoAnterior = bookState?.tipoLivro || tipoLivro;
+
+    // Se já existem capítulos escritos E o autor está trocando para um perfil diferente (ex: tinha Ficção e clicou em Autoajuda)
+    if (totalCapsAtuais > 0 && generoAnterior !== novoTipo) {
+      setGenreMismatchModal({
+        oldGenre: generoAnterior,
+        newGenre: novoTipo,
+        count: totalCapsAtuais
+      });
+      return;
+    }
+
     setTipoLivro(novoTipo);
     if (bookState) {
-      onUpdateBookState({ ...bookState, tipoLivro: novoTipo });
+      const atualizado = {
+        ...bookState,
+        tipoLivro: novoTipo,
+        genero: novoTipo === 'autoajuda' ? 'Autoajuda & Desenvolvimento Pessoal' : (novoTipo === 'tecnico' ? 'Técnico / Profissional' : (novoTipo === 'pratico' ? 'Guia Prático' : 'Ficção'))
+      };
+      onUpdateBookState(atualizado);
+      onSaveProgress(atualizado);
     }
 
     const nomePerfil =
@@ -483,6 +568,140 @@ Para começarmos o primeiro passo: **Qual é o tema central, a ideia ou o proble
         text: `🔄 **Perfil Editorial ajustado para: ${nomePerfil}**. A inteligência editorial agora calibrará tom, exemplos e estrutura especificamente para esse formato.`
       }
     ]);
+  };
+
+  // Humanização de Texto de Capítulo (Eliminação de clichês e ritmo humano autêntico)
+  const handleHumanizeChapter = async (capIdx: number) => {
+    if (!bookState || !bookState.capitulos || !bookState.capitulos[capIdx]) return;
+    const cap = bookState.capitulos[capIdx];
+    setIsHumanizingChapter(capIdx);
+    setAiLoadingStatus(`✨ Humanizando Capítulo ${capIdx + 1} ("${cleanChapterTitle(cap.titulo)}")... Removendo clichês mecânicos de IA...`);
+
+    try {
+      const textoHumanizado = await KdpHumanizerEngine.humanizeContent(
+        cap.texto,
+        cleanChapterTitle(cap.titulo),
+        {
+          genre: tipoLivro === 'autoajuda' ? 'Autoajuda & Desenvolvimento Pessoal' : (tipoLivro === 'tecnico' ? 'Técnico' : tipoLivro),
+          tone: tipoLivro === 'autoajuda' ? 'caloroso' : 'didatico-descontraido'
+        }
+      );
+
+      const novosCaps = [...bookState.capitulos];
+      novosCaps[capIdx] = {
+        ...novosCaps[capIdx],
+        texto: textoHumanizado
+      };
+
+      const livroAtualizado = { ...bookState, capitulos: novosCaps };
+      onUpdateBookState(livroAtualizado);
+      onSaveProgress(livroAtualizado);
+
+      setHumanizeSuccessToast(`Capítulo ${capIdx + 1} humanizado com sucesso!`);
+      setTimeout(() => setHumanizeSuccessToast(null), 3500);
+
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}`,
+          sender: 'system',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `✨ **Capítulo ${capIdx + 1}: "${cleanChapterTitle(cap.titulo)}" Humanizado com Sucesso!**\nO texto foi refinado com ritmo autoral dinâmico, variação de frases e eliminação completa de clichês robóticos. A leitura agora soa autêntica e magnética para o leitor KDP.`
+        }
+      ]);
+    } catch (err: any) {
+      console.error('Erro na humanização:', err);
+    } finally {
+      setIsHumanizingChapter(null);
+      setAiLoadingStatus('');
+    }
+  };
+
+  // Gerador de Títulos Comerciais Bestseller com IA no Passo 2
+  const handleGenerateTitleSuggestions = async () => {
+    setIsSuggestingTitles(true);
+    try {
+      const promptTitles = `Você é um Consultor de Marketing Editorial e Especialista em Bestsellers da Amazon KDP.
+Crie 5 propostas irresistíveis de TÍTULO e SUBTÍTULO para uma obra com estas características:
+Gênero: ${tipoLivro}
+Tema Central: ${respostasBriefing.premissa || flowTema || 'Desenvolvimento pessoal e alta produtividade'}
+Público: ${flowPublico}
+
+FORMATO EXATO OBRIGATÓRIO (retorne exatamente 5 opções):
+[OPCAO 1]
+TITULO: ...
+SUBTITULO: ...
+MOTIVO: Por que este título converte leitores na Amazon KDP
+[/OPCAO]
+[OPCAO 2]
+TITULO: ...
+SUBTITULO: ...
+MOTIVO: ...
+[/OPCAO]`;
+
+      const res = await chamarGeminiTexto(promptTitles, {
+        temperature: 0.85,
+        maxTokens: 1200
+      });
+
+      const options: Array<{ title: string; subtitle: string; rationale: string }> = [];
+      const regex = /\[OPCAO\s*\d+\][\s\S]*?TITULO:\s*(.+?)[\r\n]+SUBTITULO:\s*(.+?)[\r\n]+MOTIVO:\s*([\s\S]*?)\[\/OPCAO\]/gi;
+      let m;
+      while ((m = regex.exec(res.texto)) !== null) {
+        options.push({
+          title: m[1].trim(),
+          subtitle: m[2].trim(),
+          rationale: m[3].trim()
+        });
+      }
+
+      if (options.length > 0) {
+        setTitleSuggestions(options);
+      }
+    } catch (err) {
+      console.error('Erro ao sugerir títulos:', err);
+    } finally {
+      setIsSuggestingTitles(false);
+    }
+  };
+
+  // Aplicar título sugerido diretamente ao livro
+  const handleApplyTitleSuggestion = (title: string, subtitle: string) => {
+    setFlowTitulo(title);
+    setFlowSubtitulo(subtitle);
+    if (bookState) {
+      const atualizado = {
+        ...bookState,
+        titulo: title,
+        subtitulo: subtitle
+      };
+      onUpdateBookState(atualizado);
+      onSaveProgress(atualizado);
+    }
+    setActiveFlowStep(3); // Avança automaticamente para o sumário de capítulos!
+  };
+
+  // Salvar tema e premissa no Passo 1
+  const handleSaveFlowTema = () => {
+    setRespostasBriefing(prev => ({
+      ...prev,
+      premissa: flowTema
+    }));
+    setActiveFlowStep(2); // Avança para o Passo 2 (Título & Subtítulo)
+  };
+
+  // Salvar título no Passo 2
+  const handleSaveFlowTitulo = () => {
+    if (bookState) {
+      const atualizado = {
+        ...bookState,
+        titulo: flowTitulo || 'Novo Livro KDP',
+        subtitulo: flowSubtitulo
+      };
+      onUpdateBookState(atualizado);
+      onSaveProgress(atualizado);
+    }
+    setActiveFlowStep(3); // Avança para o Passo 3 (Sumário de Capítulos)
   };
 
   // ENVIO DA MENSAGEM DO AUTOR COM PROCESSAMENTO REAL VIA GEMINI
@@ -1111,12 +1330,18 @@ ${historicoEnredo}`;
         finalTexto += '.';
       }
 
-      const tituloCap = mt ? mt[1].trim() : `Capítulo ${numCapitulo}`;
+      const rawTituloCap = mt ? mt[1].trim() : `Capítulo ${numCapitulo}`;
+      const tituloCap = cleanChapterTitle(rawTituloCap);
       const novoCap = { titulo: tituloCap, texto: finalTexto };
+
+      // Se for o Capítulo 1 e os capítulos anteriores pertencerem a outra obra, inicia o manuscrito limpo
+      const capitulosBase = (numCapitulo === 1 && livroAtual.capitulos.length > 0 && cleanChapterTitle(livroAtual.capitulos[0].titulo) !== tituloCap)
+        ? []
+        : livroAtual.capitulos;
 
       const livroAtualizado = {
         ...livroAtual,
-        capitulos: [...livroAtual.capitulos, novoCap]
+        capitulos: [...capitulosBase, novoCap]
       };
 
       onUpdateBookState(livroAtualizado);
@@ -1525,6 +1750,30 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             </button>
           </div>
 
+          {/* BOTÃO INDIVIDUALIZADO: NOVO LIVRO (EM BRANCO) */}
+          <button
+            type="button"
+            onClick={() => setShowNewBookConfirm(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '8px 14px',
+              borderRadius: 8,
+              background: '#f8fafc',
+              border: '1.5px solid #0284c7',
+              color: '#0284c7',
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            title="Começar um novo livro 100% individualizado do zero"
+          >
+            <Sparkles size={15} color="#0284c7" />
+            <span>✨ Novo Livro (Em Branco)</span>
+          </button>
+
           {/* BOTÃO RÁPIDO DE DOWNLOAD DE PDF DIAGRAMADO */}
           {capsConcluidos > 0 && (
             <button
@@ -1555,7 +1804,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
       </header>
 
       {/* ==================================================================== */}
-      {/* 2. SUB-BAR: ETAPAS EDITORIAIS DA OBRA & SELETOR DE PERFIL */}
+      {/* 2. SUB-BAR: ETAPAS EDITORIAIS DA OBRA (INTERATIVAS & CLICÁVEIS) */}
       {/* ==================================================================== */}
       <div
         style={{
@@ -1570,8 +1819,8 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
           overflowX: 'auto'
         }}
       >
-        {/* ETAPAS DA OBRA */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* ETAPAS DA OBRA - CLICÁVEIS A QUALQUER MOMENTO */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12.5, fontWeight: 800, color: '#475569' }}>
             Processo Editorial:
           </span>
@@ -1582,30 +1831,66 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             { num: 3, label: 'Sumário & Capítulos', done: capsConcluidos > 0 },
             { num: 4, label: 'Redação & Coautoria', done: capsConcluidos >= totalCaps },
             { num: 5, label: 'Revisão KDP', done: capsConcluidos >= totalCaps }
-          ].map((etapa, idx) => (
-            <div key={etapa.num} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 11,
-                  fontWeight: 800,
-                  background: etapa.done ? '#10b981' : '#e2e8f0',
-                  color: etapa.done ? '#ffffff' : '#475569'
-                }}
-              >
-                {etapa.done ? '✓' : etapa.num}
-              </span>
-              <span style={{ fontSize: 12.5, fontWeight: etapa.done ? 700 : 500, color: etapa.done ? '#0f172a' : '#64748b' }}>
-                {etapa.label}
-              </span>
-              {idx < 4 && <ChevronRight size={13} color="#cbd5e1" />}
-            </div>
-          ))}
+          ].map((etapa, idx) => {
+            const isCurrentActive = (activeFlowStep === etapa.num) || (activeFlowStep === null && etapa.num === 4 && internalTab === 'chat');
+            return (
+              <div key={etapa.num} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (etapa.num === 1 || etapa.num === 2 || etapa.num === 3) {
+                      setActiveFlowStep(activeFlowStep === etapa.num ? null : (etapa.num as 1 | 2 | 3));
+                    } else if (etapa.num === 4) {
+                      setActiveFlowStep(null);
+                      setInternalTab('chat');
+                    } else if (etapa.num === 5) {
+                      setActiveFlowStep(null);
+                      setInternalTab('revisao');
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '5px 10px',
+                    borderRadius: 7,
+                    border: isCurrentActive ? '1.5px solid #0284c7' : '1px solid transparent',
+                    background: isCurrentActive ? '#f0f9ff' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={`Clique para editar diretamente: ${etapa.label}`}
+                >
+                  <span
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      background: etapa.done ? '#10b981' : (isCurrentActive ? '#0284c7' : '#e2e8f0'),
+                      color: etapa.done || isCurrentActive ? '#ffffff' : '#475569'
+                    }}
+                  >
+                    {etapa.done ? '✓' : etapa.num}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: isCurrentActive || etapa.done ? 700 : 500,
+                      color: isCurrentActive ? '#0284c7' : (etapa.done ? '#0f172a' : '#64748b')
+                    }}
+                  >
+                    {etapa.label}
+                  </span>
+                </button>
+                {idx < 4 && <ChevronRight size={13} color="#cbd5e1" />}
+              </div>
+            );
+          })}
         </div>
 
         {/* SELETOR DE PERFIL EDITORIAL */}
@@ -1657,6 +1942,571 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
           }}
         />
       </div>
+
+      {/* TOAST DE NOTIFICAÇÃO DE HUMANIZAÇÃO */}
+      {humanizeSuccessToast && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 85,
+            right: 30,
+            zIndex: 10005,
+            background: '#065f46',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: 8,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: 13.5,
+            fontWeight: 700
+          }}
+        >
+          <Sparkles size={18} />
+          <span>{humanizeSuccessToast}</span>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRMAÇÃO DE INICIAR NOVO LIVRO EM BRANCO */}
+      {showNewBookConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10006,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 14,
+              maxWidth: 520,
+              width: '100%',
+              padding: 24,
+              boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: '#e0f2fe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#0284c7'
+                }}
+              >
+                <Sparkles size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+                  Iniciar Novo Livro em Branco
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                  Criação 100% individualizada e limpa
+                </p>
+              </div>
+            </div>
+
+            <p style={{ margin: 0, fontSize: 13.5, color: '#334155', lineHeight: 1.6 }}>
+              Deseja iniciar um <strong>novo livro individualizado</strong>? Isso criará um manuscrito novo em folha no seu perfil selecionado (<strong>{tipoLivro.toUpperCase()}</strong>), sem misturar com nenhum capítulo de obras anteriores.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowNewBookConfirm(false)}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#475569',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStartNewBook()}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                }}
+              >
+                ✨ Sim, Iniciar Livro em Branco
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ALERTA DE DIVERGÊNCIA DE GÊNERO / LIVRO ANTERIOR */}
+      {genreMismatchModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10006,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 14,
+              maxWidth: 560,
+              width: '100%',
+              padding: 24,
+              boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: '#fef3c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#d97706'
+                }}
+              >
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+                  Atenção: Capítulos Anteriores Detectados
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                  Evite misturar livros de gêneros diferentes na mesma obra
+                </p>
+              </div>
+            </div>
+
+            <p style={{ margin: 0, fontSize: 13.5, color: '#334155', lineHeight: 1.6 }}>
+              Você selecionou o perfil <strong>{genreMismatchModal.newGenre.toUpperCase()}</strong>, mas a sua tela atual possui <strong>{genreMismatchModal.count} capítulo(s)</strong> escritos no perfil <strong>{genreMismatchModal.oldGenre.toUpperCase()}</strong>.
+              <br /><br />
+              Para que os livros não fiquem misturados (ex: capítulos de terror em um livro de autoajuda), recomendamos iniciar uma <strong>Nova Obra em Branco</strong>.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => handleStartNewBook(genreMismatchModal.newGenre)}
+                style={{
+                  padding: '11px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: '#ffffff',
+                  fontSize: 13.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <span>✨ Iniciar Novo Livro de {genreMismatchModal.newGenre.toUpperCase()} (Recomendado)</span>
+                <span>→</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTipoLivro(genreMismatchModal.newGenre);
+                  setGenreMismatchModal(null);
+                }}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#475569',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                Manter capítulos atuais e apenas alterar o rótulo do perfil
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setGenreMismatchModal(null)}
+                style={{
+                  padding: '7px 12px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#64748b',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  textAlign: 'center'
+                }}
+              >
+                Cancelar troca
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 2.1 PAINEL EXPANSÍVEL: FLUXO EDITORIAL DINÂMICO (PASSOS 1, 2 E 3) */}
+      {/* ==================================================================== */}
+      {activeFlowStep !== null && (
+        <div
+          style={{
+            flexShrink: 0,
+            background: '#ffffff',
+            borderBottom: '2px solid #0284c7',
+            padding: '18px 28px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            maxHeight: '42vh',
+            overflowY: 'auto'
+          }}
+        >
+          {/* TOPO DO PAINEL DO FLUXO */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: 13
+                }}
+              >
+                {activeFlowStep}
+              </div>
+              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                {activeFlowStep === 1 && 'Etapa 1: Editar Tema, Ideia Central & Gênero'}
+                {activeFlowStep === 2 && 'Etapa 2: Título, Subtítulo & IA de Conversão KDP'}
+                {activeFlowStep === 3 && 'Etapa 3: Sumário Estrutural dos Capítulos'}
+              </h4>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveFlowStep(null)}
+              style={{
+                background: '#f1f5f9',
+                border: 'none',
+                borderRadius: 6,
+                padding: '5px 12px',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#64748b',
+                cursor: 'pointer'
+              }}
+            >
+              ✕ Fechar e Voltar ao Chat
+            </button>
+          </div>
+
+          {/* CONTEÚDO ETAPA 1: TEMA & IDEIA */}
+          {activeFlowStep === 1 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
+                Altere ou defina a premissa central. A inteligência editorial adaptará as sugestões de capítulos e estilo a este tema:
+              </p>
+              <textarea
+                value={flowTema}
+                onChange={e => setFlowTema(e.target.value)}
+                placeholder="Ex: Guia prático de transformação pessoal e hábitos matinais para aumentar foco e disciplina diária..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: 13.5,
+                  fontFamily: 'inherit',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 12.5, color: '#64748b' }}>
+                  Gênero ativo: <strong>{tipoLivro.toUpperCase()}</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveFlowTema}
+                  style={{
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: 7,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Save size={14} /> Salvar Tema & Ir para Título →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* CONTEÚDO ETAPA 2: TÍTULO & SUBTÍTULO COM IA */}
+          {activeFlowStep === 2 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    Título do Livro:
+                  </label>
+                  <input
+                    type="text"
+                    value={flowTitulo}
+                    onChange={e => setFlowTitulo(e.target.value)}
+                    placeholder="Ex: O Poder do Hábito Inabalável"
+                    style={{
+                      width: '100%',
+                      padding: 10,
+                      borderRadius: 7,
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    Subtítulo (Gatilho de Vendas KDP):
+                  </label>
+                  <input
+                    type="text"
+                    value={flowSubtitulo}
+                    onChange={e => setFlowSubtitulo(e.target.value)}
+                    placeholder="Ex: Como Transformar Sua Rotina e Destravar Alta Produtividade"
+                    style={{
+                      width: '100%',
+                      padding: 10,
+                      borderRadius: 7,
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: 13.5,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* BOTÃO PARA GERAR SUGESTÕES DE TÍTULOS COM IA */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleGenerateTitleSuggestions}
+                  disabled={isSuggestingTitles}
+                  style={{
+                    background: '#f0f9ff',
+                    border: '1.5px solid #bae6fd',
+                    color: '#0284c7',
+                    padding: '8px 14px',
+                    borderRadius: 7,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: isSuggestingTitles ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>{isSuggestingTitles ? 'Gerando 5 Títulos Bestseller...' : '✨ Sugerir 5 Títulos Bestseller com IA'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveFlowTitulo}
+                  style={{
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: 7,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Save size={14} /> Salvar Título & Ir para Sumário →
+                </button>
+              </div>
+
+              {/* CARDS DE SUGESTÕES GERADAS */}
+              {titleSuggestions.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#0369a1' }}>
+                    Escolha uma sugestão para aplicar imediatamente:
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+                    {titleSuggestions.map((sug, sIdx) => (
+                      <div
+                        key={sIdx}
+                        onClick={() => handleApplyTitleSuggestion(sug.title, sug.subtitle)}
+                        style={{
+                          background: '#f8fafc',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 8,
+                          padding: 10,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.borderColor = '#0284c7')}
+                        onMouseLeave={e => (e.currentTarget.style.borderColor = '#cbd5e1')}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{sug.title}</div>
+                        <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}>{sug.subtitle}</div>
+                        <div style={{ fontSize: 10.5, color: '#059669', marginTop: 4, fontStyle: 'italic' }}>
+                          💡 {sug.rationale}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CONTEÚDO ETAPA 3: SUMÁRIO & CAPÍTULOS */}
+          {activeFlowStep === 3 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: '#475569' }}>
+                  Capítulos planejados ou já escritos ({bookState?.capitulos?.length || 0} de {totalCaps}):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveFlowStep(null);
+                    setInternalTab('chat');
+                  }}
+                  style={{
+                    background: '#10b981',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  ✍️ Ir para Redação dos Capítulos no Chat
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(bookState?.capitulos || []).map((cap, cIdx) => (
+                  <div
+                    key={cIdx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 7
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                      Capítulo {cIdx + 1}: {cleanChapterTitle(cap.titulo)}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                        ✓ {cap.texto.split(/\s+/).filter(Boolean).length} palavras
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleHumanizeChapter(cIdx)}
+                        disabled={isHumanizingChapter === cIdx}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 6,
+                          padding: '3px 8px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: isHumanizingChapter === cIdx ? 'not-allowed' : 'pointer',
+                          color: '#0284c7'
+                        }}
+                      >
+                        {isHumanizingChapter === cIdx ? '✨ Humanizando...' : '✨ Humanizar'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {(!bookState?.capitulos || bookState.capitulos.length === 0) && (
+                  <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                    Nenhum capítulo escrito ainda nesta obra. Clique no botão de redação para começar o Capítulo 1!
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ==================================================================== */}
       {/* 3. CONTEÚDO PRINCIPAL (COM CONTENÇÃO TOTAL DE SCROLL) */}
@@ -1810,41 +2660,67 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                         }}
                       >
                         <span style={{ fontSize: 14.5, fontWeight: 800, color: '#0284c7' }}>
-                          Capítulo {msg.chapterPreview.numero}: {msg.chapterPreview.titulo}
+                          Capítulo {msg.chapterPreview.numero}: {cleanChapterTitle(msg.chapterPreview.titulo)}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (msg.chapterPreview?.textoCompleto) {
-                              navigator.clipboard.writeText(msg.chapterPreview.textoCompleto);
-                              setIsCopiedChapter(msg.chapterPreview.numero);
-                              setTimeout(() => setIsCopiedChapter(null), 2000);
-                            }
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            padding: '5px 12px',
-                            background: '#ffffff',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            color: '#475569'
-                          }}
-                        >
-                          {isCopiedChapter === msg.chapterPreview.numero ? (
-                            <>
-                              <Check size={14} color="#059669" /> Copiado!
-                            </>
-                          ) : (
-                            <>
-                              <Copy size={14} /> Copiar Capítulo
-                            </>
-                          )}
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {/* BOTÃO DE HUMANIZAÇÃO ANTI-CLICHÊ */}
+                          <button
+                            type="button"
+                            onClick={() => handleHumanizeChapter(msg.chapterPreview!.numero - 1)}
+                            disabled={isHumanizingChapter === (msg.chapterPreview.numero - 1) || isAiProcessing}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              padding: '5px 11px',
+                              background: '#f0fdf4',
+                              border: '1px solid #86efac',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: (isHumanizingChapter === (msg.chapterPreview.numero - 1) || isAiProcessing) ? 'not-allowed' : 'pointer',
+                              color: '#166534'
+                            }}
+                            title="Humaniza o texto removendo clichês de IA e aplicando técnicas de escrita autêntica de bestseller"
+                          >
+                            <Sparkles size={13} color="#16a34a" />
+                            {isHumanizingChapter === (msg.chapterPreview.numero - 1) ? 'Humanizando...' : '✨ Humanizar (Anti-IA)'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (msg.chapterPreview?.textoCompleto) {
+                                navigator.clipboard.writeText(msg.chapterPreview.textoCompleto);
+                                setIsCopiedChapter(msg.chapterPreview.numero);
+                                setTimeout(() => setIsCopiedChapter(null), 2000);
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              padding: '5px 12px',
+                              background: '#ffffff',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              color: '#475569'
+                            }}
+                          >
+                            {isCopiedChapter === msg.chapterPreview.numero ? (
+                              <>
+                                <Check size={14} color="#059669" /> Copiado!
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={14} /> Copiar Capítulo
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       <p style={{ margin: '0 0 10px', fontSize: 13.5, color: '#475569', fontStyle: 'italic', lineHeight: 1.6 }}>

@@ -1,5 +1,6 @@
 import { BookProject, IBookChapter } from '../types/book-project';
 import { chamarGeminiTexto } from './kdp-ai-engine';
+import { cleanChapterTitle } from './kdp-editorial-review';
 
 export interface KdpEditorialChapterPlan {
   title: string;
@@ -76,9 +77,10 @@ Quantidade de capítulos: ${chapterCount}`;
 
   // Normalização de resiliência: garante que pequenos deslizes de formato da IA não invalidem a estrutura
   const normalizedChapters: KdpEditorialChapterPlan[] = rawChapters.map((chapter: any, index: number) => {
-    const title = typeof chapter?.title === 'string' && chapter.title.trim()
+    const rawTitle = typeof chapter?.title === 'string' && chapter.title.trim()
       ? chapter.title.trim()
       : `Capítulo ${index + 1}`;
+    const title = cleanChapterTitle(rawTitle);
 
     const objective = typeof chapter?.objective === 'string' && chapter.objective.trim()
       ? chapter.objective.trim()
