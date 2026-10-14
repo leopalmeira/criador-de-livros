@@ -6,6 +6,7 @@ import {
   Image as ImageIcon, Download, CheckSquare
 } from 'lucide-react';
 import { chamarGeminiTexto, chamarImagen } from '../../../services/kdp-ai-engine';
+import { cleanChapterTitle } from '../../../services/kdp-editorial-review';
 
 export interface CoAuthorFloatingAssistantProps {
   bookState: any | null;
@@ -91,8 +92,10 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
     const capsText = bookState.capitulos.map((c: any, i: number) => {
       const conteudoReal = c.texto || c.conteudo || '';
       const totalWords = conteudoReal.split(/\s+/).filter(Boolean).length;
-      const trecho = conteudoReal.slice(0, 1000).replace(/\n+/g, ' ');
-      return `[CAPÍTULO ${i + 1}: "${c.titulo || 'Capítulo ' + (i + 1)}" | ${totalWords} palavras]\nTrecho: "${trecho}"`;
+      const cleanTitle = cleanChapterTitle(c.titulo || `Capítulo ${i + 1}`);
+      const trechoInicio = conteudoReal.slice(0, 1500).replace(/\n+/g, ' ');
+      const trechoFim = conteudoReal.length > 2000 ? ' ... [Final]: ' + conteudoReal.slice(-1000).replace(/\n+/g, ' ') : '';
+      return `[CAPÍTULO ${i + 1}: "${cleanTitle}" | ${totalWords} palavras]\nConteúdo:\n"${trechoInicio}${trechoFim}"`;
     }).join('\n\n');
 
     return `Obra: "${bookTitle}"\nSubtítulo: "${bookSubtitle}"\nAutor: "${bookAuthor}"\nGênero: "${bookGenre}"\nTotal de Capítulos: ${chaptersCount}\n\nVisão Geral e Conteúdo dos Capítulos:\n${capsText}`;
@@ -211,7 +214,8 @@ ${bookContext}
 Suas atribuições nesta análise integral da obra:
 1. Analisar a solidez do enredo como um todo, progressão dramática, consistência dos arcos e amarração de pontas soltas.
 2. Analisar o fechamento da história (clímax e resolução final) para que entregue o máximo impacto ao leitor.
-3. Propor melhorias e acréscimos estruturais para os capítulos que precisam de enriquecimento, SEM QUEBRAR o enredo já existente.
+3. Propor melhorias e acréscimos estruturais estritamente para os capítulos que ainda precisam de enriquecimento, SEM QUEBRAR o enredo já existente.
+4. REGRA EDITORIAL CRÍTICA: Se a obra ou capítulos específicos já possuem bom volume de palavras, fechamento redondo e excelente qualidade literária, ATESTE SUA QUALIDADE e NÃO crie acréscimos forçados ou diagnósticos repetitivos. Só sugira acréscimos se houver lacunas evidentes.
 
 FORMATO ESTRUTURADO DE RETORNO OBRIGATÓRIO:
 Inicie sua resposta com uma análise crítica e acolhedora em linguagem natural.
@@ -228,7 +232,7 @@ ACRESCIMO: [O texto pronto para ser adicionado ao capítulo 2]
 [/CAP]
 <<<FIM_OBRA_COMPLETA>>>
 
-Se um capítulo específico não precisar de acréscimo, não o inclua no bloco.`;
+Se a obra já estiver impecável ou um capítulo específico não precisar de acréscimo, não o inclua no bloco estruturado.`;
 
         const promptText = `[Consulta do Autor sobre a Obra Inteira]:
 "${textToSend}"
@@ -263,7 +267,7 @@ Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneç
             if (capNum && acre) {
               chaptersEnrichment.push({
                 chapterNumber: capNum,
-                chapterTitle: bookState?.capitulos?.[capNum - 1]?.titulo || `Capítulo ${capNum}`,
+                chapterTitle: cleanChapterTitle(bookState?.capitulos?.[capNum - 1]?.titulo || `Capítulo ${capNum}`),
                 rationale: just,
                 additionText: acre
               });
@@ -297,13 +301,21 @@ Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneç
         // MODO PONTUAL (Capítulo Específico ou Pergunta Geral)
         setLoadingStatus(`CoAuthor analisando Capítulo ${selectedChapter}...`);
         const currentChapterData = bookState?.capitulos?.[selectedChapter - 1];
-        const chapterContentPreview = currentChapterData ? ((currentChapterData.texto || currentChapterData.conteudo || '')).slice(0, 2000) : '';
+        const chapterFullText = currentChapterData ? (currentChapterData.texto || currentChapterData.conteudo || '') : '';
+        const chapterContentPreview = chapterFullText.length > 4000
+          ? chapterFullText.slice(0, 2200) + '\n... [Trecho Final]:\n' + chapterFullText.slice(-1800)
+          : chapterFullText;
+        const currentCapTitleClean = cleanChapterTitle(currentChapterData?.titulo || `Capítulo ${selectedChapter}`);
 
         const systemInstruction = `Você é um Consultor Editorial Sênior e Co-Autor de Elite para Amazon KDP.
 Obra: "${bookTitle}" | Gênero: "${bookGenre}"
-Você está auxiliando o autor com o foco no Capítulo ${selectedChapter}.
+Você está auxiliando o autor com o foco no Capítulo ${selectedChapter} ("${currentCapTitleClean}").
 
-FORMATO ESPECIAL DE ACRÉSCIMO:
+DIRETRIZ EDITORIAL RIGOROSA:
+- Se o capítulo já foi enriquecido ou revisado anteriormente e possui boa progressão narrativa, estilo envolvente e fechamento coeso, RECONHEÇA SUA QUALIDADE e declare que está bem lapidado. NÃO repita mecanicamente a mesma crítica nem force acréscimos redundantes.
+- Só formule sugestão de acréscimo se houver uma lacuna genuína de enredo, ambientação ou clímax.
+
+FORMATO ESPECIAL DE ACRÉSCIMO (usar apenas se houver necessidade real):
 Quando fizer uma sugestão de acréscimo para este capítulo, formule entre as tags:
 <<<SUGESTAO_ACRESCIMO>>>
 CAPITULO: ${selectedChapter}
@@ -313,8 +325,9 @@ TEXTO: [O texto pronto para ser inserido no capítulo]
 
         const promptText = `[Contexto da Consulta do Autor]:
 Mensagem: "${textToSend}"
-Capítulo focado: Capítulo ${selectedChapter} (Título: "${currentChapterData?.titulo || 'Capítulo ' + selectedChapter}")
-Trecho atual: "${chapterContentPreview}"`;
+Capítulo focado: Capítulo ${selectedChapter} (Título: "${currentCapTitleClean}")
+Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length} palavras):
+"${chapterContentPreview}"`;
 
         const resultadoIA = await chamarGeminiTexto(promptText, {
           systemInstruction,
@@ -923,7 +936,7 @@ Trecho atual: "${chapterContentPreview}"`;
                                   border: '1px solid #bfdbfe'
                                 }}>
                                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', marginBottom: 4 }}>
-                                    📖 Capítulo {cap.chapterNumber}: {cap.chapterTitle || ''}
+                                    📖 Capítulo {cap.chapterNumber}: {cleanChapterTitle(cap.chapterTitle || '')}
                                   </div>
                                   <div style={{ fontSize: 10.5, color: '#475569', fontStyle: 'italic', marginBottom: 6 }}>
                                     {cap.rationale}

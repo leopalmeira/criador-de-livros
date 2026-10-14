@@ -10,6 +10,14 @@ import { handleReplicateApi } from './server/replicate/api.js';
 import { handleAuthApi } from './server/auth/api.js';
 import { handleCourseMarketApi } from './server/courses/market-api.js';
 
+process.on('uncaughtException', (err) => {
+  console.error('[BookEngin] ⚠️ Exceção não tratada capturada (evitando crash):', err?.message || err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[BookEngin] ⚠️ Rejeição de promessa interceptada (evitando crash):', reason?.message || reason);
+});
+
 function decodeKey(b64) {
   try {
     if (typeof Buffer !== 'undefined') return Buffer.from(b64, 'base64').toString('utf-8');
@@ -798,6 +806,10 @@ async function runPing(url) {
     console.warn(`[Keep-Alive Ping] 🟡 Aviso no ping para ${url}: ${err.message}`);
   }
 }
+
+server.on('error', (err) => {
+  console.error('[BookEngin] 💥 Erro no servidor HTTP:', err?.message || err);
+});
 
 server.listen(PORT, HOST, () => {
   console.log(`[BookEngin] Servidor Node online em http://${HOST}:${PORT}`);

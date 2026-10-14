@@ -2126,8 +2126,18 @@ ${ganchoImediato}`;
 
     const novosCapitulos = [...livro.capitulos];
     const capAtual = novosCapitulos[idx];
-    const textoBase = capAtual.texto || '';
-    const novoTexto = textoBase ? `${textoBase}\n\n${additionText.trim()}` : additionText.trim();
+    const textoBase = (capAtual.texto || '').trim();
+    const cleanAddition = additionText.trim();
+
+    if (!cleanAddition) return;
+
+    if (textoBase.includes(cleanAddition)) {
+      setStatusMsg(`✓ O Capítulo ${chapterNumber} já contém este enriquecimento editorial.`);
+      setStatusType('ok');
+      return;
+    }
+
+    const novoTexto = textoBase ? `${textoBase}\n\n${cleanAddition}` : cleanAddition;
 
     novosCapitulos[idx] = {
       ...capAtual,
@@ -2158,14 +2168,18 @@ ${ganchoImediato}`;
 
     for (const item of enrichments) {
       const idx = item.chapterNumber - 1;
-      if (idx >= 0 && idx < novosCapitulos.length && item.additionText.trim()) {
+      const cleanAddition = item.additionText.trim();
+      if (idx >= 0 && idx < novosCapitulos.length && cleanAddition) {
         const capAtual = novosCapitulos[idx];
-        const textoBase = capAtual.texto || '';
-        novosCapitulos[idx] = {
-          ...capAtual,
-          texto: textoBase ? `${textoBase}\n\n${item.additionText.trim()}` : item.additionText.trim()
-        };
-        totalAlterados++;
+        const textoBase = (capAtual.texto || '').trim();
+        // Não duplica se o trecho já estiver presente no capítulo
+        if (!textoBase.includes(cleanAddition)) {
+          novosCapitulos[idx] = {
+            ...capAtual,
+            texto: textoBase ? `${textoBase}\n\n${cleanAddition}` : cleanAddition
+          };
+          totalAlterados++;
+        }
       }
     }
 
@@ -7423,6 +7437,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   onNavigateToCover={() => setActiveTab('capa')}
                   totalCapsDesejado={totalCaps || maxCapitulos || 8}
                   paginasAlvo={paginasAlvo || 80}
+                  onClose={() => setActiveTab('preview')}
+                  capaDataUrl={capaFinal}
+                  formato={formato || '6x9'}
+                  autorAtual={autor || 'Autor Book Engin'}
+                  generoAtual={genero || 'Não Ficção'}
+                  idiomaAtual={idioma || 'Português'}
                 />
               )}
 

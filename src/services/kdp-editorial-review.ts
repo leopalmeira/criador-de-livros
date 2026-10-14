@@ -15,11 +15,14 @@ import { levenshtein, normText, normWord, splitParagraphs, stripAccents, wordsOf
 // ---------------------------------------------------------------
 // TÍTULOS / SUMÁRIO
 // ---------------------------------------------------------------
-/** remove prefixo "Capítulo N:" do título (o PDF imprime "CAPÍTULO N" separadamente) */
 export function cleanChapterTitle(title: string): string {
-  const t = (title || '').trim();
-  const cleaned = t.replace(/^cap[ií]tulo\s+(\d+|[ivxlc]+)\s*[:.\-–—]*\s*/i, '').trim();
-  return cleaned || t;
+  let cleaned = (title || '').trim();
+  let prev = '';
+  while (cleaned !== prev && /^(?:cap[ií]tulo|chapter|cap)\s*(?:\d+|[ivxlc]+)?\s*[:.\-–—]*\s*/i.test(cleaned)) {
+    prev = cleaned;
+    cleaned = cleaned.replace(/^(?:cap[ií]tulo|chapter|cap)\s*(?:\d+|[ivxlc]+)?\s*[:.\-–—]*\s*/i, '').trim();
+  }
+  return cleaned || (title || '').trim();
 }
 
 export function isOldTocChapter(title: string): boolean {

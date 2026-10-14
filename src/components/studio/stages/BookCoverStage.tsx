@@ -439,39 +439,7 @@ export const BookCoverStage: React.FC<Props> = ({ project, onUpdateProject, onCo
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          {/* Status da Chave Google AI Studio */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: apiKeyStatus.hasKey ? '#f0fdf4' : '#fffbeb',
-            border: `1px solid ${apiKeyStatus.hasKey ? '#bbf7d0' : '#fde68a'}`,
-            padding: '7px 12px',
-            borderRadius: 8,
-            fontSize: 12
-          }}>
-            <Key size={14} color={apiKeyStatus.hasKey ? '#16a34a' : '#d97706'} />
-            <span style={{ fontWeight: 600, color: apiKeyStatus.hasKey ? '#15803d' : '#92400e' }}>
-              {apiKeyStatus.hasKey
-                ? `Google AI Studio Conectado (${apiKeyStatus.keyPreview})`
-                : 'Chave Google AI Studio'}
-            </span>
-            <button
-              onClick={() => setShowApiKeyPanel(!showApiKeyPanel)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#2563eb',
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                padding: '2px 4px'
-              }}
-            >
-              {apiKeyStatus.hasKey ? 'Alterar' : 'Configurar'}
-            </button>
-          </div>
+
 
           {selectedCover && (
             <div style={{
@@ -497,97 +465,7 @@ export const BookCoverStage: React.FC<Props> = ({ project, onUpdateProject, onCo
         </div>
       </div>
 
-      {/* PAINEL RETRÁTIL: CONFIGURAÇÃO DE CHAVE DO GOOGLE AI STUDIO */}
-      {showApiKeyPanel && (
-        <div style={{
-          background: '#ffffff',
-          border: '1px solid #cbd5e1',
-          borderRadius: 12,
-          padding: '16px 20px',
-          margin: '12px 0',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-            <div>
-              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-                Configuração da API do Google AI Studio (Imagen 3)
-              </h4>
-              <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#64748b' }}>
-                Cole sua API Key do Google AI Studio para gerar capas comerciais em alta resolução com Imagen 3.
-              </p>
-            </div>
-            <a
-              href="https://aistudio.google.com/app/apikey"
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                fontSize: 12,
-                color: '#2563eb',
-                fontWeight: 600,
-                textDecoration: 'none'
-              }}
-            >
-              <span>Obter Chave no Google AI Studio</span>
-              <ExternalLink size={13} />
-            </a>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <input
-              type="password"
-              placeholder="Cole sua chave AIzaSy... aqui"
-              value={inputApiKey}
-              onChange={(e) => setInputApiKey(e.target.value)}
-              style={{
-                flex: 1,
-                padding: '9px 14px',
-                borderRadius: 8,
-                border: '1px solid #cbd5e1',
-                fontSize: 13,
-                fontFamily: 'monospace'
-              }}
-            />
-            <button
-              onClick={handleSaveApiKey}
-              disabled={isSavingKey || !inputApiKey.trim()}
-              style={{
-                background: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 8,
-                padding: '9px 18px',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: isSavingKey || !inputApiKey.trim() ? 'not-allowed' : 'pointer',
-                opacity: isSavingKey || !inputApiKey.trim() ? 0.6 : 1
-              }}
-            >
-              {isSavingKey ? 'Salvando...' : 'Salvar e Ativar Chave'}
-            </button>
-            <button
-              onClick={() => setShowApiKeyPanel(false)}
-              style={{
-                background: '#f1f5f9',
-                color: '#475569',
-                border: '1px solid #e2e8f0',
-                borderRadius: 8,
-                padding: '9px 14px',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-      )}
+      {/* CONFIGURAÇÃO DE CHAVE DE API REMOVIDA PARA CLIENTES */}
 
       {/* MENSAGEM DE ERRO (CASO OCORRA) */}
       {errorMessage && (

@@ -268,8 +268,17 @@ export function createAuthApi(options = {}) {
     pool = options.pool;
   } else if (process.env.DATABASE_URL) {
     try {
-      pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    } catch {
+      const isLocal = process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1');
+      pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: isLocal ? false : { rejectUnauthorized: false }
+      });
+      // Listener fundamental para evitar que erros de conexões ociosas derrubem o processo no Node/Render
+      pool.on('error', (err) => {
+        console.warn('[Auth PG Pool] Conexão ociosa do banco de dados resetada:', err.message);
+      });
+    } catch (err) {
+      console.warn('[Auth PG Pool] Falha ao conectar ao Postgres, usando FileStorePool:', err.message);
       pool = new FileStorePool();
     }
   } else {

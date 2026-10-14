@@ -486,13 +486,18 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     doc.text(`CAPÍTULO ${ci + 1}`, LW / 2, y, { align: 'center' });
     y += 0.4;
     const tSize = Math.max(14, Math.min(30, Math.round(input.tamCapitulo * 1.7)));
-    doc.setFont('times', 'bold').setFontSize(tSize).setTextColor(rgb[0], rgb[1], rgb[2]);
-    const titleLines = doc.splitTextToSize(cleanTitles[ci], textW) as string[];
-    titleLines.forEach(l => { doc.text(l, LW / 2, y, { align: 'center' }); y += (tSize * 1.25) / 72; });
-    doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
-    doc.setLineWidth(0.012);
-    doc.line(LW / 2 - 0.35, y - 0.05, LW / 2 + 0.35, y - 0.05);
-    y += 0.5;
+    const isGenericChapterTitle = /^cap[ií]tulo\s*\d+$/i.test((cleanTitles[ci] || '').trim());
+    if (!isGenericChapterTitle && cleanTitles[ci].trim()) {
+      doc.setFont('times', 'bold').setFontSize(tSize).setTextColor(rgb[0], rgb[1], rgb[2]);
+      const titleLines = doc.splitTextToSize(cleanTitles[ci], textW) as string[];
+      titleLines.forEach(l => { doc.text(l, LW / 2, y, { align: 'center' }); y += (tSize * 1.25) / 72; });
+      doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+      doc.setLineWidth(0.012);
+      doc.line(LW / 2 - 0.35, y - 0.05, LW / 2 + 0.35, y - 0.05);
+      y += 0.5;
+    } else {
+      y += 0.35;
+    }
     doc.setTextColor(0);
 
     // Ilustração dedicada do capítulo (se presente)
@@ -510,7 +515,23 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
 
     const body = sanitize(cap.texto || '');
     sanitized.push(body);
-    const paras = body.split(/\n+/).map(p => p.trim()).filter(Boolean);
+    
+    // Separação profissional de parágrafos editoriais KDP:
+    // Divide por quebras de linha em branco e normaliza quebras internas de linha
+    const rawBlocks = body.split(/\r?\n\s*\r?\n/).map(block => block.trim()).filter(Boolean);
+    const paras = rawBlocks.map(block => {
+      if (SCENE_BREAK.test(block)) return '* * *';
+      return block
+        .replace(/\r?\n+/g, ' ')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/_([^_]+)_/g, '$1')
+        .replace(/^#{1,6}\s*/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }).filter(Boolean);
+
     if (paras.length === 0) warnings.push(`Capítulo ${ci + 1} ("${cleanTitles[ci]}") está sem texto.`);
     let first = true;
     doc.setFont('times', 'normal').setFontSize(FS).setTextColor(0);

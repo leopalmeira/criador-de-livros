@@ -731,7 +731,6 @@ export const BookStudioApp: React.FC = () => {
           onDuplicateProject={duplicateProject}
           onDeleteProject={deleteProject}
           onOpenSettings={() => setMode('settings')}
-          onOpenAdmin={() => setMode('admin')}
           onSelectOpportunity={handleSelectOpportunity}
           onOpenBatchGenerator={() => setIsBatchModalOpen(true)}
           onOpenAiGuide={() => setIsAiGuideOpen(true)}

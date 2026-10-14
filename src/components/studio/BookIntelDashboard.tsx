@@ -160,30 +160,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
               <span>{bookCredits} {bookCredits === 1 ? 'crédito' : 'créditos'}</span>
             </button>
 
-            {/* PAINEL ADMIN: EXCLUSIVAMENTE PARA ADMINISTRADORES DA PLATAFORMA */}
-            {onOpenAdmin && Boolean(currentUser?.isAdmin) && (
-              <button
-                onClick={onOpenAdmin}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                  background: '#1e293b',
-                  color: '#cbd5e1',
-                  border: '1px solid #334155',
-                  fontWeight: 600,
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                title={t('admin.title', 'Painel de Controle Editorial & Clientes')}
-              >
-                <Shield size={13} color="#94a3b8" />
-                <span>{t('admin.badge', 'Admin')}</span>
-              </button>
-            )}
+            {/* PAINEL ADMIN REMOVIDO PARA CLIENTES */}
 
             <button className="tool-round-btn" onClick={onOpenSettings} title={t('nav.help')}>
               <HelpCircle size={18} />
