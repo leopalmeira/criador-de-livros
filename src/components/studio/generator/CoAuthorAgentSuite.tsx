@@ -3,7 +3,7 @@ import {
   Sparkles, Bot, Send, Play, Pause, RefreshCw, CheckCircle2,
   BookOpen, ChevronRight, Copy, Check, MessageSquare,
   AlertCircle, ArrowRight, Zap, Award, Edit3, Trash2, Eye,
-  ShieldCheck, FileText, Compass, RotateCw,
+  ShieldCheck, FileText, Compass, RotateCw, Sliders,
   Wrench, HeartHandshake, Layers, BookCheck, ClipboardCheck,
   ChevronDown, ChevronUp, Save, X, Lightbulb, UserCheck,
   ArrowLeft, Download, Maximize2, Minimize2, CheckSquare, Search,
@@ -34,6 +34,7 @@ import {
 } from '../../../services/ready-books-service';
 import { coAuthorVoiceService } from '../../../services/coauthor-voice-service';
 import { CoAuthorVoiceToggle } from './CoAuthorVoiceToggle';
+import { BookArchitecturePanel, type BookArchitectureData } from './BookArchitecturePanel';
 
 export type CoAuthorBookType = 'tecnico' | 'autoajuda' | 'pratico' | 'ficcao';
 
@@ -107,6 +108,9 @@ export interface CoAuthorBookState {
     palavrasPorCap: number;
     paginasAlvo: number;
   };
+  sobrecapaTexto?: string;
+  sobrecapaPaleta?: string;
+  fraseDestaqueSobrecapa?: string;
 }
 
 // Exemplos pré-calibrados de alta conversão Amazon KDP para teste e inspiração
@@ -374,8 +378,15 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   idiomaAtual = 'Português',
   onStartNewBook
 }) => {
-  // Aba ativa interna do estúdio: 'chat' | 'diagramado' | 'revisao' | 'exportar'
-  const [internalTab, setInternalTab] = useState<'chat' | 'diagramado' | 'revisao' | 'exportar'>('chat');
+  // Aba ativa interna do estúdio: 'arquitetura' | 'chat' | 'diagramado' | 'revisao' | 'exportar'
+  const [internalTab, setInternalTab] = useState<'arquitetura' | 'chat' | 'diagramado' | 'revisao' | 'exportar'>(() => {
+    return (bookState?.capitulos && bookState.capitulos.length > 0) ? 'chat' : 'arquitetura';
+  });
+
+  // Quantidade de Capítulos customizável antes e durante a produção da obra
+  const [customTotalCaps, setCustomTotalCaps] = useState<number>(() => {
+    return bookState?.capitulos?.length ? Math.max(bookState.capitulos.length, totalCapsDesejado || 8) : (totalCapsDesejado || 8);
+  });
 
   // Bloqueio rigoroso de scroll do documento enquanto o estúdio em tela cheia estiver ativo
   useEffect(() => {
@@ -905,7 +916,67 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
     }
 
     iniciarConversaNatural(perfilFinal);
-    setActiveFlowStep(1); // Abre a etapa 1 para o autor digitar o tema da nova obra
+    setActiveFlowStep(null);
+    setInternalTab('arquitetura'); // Abre diretamente a Arquitetura da Obra, Capa & Sobrecapa
+  };
+
+  // Aplicação da Arquitetura Prévia da Obra definida pelo autor no painel
+  const handleApplyArchitecture = (data: BookArchitectureData) => {
+    setTipoLivro(data.tipoLivro);
+    setFlowTitulo(data.titulo);
+    setFlowSubtitulo(data.subtitulo);
+    setCustomTotalCaps(data.totalCapitulos);
+    if (data.premissa) {
+      setFlowTema(data.premissa);
+      setRespostasBriefing(prev => ({ ...prev, premissa: data.premissa }));
+    }
+
+    const atualizado: CoAuthorBookState = {
+      ...(bookState || {
+        titulo: data.titulo,
+        subtitulo: data.subtitulo,
+        autor: autorAtual,
+        genero: data.tipoLivro,
+        idioma: idiomaAtual,
+        capitulos: [],
+        meta: {
+          palavrasPorCap: data.palavrasPorCapitulo,
+          paginasAlvo: data.paginasEstimadas
+        }
+      }),
+      titulo: data.titulo,
+      subtitulo: data.subtitulo,
+      tipoLivro: data.tipoLivro,
+      meta: {
+        palavrasPorCap: data.palavrasPorCapitulo,
+        paginasAlvo: data.paginasEstimadas
+      },
+      sobrecapaTexto: data.sobrecapaTexto,
+      sobrecapaPaleta: data.sobrecapaPaleta,
+      fraseDestaqueSobrecapa: data.fraseDestaqueSobrecapa
+    };
+
+    onUpdateBookState(atualizado);
+    onSaveProgress(atualizado);
+
+    const msgConfirmacao: CoAuthorMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'agent',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `Excelente! A arquitetura da obra foi configurada com maestria:\n\n` +
+        `📖 **Título:** ${data.titulo}\n` +
+        (data.subtitulo ? `✨ **Subtítulo:** ${data.subtitulo}\n` : '') +
+        `📐 **Estrutura:** ${data.totalCapitulos} capítulos com meta de ${data.palavrasPorCapitulo.toLocaleString('pt-BR')} palavras/capítulo\n` +
+        `📄 **Projeção Impressa KDP:** ~${data.paginasEstimadas} páginas (Lombada estimada: ${(data.paginasEstimadas * 0.0572).toFixed(1)} mm)\n` +
+        (data.sobrecapaTexto ? `🎨 **Sobrecapa em Sintonia:** Sinopse e gancho misterioso configurados para instigar o leitor.\n\n` : '\n') +
+        `Podemos agora avançar para a produção do **Capítulo 1** ou refinar os tópicos estruturais?`,
+      suggestedActions: [
+        { label: '✍️ Começar Redação do Capítulo 1', action: 'iniciar_cap_1', primary: true },
+        { label: '📋 Ver Sumário Estrutural', action: 'pedir_sumario' }
+      ]
+    };
+
+    setMessages(prev => [...prev, msgConfirmacao]);
     setInternalTab('chat');
   };
 
@@ -1952,7 +2023,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
   };
 
   const capsConcluidos = bookState?.capitulos?.length || 0;
-  const totalCaps = totalCapsDesejado || 8;
+  const totalCaps = customTotalCaps;
   const totalPalavras = (bookState?.capitulos || []).reduce((acc, c) => acc + c.texto.split(/\s+/).filter(Boolean).length, 0);
   const progressoPercent = Math.min(100, Math.round((capsConcluidos / totalCaps) * 100));
 
@@ -2087,70 +2158,108 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               border: '1px solid #e2e8f0'
             }}
           >
+            {/* 1. ARQUITETURA & CAPA */}
             <button
               type="button"
-              onClick={() => setInternalTab('chat')}
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('arquitetura');
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '7px 15px',
+                padding: '7px 13px',
+                borderRadius: 7,
+                border: 'none',
+                background: internalTab === 'arquitetura' ? '#ffffff' : 'transparent',
+                color: internalTab === 'arquitetura' ? '#0284c7' : '#64748b',
+                fontSize: 12.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: internalTab === 'arquitetura' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Sliders size={14} /> Arquitetura & Capa
+            </button>
+
+            {/* 2. CHAT */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('chat');
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 13px',
                 borderRadius: 7,
                 border: 'none',
                 background: internalTab === 'chat' ? '#ffffff' : 'transparent',
                 color: internalTab === 'chat' ? '#0284c7' : '#64748b',
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: 'pointer',
                 boxShadow: internalTab === 'chat' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
                 transition: 'all 0.15s ease'
               }}
             >
-              <MessageSquare size={15} /> Chat CoAuthor
+              <MessageSquare size={14} /> Redação & Chat
             </button>
 
+            {/* 3. DIAGRAMADO */}
             <button
               type="button"
-              onClick={() => setInternalTab('diagramado')}
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('diagramado');
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '7px 15px',
+                padding: '7px 13px',
                 borderRadius: 7,
                 border: 'none',
                 background: internalTab === 'diagramado' ? '#ffffff' : 'transparent',
                 color: internalTab === 'diagramado' ? '#0284c7' : '#64748b',
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: 'pointer',
                 boxShadow: internalTab === 'diagramado' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
                 transition: 'all 0.15s ease'
               }}
             >
-              <BookOpen size={15} /> Livro Diagramado
+              <BookOpen size={14} /> Livro Diagramado
             </button>
 
+            {/* 4. REVISÃO EDITORIAL */}
             <button
               type="button"
-              onClick={() => setInternalTab('revisao')}
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('revisao');
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '7px 15px',
+                padding: '7px 13px',
                 borderRadius: 7,
                 border: 'none',
                 background: internalTab === 'revisao' ? '#ffffff' : 'transparent',
                 color: internalTab === 'revisao' ? '#059669' : '#64748b',
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: 'pointer',
                 boxShadow: internalTab === 'revisao' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
                 transition: 'all 0.15s ease'
               }}
             >
-              <ClipboardCheck size={15} /> Revisão Editorial
+              <ClipboardCheck size={14} /> Revisão Editorial
               {capsConcluidos > 0 && (
                 <span style={{ background: '#10b981', color: '#fff', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>
                   {capsConcluidos}
@@ -2158,26 +2267,30 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               )}
             </button>
 
+            {/* 5. EXPORTAR */}
             <button
               type="button"
-              onClick={() => setInternalTab('exportar')}
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('exportar');
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '7px 15px',
+                padding: '7px 13px',
                 borderRadius: 7,
                 border: 'none',
                 background: internalTab === 'exportar' ? '#ffffff' : 'transparent',
                 color: internalTab === 'exportar' ? '#d97706' : '#64748b',
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: 'pointer',
                 boxShadow: internalTab === 'exportar' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
                 transition: 'all 0.15s ease'
               }}
             >
-              <Download size={15} /> Exportar KDP
+              <Download size={14} /> Exportar KDP
             </button>
           </div>
 
@@ -2194,49 +2307,22 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 7,
-              padding: '8px 14px',
+              gap: 6,
+              padding: '7px 12px',
               borderRadius: 8,
               background: '#f8fafc',
-              border: '1.5px solid #6366f1',
+              border: '1px solid #cbd5e1',
               color: '#4f46e5',
-              fontSize: 13,
+              fontSize: 12.5,
               fontWeight: 800,
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
             title="Acessar base de livros já prontos ou em andamento para revisar e enriquecer"
           >
-            <BookOpen size={15} color="#4f46e5" />
-            <span>📚 Meus Livros ({readyBooksList.length})</span>
+            <BookOpen size={14} color="#4f46e5" />
+            <span>Meus Livros ({readyBooksList.length})</span>
           </button>
-
-          {/* BOTÃO RÁPIDO DE REVISÃO DA OBRA TODA */}
-          {capsConcluidos > 0 && (
-            <button
-              type="button"
-              onClick={() => handleExecuteFullBookReview()}
-              disabled={isAiProcessing}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '8px 14px',
-                borderRadius: 8,
-                background: '#f0fdf4',
-                border: '1.5px solid #10b981',
-                color: '#059669',
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: isAiProcessing ? 'not-allowed' : 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              title="Faz uma auditoria e enriquecimento de todos os capítulos de uma só vez"
-            >
-              <BookCheck size={15} color="#059669" />
-              <span>📖 Revisar Obra Inteira</span>
-            </button>
-          )}
 
           {/* BOTÃO INDIVIDUALIZADO: NOVO LIVRO (EM BRANCO) */}
           <button
@@ -2245,21 +2331,21 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 7,
-              padding: '8px 14px',
+              gap: 6,
+              padding: '7px 12px',
               borderRadius: 8,
-              background: '#f8fafc',
-              border: '1.5px solid #0284c7',
+              background: '#f0f9ff',
+              border: '1px solid #bae6fd',
               color: '#0284c7',
-              fontSize: 13,
+              fontSize: 12.5,
               fontWeight: 800,
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
             title="Começar um novo livro 100% individualizado do zero"
           >
-            <Sparkles size={15} color="#0284c7" />
-            <span>✨ Novo Livro (Em Branco)</span>
+            <Sparkles size={14} color="#0284c7" />
+            <span>Novo Livro</span>
           </button>
 
           {/* BOTÃO RÁPIDO DE DOWNLOAD DE PDF DIAGRAMADO */}
@@ -2271,21 +2357,21 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 7,
-                padding: '8px 16px',
+                gap: 6,
+                padding: '7px 14px',
                 borderRadius: 8,
                 background: isGeneratingPdf ? '#0369a1' : '#0284c7',
                 border: 'none',
                 color: '#ffffff',
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: isGeneratingPdf ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.28)',
+                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
                 transition: 'all 0.15s ease'
               }}
             >
-              {isGeneratingPdf ? <BookEnginAnimatedBook size="micro" /> : <Download size={15} />}
-              <span>{isGeneratingPdf ? 'Gerando PDF Diagramado...' : 'Baixar PDF KDP'}</span>
+              {isGeneratingPdf ? <BookEnginAnimatedBook size="micro" /> : <Download size={14} />}
+              <span>{isGeneratingPdf ? 'Gerando...' : 'PDF KDP'}</span>
             </button>
           )}
         </div>
@@ -2320,14 +2406,21 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             { num: 4, label: 'Redação & Coautoria', done: capsConcluidos >= totalCaps },
             { num: 5, label: 'Revisão KDP', done: capsConcluidos >= totalCaps }
           ].map((etapa, idx) => {
-            const isCurrentActive = (activeFlowStep === etapa.num) || (activeFlowStep === null && etapa.num === 4 && internalTab === 'chat');
+            const isCurrentActive =
+              (internalTab === 'arquitetura' && (etapa.num === 1 || etapa.num === 2)) ||
+              (activeFlowStep === etapa.num) ||
+              (activeFlowStep === null && etapa.num === 4 && internalTab === 'chat') ||
+              (internalTab === 'revisao' && etapa.num === 5);
             return (
               <div key={etapa.num} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button
                   type="button"
                   onClick={() => {
-                    if (etapa.num === 1 || etapa.num === 2 || etapa.num === 3) {
-                      setActiveFlowStep(activeFlowStep === etapa.num ? null : (etapa.num as 1 | 2 | 3));
+                    if (etapa.num === 1 || etapa.num === 2) {
+                      setActiveFlowStep(null);
+                      setInternalTab('arquitetura');
+                    } else if (etapa.num === 3) {
+                      setActiveFlowStep(activeFlowStep === 3 ? null : 3);
                     } else if (etapa.num === 4) {
                       setActiveFlowStep(null);
                       setInternalTab('chat');
@@ -3298,6 +3391,27 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
       {/* ==================================================================== */}
 
       {/* ──────────────────────────────────────────────────────────────────── */}
+      {/* MODO 0: ARQUITETURA DA OBRA, SLIDER DE PALAVRAS & CAPA/SOBRECAPA */}
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      {internalTab === 'arquitetura' && (
+        <BookArchitecturePanel
+          initialTitle={bookState?.titulo || flowTitulo}
+          initialSubtitle={bookState?.subtitulo || flowSubtitulo}
+          initialAuthor={bookState?.autor || autorAtual}
+          initialGenre={bookState?.genero || generoAtual}
+          initialBookType={tipoLivro}
+          initialChaptersCount={customTotalCaps}
+          initialWordsPerChapter={bookState?.meta?.palavrasPorCap || 1200}
+          initialPremise={respostasBriefing.premissa || flowTema}
+          initialSobrecapaTexto={bookState?.sobrecapaTexto || ''}
+          initialFraseDestaque={bookState?.fraseDestaqueSobrecapa || ''}
+          coverDataUrl={capaDataUrl}
+          onApplyArchitecture={handleApplyArchitecture}
+          onNavigateToChat={() => setInternalTab('chat')}
+        />
+      )}
+
+      {/* ──────────────────────────────────────────────────────────────────── */}
       {/* MODO 1: CHAT COAUTHOR (CRIAÇÃO, DIÁLOGO & COAUTORIA) */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       {internalTab === 'chat' && (
@@ -3309,14 +3423,22 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               flex: 1,
               overflowY: 'auto',
               overscrollBehavior: 'contain',
-              padding: '24px 32px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 20,
+              padding: '24px 20px',
               background: '#f8fafc'
             }}
           >
-            {messages.map((msg) => (
+            {/* CONTAINER CENTRALIZADO PARA EVITAR QUE O TEXTO FIQUE ESTICADO ATÉ AS BORDAS */}
+            <div
+              style={{
+                maxWidth: 960,
+                margin: '0 auto',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 20
+              }}
+            >
+              {messages.map((msg) => (
               <div
                 key={msg.id}
                 style={{
@@ -3831,120 +3953,142 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 )}
               </div>
             )}
+            </div>
           </div>
 
           {/* BARRA INFERIOR DE CHAT E INPUT FIXA NA TELA */}
           <footer
             style={{
               flexShrink: 0,
-              padding: '14px 28px',
+              padding: '12px 24px',
               background: '#ffffff',
               borderTop: '1px solid #e2e8f0',
               display: 'flex',
               flexDirection: 'column',
-              gap: 10,
+              gap: 8,
               boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.03)'
             }}
           >
-            {/* SUGESTÕES RÁPIDAS DE CONTINUAÇÃO E COMANDOS EDITORIAIS */}
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-              {[
-                { label: '📖 Revisar Obra Inteira', action: () => handleActionClick('acao_revisar_tudo_agora') },
-                { label: tipoLivro === 'ficcao' ? '✨ Enriquecer História' : '⚙️ Enriquecer Conteúdo Técnico', action: () => handleActionClick('acao_enriquecer_profundo') },
-                { label: '📚 Meus Livros', action: () => handleActionClick('abrir_meus_livros') },
-                { label: '✍️ Escrever próximo capítulo', action: () => handleActionClick('proximo_cap') },
-                { label: '⚡ Piloto Automático', action: () => handleActionClick('piloto_automatico') },
-                { label: '🔍 Checagem de Enredo', action: () => handleActionClick('pedir_enredo') },
-                { label: '✍️ Verificar Coesão & Fluidez', action: () => handleActionClick('pedir_coesao') },
-                { label: '📖 Ver Diagramado', action: () => setInternalTab('diagramado') },
-                { label: '🚀 Preparar Publicação KDP', action: () => handleActionClick('pedir_preparacao') }
-              ].map((sug, idx) => (
-                <button
-                  key={idx}
-                  type="button"
+            {/* CONTAINER CENTRALIZADO DO FOOTER */}
+            <div style={{ maxWidth: 960, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* SUGESTÕES RÁPIDAS COM SCROLL OCULTO / SUAVE */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  overflowX: 'auto',
+                  paddingBottom: 2,
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none'
+                }}
+              >
+                {[
+                  { label: '📖 Revisar Obra Inteira', action: () => handleActionClick('acao_revisar_tudo_agora') },
+                  { label: tipoLivro === 'ficcao' ? '✨ Enriquecer História' : '⚙️ Enriquecer Conteúdo Técnico', action: () => handleActionClick('acao_enriquecer_profundo') },
+                  { label: '📚 Meus Livros', action: () => handleActionClick('abrir_meus_livros') },
+                  { label: '✍️ Escrever próximo capítulo', action: () => handleActionClick('proximo_cap') },
+                  { label: '⚡ Piloto Automático', action: () => handleActionClick('piloto_automatico') },
+                  { label: '🔍 Checagem de Enredo', action: () => handleActionClick('pedir_enredo') },
+                  { label: '✍️ Verificar Coesão & Fluidez', action: () => handleActionClick('pedir_coesao') },
+                  { label: '📖 Ver Diagramado', action: () => setInternalTab('diagramado') },
+                  { label: '🚀 Preparar Publicação KDP', action: () => handleActionClick('pedir_preparacao') }
+                ].map((sug, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isAiProcessing}
+                    onClick={sug.action}
+                    style={{
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                      padding: '5px 12px',
+                      borderRadius: 20,
+                      background: '#f8fafc',
+                      color: '#334155',
+                      border: '1px solid #e2e8f0',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: isAiProcessing ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = '#0284c7';
+                      e.currentTarget.style.color = '#0284c7';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                      e.currentTarget.style.color = '#334155';
+                    }}
+                  >
+                    {sug.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* FORMULÁRIO DE ENVIO COM CAMPO DE TEXTO ERGONÔMICO */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendUserInput();
+                }}
+                style={{ display: 'flex', gap: 10, alignItems: 'center' }}
+              >
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
                   disabled={isAiProcessing}
-                  onClick={sug.action}
+                  placeholder={
+                    isAiProcessing
+                      ? 'Aguarde... o Agente CoAuthor está processando...'
+                      : 'Converse com o CoAuthor: dê instruções, peça ajustes, solicite checagem de enredo ou capítulos...'
+                  }
                   style={{
-                    whiteSpace: 'nowrap',
-                    padding: '6px 14px',
-                    borderRadius: 7,
-                    background: '#f8fafc',
-                    color: '#334155',
-                    border: '1px solid #cbd5e1',
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    cursor: isAiProcessing ? 'not-allowed' : 'pointer',
+                    flex: 1,
+                    padding: '12px 18px',
+                    borderRadius: 10,
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: 14.5,
+                    background: isAiProcessing ? '#f1f5f9' : '#ffffff',
+                    color: '#0f172a',
+                    outline: 'none',
+                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)'
+                  }}
+                />
+
+                <button
+                  type="submit"
+                  disabled={!userInput.trim() || isAiProcessing}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '12px 22px',
+                    borderRadius: 10,
+                    background: !userInput.trim() || isAiProcessing
+                      ? '#cbd5e1'
+                      : 'linear-gradient(135deg, #0284c7, #0369a1)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: 14,
+                    fontWeight: 800,
+                    cursor: !userInput.trim() || isAiProcessing ? 'not-allowed' : 'pointer',
+                    boxShadow: userInput.trim() && !isAiProcessing ? '0 3px 10px rgba(2, 132, 199, 0.3)' : 'none',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  {sug.label}
+                  {isAiProcessing ? (
+                    <>
+                      <BookEnginAnimatedBook size="micro" /> Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={15} /> Enviar
+                    </>
+                  )}
                 </button>
-              ))}
+              </form>
             </div>
-
-            {/* FORMULÁRIO DE ENVIO COM CAMPO DE TEXTO GRANDE E ERGONÔMICO */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendUserInput();
-              }}
-              style={{ display: 'flex', gap: 10, alignItems: 'center' }}
-            >
-              <input
-                type="text"
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                disabled={isAiProcessing}
-                placeholder={
-                  isAiProcessing
-                    ? 'Aguarde... o Agente CoAuthor está processando...'
-                    : 'Converse com o CoAuthor: dê instruções, peça ajustes, solicite checagem de enredo ou capítulos...'
-                }
-                style={{
-                  flex: 1,
-                  padding: '14px 20px',
-                  borderRadius: 10,
-                  border: '1.5px solid #cbd5e1',
-                  fontSize: 15,
-                  background: isAiProcessing ? '#f1f5f9' : '#ffffff',
-                  color: '#0f172a',
-                  outline: 'none',
-                  boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)'
-                }}
-              />
-
-              <button
-                type="submit"
-                disabled={!userInput.trim() || isAiProcessing}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '14px 24px',
-                  borderRadius: 10,
-                  background: !userInput.trim() || isAiProcessing
-                    ? '#cbd5e1'
-                    : 'linear-gradient(135deg, #0284c7, #0369a1)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 14.5,
-                  fontWeight: 800,
-                  cursor: !userInput.trim() || isAiProcessing ? 'not-allowed' : 'pointer',
-                  boxShadow: userInput.trim() && !isAiProcessing ? '0 3px 10px rgba(2, 132, 199, 0.3)' : 'none',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {isAiProcessing ? (
-                  <>
-                    <BookEnginAnimatedBook size="micro" /> Gerando...
-                  </>
-                ) : (
-                  <>
-                    <Send size={16} /> Enviar
-                  </>
-                )}
-              </button>
-            </form>
           </footer>
         </div>
       )}
