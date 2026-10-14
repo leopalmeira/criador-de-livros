@@ -26,6 +26,7 @@ import { useTranslation } from '../../services/i18n-service';
 import { PublishingMetadataService } from '../../services/publishing-metadata-service';
 import { AmazonLiveService } from '../../services/amazon-live-service';
 import { PrintCoverService } from '../../services/print-cover-service';
+import { BookEnginAnimatedBook } from '../common/BookEnginAnimatedBook';
 import { SequenceCreationModal } from './publishing/SequenceCreationModal';
 import { SeriesBoxCreationModal } from './publishing/SeriesBoxCreationModal';
 import { KdpDirectPublishModal } from './publishing/KdpDirectPublishModal';
@@ -1217,7 +1218,7 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
                             >
                               {isSyncingAmazonKeywordsBookId === book.id ? (
                                 <>
-                                  <RefreshCw size={12} className="animate-spin" />
+                                  <BookEnginAnimatedBook size="micro" />
                                   <span>Buscando na Amazon...</span>
                                 </>
                               ) : (

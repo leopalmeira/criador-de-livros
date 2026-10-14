@@ -10,6 +10,7 @@ import {
   generateBestsellerProposalsFromTop50
 } from '../../../services/top50-bestsellers-catalog';
 import { MarketReference } from '../../../services/project-state';
+import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 
 export interface Top50BestsellersModalProps {
   isOpen: boolean;
@@ -195,7 +196,7 @@ export const Top50BestsellersModal: React.FC<Top50BestsellersModalProps> = ({
             >
               {isGeneratingAi ? (
                 <>
-                  <RefreshCw size={14} className="animate-spin" /> Analisando 50 Obras...
+                  <BookEnginAnimatedBook size="micro" /> Analisando 50 Obras...
                 </>
               ) : (
                 <>
@@ -353,8 +354,8 @@ export const Top50BestsellersModal: React.FC<Top50BestsellersModalProps> = ({
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
           {isLoading ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 260, color: '#94a3b8' }}>
-              <RefreshCw size={28} className="animate-spin" style={{ color: '#38bdf8', marginBottom: 12 }} />
-              <p style={{ fontSize: 13, fontWeight: 600 }}>Carregando dados dos 50 Bestsellers Amazon KDP...</p>
+              <BookEnginAnimatedBook size="sm" />
+              <p style={{ fontSize: 13, fontWeight: 600, marginTop: 12 }}>Carregando dados dos 50 Bestsellers Amazon KDP...</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

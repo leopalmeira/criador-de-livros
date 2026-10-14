@@ -40,6 +40,7 @@ import { KdpTourGuideModal } from './KdpTourGuideModal';
 import { KdpPageReviewerModal } from './KdpPageReviewerModal';
 import { Top50BestsellersModal } from './Top50BestsellersModal';
 import { ErrorBoundary } from '../../common/ErrorBoundary';
+import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 import {
   CoAuthorCard,
   CoAuthorWorkspace,
@@ -5313,7 +5314,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             >
                               {isGeneratingSilhueta ? (
                                 <>
-                                  <RefreshCw size={12} className="animate-spin" /> {ui('Gerando Arte...', 'Generating...')}
+                                  <BookEnginAnimatedBook size="micro" /> {ui('Gerando Arte...', 'Generating...')}
                                 </>
                               ) : (
                                 <>
@@ -5763,7 +5764,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                       >
                                         {generatingCapImgIndex === idx ? (
                                           <>
-                                            <RefreshCw size={11} className="animate-spin" /> Gerando Ilustração...
+                                            <BookEnginAnimatedBook size="micro" /> Gerando Ilustração...
                                           </>
                                         ) : c.imagemDataUrl ? (
                                           <>
@@ -6426,7 +6427,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         >
                           {isRegeneratingCoverOnly ? (
                             <>
-                              <RefreshCw size={14} className="animate-spin" /> Criando Novo Conceito...
+                              <BookEnginAnimatedBook size="micro" /> Criando Novo Conceito...
                             </>
                           ) : (
                             <>
@@ -7873,6 +7874,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         onApplyFullBookEnrichment={handleApplyFullBookEnrichmentFromCoAuthor}
         onSetBookCover={handleSetCoverFromCoAuthor}
         onOpenFullStudio={() => setActiveTab('coauthor')}
+        onSelectBook={(readyBook) => {
+          setLivro({
+            titulo: readyBook.title,
+            subtitulo: readyBook.subtitle || '',
+            autor: readyBook.author || 'Autor Book Engin',
+            genero: readyBook.genre || 'Geral',
+            idioma: 'Português',
+            capitulos: readyBook.capitulos,
+            meta: readyBook.meta
+          });
+          setTitulo(readyBook.title);
+          if (readyBook.subtitle) setSubtitulo(readyBook.subtitle);
+          if (readyBook.coverDataUrl) setCapaFinal(readyBook.coverDataUrl);
+          setStatusMsg(`Obra "${readyBook.title}" carregada da base para o CoAuthor.`);
+        }}
       />
     </div>
   );

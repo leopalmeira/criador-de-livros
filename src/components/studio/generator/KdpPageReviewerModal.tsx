@@ -9,6 +9,7 @@ import {
 import { chamarGeminiTexto } from '../../../services/kdp-ai-engine';
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
 import { GALERIA_SILHUETAS_PB, SilhuetaMarginalConfig } from '../../../services/kdp-silhouette-service';
+import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 
 export interface PageReviewerChapter {
   titulo: string;
@@ -824,8 +825,8 @@ Retorne APENAS a frase de continuação e fechamento, sem introdução e sem asp
             <div style={{ flex: 1, position: 'relative', background: '#1e293b' }}>
               {isBuildingPdf ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
-                  <RefreshCw size={32} className="animate-spin" style={{ marginBottom: 12, color: '#38bdf8' }} />
-                  <p style={{ fontSize: 14, fontWeight: 600 }}>Diagramando e compilando páginas em formato KDP real...</p>
+                  <BookEnginAnimatedBook size="sm" />
+                  <p style={{ fontSize: 14, fontWeight: 600, marginTop: 12 }}>Diagramando e compilando páginas em formato KDP real...</p>
                 </div>
               ) : compiledPdfUrl ? (
                 <iframe
@@ -1302,7 +1303,7 @@ Retorne APENAS a frase de continuação e fechamento, sem introdução e sem asp
                             >
                               {isCompletingWithAi ? (
                                 <>
-                                  <RefreshCw size={11} className="animate-spin" /> Concluindo...
+                                  <BookEnginAnimatedBook size="micro" /> Concluindo...
                                 </>
                               ) : (
                                 <>

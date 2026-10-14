@@ -4,10 +4,13 @@ import '../components/studio/book-studio.css';
 import { BookStudioApp } from '../components/studio/BookStudioApp';
 
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import { BookEnginLoadingProvider } from '../components/common/BookEnginLoadingContext';
 
 export const DashboardApp: React.FC = () => (
   <ErrorBoundary fallbackTitle="Painel Editorial BookEngin" onReset={() => window.location.reload()}>
-    <BookStudioApp />
+    <BookEnginLoadingProvider>
+      <BookStudioApp />
+    </BookEnginLoadingProvider>
   </ErrorBoundary>
 );
 

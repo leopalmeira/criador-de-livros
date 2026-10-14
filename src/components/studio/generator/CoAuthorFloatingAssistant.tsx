@@ -3,10 +3,17 @@ import {
   Bot, Sparkles, Send, X, Minimize2, Check, RefreshCw,
   BookOpen, ChevronRight, CheckCircle2, MessageSquare, Lightbulb,
   CornerDownLeft, ShieldCheck, Layers, Award, ArrowUpRight, Palette,
-  Image as ImageIcon, Download, CheckSquare
+  Image as ImageIcon, Download, CheckSquare, Search
 } from 'lucide-react';
 import { chamarGeminiTexto, chamarImagen } from '../../../services/kdp-ai-engine';
 import { cleanChapterTitle } from '../../../services/kdp-editorial-review';
+import {
+  fetchAllReadyBooks,
+  saveUpdatedBookToDb,
+  inferCoAuthorBookType,
+  type ReadyBookRecord
+} from '../../../services/ready-books-service';
+import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 
 export interface CoAuthorFloatingAssistantProps {
   bookState: any | null;
@@ -14,6 +21,7 @@ export interface CoAuthorFloatingAssistantProps {
   onApplyFullBookEnrichment?: (enrichments: Array<{ chapterNumber: number; additionText: string }>) => void;
   onSetBookCover?: (coverDataUrl: string) => void;
   onOpenFullStudio?: () => void;
+  onSelectBook?: (book: ReadyBookRecord) => void;
 }
 
 interface ChapterEnrichmentItem {
@@ -51,7 +59,8 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
   onApplyEnrichment,
   onApplyFullBookEnrichment,
   onSetBookCover,
-  onOpenFullStudio
+  onOpenFullStudio,
+  onSelectBook
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -59,14 +68,54 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('CoAuthor analisando...');
   const [selectedChapter, setSelectedChapter] = useState<number>(1);
+  const [readyBooks, setReadyBooks] = useState<ReadyBookRecord[]>([]);
+  const [activeBookRecord, setActiveBookRecord] = useState<ReadyBookRecord | null>(null);
+  const [showBookSelector, setShowBookSelector] = useState(false);
+  const [bookSearchQuery, setBookSearchQuery] = useState('');
+
+  // Carrega livros prontos do banco local
+  useEffect(() => {
+    let isMounted = true;
+    fetchAllReadyBooks().then(books => {
+      if (isMounted) setReadyBooks(books);
+    }).catch(err => console.warn('Erro ao carregar livros na base:', err));
+    return () => { isMounted = false; };
+  }, [isOpen]);
+
+  // Se bookState mudar no componente pai e nenhum livro tiver sido selecionado manualmente
+  const currentBookTitle = activeBookRecord?.title || bookState?.titulo || 'Livro em Produção';
+  const currentBookGenre = activeBookRecord?.genre || bookState?.genero || 'Geral';
+  const currentBookAuthor = activeBookRecord?.author || bookState?.autor || 'Autor';
+  const currentBookSubtitle = activeBookRecord?.subtitle || bookState?.subtitulo || '';
+  const currentBookCaps = activeBookRecord?.capitulos || bookState?.capitulos || [];
+  const chaptersCount = currentBookCaps.length;
+  const isTechnicalBook = inferCoAuthorBookType(currentBookGenre, currentBookTitle) !== 'ficcao';
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'msg_welcome',
       sender: 'agent',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text: 'Olá, autor! Sou o seu CoAuthor Editorial. O seu livro já está gerado na plataforma e estou aqui para analisar o enredo da obra toda, o fechamento dos arcos, aprofundar a história e até criar conceitos de capas autorais com você. Como podemos aprimorar o livro agora?'
+      text: (bookState?.titulo && bookState?.capitulos?.length > 0)
+        ? `E aí! Estou com o manuscrito de **"${bookState.titulo}"** aberto aqui na bancada (${bookState.capitulos.length} capítulos). Podemos fazer uma revisão de ponta a ponta na obra toda, enriquecer com mais detalhes ou trabalhar na capa. O que você quer focar agora?`
+        : `E aí! Bancada editorial pronta. Você pode puxar qualquer livro já pronto da sua base pelo botão "Base" acima para revisar e enriquecer, ou conversarmos sobre novas ideias. O que vamos trabalhar hoje?`
     }
   ]);
+
+  const handleSelectReadyBook = (book: ReadyBookRecord) => {
+    setActiveBookRecord(book);
+    setSelectedChapter(1);
+    setShowBookSelector(false);
+    if (onSelectBook) onSelectBook(book);
+
+    const msgLoaded: Message = {
+      id: `msg_loaded_${Date.now()}`,
+      sender: 'agent',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `Carreguei a obra **"${book.title}"** aqui na nossa bancada! Ela possui ${book.capitulos.length} capítulos e cerca de ${book.totalWords.toLocaleString()} palavras (Perfil: **${book.tipoLivro.toUpperCase()}**).\n\nPodemos fazer uma revisão de ponta a ponta na obra toda, aprofundar ${book.tipoLivro === 'ficcao' ? 'a história e os diálogos' : 'o conteúdo prático e exemplos'}, ou lapidar um capítulo específico. Me conta o que você prefere atacar!`
+    };
+    setMessages(prev => [...prev, msgLoaded]);
+  };
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -77,19 +126,13 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
     }
   }, [messages, isLoading]);
 
-  const bookTitle = bookState?.titulo || 'Livro em Produção';
-  const bookGenre = bookState?.genero || 'Ficção / Literatura';
-  const bookAuthor = bookState?.autor || 'Autor';
-  const bookSubtitle = bookState?.subtitulo || '';
-  const chaptersCount = bookState?.capitulos?.length || 0;
-
   // Extrai resumo de capítulos para dar contexto completo de toda a obra
   const buildBookFullContext = () => {
-    if (!bookState || !bookState.capitulos || bookState.capitulos.length === 0) {
-      return `Livro: "${bookTitle}" | Autor: "${bookAuthor}" | Gênero: "${bookGenre}" (Nenhum capítulo disponível ainda).`;
+    if (currentBookCaps.length === 0) {
+      return `Livro: "${currentBookTitle}" | Autor: "${currentBookAuthor}" | Gênero: "${currentBookGenre}" (Nenhum capítulo disponível ainda).`;
     }
 
-    const capsText = bookState.capitulos.map((c: any, i: number) => {
+    const capsText = currentBookCaps.map((c: any, i: number) => {
       const conteudoReal = c.texto || c.conteudo || '';
       const totalWords = conteudoReal.split(/\s+/).filter(Boolean).length;
       const cleanTitle = cleanChapterTitle(c.titulo || `Capítulo ${i + 1}`);
@@ -98,7 +141,7 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
       return `[CAPÍTULO ${i + 1}: "${cleanTitle}" | ${totalWords} palavras]\nConteúdo:\n"${trechoInicio}${trechoFim}"`;
     }).join('\n\n');
 
-    return `Obra: "${bookTitle}"\nSubtítulo: "${bookSubtitle}"\nAutor: "${bookAuthor}"\nGênero: "${bookGenre}"\nTotal de Capítulos: ${chaptersCount}\n\nVisão Geral e Conteúdo dos Capítulos:\n${capsText}`;
+    return `Obra: "${currentBookTitle}"\nSubtítulo: "${currentBookSubtitle}"\nAutor: "${currentBookAuthor}"\nGênero: "${currentBookGenre}"\nTipo: ${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO'}\nTotal de Capítulos: ${chaptersCount}\n\nVisão Geral e Conteúdo dos Capítulos:\n${capsText}`;
   };
 
   // Gerador de Capa Autoral com IA diretamente dentro do chat
@@ -120,15 +163,15 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
       const systemArt = `Você é um Diretor de Arte Editorial e Capista de Elite para bestsellers da Amazon KDP.
 Crie um prompt em INGLÊS para geração de imagem artística no formato vertical 2:3.
 O prompt deve focar em:
-- Composição cinematográfica ou refinada adequada ao gênero "${bookGenre}" e livro "${bookTitle}".
+- Composição cinematográfica ou refinada adequada ao gênero "${currentBookGenre}" e livro "${currentBookTitle}".
 - Iluminação dramática, texturas ricas, atmosfera imersiva.
 - ESPAÇO NEGATIVO generoso no topo para tipografia.
 - REGRA VITAL: SEM TEXTO, SEM LETRAS, SEM SELOS (no text, no letters, no watermark, no logos).`;
 
       const promptDirection = `Instrução do Autor: "${promptUsuario}".
-Título do Livro: "${bookTitle}"
-Gênero: "${bookGenre}"
-Resumo da História: "${(bookState?.capitulos?.[0]?.texto || '').slice(0, 400)}"
+Título do Livro: "${currentBookTitle}"
+Gênero: "${currentBookGenre}"
+Resumo da História: "${(currentBookCaps[0]?.texto || '').slice(0, 400)}"
 
 Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
 
@@ -138,7 +181,7 @@ Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
         maxTokens: 300
       });
 
-      const promptFinal = (artRes?.texto || '').trim() || `Cinematic book cover art, atmospheric lighting, ${bookGenre}, inspired by ${bookTitle}, masterpiece, clean negative space, no text, 8k`;
+      const promptFinal = (artRes?.texto || '').trim() || `Cinematic book cover art, atmospheric lighting, ${currentBookGenre}, inspired by ${currentBookTitle}, masterpiece, clean negative space, no text, 8k`;
 
       // 2. Chama o motor de imagem
       const imagemUrl = await chamarImagen(promptFinal, '2:3');
@@ -147,7 +190,7 @@ Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
         id: `msg_agent_${Date.now()}`,
         sender: 'agent',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `Criei uma proposta de Capa Autoral exclusiva para **"${bookTitle}"**! Analisei o clima do livro e compus uma arte com iluminação dramática e espaço limpo para a tipografia.\n\nVocê pode incorporá-la imediatamente ao livro ou me pedir ajustes ("deixe mais sombria", "mude as cores para azul", etc.):`,
+        text: `Criei uma proposta de Capa Autoral exclusiva para **"${currentBookTitle}"**! Analisei o clima do livro e compus uma arte com iluminação dramática e espaço limpo para a tipografia.\n\nVocê pode incorporá-la imediatamente ao livro ou me pedir ajustes ("deixe mais sombria", "mude as cores para azul", etc.):`,
         coverImage: {
           dataUrl: imagemUrl,
           promptUsed: promptFinal,
@@ -194,31 +237,50 @@ Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
       text: textToSend
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    const nextMsgs = [...messages, userMsg];
+    setMessages(nextMsgs);
     setIsLoading(true);
 
     try {
       const bookContext = buildBookFullContext();
 
+      // Histórico recente para conversa fluida sem re-apresentações formais
+      const historicoRecente = nextMsgs.slice(-6).map(m => {
+        const tag = m.sender === 'user' ? 'AUTOR' : (m.sender === 'agent' ? 'COAUTHOR' : 'SISTEMA');
+        return `${tag}: ${m.text}`;
+      }).join('\n\n');
+
       // MODO GLOBAL: REVISÃO DE ENREDO DA OBRA TODA, FECHAMENTO OU APROFUNDAMENTO
       const isGlobalAction = actionType === 'enredo-global' || actionType === 'fechamento' || actionType === 'profundidade'
-        || /enredo|obra toda|livro todo|todos os cap|fechamento|arremate|desfecho/i.test(textToSend);
+        || /enredo|obra toda|livro todo|todos os cap|revisar tudo|revisar todo|fechamento|arremate|desfecho/i.test(textToSend);
 
       if (isGlobalAction) {
         setLoadingStatus('📖 CoAuthor analisando a Obra Completa de ponta a ponta...');
 
-        const systemInstruction = `Você é um Consultor Editorial Sênior e Co-Autor de Elite para Amazon KDP.
-Você está trabalhando diretamente sobre a obra completa do autor:
+        const systemInstruction = `Você é o coautor parceiro e experiente de escrita para o autor nesta obra do Amazon KDP.
+Obra: "${currentBookTitle}" | Gênero: "${currentBookGenre}" | Tipo: ${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO / NARRATIVA'}
+Você está trabalhando diretamente sobre toda a obra:
 ${bookContext}
 
-Suas atribuições nesta análise integral da obra:
-1. Analisar a solidez do enredo como um todo, progressão dramática, consistência dos arcos e amarração de pontas soltas.
-2. Analisar o fechamento da história (clímax e resolução final) para que entregue o máximo impacto ao leitor.
-3. Propor melhorias e acréscimos estruturais estritamente para os capítulos que ainda precisam de enriquecimento, SEM QUEBRAR o enredo já existente.
-4. REGRA EDITORIAL CRÍTICA: Se a obra ou capítulos específicos já possuem bom volume de palavras, fechamento redondo e excelente qualidade literária, ATESTE SUA QUALIDADE e NÃO crie acréscimos forçados ou diagnósticos repetitivos. Só sugira acréscimos se houver lacunas evidentes.
+REGRAS INEGOCIÁVEIS DE COMUNICAÇÃO:
+1. NUNCA use frases clichês ou robóticas de IA (ex: "Olá, sou seu assistente de IA...", "Como posso ajudar você hoje?", "Com certeza! Como seu coautor de inteligência artificial...").
+2. Fale como um colega escritor ou editor sênior humano e experiente: direto ao ponto, colaborativo, perspicaz, com ideias concretas.
+3. Se já houver mensagens no histórico, mantenha a conversa fluida e contínua, sem saudações desnecessárias, indo direto ao ponto da discussão.
+4. ${
+  isTechnicalBook
+    ? `DIRETRIZ PARA LIVRO TÉCNICO:
+- Analise a solidez do conteúdo: clareza do método, aplicabilidade prática, densidade de valor real e didática.
+- Identifique onde faltam exemplos práticos reais, frameworks de execução, dados aprofundados e checklists.
+- Elimine enrolação (anti-fluff). Não invente personagens nem dramas de ficção.`
+    : `DIRETRIZ PARA FICÇÃO:
+- Analise a continuidade narrativa entre todos os capítulos, evolução do enredo e ritmo das cenas.
+- Identifique onde a história precisa de mais imersão: ambientação sensorial, tensão dramática, profundidade e diálogos vivos.
+- Garanta que o clímax e o fechamento do livro amarrem as pontas soltas.`
+}
+5. Se a obra já estiver excelente, ateste sua qualidade. Só formule sugestão de acréscimo onde houver benefício real.
 
 FORMATO ESTRUTURADO DE RETORNO OBRIGATÓRIO:
-Inicie sua resposta com uma análise crítica e acolhedora em linguagem natural.
+Inicie sua resposta com uma análise crítica e acolhedora em linguagem natural e direta.
 Em seguida, para cada capítulo que mereça enriquecimento, formate EXATAMENTE entre as tags:
 <<<SUGESTAO_OBRA_COMPLETA>>>
 RESUMO: [Resumo do diagnóstico geral e o que foi aprimorado na obra]
@@ -230,19 +292,20 @@ ACRESCIMO: [O texto pronto para ser adicionado ao capítulo 1]
 JUSTIFICATIVA: [Por que este enriquecimento melhora o capítulo 2]
 ACRESCIMO: [O texto pronto para ser adicionado ao capítulo 2]
 [/CAP]
-<<<FIM_OBRA_COMPLETA>>>
+<<<FIM_OBRA_COMPLETA>>>`;
 
-Se a obra já estiver impecável ou um capítulo específico não precisar de acréscimo, não o inclua no bloco estruturado.`;
+        const promptText = `━━━ DIÁLOGO RECENTE ━━━
+${historicoRecente}
 
-        const promptText = `[Consulta do Autor sobre a Obra Inteira]:
+━━━ PEDIDO ATUAL DO AUTOR ━━━
 "${textToSend}"
 
 Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneça as sugestões de acréscimo estruturadas para os capítulos correspondentes:`;
 
         const resultadoIA = await chamarGeminiTexto(promptText, {
           systemInstruction,
-          temperature: 0.85,
-          maxTokens: 4000
+          temperature: 0.8,
+          maxTokens: 4500
         });
 
         const respostaIA = resultadoIA?.texto || '';
@@ -267,7 +330,7 @@ Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneç
             if (capNum && acre) {
               chaptersEnrichment.push({
                 chapterNumber: capNum,
-                chapterTitle: cleanChapterTitle(bookState?.capitulos?.[capNum - 1]?.titulo || `Capítulo ${capNum}`),
+                chapterTitle: cleanChapterTitle(currentBookCaps[capNum - 1]?.titulo || `Capítulo ${capNum}`),
                 rationale: just,
                 additionText: acre
               });
@@ -300,20 +363,26 @@ Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneç
       } else {
         // MODO PONTUAL (Capítulo Específico ou Pergunta Geral)
         setLoadingStatus(`CoAuthor analisando Capítulo ${selectedChapter}...`);
-        const currentChapterData = bookState?.capitulos?.[selectedChapter - 1];
+        const currentChapterData = currentBookCaps[selectedChapter - 1];
         const chapterFullText = currentChapterData ? (currentChapterData.texto || currentChapterData.conteudo || '') : '';
         const chapterContentPreview = chapterFullText.length > 4000
           ? chapterFullText.slice(0, 2200) + '\n... [Trecho Final]:\n' + chapterFullText.slice(-1800)
           : chapterFullText;
         const currentCapTitleClean = cleanChapterTitle(currentChapterData?.titulo || `Capítulo ${selectedChapter}`);
 
-        const systemInstruction = `Você é um Consultor Editorial Sênior e Co-Autor de Elite para Amazon KDP.
-Obra: "${bookTitle}" | Gênero: "${bookGenre}"
-Você está auxiliando o autor com o foco no Capítulo ${selectedChapter} ("${currentCapTitleClean}").
+        const systemInstruction = `Você é o parceiro de redação e coautor humano experiente do autor para Amazon KDP.
+Obra: "${currentBookTitle}" | Gênero: "${currentBookGenre}" | Tipo: ${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO'}
+Capítulo focado: Capítulo ${selectedChapter} ("${currentCapTitleClean}").
 
-DIRETRIZ EDITORIAL RIGOROSA:
-- Se o capítulo já foi enriquecido ou revisado anteriormente e possui boa progressão narrativa, estilo envolvente e fechamento coeso, RECONHEÇA SUA QUALIDADE e declare que está bem lapidado. NÃO repita mecanicamente a mesma crítica nem force acréscimos redundantes.
-- Só formule sugestão de acréscimo se houver uma lacuna genuína de enredo, ambientação ou clímax.
+REGRAS CONVERSACIONAIS:
+1. NUNCA use frases robóticas ou clichês de IA. Fale de escritor para escritor, de forma direta, madura e colaborativa.
+2. Se já houver mensagens no histórico, continue a conversa fluentemente sem saudações desnecessárias.
+3. Se o capítulo já estiver bem trabalhado e redondo, declare isso abertamente. Só sugira acréscimo se houver lacuna real.
+4. ${
+  isTechnicalBook
+    ? 'Para livro técnico: Adicione exemplos reais, passos práticos, frameworks e didática clara.'
+    : 'Para ficção: Aprofunde o drama, as sensações, o conflito e os diálogos vivos.'
+}
 
 FORMATO ESPECIAL DE ACRÉSCIMO (usar apenas se houver necessidade real):
 Quando fizer uma sugestão de acréscimo para este capítulo, formule entre as tags:
@@ -323,15 +392,18 @@ JUSTIFICATIVA: [Por que este trecho enriquece o capítulo sem ferir o contexto]
 TEXTO: [O texto pronto para ser inserido no capítulo]
 <<<FIM_SUGESTAO>>>`;
 
-        const promptText = `[Contexto da Consulta do Autor]:
+        const promptText = `━━━ DIÁLOGO RECENTE ━━━
+${historicoRecente}
+
+━━━ CONSULTA ATUAL DO AUTOR ━━━
 Mensagem: "${textToSend}"
-Capítulo focado: Capítulo ${selectedChapter} (Título: "${currentCapTitleClean}")
+Capítulo focado: Capítulo ${selectedChapter} ("${currentCapTitleClean}")
 Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length} palavras):
 "${chapterContentPreview}"`;
 
         const resultadoIA = await chamarGeminiTexto(promptText, {
           systemInstruction,
-          temperature: 0.85,
+          temperature: 0.8,
           maxTokens: 3200
         });
 
@@ -347,7 +419,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
           const textoMatch = bloco.match(/TEXTO:\s*([\s\S]*)/i);
 
           const targetCap = capNumMatch ? parseInt(capNumMatch[1], 10) : selectedChapter;
-          const rationale = justMatch ? justMatch[1].trim() : 'Enriquecimento narrativo e aprofundamento temático.';
+          const rationale = justMatch ? justMatch[1].trim() : 'Enriquecimento temático e aprofundamento.';
           const addition = textoMatch ? textoMatch[1].trim() : '';
 
           if (addition) {
@@ -360,7 +432,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
 
           cleanText = respostaIA.replace(/<<<SUGESTAO_ACRESCIMO>>>[\s\S]*?<<<FIM_SUGESTAO>>>/, '').trim();
           if (!cleanText) {
-            cleanText = `Formulei uma sugestão de acréscimo para o Capítulo ${targetCap}. Veja abaixo e clique para aprovar:`;
+            cleanText = `Formulei uma sugestão de acréscimo para o Capítulo ${targetCap}. Veja abaixo e aprove para aplicar:`;
           }
         }
 
@@ -389,8 +461,19 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
   };
 
   // Aplicação de sugestão pontual
-  const handleApplyCardEnrichment = (card: NonNullable<Message['suggestionCard']>, msgId: string) => {
+  const handleApplyCardEnrichment = async (card: NonNullable<Message['suggestionCard']>, msgId: string) => {
     onApplyEnrichment(card.chapterNumber, card.additionText);
+
+    // Se estiver com livro da base ativo, atualiza o capítulo e salva no banco local
+    if (activeBookRecord && activeBookRecord.capitulos[card.chapterNumber - 1]) {
+      const cap = activeBookRecord.capitulos[card.chapterNumber - 1];
+      cap.texto = `${cap.texto}\n\n${card.additionText}`.trim();
+      try {
+        await saveUpdatedBookToDb(activeBookRecord);
+      } catch (err) {
+        console.warn('Erro ao salvar livro da base:', err);
+      }
+    }
 
     setMessages(prev => prev.map(m => {
       if (m.id === msgId && m.suggestionCard) {
@@ -406,13 +489,13 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
       id: `msg_applied_${Date.now()}`,
       sender: 'system',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text: `✓ Acréscimo aprovado com sucesso! O novo trecho foi incorporado ao Capítulo ${card.chapterNumber} preservando o contexto.`
+      text: `✓ Acréscimo aprovado com sucesso! O novo trecho foi incorporado ao Capítulo ${card.chapterNumber} e salvo na obra.`
     };
     setMessages(prev => [...prev, feedbackMsg]);
   };
 
   // Aplicação de enriquecimento em lote para a obra toda de uma só vez
-  const handleApplyFullBookEnrichment = (fullCard: NonNullable<Message['fullBookReviewCard']>, msgId: string) => {
+  const handleApplyFullBookEnrichment = async (fullCard: NonNullable<Message['fullBookReviewCard']>, msgId: string) => {
     if (onApplyFullBookEnrichment) {
       onApplyFullBookEnrichment(fullCard.chaptersEnrichment.map(c => ({
         chapterNumber: c.chapterNumber,
@@ -423,6 +506,21 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
       fullCard.chaptersEnrichment.forEach(c => {
         onApplyEnrichment(c.chapterNumber, c.additionText);
       });
+    }
+
+    // Se estiver com livro da base ativo, atualiza todos os capítulos e salva no banco local
+    if (activeBookRecord) {
+      fullCard.chaptersEnrichment.forEach(c => {
+        if (activeBookRecord.capitulos[c.chapterNumber - 1]) {
+          const cap = activeBookRecord.capitulos[c.chapterNumber - 1];
+          cap.texto = `${cap.texto}\n\n${c.additionText}`.trim();
+        }
+      });
+      try {
+        await saveUpdatedBookToDb(activeBookRecord);
+      } catch (err) {
+        console.warn('Erro ao salvar livro atualizado no banco:', err);
+      }
     }
 
     setMessages(prev => prev.map(m => {
@@ -584,13 +682,36 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                     IA KDP PRO
                   </span>
                 </div>
-                <div style={{ fontSize: 11, color: '#94a3b8', maxWidth: 280, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {bookTitle} ({chaptersCount} caps)
+                <div style={{ fontSize: 11, color: '#94a3b8', maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {currentBookTitle} ({chaptersCount} caps)
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* BOTÃO PARA ACESSAR BASE DE LIVROS JÁ PRONTOS */}
+              <button
+                type="button"
+                onClick={() => setShowBookSelector(!showBookSelector)}
+                style={{
+                  background: showBookSelector ? '#0284c7' : 'rgba(255,255,255,0.12)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: '#ffffff',
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  padding: '4px 9px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5
+                }}
+                title="Puxar qualquer livro já pronto da base para interagir e revisar"
+              >
+                <BookOpen size={12} />
+                <span>Base ({readyBooks.length})</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsMinimized(!isMinimized)}
@@ -628,6 +749,106 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
 
           {!isMinimized && (
             <>
+              {/* GAVETA DE LIVROS PRONTOS DA BASE (SELECIONAR E INTERAGIR COM QUALQUER LIVRO) */}
+              {showBookSelector && (
+                <div style={{
+                  background: '#0f172a',
+                  borderBottom: '2px solid #0284c7',
+                  padding: '12px 14px',
+                  color: '#ffffff',
+                  maxHeight: 280,
+                  overflowY: 'auto'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <BookOpen size={13} /> Livros Prontos na Base ({readyBooks.length})
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowBookSelector(false)}
+                      style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 11 }}
+                    >
+                      ✕ Fechar
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={bookSearchQuery}
+                    onChange={(e) => setBookSearchQuery(e.target.value)}
+                    placeholder="Buscar livro por título ou gênero..."
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      background: '#1e293b',
+                      border: '1px solid #334155',
+                      borderRadius: 6,
+                      color: '#ffffff',
+                      fontSize: 11,
+                      marginBottom: 8
+                    }}
+                  />
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {readyBooks
+                      .filter(b => !bookSearchQuery.trim() || b.title.toLowerCase().includes(bookSearchQuery.toLowerCase()) || b.genre.toLowerCase().includes(bookSearchQuery.toLowerCase()))
+                      .map(b => (
+                        <div
+                          key={b.id}
+                          onClick={() => handleSelectReadyBook(b)}
+                          style={{
+                            background: activeBookRecord?.id === b.id ? '#1e3a8a' : '#1e293b',
+                            border: activeBookRecord?.id === b.id ? '1px solid #38bdf8' : '1px solid #334155',
+                            borderRadius: 6,
+                            padding: '8px 10px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                            {b.coverDataUrl ? (
+                              <img src={b.coverDataUrl} alt={b.title} style={{ width: 24, height: 32, objectFit: 'cover', borderRadius: 3 }} />
+                            ) : (
+                              <div style={{ width: 24, height: 32, background: '#334155', borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <BookOpen size={12} color="#94a3b8" />
+                              </div>
+                            )}
+                            <div style={{ overflow: 'hidden' }}>
+                              <div style={{ fontSize: 11.5, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {b.title}
+                              </div>
+                              <div style={{ fontSize: 9.5, color: '#94a3b8' }}>
+                                {b.chaptersCount} caps • {b.totalWords.toLocaleString()} palavras • {b.genre}
+                              </div>
+                            </div>
+                          </div>
+
+                          <span style={{
+                            fontSize: 9,
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            background: b.tipoLivro === 'tecnico' ? '#0284c7' : b.tipoLivro === 'autoajuda' ? '#059669' : '#d97706',
+                            color: '#ffffff',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {b.tipoLivro.toUpperCase()}
+                          </span>
+                        </div>
+                      ))}
+                    {readyBooks.length === 0 && (
+                      <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', padding: 12 }}>
+                        Nenhum livro finalizado encontrado no banco local ainda.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* BARRA DE AÇÕES EDITORIAIS RÁPIDAS (OBRA TODA DE UMA VEZ E CAPA AUTORAL) */}
               <div style={{
                 background: '#f8fafc',
@@ -639,7 +860,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 11, fontWeight: 800, color: '#334155', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <Layers size={13} color="#0284c7" /> Ações Globais na Obra Completa:
+                    <Layers size={13} color="#0284c7" /> Ações na Obra ({isTechnicalBook ? 'Técnico' : 'Ficção'}):
                   </span>
                   {chaptersCount > 1 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -668,13 +889,13 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                 <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
                   <button
                     type="button"
-                    onClick={() => handleSendMessage('Faça uma revisão crítica do enredo geral da obra inteira de uma vez. Analise consistência de arcos, ritmo de todos os capítulos, furos e elabore sugestões de acréscimo estruturadas.', 'enredo-global')}
+                    onClick={() => handleSendMessage('Faça uma revisão crítica e completa da obra inteira de uma vez. Analise consistência de arcos, ritmo de todos os capítulos, furos e elabore sugestões de acréscimo estruturadas.', 'enredo-global')}
                     disabled={isLoading}
                     style={{
                       padding: '6px 11px',
                       borderRadius: 6,
                       background: '#ffffff',
-                      border: '1px solid #0284c7',
+                      border: '1.5px solid #0284c7',
                       fontSize: 11,
                       fontWeight: 700,
                       color: '#0369a1',
@@ -686,7 +907,34 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                       boxShadow: '0 1px 2px rgba(2, 132, 199, 0.08)'
                     }}
                   >
-                    🔍 Revisar Enredo da Obra Toda
+                    📖 Revisar Obra Inteira de Uma Vez
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendMessage(
+                      isTechnicalBook
+                        ? 'Enriqueça o conteúdo técnico desta obra: aprofunde a didática, adicione exemplos reais do mundo real, frameworks práticos de execução, resolução de problemas comuns e checklists práticos sem jargões vazios.'
+                        : 'Aprofunde a história e os detalhes deste livro: aumente a imersão sensorial, aprofunde a psicologia e os dilemas dos personagens, enriqueça os diálogos tornando-os vivos e naturais e intensifique a carga dramática da narrativa.',
+                      'profundidade'
+                    )}
+                    disabled={isLoading}
+                    style={{
+                      padding: '6px 11px',
+                      borderRadius: 6,
+                      background: '#ffffff',
+                      border: '1.5px solid #059669',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#047857',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    {isTechnicalBook ? '⚙️ Enriquecer Conteúdo Técnico' : '✨ Enriquecer História & Diálogos'}
                   </button>
 
                   <button
@@ -713,28 +961,6 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
 
                   <button
                     type="button"
-                    onClick={() => handleSendMessage('Aprofunde a densidade sensorial, a carga psicológica e a profundidade de toda a história, formulando enriquecimentos para os capítulos sem quebrar o enredo.', 'profundidade')}
-                    disabled={isLoading}
-                    style={{
-                      padding: '6px 11px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                  >
-                    🌊 Aprofundar História Toda
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => handleGenerateAuthorCover()}
                     disabled={isLoading}
                     style={{
@@ -753,7 +979,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                       boxShadow: '0 2px 4px rgba(217, 119, 6, 0.25)'
                     }}
                   >
-                    🎨 Criar Capa Autoral com IA
+                    🎨 Capa Autoral com IA
                   </button>
                 </div>
               </div>
@@ -888,7 +1114,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
 
                               <button
                                 type="button"
-                                onClick={() => handleGenerateAuthorCover(`Crie uma variação com iluminação ou atmosfera alternativa para a capa de "${bookTitle}".`)}
+                                onClick={() => handleGenerateAuthorCover(`Crie uma variação com iluminação ou atmosfera alternativa para a capa de "${currentBookTitle}".`)}
                                 style={{
                                   padding: '8px 12px',
                                   borderRadius: 6,
@@ -1084,7 +1310,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
 
                 {isLoading && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8 }}>
-                    <RefreshCw size={14} className="animate-spin" color="#0284c7" />
+                    <BookEnginAnimatedBook size="micro" />
                     <span style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>
                       {loadingStatus}
                     </span>
