@@ -15,7 +15,9 @@ import {
 } from '../../../services/ready-books-service';
 import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 import { coAuthorVoiceService } from '../../../services/coauthor-voice-service';
+import { coAuthorSpeechService } from '../../../services/coauthor-speech-recognition-service';
 import { CoAuthorVoiceToggle } from './CoAuthorVoiceToggle';
+import { CoAuthorVoiceModalBar } from './CoAuthorVoiceModalBar';
 
 export interface CoAuthorFloatingAssistantProps {
   bookState: any | null;
@@ -130,8 +132,16 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
     return () => {
       unsubscribe();
       coAuthorVoiceService.stop();
+      coAuthorSpeechService.stopListening(false);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      coAuthorVoiceService.stop();
+      coAuthorSpeechService.stopListening(false);
+    }
+  }, [isOpen]);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -754,6 +764,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                 type="button"
                 onClick={() => {
                   coAuthorVoiceService.stop();
+                  coAuthorSpeechService.stopListening(false);
                   setIsOpen(false);
                 }}
                 style={{
@@ -1383,7 +1394,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                 )}
               </div>
 
-              {/* INPUT DE MENSAGEM DO COAUTHOR */}
+              {/* INPUT DE MENSAGEM DO COAUTHOR COM SUPORTE A VOZ / MICROFONE */}
               <div style={{
                 padding: '10px 12px',
                 background: '#ffffff',
@@ -1392,6 +1403,11 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                 gap: 8,
                 alignItems: 'center'
               }}>
+                <CoAuthorVoiceModalBar
+                  onSendMessage={(speechText) => handleSendMessage(speechText)}
+                  isLoading={isLoading}
+                  disabled={isLoading}
+                />
                 <input
                   type="text"
                   value={inputText}
@@ -1402,7 +1418,7 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                       handleSendMessage();
                     }
                   }}
-                  placeholder="Peça para revisar o enredo da obra toda ou criar uma capa autoral..."
+                  placeholder="Fale no microfone ou digite para revisar a obra, enriquecer ou criar capa..."
                   disabled={isLoading}
                   style={{
                     flex: 1,
