@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, Sparkles } from 'lucide-react';
-import { coAuthorVoiceService, VoiceGender } from '../../../services/coauthor-voice-service';
+import { Volume2, VolumeX } from 'lucide-react';
+import { coAuthorVoiceService } from '../../../services/coauthor-voice-service';
 
 export interface CoAuthorVoiceToggleProps {
   compact?: boolean;
@@ -10,13 +10,14 @@ export interface CoAuthorVoiceToggleProps {
 export const CoAuthorVoiceToggle: React.FC<CoAuthorVoiceToggleProps> = ({ compact = false, style }) => {
   const [isEnabled, setIsEnabled] = useState<boolean>(() => coAuthorVoiceService.isVoiceEnabled());
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [gender, setGender] = useState<VoiceGender>(() => coAuthorVoiceService.getVoiceGender());
 
   useEffect(() => {
+    // Garante que a voz padrão seja sempre a feminina Francisca (suave e natural)
+    coAuthorVoiceService.setVoiceGender('female');
+
     const unsubscribe = coAuthorVoiceService.subscribe((state) => {
       setIsEnabled(state.isEnabled);
       setIsSpeaking(state.isSpeaking);
-      setGender(state.gender);
     });
 
     return () => {
@@ -33,15 +34,6 @@ export const CoAuthorVoiceToggle: React.FC<CoAuthorVoiceToggleProps> = ({ compac
     e.stopPropagation();
     coAuthorVoiceService.stop();
   };
-
-  const handleToggleGender = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const nextGender: VoiceGender = gender === 'female' ? 'male' : 'female';
-    coAuthorVoiceService.setVoiceGender(nextGender);
-    setGender(nextGender);
-  };
-
-  const voiceName = gender === 'female' ? 'Francisca (Feminina)' : 'Antônio (Masculino)';
 
   if (compact) {
     return (
@@ -67,8 +59,8 @@ export const CoAuthorVoiceToggle: React.FC<CoAuthorVoiceToggleProps> = ({ compac
         }}
         title={
           isEnabled
-            ? `Voz Neural Humana Ativada [${voiceName}]: O assistente fala as respostas em tempo real com voz natural e expressiva. Clique para silenciar.`
-            : 'Voz Desativada: O assistente está no modo silencioso. Clique para ativar a voz neural humana.'
+            ? 'Voz Neural Francisca Ativada: O assistente fala as respostas em tempo real. Clique para silenciar.'
+            : 'Voz Desativada: O assistente está em modo silencioso. Clique para ativar a voz neural.'
         }
       >
         {isEnabled ? (
@@ -91,7 +83,7 @@ export const CoAuthorVoiceToggle: React.FC<CoAuthorVoiceToggleProps> = ({ compac
                 Falando...
               </span>
             ) : (
-              <span style={{ fontSize: 11, fontWeight: 700 }}>Neural</span>
+              <span style={{ fontSize: 11, fontWeight: 700 }}>Voz Ativa</span>
             )}
           </>
         ) : (
@@ -130,14 +122,14 @@ export const CoAuthorVoiceToggle: React.FC<CoAuthorVoiceToggleProps> = ({ compac
         }}
         title={
           isEnabled
-            ? `Voz Neural Humana Ativada [${voiceName}]: O assistente usa a voz neural natural da plataforma. Clique para silenciar.`
-            : 'Áudio Silenciado: Clique para ativar a voz neural humana do assistente.'
+            ? 'Voz Neural Francisca Ativada: O assistente fala as respostas em tempo real. Clique para silenciar.'
+            : 'Áudio Silenciado: Clique para ativar a voz neural do assistente.'
         }
       >
         {isEnabled ? (
           <>
             <Volume2 size={16} color="#db2777" />
-            <span>{isSpeaking ? '🗣️ Falando...' : `🔊 Voz Neural (${gender === 'female' ? 'Francisca' : 'Antônio'})`}</span>
+            <span>{isSpeaking ? '🗣️ Falando...' : '🔊 Voz Neural (Francisca)'}</span>
           </>
         ) : (
           <>
@@ -146,31 +138,6 @@ export const CoAuthorVoiceToggle: React.FC<CoAuthorVoiceToggleProps> = ({ compac
           </>
         )}
       </button>
-
-      {/* SELETOR RÁPIDO ENTRE VOZ FEMININA / MASCULINA DA PLATAFORMA */}
-      {isEnabled && (
-        <button
-          type="button"
-          onClick={handleToggleGender}
-          style={{
-            padding: '5px 8px',
-            borderRadius: 6,
-            border: '1px solid #fbcfe8',
-            background: '#ffffff',
-            color: '#9d174d',
-            fontSize: 11,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4
-          }}
-          title={`Alternar voz neural (Atual: ${voiceName}). Clique para alternar entre Francisca e Antônio.`}
-        >
-          <Sparkles size={12} color="#ec4899" />
-          {gender === 'female' ? 'Mudar p/ Antônio' : 'Mudar p/ Francisca'}
-        </button>
-      )}
 
       {/* BOTÃO PARA INTERROMPER FALA IMEDIATAMENTE */}
       {isSpeaking && (

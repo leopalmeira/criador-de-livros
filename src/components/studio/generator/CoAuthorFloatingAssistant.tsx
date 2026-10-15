@@ -18,14 +18,39 @@ import { coAuthorVoiceService } from '../../../services/coauthor-voice-service';
 import { coAuthorSpeechService } from '../../../services/coauthor-speech-recognition-service';
 import { CoAuthorVoiceToggle } from './CoAuthorVoiceToggle';
 import { CoAuthorVoiceModalBar } from './CoAuthorVoiceModalBar';
+import { AmazonLiveService } from '../../../services/amazon-live-service';
+import { BOOK_THEMES } from '../../../data/book-themes';
+
+export interface BookConceptionConfig {
+  titulo?: string;
+  subtitulo?: string;
+  tema?: string;
+  subtema?: string;
+  genero?: string;
+  paginasAlvo?: number;
+  maxCapitulos?: number;
+  premissa?: string;
+}
 
 export interface CoAuthorFloatingAssistantProps {
   bookState: any | null;
+  currentConfig?: BookConceptionConfig;
+  onUpdateBookConfig?: (config: BookConceptionConfig) => void;
+  onSaveChapter?: (chapter: { numero: number; titulo: string; texto: string }) => void;
   onApplyEnrichment: (chapterNumber: number, additionText: string) => void;
   onApplyFullBookEnrichment?: (enrichments: Array<{ chapterNumber: number; additionText: string }>) => void;
   onSetBookCover?: (coverDataUrl: string) => void;
   onOpenFullStudio?: () => void;
   onSelectBook?: (book: ReadyBookRecord) => void;
+}
+
+export interface ChapterProposal {
+  numero: number;
+  titulo: string;
+  texto: string;
+  palavras: number;
+  resumo?: string;
+  applied?: boolean;
 }
 
 interface ChapterEnrichmentItem {
@@ -40,6 +65,8 @@ interface Message {
   sender: 'agent' | 'user' | 'system';
   timestamp: string;
   text: string;
+  configCard?: BookConceptionConfig;
+  chapterProposalCard?: ChapterProposal;
   coverImage?: {
     dataUrl: string;
     promptUsed: string;
@@ -60,6 +87,9 @@ interface Message {
 
 export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps> = ({
   bookState,
+  currentConfig,
+  onUpdateBookConfig,
+  onSaveChapter,
   onApplyEnrichment,
   onApplyFullBookEnrichment,
   onSetBookCover,
@@ -87,13 +117,24 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
   }, [isOpen]);
 
   // Se bookState mudar no componente pai e nenhum livro tiver sido selecionado manualmente
-  const currentBookTitle = activeBookRecord?.title || bookState?.titulo || 'Livro em Produção';
-  const currentBookGenre = activeBookRecord?.genre || bookState?.genero || 'Geral';
+  const currentBookTitle = activeBookRecord?.title || bookState?.titulo || currentConfig?.titulo || 'Livro em Produção';
+  const currentBookGenre = activeBookRecord?.genre || bookState?.genero || currentConfig?.tema || currentConfig?.genero || 'Geral';
   const currentBookAuthor = activeBookRecord?.author || bookState?.autor || 'Autor';
-  const currentBookSubtitle = activeBookRecord?.subtitle || bookState?.subtitulo || '';
+  const currentBookSubtitle = activeBookRecord?.subtitle || bookState?.subtitulo || currentConfig?.subtitulo || '';
   const currentBookCaps = activeBookRecord?.capitulos || bookState?.capitulos || [];
   const chaptersCount = currentBookCaps.length;
   const isTechnicalBook = inferCoAuthorBookType(currentBookGenre, currentBookTitle) !== 'ficcao';
+
+  // Estado permanente do Enredo / Bíblia da Obra (Âncora Suprema anti-alucinação)
+  const [storyArc, setStoryArc] = useState<string>(() => {
+    return currentConfig?.premissa?.trim() || bookState?.meta?.sinopse?.trim() || '';
+  });
+
+  useEffect(() => {
+    if (currentConfig?.premissa && currentConfig.premissa.trim() !== storyArc.trim()) {
+      setStoryArc(currentConfig.premissa.trim());
+    }
+  }, [currentConfig?.premissa]);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -102,7 +143,7 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       text: (bookState?.titulo && bookState?.capitulos?.length > 0)
         ? `E aí! Estou com o manuscrito de **"${bookState.titulo}"** aberto aqui na bancada (${bookState.capitulos.length} capítulos). Podemos fazer uma revisão de ponta a ponta na obra toda, enriquecer com mais detalhes ou trabalhar na capa. O que você quer focar agora?`
-        : `E aí! Bancada editorial pronta. Você pode puxar qualquer livro já pronto da sua base pelo botão "Base" acima para revisar e enriquecer, ou conversarmos sobre novas ideias. O que vamos trabalhar hoje?`
+        : `E aí! Bancada editorial pronta. Você pode falar comigo por voz para conversarmos e criarmos seu livro juntos: me conte a ideia da história ou enredo, vamos definir título, subtítulo na Amazon, páginas e capítulos. A cada capítulo que você for autorizando, eu vou salvando no seu livro até o desfecho final e a criação da capa. O que vamos criar hoje?`
     }
   ]);
 
@@ -152,23 +193,39 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
     }
   }, [messages, isLoading]);
 
-  // Extrai resumo de capítulos para dar contexto completo de toda a obra
-  const buildBookFullContext = () => {
-    if (currentBookCaps.length === 0) {
-      return `Livro: "${currentBookTitle}" | Autor: "${currentBookAuthor}" | Gênero: "${currentBookGenre}" (Nenhum capítulo disponível ainda).`;
+  // Extrai resumo de capítulos para dar   // Contexto completo e inabalável da Bíblia da Obra para JAMAIS perder o enredo
+  const buildEnredoFullContext = () => {
+    const enredoBase = storyArc.trim() || currentConfig?.premissa?.trim() || bookState?.meta?.sinopse?.trim() || '(Enredo sendo delineado pelo autor na conversa)';
+
+    let capsResumo = '';
+    if (currentBookCaps.length > 0) {
+      capsResumo = currentBookCaps.map((c: any, i: number) => {
+        const txt = c.texto || c.conteudo || '';
+        const palavras = txt.split(/\s+/).filter(Boolean).length;
+        const cleanTitle = cleanChapterTitle(c.titulo || `Capítulo ${i + 1}`);
+        const trechoFinal = txt.length > 800 ? txt.slice(-600).replace(/\n+/g, ' ') : txt.replace(/\n+/g, ' ');
+        return `• CAPÍTULO ${i + 1}: "${cleanTitle}" (${palavras} palavras)\n  Final/Gancho: "${trechoFinal}"`;
+      }).join('\n\n');
+    } else {
+      capsResumo = 'Nenhum capítulo gravado ainda na obra. Estamos na fase de concepção e escrita inicial.';
     }
 
-    const capsText = currentBookCaps.map((c: any, i: number) => {
-      const conteudoReal = c.texto || c.conteudo || '';
-      const totalWords = conteudoReal.split(/\s+/).filter(Boolean).length;
-      const cleanTitle = cleanChapterTitle(c.titulo || `Capítulo ${i + 1}`);
-      const trechoInicio = conteudoReal.slice(0, 1500).replace(/\n+/g, ' ');
-      const trechoFim = conteudoReal.length > 2000 ? ' ... [Final]: ' + conteudoReal.slice(-1000).replace(/\n+/g, ' ') : '';
-      return `[CAPÍTULO ${i + 1}: "${cleanTitle}" | ${totalWords} palavras]\nConteúdo:\n"${trechoInicio}${trechoFim}"`;
-    }).join('\n\n');
+    return `━━━ BÍBLIA EDITORIAL E ENREDO INEGOCIÁVEL DA HISTÓRIA ━━━
+TÍTULO DA OBRA: "${currentBookTitle}"
+SUBTÍTULO: "${currentBookSubtitle || '(Ainda não definido)'}"
+GÊNERO: "${currentBookGenre}" (${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO / NARRATIVA'})
+AUTOR: "${currentBookAuthor}"
+META DE CAPÍTULOS: ${currentConfig?.maxCapitulos || 15} capítulos | META DE PÁGINAS: ${currentConfig?.paginasAlvo || 100} páginas
 
-    return `Obra: "${currentBookTitle}"\nSubtítulo: "${currentBookSubtitle}"\nAutor: "${currentBookAuthor}"\nGênero: "${currentBookGenre}"\nTipo: ${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO'}\nTotal de Capítulos: ${chaptersCount}\n\nVisão Geral e Conteúdo dos Capítulos:\n${capsText}`;
+ENREDO PRINCIPAL / ARCO DA HISTÓRIA / TRAMA (ÂNCORA ABSOLUTA - NUNCA ESQUEÇA OU DESVIE):
+"${enredoBase}"
+
+ESTADO ATUAL DOS CAPÍTULOS JÁ SALVOS NO LIVRO:
+${capsResumo}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
   };
+
+  const buildBookFullContext = buildEnredoFullContext;
 
   // Gerador de Capa Autoral com IA diretamente dentro do chat
   const handleGenerateAuthorCover = async (userPrompt?: string) => {
@@ -185,19 +242,18 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      // 1. O Gemini elabora a direção de arte autoral cirúrgica
       const systemArt = `Você é um Diretor de Arte Editorial e Capista de Elite para bestsellers da Amazon KDP.
 Crie um prompt em INGLÊS para geração de imagem artística no formato vertical 2:3.
 O prompt deve focar em:
 - Composição cinematográfica ou refinada adequada ao gênero "${currentBookGenre}" e livro "${currentBookTitle}".
-- Iluminação dramática, texturas ricas, atmosfera imersiva.
+- Iluminação dramática, texturas ricas, atmosfera imersiva inspirada no enredo: "${storyArc.slice(0, 300)}".
 - ESPAÇO NEGATIVO generoso no topo para tipografia.
 - REGRA VITAL: SEM TEXTO, SEM LETRAS, SEM SELOS (no text, no letters, no watermark, no logos).`;
 
       const promptDirection = `Instrução do Autor: "${promptUsuario}".
 Título do Livro: "${currentBookTitle}"
 Gênero: "${currentBookGenre}"
-Resumo da História: "${(currentBookCaps[0]?.texto || '').slice(0, 400)}"
+Enredo Principal: "${storyArc.slice(0, 400)}"
 
 Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
 
@@ -209,14 +265,13 @@ Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
 
       const promptFinal = (artRes?.texto || '').trim() || `Cinematic book cover art, atmospheric lighting, ${currentBookGenre}, inspired by ${currentBookTitle}, masterpiece, clean negative space, no text, 8k`;
 
-      // 2. Chama o motor de imagem
       const imagemUrl = await chamarImagen(promptFinal, '2:3');
 
       const agentMsg: Message = {
         id: `msg_agent_${Date.now()}`,
         sender: 'agent',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `Criei uma proposta de Capa Autoral exclusiva para **"${currentBookTitle}"**! Analisei o clima do livro e compus uma arte com iluminação dramática e espaço limpo para a tipografia.\n\nVocê pode incorporá-la imediatamente ao livro ou me pedir ajustes ("deixe mais sombria", "mude as cores para azul", etc.):`,
+        text: `Criei uma proposta de Capa Autoral exclusiva para **"${currentBookTitle}"** inspirada no nosso enredo! Compus uma arte dramática com espaço limpo para a tipografia KDP.\n\nVocê pode incorporá-la imediatamente ao livro ou me pedir ajustes ("deixe mais sombria", "mude as cores para azul", etc.):`,
         coverImage: {
           dataUrl: imagemUrl,
           promptUsed: promptFinal,
@@ -237,6 +292,200 @@ Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
     } finally {
       setIsLoading(false);
       setLoadingStatus('CoAuthor analisando...');
+    }
+  };
+
+  // Busca a última proposta de capítulo pendente de aprovação
+  const getPendingChapterProposal = (): { card: ChapterProposal; msgId: string } | null => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.chapterProposalCard && !m.chapterProposalCard.applied) {
+        return { card: m.chapterProposalCard, msgId: m.id };
+      }
+    }
+    return null;
+  };
+
+  // Redige proposta de capítulo garantindo 100% de coerência e fidelidade ao enredo
+  const generateChapterProposal = async (
+    chapterNum: number,
+    orientacaoAutor?: string
+  ) => {
+    setIsLoading(true);
+    setLoadingStatus(`✍️ CoAuthor redigindo proposta do Capítulo ${chapterNum}...`);
+
+    try {
+      const maxCaps = currentConfig?.maxCapitulos || 15;
+      const isUltimo = chapterNum >= maxCaps;
+      const bibliaContext = buildEnredoFullContext();
+
+      // Pega o trecho final do capítulo anterior para continuidade milimétrica
+      let ganchoAnterior = '';
+      if (chapterNum > 1 && currentBookCaps[chapterNum - 2]) {
+        const capAnt = currentBookCaps[chapterNum - 2];
+        const txtAnt = capAnt.texto || capAnt.conteudo || '';
+        ganchoAnterior = `O Capítulo ${chapterNum - 1} terminou exatamente com o seguinte desfecho:\n"${txtAnt.slice(-1000)}"\nO Capítulo ${chapterNum} DEVE continuar a partir deste exato momento e desenvolver as consequências narrativas.`;
+      }
+
+      const systemInstruction = `Você é o parceiro e coautor sênior de escrita do autor para esta obra do Amazon KDP.
+${bibliaContext}
+
+REGRA SUPREMA: NUNCA PERCA O ENREDO DA HISTÓRIA. Cada parágrafo deve honrar o enredo acordado e os personagens.
+NUNCA mude de tema, nunca invente personagens aleatórios fora do universo da história, nunca resete acontecimentos passados.
+
+DIRETRIZES PARA O CAPÍTULO ${chapterNum} DE ${maxCaps}${isUltimo ? ' (ÚLTIMO CAPÍTULO - DESFECHO DA OBRA)' : ''}:
+1. Escreva um capítulo COMPLETO, rico e fluido, com divisão de cenas e ritmo editorial envolvente.
+2. TÍTULO DO CAPÍTULO: Crie um título poético, forte ou misterioso (SEM colocar "Capítulo ${chapterNum}:" no título, apenas o nome da cena, ex: "O Sussurro no Nevoeiro").
+3. CONTINUIDADE NARRATIVA:
+   ${chapterNum === 1 ? '- Primeiro capítulo: Apresente o protagonista, o cenário e o gancho desencadeador sem rodeios.' : '- Continue exatamente onde o capítulo anterior parou.'}
+   ${isUltimo ? '- COMO É O ÚLTIMO CAPÍTULO: Amarre todas as pontas soltas, entregue um clímax decisivo e o fechamento memorável da história!' : '- Termine com um gancho forte (cliffhanger) que instigue a leitura do próximo capítulo.'}
+4. ESTILO:
+   ${isTechnicalBook ? 'LIVRO TÉCNICO: Explicações claras, exemplos de cases reais, passos práticos acionáveis.' : 'FICÇÃO: Descrições sensoriais vivas, tensão psicológica, diálogos naturais e atmosfera cinematográfica.'}
+5. NUNCA use frases robóticas ou clichês de IA. Fale de autor para autor.
+
+FORMATO ESTRUTURADO OBRIGATÓRIO:
+<<<PROPOSTA_CAPITULO>>>
+NUMERO: ${chapterNum}
+TITULO: [Título do capítulo]
+RESUMO: [Resumo natural e vibrante em 2 frases para ser lido em voz alta]
+TEXTO:
+[Texto completo e robusto do capítulo com diálogos e parágrafos desenvolvidos]
+<<<FIM_PROPOSTA_CAPITULO>>>`;
+
+      const promptText = `━━━ DIRETRIZES DE ESCRITA ━━━
+${ganchoAnterior}
+
+ORIENTAÇÃO ATUAL DO AUTOR:
+"${orientacaoAutor || `Escreva o Capítulo ${chapterNum} com alta fidelidade ao enredo da história e ritmo envolvente.`}"
+
+Redija o Capítulo ${chapterNum} completo entre as tags:`;
+
+      const res = await chamarGeminiTexto(promptText, {
+        systemInstruction,
+        temperature: 0.85,
+        maxTokens: 4200
+      });
+
+      const respostaIA = res?.texto || '';
+      const capMatch = respostaIA.match(/<<<PROPOSTA_CAPITULO>>>([\s\S]*?)<<<FIM_PROPOSTA_CAPITULO>>>/);
+
+      if (capMatch) {
+        const bloco = capMatch[1];
+        const numMatch = bloco.match(/NUMERO:\s*(\d+)/i);
+        const titMatch = bloco.match(/TITULO:\s*([^\n]+)/i);
+        const resMatch = bloco.match(/RESUMO:\s*([^\n]+)/i);
+        const txtMatch = bloco.match(/TEXTO:\s*([\s\S]*)/i);
+
+        const num = numMatch ? parseInt(numMatch[1], 10) : chapterNum;
+        const tit = titMatch ? cleanChapterTitle(titMatch[1].trim()) : `Capítulo ${chapterNum}`;
+        const resumo = resMatch ? resMatch[1].trim() : `Capítulo ${num} desenvolvido com foco total no enredo.`;
+        const textoCap = txtMatch ? txtMatch[1].trim() : bloco.trim();
+        const words = textoCap.split(/\s+/).filter(Boolean).length;
+
+        const proposalCard: ChapterProposal = {
+          numero: num,
+          titulo: tit,
+          texto: textoCap,
+          palavras: words,
+          resumo,
+          applied: false
+        };
+
+        const falaVoz = isUltimo
+          ? `Finalizei a proposta do Capítulo ${num}, "${tit}"! ${resumo} Como este é o último capítulo, se você autorizar, eu gravo o capítulo, encerramos a história do livro e seguimos direto para a criação da Capa Autoral com IA!`
+          : `Pronto! Redigi a proposta do Capítulo ${num}, "${tit}"! ${resumo} O que achou? Se você autorizar, eu já salvo no livro e redijo o Capítulo ${num + 1}!`;
+
+        const agentMsg: Message = {
+          id: `msg_prop_cap_${num}_${Date.now()}`,
+          sender: 'agent',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `Redigi a proposta do **Capítulo ${num}: "${tit}"** (${words.toLocaleString()} palavras).\n\n${resumo}\n\n${isUltimo ? '🏆 **Este é o capítulo final da obra!** Ao autorizar, fechamos a história com chave de ouro e avançamos imediatamente para a criação da Capa Autoral Oficial.' : 'Diga *"pode salvar"* ou clique no botão abaixo para gravarmos no livro e avançarmos para o próximo capítulo!'}`,
+          chapterProposalCard: proposalCard
+        };
+
+        setMessages(prev => [...prev, agentMsg]);
+        coAuthorVoiceService.speak(falaVoz, agentMsg.id);
+      } else {
+        const agentMsg: Message = {
+          id: `msg_agent_${Date.now()}`,
+          sender: 'agent',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: respostaIA
+        };
+        setMessages(prev => [...prev, agentMsg]);
+        coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
+      }
+    } catch (err: any) {
+      const errM: Message = {
+        id: `msg_err_${Date.now()}`,
+        sender: 'system',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `Erro ao formular capítulo: ${err.message || 'Verifique a conexão com a API'}.`
+      };
+      setMessages(prev => [...prev, errM]);
+    } finally {
+      setIsLoading(false);
+      setLoadingStatus('CoAuthor analisando...');
+    }
+  };
+
+  // Autorização e gravação de capítulo no livro com transição para próximo capítulo ou capa
+  const handleApproveChapterProposal = async (proposal: ChapterProposal, msgId: string) => {
+    // 1. Salva no livro oficial
+    if (onSaveChapter) {
+      onSaveChapter({
+        numero: proposal.numero,
+        titulo: proposal.titulo,
+        texto: proposal.texto
+      });
+    }
+
+    // 2. Marca proposta como aplicada
+    setMessages(prev => prev.map(m => {
+      if (m.id === msgId && m.chapterProposalCard) {
+        return {
+          ...m,
+          chapterProposalCard: { ...m.chapterProposalCard, applied: true }
+        };
+      }
+      return m;
+    }));
+
+    const maxCaps = currentConfig?.maxCapitulos || 15;
+    const isUltimo = proposal.numero >= maxCaps;
+
+    if (isUltimo) {
+      // FECHAMENTO DA HISTÓRIA E GERAÇÃO DA CAPA!
+      const finishMsg: Message = {
+        id: `msg_finish_${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `🎉 **Capítulo ${proposal.numero} ("${proposal.titulo}") autorizado e gravado com sucesso!**\n\nConcluímos oficialmente todos os **${maxCaps} capítulos** do livro **"${currentBookTitle}"**! A história está redonda e completa.\n\nAgora vamos coroar a obra com a **Capa Autoral Oficial** no padrão KDP. Já estou concebendo e pintando a arte da capa com inteligência artificial...`
+      };
+      setMessages(prev => [...prev, finishMsg]);
+      coAuthorVoiceService.speak(
+        `Capítulo ${proposal.numero} autorizado e salvo no livro! Parabéns, concluímos oficialmente todos os capítulos da nossa história! O fechamento ficou emocionante. Agora, vou criar a Capa Autoral com inteligência artificial para o nosso livro. Veja a arte sendo gerada na tela!`,
+        finishMsg.id
+      );
+
+      // Dispara geração da capa com base no enredo
+      await handleGenerateAuthorCover(`Capa autoral impressionante e cinematográfica para o livro ${currentBookTitle}, gênero ${currentBookGenre}, inspirada no enredo: ${storyArc.slice(0, 300)}`);
+    } else {
+      // AVANÇA PARA O PRÓXIMO CAPÍTULO
+      const nextNum = proposal.numero + 1;
+      const nextMsg: Message = {
+        id: `msg_saved_${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `✓ **Capítulo ${proposal.numero} gravado com sucesso no livro!**\n\nSeguindo a linha do enredo, já estou redigindo a proposta do **Capítulo ${nextNum}**...`
+      };
+      setMessages(prev => [...prev, nextMsg]);
+      coAuthorVoiceService.speak(
+        `Capítulo ${proposal.numero} gravado com sucesso! Mantendo a linha do nosso enredo, já estou redigindo a proposta do Capítulo ${nextNum}...`,
+        nextMsg.id
+      );
+
+      await generateChapterProposal(nextNum, `Continuação imediata após o Capítulo ${proposal.numero} ("${proposal.titulo}"). Mantenha a evolução da história e dos personagens.`);
     }
   };
 
@@ -269,65 +518,68 @@ Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
     setIsLoading(true);
 
     try {
-      const bookContext = buildBookFullContext();
+      // 1. VERIFICA SE HÁ PROPOSTA DE CAPÍTULO PENDENTE DE APROVAÇÃO
+      const pendingProposal = getPendingChapterProposal();
 
-      // Histórico recente para conversa fluida sem re-apresentações formais
-      const historicoRecente = nextMsgs.slice(-6).map(m => {
-        const tag = m.sender === 'user' ? 'AUTOR' : (m.sender === 'agent' ? 'COAUTHOR' : 'SISTEMA');
-        return `${tag}: ${m.text}`;
-      }).join('\n\n');
+      if (pendingProposal) {
+        // Se o usuário falou palavras de aprovação / autorização
+        const isApproval = /pode salvar|salva|salvar|autoriz|aprov|gostei|ficou [oó]timo|est[aá] [oó]timo|perfeito|excelente|vamos em frente|pr[oó]ximo|avan[çc]ar|continua|vamos pro pr[oó]ximo|manda o pr[oó]ximo|pode ir|manda bala|t[aá] aprovado|seguir|segue|bora/i.test(textToSend);
+        if (isApproval) {
+          setIsLoading(false);
+          await handleApproveChapterProposal(pendingProposal.card, pendingProposal.msgId);
+          return;
+        }
 
-      // MODO GLOBAL: REVISÃO DE ENREDO DA OBRA TODA, FECHAMENTO OU APROFUNDAMENTO
+        // Se o usuário pediu ajustes no capítulo
+        const isAdjustment = /muda|ajust|refin|reescrev|alter|coloqu|adicione|retire|troqu|fa[çc]a mais|menos|diferente|queria que/i.test(textToSend);
+        if (isAdjustment) {
+          setIsLoading(false);
+          await generateChapterProposal(pendingProposal.card.numero, `O autor solicitou os seguintes ajustes no Capítulo ${pendingProposal.card.numero}:\n"${textToSend}"\nReescreva mantendo a fidelidade absoluta ao enredo principal.`);
+          return;
+        }
+      }
+
+      // 2. INICIAR A HISTÓRIA / ESCREVER CAPÍTULO 1 OU PRÓXIMO
+      const isStartStory = /come[çc]ar a hist[oó]ria|escrever a hist[oó]ria|iniciar a hist[oó]ria|cap[ií]tulo 1|primeiro cap|vamos come[çc]ar|bora come[çc]ar|escrever o livro|comece o livro|criar o cap|redigir o cap|escrever o cap|pr[oó]ximo cap|bora pro cap/i.test(textToSend);
+      if (isStartStory) {
+        setIsLoading(false);
+        const targetCap = currentBookCaps.length + 1;
+        await generateChapterProposal(targetCap, textToSend);
+        return;
+      }
+
+      // 3. MODO GLOBAL NA OBRA COMPLETA (SE JÁ TIVER CAPÍTULOS E FOR PEDIDO EXPLÍCITO)
       const isGlobalAction = actionType === 'enredo-global' || actionType === 'fechamento' || actionType === 'profundidade'
-        || /enredo|obra toda|livro todo|todos os cap|revisar tudo|revisar todo|fechamento|arremate|desfecho/i.test(textToSend);
+        || /revisar tudo|revisar todo o livro|revisar a obra toda|todos os cap|diagn[oó]stico da obra/i.test(textToSend);
 
-      if (isGlobalAction) {
+      if (isGlobalAction && currentBookCaps.length > 0) {
         setLoadingStatus('📖 CoAuthor analisando a Obra Completa de ponta a ponta...');
 
         const systemInstruction = `Você é o coautor parceiro e experiente de escrita para o autor nesta obra do Amazon KDP.
 Obra: "${currentBookTitle}" | Gênero: "${currentBookGenre}" | Tipo: ${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO / NARRATIVA'}
 Você está trabalhando diretamente sobre toda a obra:
-${bookContext}
+${buildEnredoFullContext()}
 
 REGRAS INEGOCIÁVEIS DE COMUNICAÇÃO:
-1. NUNCA use frases clichês ou robóticas de IA (ex: "Olá, sou seu assistente de IA...", "Como posso ajudar você hoje?", "Com certeza! Como seu coautor de inteligência artificial...").
-2. Fale como um colega escritor ou editor sênior humano e experiente: direto ao ponto, colaborativo, perspicaz, com ideias concretas.
-3. Se já houver mensagens no histórico, mantenha a conversa fluida e contínua, sem saudações desnecessárias, indo direto ao ponto da discussão.
+1. NUNCA use frases clichês ou robóticas de IA.
+2. Fale como um colega escritor ou editor sênior humano e experiente: direto ao ponto, colaborativo, perspicaz.
+3. Se já houver mensagens no histórico, mantenha a conversa fluida e contínua.
 4. ${
   isTechnicalBook
-    ? `DIRETRIZ PARA LIVRO TÉCNICO:
-- Analise a solidez do conteúdo: clareza do método, aplicabilidade prática, densidade de valor real e didática.
-- Identifique onde faltam exemplos práticos reais, frameworks de execução, dados aprofundados e checklists.
-- Elimine enrolação (anti-fluff). Não invente personagens nem dramas de ficção.`
-    : `DIRETRIZ PARA FICÇÃO:
-- Analise a continuidade narrativa entre todos os capítulos, evolução do enredo e ritmo das cenas.
-- Identifique onde a história precisa de mais imersão: ambientação sensorial, tensão dramática, profundidade e diálogos vivos.
-- Garanta que o clímax e o fechamento do livro amarrem as pontas soltas.`
+    ? `DIRETRIZ TÉCNICA: Analise a solidez do conteúdo, clareza do método, aplicabilidade prática e didática.`
+    : `DIRETRIZ DE FICÇÃO: Analise continuidade entre os capítulos, arcos dos personagens e ritmo das cenas.`
 }
-5. Se a obra já estiver excelente, ateste sua qualidade. Só formule sugestão de acréscimo onde houver benefício real.
 
 FORMATO ESTRUTURADO DE RETORNO OBRIGATÓRIO:
-Inicie sua resposta com uma análise crítica e acolhedora em linguagem natural e direta.
-Em seguida, para cada capítulo que mereça enriquecimento, formate EXATAMENTE entre as tags:
 <<<SUGESTAO_OBRA_COMPLETA>>>
 RESUMO: [Resumo do diagnóstico geral e o que foi aprimorado na obra]
 [CAP 1]
 JUSTIFICATIVA: [Por que este enriquecimento melhora o capítulo 1]
 ACRESCIMO: [O texto pronto para ser adicionado ao capítulo 1]
 [/CAP]
-[CAP 2]
-JUSTIFICATIVA: [Por que este enriquecimento melhora o capítulo 2]
-ACRESCIMO: [O texto pronto para ser adicionado ao capítulo 2]
-[/CAP]
 <<<FIM_OBRA_COMPLETA>>>`;
 
-        const promptText = `━━━ DIÁLOGO RECENTE ━━━
-${historicoRecente}
-
-━━━ PEDIDO ATUAL DO AUTOR ━━━
-"${textToSend}"
-
-Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneça as sugestões de acréscimo estruturadas para os capítulos correspondentes:`;
+        const promptText = `━━━ PEDIDO ATUAL DO AUTOR ━━━\n"${textToSend}"\n\nAnalise a obra de ponta a ponta:`;
 
         const resultadoIA = await chamarGeminiTexto(promptText, {
           systemInstruction,
@@ -336,7 +588,6 @@ Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneç
         });
 
         const respostaIA = resultadoIA?.texto || '';
-
         let cleanText = respostaIA;
         let fullReviewData: Message['fullBookReviewCard'] | undefined = undefined;
 
@@ -374,7 +625,7 @@ Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneç
 
           cleanText = respostaIA.replace(/<<<SUGESTAO_OBRA_COMPLETA>>>[\s\S]*?<<<FIM_OBRA_COMPLETA>>>/, '').trim();
           if (!cleanText) {
-            cleanText = `Analisei a obra inteira de ponta a ponta e elaborei propostas de enriquecimento editorial para ${chaptersEnrichment.length} capítulos. Veja o plano abaixo e aprove para aplicar na obra toda de uma só vez:`;
+            cleanText = `Analisei a obra inteira de ponta a ponta e elaborei propostas de enriquecimento editorial para ${chaptersEnrichment.length} capítulos. Veja o plano abaixo:`;
           }
         }
 
@@ -388,99 +639,122 @@ Analise a obra de ponta a ponta, identifique o que deve ser aprimorado e forneç
 
         setMessages(prev => [...prev, agentMsg]);
         coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
-      } else {
-        // MODO PONTUAL (Capítulo Específico ou Pergunta Geral)
-        setLoadingStatus(`CoAuthor analisando Capítulo ${selectedChapter}...`);
-        const currentChapterData = currentBookCaps[selectedChapter - 1];
-        const chapterFullText = currentChapterData ? (currentChapterData.texto || currentChapterData.conteudo || '') : '';
-        const chapterContentPreview = chapterFullText.length > 4000
-          ? chapterFullText.slice(0, 2200) + '\n... [Trecho Final]:\n' + chapterFullText.slice(-1800)
-          : chapterFullText;
-        const currentCapTitleClean = cleanChapterTitle(currentChapterData?.titulo || `Capítulo ${selectedChapter}`);
+        return;
+      }
 
-        const systemInstruction = `Você é o parceiro de redação e coautor humano experiente do autor para Amazon KDP.
-Obra: "${currentBookTitle}" | Gênero: "${currentBookGenre}" | Tipo: ${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO'}
-Capítulo focado: Capítulo ${selectedChapter} ("${currentCapTitleClean}").
+      // 4. MODO CENTRAL: DIÁLOGO SOBRE O ENREDO DA HISTÓRIA, PERSONAGENS E CONCEPÇÃO
+      setLoadingStatus('📖 CoAuthor alinhando o enredo da história com você...');
 
-REGRAS CONVERSACIONAIS:
-1. NUNCA use frases robóticas ou clichês de IA. Fale de escritor para escritor, de forma direta, madura e colaborativa.
-2. Se já houver mensagens no histórico, continue a conversa fluentemente sem saudações desnecessárias.
-3. Se o capítulo já estiver bem trabalhado e redondo, declare isso abertamente. Só sugira acréscimo se houver lacuna real.
-4. ${
-  isTechnicalBook
-    ? 'Para livro técnico: Adicione exemplos reais, passos práticos, frameworks e didática clara.'
-    : 'Para ficção: Aprofunde o drama, as sensações, o conflito e os diálogos vivos.'
-}
+      let amazonLiveContext = '';
+      const isAskingSubtitleOrAmazon = /subt[ií]tulo|amazon|busca|pesquisa|sugir|sugest/i.test(textToSend);
+      if (isAskingSubtitleOrAmazon) {
+        try {
+          setLoadingStatus('🔎 CoAuthor consultando a barra de busca da Amazon KDP...');
+          const seedQuery = currentConfig?.titulo || currentConfig?.tema || textToSend.replace(/subt[ií]tulo|amazon|busca|pesquisa|sugir|sugest|para|o|livro|de/gi, ' ').trim() || 'autoajuda';
+          const cleanSeed = seedQuery.split(/[:\-\–]/)[0].trim().slice(0, 25);
+          const suggestions = await AmazonLiveService.getLiveSuggestions(cleanSeed, 'br');
+          if (suggestions && suggestions.length > 0) {
+            amazonLiveContext = `\nTERMOS REAIS DA BUSCA DA AMAZON KDP (AUTOCOMPLETE AO VIVO):\n${suggestions.slice(0, 8).map(s => `- "${s}"`).join('\n')}\n`;
+          }
+        } catch (err) {
+          console.warn('Erro ao consultar Amazon live suggestions:', err);
+        }
+      }
 
-FORMATO ESPECIAL DE ACRÉSCIMO (usar apenas se houver necessidade real):
-Quando fizer uma sugestão de acréscimo para este capítulo, formule entre as tags:
-<<<SUGESTAO_ACRESCIMO>>>
-CAPITULO: ${selectedChapter}
-JUSTIFICATIVA: [Por que este trecho enriquece o capítulo sem ferir o contexto]
-TEXTO: [O texto pronto para ser inserido no capítulo]
-<<<FIM_SUGESTAO>>>`;
+      const bibliaEnredo = buildEnredoFullContext();
+      const historicoRecente = nextMsgs.slice(-6).map(m => {
+        const tag = m.sender === 'user' ? 'AUTOR' : (m.sender === 'agent' ? 'COAUTHOR' : 'SISTEMA');
+        return `${tag}: ${m.text}`;
+      }).join('\n\n');
 
-        const promptText = `━━━ DIÁLOGO RECENTE ━━━
+      const systemInstruction = `Você é o parceiro e coautor humano experiente de escrita para Amazon KDP.
+${bibliaEnredo}
+${amazonLiveContext}
+
+REGRAS INEGOCIÁVEIS:
+1. O ENREDO DA HISTÓRIA É A ÂNCORA SUPREMA: NUNCA perca o enredo, nunca mude de assunto, nunca alucine temas aleatórios fora da conversa do autor.
+2. Fale de forma acolhedora, objetiva e madura, de autor para autor. NUNCA use clichês robóticos de IA.
+3. Se o autor estiver contando ou ajustando a história/personagens/cenário:
+   - Responda sobre a história dele com entusiasmo e perspicácia editorial.
+   - Mostre como essa ideia fortalece a trama e amarre com o enredo já definido.
+   - Ao final, convide-o a redigir o Capítulo 1!
+4. Se o autor perguntar sobre subtítulo ou busca da Amazon:
+   - Proponha um subtítulo comercial magnético alinhado com o enredo e os termos reais da Amazon.
+5. SEMPRE QUE O ENREDO OU CONFIGURAÇÕES FOREM DEFINIDOS OU AJUSTADOS NA CONVERSA:
+   Inclua no final da resposta o bloco para atualizar a Bíblia da Obra:
+<<<ATUALIZACAO_ENREDO>>>
+ENREDO: [Enredo / premissa consolidada da história]
+TITULO: [Título da obra]
+SUBTITULO: [Subtítulo comercial se houver]
+TEMA: [Tema dentre as opções da plataforma]
+CAPITULOS: [Número de capítulos, ex: 12]
+PAGINAS: [Número de páginas alvo, ex: 100]
+<<<FIM_ATUALIZACAO_ENREDO>>>`;
+
+      const promptText = `━━━ HISTÓRICO RECENTE DO DIÁLOGO ━━━
 ${historicoRecente}
 
-━━━ CONSULTA ATUAL DO AUTOR ━━━
-Mensagem: "${textToSend}"
-Capítulo focado: Capítulo ${selectedChapter} ("${currentCapTitleClean}")
-Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length} palavras):
-"${chapterContentPreview}"`;
+━━━ FALA ATUAL DO AUTOR ━━━
+"${textToSend}"
 
-        const resultadoIA = await chamarGeminiTexto(promptText, {
-          systemInstruction,
-          temperature: 0.8,
-          maxTokens: 3200
-        });
+Responda em tom conversacional para áudio mantendo foco 100% no enredo:`;
 
-        const respostaIA = resultadoIA?.texto || '';
-        let cleanText = respostaIA;
-        let cardData: Message['suggestionCard'] | undefined = undefined;
+      const resultadoIA = await chamarGeminiTexto(promptText, {
+        systemInstruction,
+        temperature: 0.8,
+        maxTokens: 2500
+      });
 
-        const cardMatch = respostaIA.match(/<<<SUGESTAO_ACRESCIMO>>>([\s\S]*?)<<<FIM_SUGESTAO>>>/);
-        if (cardMatch) {
-          const bloco = cardMatch[1];
-          const capNumMatch = bloco.match(/CAPITULO:\s*(\d+)/i);
-          const justMatch = bloco.match(/JUSTIFICATIVA:\s*([\s\S]*?)(?=TEXTO:|$)/i);
-          const textoMatch = bloco.match(/TEXTO:\s*([\s\S]*)/i);
+      const respostaIA = resultadoIA?.texto || '';
+      let cleanText = respostaIA;
+      let configCardData: BookConceptionConfig | undefined = undefined;
 
-          const targetCap = capNumMatch ? parseInt(capNumMatch[1], 10) : selectedChapter;
-          const rationale = justMatch ? justMatch[1].trim() : 'Enriquecimento temático e aprofundamento.';
-          const addition = textoMatch ? textoMatch[1].trim() : '';
+      const enredoMatch = respostaIA.match(/<<<ATUALIZACAO_ENREDO>>>([\s\S]*?)<<<FIM_ATUALIZACAO_ENREDO>>>/);
+      if (enredoMatch) {
+        const bloco = enredoMatch[1];
+        const enrM = bloco.match(/ENREDO:\s*([\s\S]*?)(?=\n[A-Z]+:|$)/i);
+        const titM = bloco.match(/TITULO:\s*([^\n]+)/i);
+        const subM = bloco.match(/SUBTITULO:\s*([^\n]+)/i);
+        const temM = bloco.match(/TEMA:\s*([^\n]+)/i);
+        const capM = bloco.match(/CAPITULOS:\s*(\d+)/i);
+        const pagM = bloco.match(/PAGINAS:\s*(\d+)/i);
 
-          if (addition) {
-            cardData = {
-              chapterNumber: targetCap,
-              additionText: addition,
-              rationale
-            };
-          }
+        const applied: BookConceptionConfig = {};
+        if (enrM && enrM[1].trim() && !/não definido/i.test(enrM[1])) {
+          const novoEnredo = enrM[1].trim();
+          applied.premissa = novoEnredo;
+          setStoryArc(novoEnredo);
+        }
+        if (titM && titM[1].trim() && !/mantido|não definido/i.test(titM[1])) applied.titulo = titM[1].trim();
+        if (subM && subM[1].trim() && !/não definido/i.test(subM[1])) applied.subtitulo = subM[1].trim();
+        if (temM && temM[1].trim() && !/não definido/i.test(temM[1])) applied.tema = temM[1].trim();
+        if (capM && parseInt(capM[1], 10) > 0) applied.maxCapitulos = parseInt(capM[1], 10);
+        if (pagM && parseInt(pagM[1], 10) > 0) applied.paginasAlvo = parseInt(pagM[1], 10);
 
-          cleanText = respostaIA.replace(/<<<SUGESTAO_ACRESCIMO>>>[\s\S]*?<<<FIM_SUGESTAO>>>/, '').trim();
-          if (!cleanText) {
-            cleanText = `Formulei uma sugestão de acréscimo para o Capítulo ${targetCap}. Veja abaixo e aprove para aplicar:`;
-          }
+        if (Object.keys(applied).length > 0) {
+          configCardData = applied;
+          if (onUpdateBookConfig) onUpdateBookConfig(applied);
         }
 
-        const agentMsg: Message = {
-          id: `msg_agent_${Date.now()}`,
-          sender: 'agent',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: cleanText,
-          suggestionCard: cardData
-        };
-
-        setMessages(prev => [...prev, agentMsg]);
-        coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
+        cleanText = respostaIA.replace(/<<<ATUALIZACAO_ENREDO>>>[\s\S]*?<<<FIM_ATUALIZACAO_ENREDO>>>/, '').trim();
       }
+
+      const agentMsg: Message = {
+        id: `msg_agent_${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: cleanText,
+        configCard: configCardData
+      };
+
+      setMessages(prev => [...prev, agentMsg]);
+      coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
     } catch (err: any) {
       const errorMsg: Message = {
         id: `msg_err_${Date.now()}`,
         sender: 'system',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `Não foi possível consultar o CoAuthor: ${err.message || 'Verifique sua conexão ou configure sua chave Gemini API'}.`
+        text: `Erro na resposta do CoAuthor: ${err.message || 'Verifique a conexão com a API'}.`
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -925,6 +1199,28 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                 <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
                   <button
                     type="button"
+                    onClick={() => handleSendMessage(`Escreva a proposta do Capítulo ${chaptersCount + 1} para o nosso livro, desenvolvendo o enredo acordado com alta imersão.`)}
+                    disabled={isLoading}
+                    style={{
+                      padding: '6px 11px',
+                      borderRadius: 6,
+                      background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                      border: 'none',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      boxShadow: '0 1px 3px rgba(2, 132, 199, 0.3)'
+                    }}
+                  >
+                    ✍️ {chaptersCount === 0 ? 'Escrever Capítulo 1' : `Escrever Capítulo ${chaptersCount + 1}`}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleSendMessage('Faça uma revisão crítica e completa da obra inteira de uma vez. Analise consistência de arcos, ritmo de todos os capítulos, furos e elabore sugestões de acréscimo estruturadas.', 'enredo-global')}
                     disabled={isLoading}
                     style={{
@@ -1331,6 +1627,124 @@ Trecho atual do capítulo (${chapterFullText.split(/\s+/).filter(Boolean).length
                             ) : (
                               <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 800 }}>
                                 ✓ Acréscimo incorporado com sucesso!
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* CARD DE PROPOSTA DE CAPÍTULO (FLUXO CONVERSACIONAL GUIADO CAPÍTULO A CAPÍTULO) */}
+                        {msg.chapterProposalCard && (
+                          <div style={{
+                            marginTop: 12,
+                            padding: 14,
+                            borderRadius: 10,
+                            background: '#f8fafc',
+                            border: '1.5px solid #38bdf8',
+                            color: '#0f172a',
+                            boxShadow: '0 4px 12px rgba(56, 189, 248, 0.15)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <BookOpen size={16} color="#0284c7" />
+                                <span style={{ fontSize: 13, fontWeight: 800, color: '#0369a1' }}>
+                                  Capítulo {msg.chapterProposalCard.numero}: {cleanChapterTitle(msg.chapterProposalCard.titulo)}
+                                </span>
+                              </div>
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                background: '#e0f2fe',
+                                color: '#0369a1'
+                              }}>
+                                {msg.chapterProposalCard.palavras.toLocaleString()} palavras
+                              </span>
+                            </div>
+
+                            {msg.chapterProposalCard.resumo && (
+                              <p style={{ fontSize: 11.5, color: '#475569', margin: '0 0 10px 0', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                💡 {msg.chapterProposalCard.resumo}
+                              </p>
+                            )}
+
+                            {/* Prévia do texto do capítulo */}
+                            <div style={{
+                              background: '#ffffff',
+                              padding: '12px 14px',
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 12,
+                              lineHeight: 1.6,
+                              color: '#1e293b',
+                              marginBottom: 12,
+                              maxHeight: 180,
+                              overflowY: 'auto',
+                              fontFamily: 'Georgia, serif',
+                              whiteSpace: 'pre-line'
+                            }}>
+                              {msg.chapterProposalCard.texto}
+                            </div>
+
+                            {!msg.chapterProposalCard.applied ? (
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveChapterProposal(msg.chapterProposalCard!, msg.id)}
+                                  disabled={isLoading}
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 200,
+                                    padding: '9px 16px',
+                                    borderRadius: 8,
+                                    background: 'linear-gradient(135deg, #059669, #047857)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 6,
+                                    boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)'
+                                  }}
+                                >
+                                  <CheckCircle2 size={15} /> Autorizar e Gravar Capítulo {msg.chapterProposalCard.numero}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendMessage(`Por favor, faça ajustes no Capítulo ${msg.chapterProposalCard?.numero}: aprofunde os detalhes e a tensão narrativa mantendo a fidelidade ao enredo.`)}
+                                  disabled={isLoading}
+                                  style={{
+                                    padding: '9px 12px',
+                                    borderRadius: 8,
+                                    background: '#ffffff',
+                                    color: '#334155',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  🔄 Pedir Ajuste
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '6px 10px',
+                                borderRadius: 6,
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                fontSize: 11.5,
+                                fontWeight: 800
+                              }}>
+                                <CheckCircle2 size={14} color="#15803d" />
+                                Capítulo {msg.chapterProposalCard.numero} gravado e integrado ao livro oficial ✓
                               </div>
                             )}
                           </div>

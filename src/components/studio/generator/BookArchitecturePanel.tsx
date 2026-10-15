@@ -18,9 +18,11 @@ import {
   Eye,
   ArrowRight,
   Save,
-  PenTool
+  PenTool,
+  Search
 } from 'lucide-react';
 import { chamarGeminiTexto } from '../../../services/kdp-ai-engine';
+import { AmazonLiveService } from '../../../services/amazon-live-service';
 import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 import type { CoAuthorBookType } from './CoAuthorAgentSuite';
 
@@ -423,8 +425,8 @@ TEXTO_SOBRECAPA:
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div
                 style={{
-                  width: 32,
-                  height: 32,
+                  width: 34,
+                  height: 34,
                   borderRadius: 8,
                   background: '#f0f9ff',
                   color: '#0284c7',
@@ -435,45 +437,20 @@ TEXTO_SOBRECAPA:
               >
                 <BookOpen size={18} />
               </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                  1. Título, Subtítulo & Perfil Editorial
-                </h3>
-                <span style={{ fontSize: 12.5, color: '#64748b' }}>
-                  Mesmo que sugerido por IA, você tem controle total para personalizar e escolher a promessa da obra.
-                </span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                    1. Título & Subtítulo Comercial da Obra
+                  </h3>
+                  <span style={{ fontSize: 12.5, color: '#64748b' }}>
+                    Defina o título magnético e o gancho de promessa que posiciona seu livro no topo da Amazon KDP.
+                  </span>
+                </div>
               </div>
-            </div>
 
-            {/* SELETOR DE GÊNERO/PERFIL */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[
-                { id: 'tecnico' as CoAuthorBookType, label: '⚙️ Técnico' },
-                { id: 'autoajuda' as CoAuthorBookType, label: '📘 Autoajuda' },
-                { id: 'pratico' as CoAuthorBookType, label: '🛠️ Guia Prático' },
-                { id: 'ficcao' as CoAuthorBookType, label: '📖 Ficção' }
-              ].map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setTipoLivro(item.id)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 7,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    border: tipoLivro === item.id ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
-                    background: tipoLivro === item.id ? '#f0f9ff' : '#ffffff',
-                    color: tipoLivro === item.id ? '#0284c7' : '#475569',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
+              <span style={{ fontSize: 12, color: '#64748b' }}>
+                Autor da Obra: <strong style={{ color: '#0f172a' }}>{autor}</strong>
+              </span>
             </div>
-          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 16, marginBottom: 16 }}>
             {/* TÍTULO */}
@@ -525,14 +502,14 @@ TEXTO_SOBRECAPA:
           </div>
 
           {/* PREMISSA / HISTÓRIA CENTRAL (OPCIONAL) */}
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
-              Premissa / Sinopse Básica (usada pela IA para guiar o tom e sugerir ideias):
+              Premissa / Sinopse Básica da História ou Conteúdo:
             </label>
             <textarea
               value={premissa}
               onChange={e => setPremissa(e.target.value)}
-              placeholder="Descreva em poucas frases o núcleo da história ou o objetivo didático do livro..."
+              placeholder="Descreva o enredo da história ou o objetivo transformador do livro para guiar a IA..."
               rows={2}
               style={{
                 width: '100%',
@@ -549,42 +526,79 @@ TEXTO_SOBRECAPA:
             />
           </div>
 
-          {/* BOTÃO GERADOR DE SUGESTÕES DE TÍTULOS */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          {/* BOTÕES GERADORES DE SUGESTÕES DE TÍTULOS E AMAZON */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={handleGerarTitulosIA}
               disabled={isSuggestingTitles}
               style={{
-                background: '#f0f9ff',
-                border: '1.5px solid #bae6fd',
-                color: '#0284c7',
-                padding: '8px 16px',
-                borderRadius: 7,
+                background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                border: 'none',
+                color: '#ffffff',
+                padding: '9px 18px',
+                borderRadius: 8,
                 fontSize: 12.5,
                 fontWeight: 800,
+                cursor: isSuggestingTitles ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+              }}
+            >
+              {isSuggestingTitles ? <BookEnginAnimatedBook size="micro" /> : <Sparkles size={14} />}
+              <span>{isSuggestingTitles ? 'Criando 5 Títulos Bestseller...' : '✨ Sugerir 5 Pares de Título & Subtítulo com IA'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const seed = (titulo || premissa || 'autoajuda').split(/[:\-\–]/)[0].trim().slice(0, 20);
+                setIsSuggestingTitles(true);
+                try {
+                  const sugs = await AmazonLiveService.getLiveSuggestions(seed, 'br');
+                  if (sugs && sugs.length > 0) {
+                    const mapped = sugs.slice(0, 5).map(s => ({
+                      title: s.charAt(0).toUpperCase() + s.slice(1),
+                      subtitle: `O Guia Definitivo e Prático: Como Dominar ${s}`,
+                      rationale: 'Termo real pesquisado por leitores ao vivo na caixa de busca da Amazon Brasil'
+                    }));
+                    setTitleSuggestions(mapped);
+                  }
+                } catch (e) {
+                  console.warn('Erro ao consultar Amazon:', e);
+                } finally {
+                  setIsSuggestingTitles(false);
+                }
+              }}
+              disabled={isSuggestingTitles}
+              style={{
+                background: '#ffffff',
+                border: '1.5px solid #cbd5e1',
+                color: '#334155',
+                padding: '9px 16px',
+                borderRadius: 8,
+                fontSize: 12.5,
+                fontWeight: 700,
                 cursor: isSuggestingTitles ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7
               }}
             >
-              {isSuggestingTitles ? <BookEnginAnimatedBook size="micro" /> : <Sparkles size={14} />}
-              <span>{isSuggestingTitles ? 'Criando 5 Títulos Bestseller...' : '✨ Sugerir 5 Títulos de Alta Conversão com IA'}</span>
+              <Search size={14} color="#0284c7" />
+              <span>🔎 Consultar Tendências da Amazon KDP</span>
             </button>
-
-            <span style={{ fontSize: 12, color: '#64748b' }}>
-              Autor da Obra: <strong>{autor}</strong>
-            </span>
           </div>
 
           {/* LISTA DE SUGESTÕES GERADAS */}
           {titleSuggestions.length > 0 && (
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
-              <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#0369a1', marginBottom: 8 }}>
-                💡 Clique em uma sugestão para aplicá-la diretamente:
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
+              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: '#0369a1', marginBottom: 10 }}>
+                💡 Clique em qualquer sugestão abaixo para aplicar o Título e o Subtítulo automaticamente:
               </span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
                 {titleSuggestions.map((sug, idx) => (
                   <div
                     key={idx}
@@ -594,25 +608,36 @@ TEXTO_SOBRECAPA:
                     }}
                     style={{
                       background: '#f8fafc',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 8,
-                      padding: 12,
+                      border: '1.5px solid #e2e8f0',
+                      borderRadius: 10,
+                      padding: 14,
                       cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.borderColor = '#0284c7';
                       e.currentTarget.style.background = '#f0f9ff';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
                     }}
                     onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = '#cbd5e1';
+                      e.currentTarget.style.borderColor = '#e2e8f0';
                       e.currentTarget.style.background = '#f8fafc';
+                      e.currentTarget.style.transform = 'translateY(0)';
                     }}
                   >
-                    <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>{sug.title}</div>
-                    <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>{sug.subtitle}</div>
-                    <div style={{ fontSize: 11, color: '#059669', marginTop: 5, fontStyle: 'italic' }}>
-                      ✓ {sug.rationale}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#0284c7', background: '#e0f2fe', padding: '2px 6px', borderRadius: 4 }}>
+                        OPÇÃO #{idx + 1}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>
+                        ✓ Clique p/ aplicar
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{sug.title}</div>
+                    <div style={{ fontSize: 12.5, color: '#475569', marginTop: 4, lineHeight: 1.4 }}>{sug.subtitle}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, fontStyle: 'italic', borderTop: '1px dashed #cbd5e1', paddingTop: 4 }}>
+                      {sug.rationale}
                     </div>
                   </div>
                 ))}

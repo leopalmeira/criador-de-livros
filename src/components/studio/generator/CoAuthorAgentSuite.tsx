@@ -2050,7 +2050,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
         height: '100vh',
         background: '#f8fafc',
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'row',
         overflow: 'hidden',
         boxSizing: 'border-box',
         color: '#0f172a',
@@ -2058,106 +2058,160 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
       }}
     >
       {/* ==================================================================== */}
-      {/* 1. TOP BAR EXECUTIVA DO ESTÚDIO EM TELA CHEIA */}
+      {/* 1. SIDEBAR LATERAL ESQUERDA: MENU EXECUTIVO PROFISSIONAL */}
       {/* ==================================================================== */}
-      <header
+      <aside
         style={{
-          flexShrink: 0,
-          height: 72,
-          padding: '0 24px',
-          background: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
+          width: 275,
+          minWidth: 275,
+          maxWidth: 275,
+          height: '100%',
+          background: '#0b1329',
+          borderRight: '1px solid #1e293b',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          boxShadow: '0 1px 4px rgba(0, 0, 0, 0.04)',
-          zIndex: 10
+          flexDirection: 'column',
+          color: '#f8fafc',
+          boxSizing: 'border-box',
+          zIndex: 50,
+          userSelect: 'none',
+          padding: '16px 14px',
+          overflowY: 'auto'
         }}
       >
-        {/* LADO ESQUERDO: VOLTAR AO PAINEL + IDENTIDADE */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '9px 15px',
-                borderRadius: 8,
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1',
-                color: '#334155',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              title="Voltar ao painel geral da obra (salva tudo automaticamente)"
-            >
-              <ArrowLeft size={16} />
-              <span>Voltar ao Painel</span>
-            </button>
-          )}
+        {/* TOPO: VOLTAR AO PAINEL */}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#cbd5e1',
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginBottom: 16,
+              transition: 'all 0.15s ease'
+            }}
+            title="Voltar ao painel geral da obra"
+          >
+            <ArrowLeft size={15} color="#94a3b8" />
+            <span>Voltar ao Painel</span>
+          </button>
+        )}
 
-          <div style={{ height: 28, width: 1, background: '#e2e8f0' }} />
-
+        {/* IDENTIDADE DO ESTÚDIO */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <div
             style={{
-              width: 42,
-              height: 42,
+              width: 38,
+              height: 38,
               borderRadius: 10,
               background: 'linear-gradient(135deg, #0284c7, #0369a1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#ffffff',
-              boxShadow: '0 3px 10px rgba(2, 132, 199, 0.28)'
+              boxShadow: '0 3px 10px rgba(2, 132, 199, 0.35)',
+              flexShrink: 0
             }}
           >
-            <Sparkles size={22} />
+            <Sparkles size={20} />
           </div>
-
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <span style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                CoAuthor Studio Pro
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+                CoAuthor Studio
               </span>
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 9.5,
                   fontWeight: 800,
-                  background: '#e0f2fe',
-                  color: '#0284c7',
-                  border: '1px solid #bae6fd',
-                  padding: '2px 8px',
-                  borderRadius: 5,
+                  background: 'rgba(2, 132, 199, 0.25)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  padding: '1px 5px',
+                  borderRadius: 4,
                   textTransform: 'uppercase'
                 }}
               >
-                Gemini Neural
+                PRO
               </span>
             </div>
-            <div style={{ fontSize: 13, color: '#64748b', marginTop: 1, fontWeight: 500 }}>
-              {capsConcluidos === 0
-                ? 'Coautoria completa: da ideia inicial à publicação KDP'
-                : `${capsConcluidos} de ${totalCaps} capítulos prontos • ${totalPalavras.toLocaleString()} palavras escritas`}
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 1, whiteSpace: 'nowrap' }}>
+              Gemini Neural Inteligente
             </div>
           </div>
         </div>
 
-        {/* LADO DIREITO: NAVEGAÇÃO DE ABAS INTEGRADAS + AÇÃO RÁPIDA DE PDF */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* CARD DA OBRA ATIVA */}
+        <div
+          style={{
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 9,
+            padding: '10px 12px',
+            marginBottom: 16
+          }}
+        >
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>
+            Obra em Andamento
+          </div>
           <div
             style={{
+              fontSize: 13,
+              fontWeight: 800,
+              color: '#f8fafc',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              marginBottom: 6
+            }}
+            title={bookState?.titulo || 'Novo Livro'}
+          >
+            {bookState?.titulo || 'Novo Livro'}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#64748b', marginBottom: 5 }}>
+            <span>{capsConcluidos} de {totalCaps} caps</span>
+            <span style={{ fontWeight: 700, color: '#38bdf8' }}>{progressoPercent}%</span>
+          </div>
+          <div style={{ width: '100%', height: 4, borderRadius: 2, background: 'rgba(255, 255, 255, 0.1)', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${progressoPercent}%`,
+                background: 'linear-gradient(90deg, #0284c7, #10b981)',
+                transition: 'width 0.3s ease'
+              }}
+            />
+          </div>
+        </div>
+
+        {/* NAVEGAÇÃO: SEÇÃO 1 - COAUTHOR (CRIAÇÃO & ESCRITA) */}
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              fontSize: 10.5,
+              fontWeight: 800,
+              color: '#38bdf8',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              marginBottom: 6,
+              padding: '0 6px',
               display: 'flex',
-              background: '#f1f5f9',
-              padding: 3,
-              borderRadius: 9,
-              border: '1px solid #e2e8f0'
+              alignItems: 'center',
+              gap: 6
             }}
           >
+            <span>✍️ COAUTHOR IA • CRIAÇÃO</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {/* 1. ARQUITETURA & CAPA */}
             <button
               type="button"
@@ -2168,23 +2222,43 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '7px 13px',
-                borderRadius: 7,
-                border: 'none',
-                background: internalTab === 'arquitetura' ? '#ffffff' : 'transparent',
-                color: internalTab === 'arquitetura' ? '#0284c7' : '#64748b',
-                fontSize: 12.5,
-                fontWeight: 800,
+                gap: 10,
+                padding: '9px 12px',
+                borderRadius: 8,
+                border: internalTab === 'arquitetura' ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid transparent',
+                background: internalTab === 'arquitetura' ? 'rgba(2, 132, 199, 0.18)' : 'transparent',
+                color: internalTab === 'arquitetura' ? '#ffffff' : '#cbd5e1',
                 cursor: 'pointer',
-                boxShadow: internalTab === 'arquitetura' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                textAlign: 'left',
                 transition: 'all 0.15s ease'
               }}
             >
-              <Sliders size={14} /> Arquitetura & Capa
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  background: internalTab === 'arquitetura' ? '#0284c7' : 'rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: internalTab === 'arquitetura' ? '#ffffff' : '#94a3b8',
+                  flexShrink: 0
+                }}
+              >
+                <Sliders size={15} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: internalTab === 'arquitetura' ? 800 : 600 }}>
+                  Arquitetura & Capa
+                </div>
+                <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                  Tema, títulos, ideias e capa
+                </div>
+              </div>
             </button>
 
-            {/* 2. CHAT */}
+            {/* 2. REDAÇÃO & CHAT */}
             <button
               type="button"
               onClick={() => {
@@ -2194,23 +2268,65 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '7px 13px',
-                borderRadius: 7,
-                border: 'none',
-                background: internalTab === 'chat' ? '#ffffff' : 'transparent',
-                color: internalTab === 'chat' ? '#0284c7' : '#64748b',
-                fontSize: 12.5,
-                fontWeight: 800,
+                gap: 10,
+                padding: '9px 12px',
+                borderRadius: 8,
+                border: internalTab === 'chat' ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid transparent',
+                background: internalTab === 'chat' ? 'rgba(2, 132, 199, 0.18)' : 'transparent',
+                color: internalTab === 'chat' ? '#ffffff' : '#cbd5e1',
                 cursor: 'pointer',
-                boxShadow: internalTab === 'chat' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                textAlign: 'left',
                 transition: 'all 0.15s ease'
               }}
             >
-              <MessageSquare size={14} /> Redação & Chat
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  background: internalTab === 'chat' ? '#0284c7' : 'rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: internalTab === 'chat' ? '#ffffff' : '#94a3b8',
+                  flexShrink: 0
+                }}
+              >
+                <MessageSquare size={15} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: internalTab === 'chat' ? 800 : 600 }}>
+                  Redação & Chat
+                </div>
+                <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                  Diálogo por voz e escrita
+                </div>
+              </div>
             </button>
+          </div>
+        </div>
 
-            {/* 3. DIAGRAMADO */}
+        {/* NAVEGAÇÃO: SEÇÃO 2 - AGENTE EDITORIAL (PRODUÇÃO & AUDITORIA KDP) */}
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              fontSize: 10.5,
+              fontWeight: 800,
+              color: '#10b981',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              marginBottom: 6,
+              padding: '0 6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <span>🛡️ AGENTE EDITORIAL • KDP</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {/* 3. LIVRO DIAGRAMADO */}
             <button
               type="button"
               onClick={() => {
@@ -2220,20 +2336,40 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '7px 13px',
-                borderRadius: 7,
-                border: 'none',
-                background: internalTab === 'diagramado' ? '#ffffff' : 'transparent',
-                color: internalTab === 'diagramado' ? '#0284c7' : '#64748b',
-                fontSize: 12.5,
-                fontWeight: 800,
+                gap: 10,
+                padding: '9px 12px',
+                borderRadius: 8,
+                border: internalTab === 'diagramado' ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid transparent',
+                background: internalTab === 'diagramado' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                color: internalTab === 'diagramado' ? '#ffffff' : '#cbd5e1',
                 cursor: 'pointer',
-                boxShadow: internalTab === 'diagramado' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                textAlign: 'left',
                 transition: 'all 0.15s ease'
               }}
             >
-              <BookOpen size={14} /> Livro Diagramado
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  background: internalTab === 'diagramado' ? '#059669' : 'rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: internalTab === 'diagramado' ? '#ffffff' : '#94a3b8',
+                  flexShrink: 0
+                }}
+              >
+                <BookOpen size={15} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: internalTab === 'diagramado' ? 800 : 600 }}>
+                  Livro Diagramado
+                </div>
+                <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                  Visualização real & leitura
+                </div>
+              </div>
             </button>
 
             {/* 4. REVISÃO EDITORIAL */}
@@ -2246,28 +2382,50 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '7px 13px',
-                borderRadius: 7,
-                border: 'none',
-                background: internalTab === 'revisao' ? '#ffffff' : 'transparent',
-                color: internalTab === 'revisao' ? '#059669' : '#64748b',
-                fontSize: 12.5,
-                fontWeight: 800,
+                gap: 10,
+                padding: '9px 12px',
+                borderRadius: 8,
+                border: internalTab === 'revisao' ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid transparent',
+                background: internalTab === 'revisao' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                color: internalTab === 'revisao' ? '#ffffff' : '#cbd5e1',
                 cursor: 'pointer',
-                boxShadow: internalTab === 'revisao' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                textAlign: 'left',
                 transition: 'all 0.15s ease'
               }}
             >
-              <ClipboardCheck size={14} /> Revisão Editorial
-              {capsConcluidos > 0 && (
-                <span style={{ background: '#10b981', color: '#fff', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>
-                  {capsConcluidos}
-                </span>
-              )}
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  background: internalTab === 'revisao' ? '#059669' : 'rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: internalTab === 'revisao' ? '#ffffff' : '#94a3b8',
+                  flexShrink: 0
+                }}
+              >
+                <ClipboardCheck size={15} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 13, fontWeight: internalTab === 'revisao' ? 800 : 600 }}>
+                    Revisão Editorial
+                  </span>
+                  {capsConcluidos > 0 && (
+                    <span style={{ background: '#10b981', color: '#fff', borderRadius: 8, padding: '1px 6px', fontSize: 10, fontWeight: 800 }}>
+                      {capsConcluidos}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                  Auditoria ortográfica & KDP
+                </div>
+              </div>
             </button>
 
-            {/* 5. EXPORTAR */}
+            {/* 5. EXPORTAR KDP */}
             <button
               type="button"
               onClick={() => {
@@ -2277,27 +2435,61 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '7px 13px',
-                borderRadius: 7,
-                border: 'none',
-                background: internalTab === 'exportar' ? '#ffffff' : 'transparent',
-                color: internalTab === 'exportar' ? '#d97706' : '#64748b',
-                fontSize: 12.5,
-                fontWeight: 800,
+                gap: 10,
+                padding: '9px 12px',
+                borderRadius: 8,
+                border: internalTab === 'exportar' ? '1px solid rgba(245, 158, 11, 0.45)' : '1px solid transparent',
+                background: internalTab === 'exportar' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                color: internalTab === 'exportar' ? '#ffffff' : '#cbd5e1',
                 cursor: 'pointer',
-                boxShadow: internalTab === 'exportar' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                textAlign: 'left',
                 transition: 'all 0.15s ease'
               }}
             >
-              <Download size={14} /> Exportar KDP
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  background: internalTab === 'exportar' ? '#d97706' : 'rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: internalTab === 'exportar' ? '#ffffff' : '#94a3b8',
+                  flexShrink: 0
+                }}
+              >
+                <Download size={15} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: internalTab === 'exportar' ? 800 : 600 }}>
+                  Exportar KDP
+                </div>
+                <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                  Arquivos e publicação Amazon
+                </div>
+              </div>
             </button>
           </div>
+        </div>
 
+        {/* RODAPÉ DA SIDEBAR: VOZ NEURAL + BIBLIOTECA + AÇÕES RÁPIDAS */}
+        <div
+          style={{
+            marginTop: 'auto',
+            borderTop: '1px solid #1e293b',
+            paddingTop: 14,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8
+          }}
+        >
           {/* TOGGLE DE VOZ FEMININA DO COAUTHOR */}
-          <CoAuthorVoiceToggle />
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <CoAuthorVoiceToggle />
+          </div>
 
-          {/* BOTÃO DA BASE DE LIVROS PRONTOS */}
+          {/* BOTÃO MEUS LIVROS */}
           <button
             type="button"
             onClick={async () => {
@@ -2307,48 +2499,50 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '7px 12px',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '8px 12px',
               borderRadius: 8,
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              color: '#4f46e5',
-              fontSize: 12.5,
-              fontWeight: 800,
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#cbd5e1',
+              fontSize: 12,
+              fontWeight: 700,
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            title="Acessar base de livros já prontos ou em andamento para revisar e enriquecer"
+            title="Acessar base de livros já prontos ou em andamento"
           >
-            <BookOpen size={14} color="#4f46e5" />
+            <BookOpen size={14} color="#818cf8" />
             <span>Meus Livros ({readyBooksList.length})</span>
           </button>
 
-          {/* BOTÃO INDIVIDUALIZADO: NOVO LIVRO (EM BRANCO) */}
+          {/* BOTÃO NOVO LIVRO */}
           <button
             type="button"
             onClick={() => setShowNewBookConfirm(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '7px 12px',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '8px 12px',
               borderRadius: 8,
-              background: '#f0f9ff',
-              border: '1px solid #bae6fd',
-              color: '#0284c7',
-              fontSize: 12.5,
-              fontWeight: 800,
+              background: 'rgba(2, 132, 199, 0.15)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              color: '#38bdf8',
+              fontSize: 12,
+              fontWeight: 700,
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            title="Começar um novo livro 100% individualizado do zero"
+            title="Começar um novo livro individualizado do zero"
           >
-            <Sparkles size={14} color="#0284c7" />
+            <Sparkles size={14} color="#38bdf8" />
             <span>Novo Livro</span>
           </button>
 
-          {/* BOTÃO RÁPIDO DE DOWNLOAD DE PDF DIAGRAMADO */}
+          {/* BOTÃO DOWNLOAD RÁPIDO PDF KDP */}
           {capsConcluidos > 0 && (
             <button
               type="button"
@@ -2357,172 +2551,52 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '9px 12px',
                 borderRadius: 8,
-                background: isGeneratingPdf ? '#0369a1' : '#0284c7',
+                background: isGeneratingPdf ? '#0369a1' : 'linear-gradient(135deg, #0284c7, #0369a1)',
                 border: 'none',
                 color: '#ffffff',
                 fontSize: 12.5,
                 fontWeight: 800,
                 cursor: isGeneratingPdf ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
                 transition: 'all 0.15s ease'
               }}
             >
               {isGeneratingPdf ? <BookEnginAnimatedBook size="micro" /> : <Download size={14} />}
-              <span>{isGeneratingPdf ? 'Gerando...' : 'PDF KDP'}</span>
+              <span>{isGeneratingPdf ? 'Gerando...' : '📥 Baixar PDF KDP'}</span>
             </button>
           )}
         </div>
-      </header>
+      </aside>
 
       {/* ==================================================================== */}
-      {/* 2. SUB-BAR: ETAPAS EDITORIAIS DA OBRA (INTERATIVAS & CLICÁVEIS) */}
+      {/* 2. ÁREA PRINCIPAL DO ESTÚDIO (MAIN CONTENT) */}
       {/* ==================================================================== */}
-      <div
+      <main
         style={{
-          flexShrink: 0,
-          background: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
-          padding: '10px 24px',
+          flex: 1,
+          height: '100%',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 16,
-          overflowX: 'auto'
+          flexDirection: 'column',
+          overflow: 'hidden',
+          minWidth: 0,
+          position: 'relative'
         }}
       >
-        {/* ETAPAS DA OBRA - CLICÁVEIS A QUALQUER MOMENTO */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 800, color: '#475569' }}>
-            Processo Editorial:
-          </span>
-
-          {[
-            { num: 1, label: 'Tema & Ideia', done: Boolean(respostasBriefing.premissa) },
-            { num: 2, label: 'Título & Subtítulo', done: Boolean(bookState?.titulo && bookState.titulo !== 'Novo Livro') },
-            { num: 3, label: 'Sumário & Capítulos', done: capsConcluidos > 0 },
-            { num: 4, label: 'Redação & Coautoria', done: capsConcluidos >= totalCaps },
-            { num: 5, label: 'Revisão KDP', done: capsConcluidos >= totalCaps }
-          ].map((etapa, idx) => {
-            const isCurrentActive =
-              (internalTab === 'arquitetura' && (etapa.num === 1 || etapa.num === 2)) ||
-              (activeFlowStep === etapa.num) ||
-              (activeFlowStep === null && etapa.num === 4 && internalTab === 'chat') ||
-              (internalTab === 'revisao' && etapa.num === 5);
-            return (
-              <div key={etapa.num} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (etapa.num === 1 || etapa.num === 2) {
-                      setActiveFlowStep(null);
-                      setInternalTab('arquitetura');
-                    } else if (etapa.num === 3) {
-                      setActiveFlowStep(activeFlowStep === 3 ? null : 3);
-                    } else if (etapa.num === 4) {
-                      setActiveFlowStep(null);
-                      setInternalTab('chat');
-                    } else if (etapa.num === 5) {
-                      setActiveFlowStep(null);
-                      setInternalTab('revisao');
-                    }
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '5px 10px',
-                    borderRadius: 7,
-                    border: isCurrentActive ? '1.5px solid #0284c7' : '1px solid transparent',
-                    background: isCurrentActive ? '#f0f9ff' : 'transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title={`Clique para editar diretamente: ${etapa.label}`}
-                >
-                  <span
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 11,
-                      fontWeight: 800,
-                      background: etapa.done ? '#10b981' : (isCurrentActive ? '#0284c7' : '#e2e8f0'),
-                      color: etapa.done || isCurrentActive ? '#ffffff' : '#475569'
-                    }}
-                  >
-                    {etapa.done ? '✓' : etapa.num}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 12.5,
-                      fontWeight: isCurrentActive || etapa.done ? 700 : 500,
-                      color: isCurrentActive ? '#0284c7' : (etapa.done ? '#0f172a' : '#64748b')
-                    }}
-                  >
-                    {etapa.label}
-                  </span>
-                </button>
-                {idx < 4 && <ChevronRight size={13} color="#cbd5e1" />}
-              </div>
-            );
-          })}
+        {/* BARRA DE PROGRESSO VISUAL NO TOPO */}
+        <div style={{ flexShrink: 0, width: '100%', height: 3, background: '#e2e8f0' }}>
+          <div
+            style={{
+              height: '100%',
+              width: `${progressoPercent}%`,
+              background: 'linear-gradient(90deg, #0284c7, #10b981)',
+              transition: 'width 0.3s ease'
+            }}
+          />
         </div>
-
-        {/* SELETOR DE PERFIL EDITORIAL */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 800, color: '#475569' }}>
-            Perfil:
-          </span>
-
-          {[
-            { id: 'tecnico' as CoAuthorBookType, label: '⚙️ Técnico' },
-            { id: 'autoajuda' as CoAuthorBookType, label: '📘 Autoajuda' },
-            { id: 'pratico' as CoAuthorBookType, label: '🛠️ Guia Prático' },
-            { id: 'ficcao' as CoAuthorBookType, label: '📖 Ficção' }
-          ].map(item => {
-            const isSelected = tipoLivro === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                disabled={isAiProcessing}
-                onClick={() => handleChangeTipoLivro(item.id)}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: isAiProcessing ? 'not-allowed' : 'pointer',
-                  background: isSelected ? '#0284c7' : '#f8fafc',
-                  color: isSelected ? '#ffffff' : '#475569',
-                  border: isSelected ? '1px solid #0284c7' : '1px solid #cbd5e1',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* BARRA DE PROGRESSO VISUAL */}
-      <div style={{ flexShrink: 0, width: '100%', height: 3, background: '#e2e8f0' }}>
-        <div
-          style={{
-            height: '100%',
-            width: `${progressoPercent}%`,
-            background: 'linear-gradient(90deg, #0284c7, #10b981)',
-            transition: 'width 0.3s ease'
-          }}
-        />
-      </div>
 
       {/* TOAST DE NOTIFICAÇÃO DE HUMANIZAÇÃO */}
       {humanizeSuccessToast && (
@@ -4709,6 +4783,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
           </div>
         </div>
       )}
+      </main>
     </div>
   );
 };

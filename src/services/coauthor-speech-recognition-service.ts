@@ -2,7 +2,7 @@
 // SERVIÇO DE RECONHECIMENTO DE VOZ E CONVERSAÇÃO AO VIVO DO COAUTHOR
 // BookEngin — Conversa Fluida por Áudio com o Agente CoAuthor Editorial
 // Baseado no padrão Web Speech API (W3C / Google Speech Engine pt-BR)
-// Inclui Analisador de Áudio em Tempo Real (VAD), Ondas Sonoras e Modo Contínuo Viva-Voz
+// Inclui Analisador de Áudio em Tempo Real (VAD), Barge-in (Interrupção por Voz) e Viva-Voz Contínuo
 // ================================================================
 
 export interface SpeechRecognitionState {
@@ -13,6 +13,7 @@ export interface SpeechRecognitionState {
   finalTranscript: string;
   audioLevel: number; // 0 a 100
   continuousMode: boolean;
+  isLiveSessionActive: boolean;
   error: string | null;
   silenceCountdownMs: number | null;
 }
@@ -33,22 +34,26 @@ class CoAuthorSpeechRecognitionEngine {
   private interimTranscriptInternal = '';
   private finalTranscriptInternal = '';
   private audioLevelInternal = 0;
-  private continuousModeInternal = false;
+  private continuousModeInternal = true; // Por padrão ativado para conversa fluida
+  private isLiveSessionActiveInternal = false;
   private errorInternal: string | null = null;
 
   private silenceTimer: any = null;
   private countdownInterval: any = null;
   private silenceCountdownMs: number | null = null;
-  private readonly SILENCE_DELAY_MS = 1600; // Tempo de pausa na fala para envio automático
+  private readonly SILENCE_DELAY_MS = 1400; // 1.4s de pausa na fala para despacho natural
 
   private listeners: Set<SpeechStateListener> = new Set();
   private onMessageSubmitCallback: ((transcript: string) => void) | null = null;
+  private onUserInterruptedCallback: (() => void) | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
       try {
         const savedContinuous = localStorage.getItem(CoAuthorSpeechRecognitionEngine.STORAGE_CONTINUOUS_KEY);
-        this.continuousModeInternal = savedContinuous === 'true';
+        if (savedContinuous !== null) {
+          this.continuousModeInternal = savedContinuous === 'true';
+        }
       } catch {}
     }
   }
@@ -82,6 +87,7 @@ class CoAuthorSpeechRecognitionEngine {
       finalTranscript: this.finalTranscriptInternal,
       audioLevel: this.audioLevelInternal,
       continuousMode: this.continuousModeInternal,
+      isLiveSessionActive: this.isLiveSessionActiveInternal,
       error: this.errorInternal,
       silenceCountdownMs: this.silenceCountdownMs
     };
@@ -99,6 +105,24 @@ class CoAuthorSpeechRecognitionEngine {
    */
   public setOnSubmit(callback: (transcript: string) => void) {
     this.onMessageSubmitCallback = callback;
+  }
+
+  /**
+   * Define callback de Barge-In (quando o usuário começa a falar enquanto a IA fala, ela se cala)
+   */
+  public setOnUserInterrupted(callback: () => void) {
+    this.onUserInterruptedCallback = callback;
+  }
+
+  /**
+   * Ativa ou desativa a sessão de Conversa por Voz Viva-Voz
+   */
+  public setLiveSessionActive(active: boolean) {
+    this.isLiveSessionActiveInternal = active;
+    if (!active) {
+      this.stopListening(false);
+    }
+    this.notify();
   }
 
   /**
@@ -135,34 +159,31 @@ class CoAuthorSpeechRecognitionEngine {
 
       const now = ctx.currentTime;
       if (type === 'start') {
-        // Tom ascendente suave (440Hz -> 660Hz)
         osc.frequency.setValueAtTime(440, now);
-        osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+        osc.frequency.exponentialRampToValueAtTime(660, now + 0.1);
         gain.gain.setValueAtTime(0.04, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 0.15);
-        osc.start(now);
-        osc.stop(now + 0.15);
-      } else if (type === 'stop') {
-        // Tom harmônico de conclusão (660Hz -> 880Hz)
-        osc.frequency.setValueAtTime(587.33, now);
-        osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 0.14);
-        osc.start(now);
-        osc.stop(now + 0.14);
-      } else {
-        // Tom de cancelamento suave
-        osc.frequency.setValueAtTime(400, now);
-        osc.frequency.linearRampToValueAtTime(260, now + 0.1);
-        gain.gain.setValueAtTime(0.03, now);
         gain.gain.linearRampToValueAtTime(0.001, now + 0.12);
         osc.start(now);
         osc.stop(now + 0.12);
+      } else if (type === 'stop') {
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.09);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.11);
+        osc.start(now);
+        osc.stop(now + 0.11);
+      } else {
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(260, now + 0.08);
+        gain.gain.setValueAtTime(0.03, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
       }
 
       setTimeout(() => {
         try { ctx.close(); } catch {}
-      }, 300);
+      }, 250);
     } catch {}
   }
 
@@ -192,7 +213,7 @@ class CoAuthorSpeechRecognitionEngine {
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 256;
-      this.analyser.smoothingTimeConstant = 0.5;
+      this.analyser.smoothingTimeConstant = 0.4;
       source.connect(this.analyser);
 
       const bufferLength = this.analyser.frequencyBinCount;
@@ -210,7 +231,13 @@ class CoAuthorSpeechRecognitionEngine {
         const normalized = Math.min(100, Math.round((average / 128) * 100));
 
         this.audioLevelInternal = normalized;
-        this.isUserSpeakingInternal = normalized > 12;
+        const speakingNow = normalized > 13;
+        this.isUserSpeakingInternal = speakingNow;
+
+        // BARGE-IN: Se o usuário falou enquanto o agente estava falando, aciona interrupção imediata!
+        if (speakingNow && this.onUserInterruptedCallback) {
+          this.onUserInterruptedCallback();
+        }
 
         this.notify();
         this.animationFrameId = requestAnimationFrame(checkVolume);
@@ -250,7 +277,6 @@ class CoAuthorSpeechRecognitionEngine {
     this.clearSilenceTimer();
 
     const fullText = (this.finalTranscriptInternal + ' ' + this.interimTranscriptInternal).trim();
-    // Só inicia contagem se o usuário de fato já disse algo
     if (!fullText) return;
 
     let remainingMs = this.SILENCE_DELAY_MS;
@@ -258,14 +284,13 @@ class CoAuthorSpeechRecognitionEngine {
     this.notify();
 
     this.countdownInterval = setInterval(() => {
-      remainingMs -= 200;
+      remainingMs -= 150;
       this.silenceCountdownMs = Math.max(0, remainingMs);
       this.notify();
-    }, 200);
+    }, 150);
 
     this.silenceTimer = setTimeout(() => {
       this.clearSilenceTimer();
-      // Silêncio detectado após fala: envia automaticamente para a IA!
       this.commitAndSubmit();
     }, this.SILENCE_DELAY_MS);
   }
@@ -319,6 +344,11 @@ class CoAuthorSpeechRecognitionEngine {
       };
 
       this.recognition.onresult = (event: any) => {
+        // BARGE-IN: Ao receber som/palavras reconhecidas, cala o assistente caso ele ainda esteja falando
+        if (this.onUserInterruptedCallback) {
+          this.onUserInterruptedCallback();
+        }
+
         let interim = '';
         let finalSegment = '';
 
@@ -337,7 +367,6 @@ class CoAuthorSpeechRecognitionEngine {
         }
         this.interimTranscriptInternal = interim.trim();
 
-        // Usuário falou algo: reinicia o temporizador de silêncio para auto-envio
         this.resetSilenceTimer();
         this.notify();
       };
@@ -357,7 +386,7 @@ class CoAuthorSpeechRecognitionEngine {
       };
 
       this.recognition.onend = () => {
-        // Se ainda deveria estar escutando no modo contínuo e não houve erro fatal
+        // Se ainda está na sessão de conversa e deve continuar escutando
         if (this.isListeningInternal && !this.errorInternal) {
           try {
             this.recognition?.start();
@@ -385,7 +414,7 @@ class CoAuthorSpeechRecognitionEngine {
   }
 
   /**
-   * Finaliza a escuta e despacha a mensagem transcrita
+   * Finaliza a fala atual e despacha a mensagem transcrita para a IA
    */
   public commitAndSubmit(): void {
     const fullText = (this.finalTranscriptInternal + ' ' + this.interimTranscriptInternal).trim();

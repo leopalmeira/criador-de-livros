@@ -161,7 +161,7 @@ export class AmazonLiveService {
         if (localRes.ok) {
           const data = await localRes.json();
           if (data?.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
-            return data.suggestions;
+            return data.suggestions.map((s: any) => typeof s === 'string' ? s : s?.value).filter(Boolean);
           }
         }
       } catch {

@@ -2248,6 +2248,50 @@ ${ganchoImediato}`;
     return novoLivro;
   };
 
+  // Salva capítulo completo aprovado pelo CoAuthor (conversa guiada capítulo a capítulo)
+  const handleSaveChapterFromCoAuthor = (chapter: { numero: number; titulo: string; texto: string }) => {
+    const idx = chapter.numero - 1;
+    const currentLivro: LivroGerado = livro || {
+      titulo: titulo.trim() || 'Obra em Criação',
+      subtitulo: subtitulo.trim() || '',
+      autor: autor.trim() || 'Autor Book Engin',
+      genero: genero || 'Geral',
+      idioma: idioma || 'português',
+      capitulos: [],
+      meta: {
+        palavrasPorCap: 1000,
+        paginasAlvo: paginasAlvo || 100
+      }
+    };
+
+    const novosCaps = [...(currentLivro.capitulos || [])];
+    if (idx >= 0 && idx < novosCaps.length) {
+      novosCaps[idx] = {
+        titulo: chapter.titulo,
+        texto: chapter.texto
+      };
+    } else {
+      novosCaps.push({
+        titulo: chapter.titulo,
+        texto: chapter.texto
+      });
+    }
+
+    const updatedLivro: LivroGerado = {
+      ...currentLivro,
+      titulo: titulo.trim() || currentLivro.titulo,
+      subtitulo: subtitulo.trim() || currentLivro.subtitulo,
+      genero: genero || currentLivro.genero,
+      capitulos: novosCaps
+    };
+
+    setLivro(updatedLivro);
+    setCapAtual(novosCaps.length);
+    salvarProgressoLocal(updatedLivro, capaFinal || undefined, fundoImg || undefined, promoData || undefined);
+    setStatusMsg(`✓ Capítulo ${chapter.numero} ("${chapter.titulo}") gravado com sucesso no livro!`);
+    setStatusType('ok');
+  };
+
   // Incorporação direta de Capa Autoral gerada pelo CoAuthor no Livro
   const handleSetCoverFromCoAuthor = async (coverDataUrl: string) => {
     try {
@@ -7870,6 +7914,45 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
       {/* AGENTE COAUTHOR NO RODAPÉ DA TELA (CHAT DE ASSISTÊNCIA EDITORIAL, REVISÃO GLOBAL E CAPA AUTORAL) */}
       <CoAuthorFloatingAssistant
         bookState={livro}
+        currentConfig={{
+          titulo,
+          subtitulo,
+          tema: temaSelecionado,
+          subtema: subtemaSelecionado,
+          genero,
+          paginasAlvo,
+          maxCapitulos,
+          premissa: coAuthorContext.premissaVisao || topico
+        }}
+        onUpdateBookConfig={(cfg) => {
+          if (cfg.titulo !== undefined && cfg.titulo.trim()) {
+            setTitulo(cfg.titulo.trim());
+          }
+          if (cfg.subtitulo !== undefined && cfg.subtitulo.trim()) {
+            setSubtitulo(cfg.subtitulo.trim());
+          }
+          if (cfg.tema !== undefined && cfg.tema.trim()) {
+            setTemaSelecionado(cfg.tema.trim());
+          }
+          if (cfg.subtema !== undefined && cfg.subtema.trim()) {
+            setSubtemaSelecionado(cfg.subtema.trim());
+          }
+          if (cfg.genero !== undefined && cfg.genero.trim()) {
+            setGenero(cfg.genero.trim());
+          }
+          if (cfg.paginasAlvo !== undefined && cfg.paginasAlvo > 0) {
+            setPaginasAlvo(cfg.paginasAlvo);
+          }
+          if (cfg.maxCapitulos !== undefined && cfg.maxCapitulos > 0) {
+            setMaxCapitulos(cfg.maxCapitulos);
+          }
+          if (cfg.premissa !== undefined && cfg.premissa.trim()) {
+            setCoAuthorContext(prev => ({ ...prev, premissaVisao: cfg.premissa! }));
+            setTopico(cfg.premissa);
+          }
+          setStatusMsg('✨ Configurações da obra aplicadas pelo CoAuthor.');
+        }}
+        onSaveChapter={handleSaveChapterFromCoAuthor}
         onApplyEnrichment={handleApplyEnrichmentFromCoAuthor}
         onApplyFullBookEnrichment={handleApplyFullBookEnrichmentFromCoAuthor}
         onSetBookCover={handleSetCoverFromCoAuthor}
