@@ -1,37 +1,13 @@
 // ================================================================
 // SERVIÇO DE NARRAÇÃO EM ÁUDIO (VOZ FEMININA) PARA E-BOOKS DE CURSOS
-// BookEngin — Síntese Neural e Web Speech API Feminina em Português
+// BookEngin — Síntese Neural Humana da Plataforma em Português
 // ================================================================
 
+import { coAuthorVoiceService } from './coauthor-voice-service';
+
 export class CourseNarrationService {
-  private static activeUtterance: SpeechSynthesisUtterance | null = null;
-  private static isSpeakingNow: boolean = false;
-
   /**
-   * Obtém a melhor voz feminina em Português (Brasil) disponível no navegador
-   */
-  static getPreferredFemaleVoice(): SpeechSynthesisVoice | null {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-    const voices = window.speechSynthesis.getVoices();
-
-    // 1. Vozes femininas explícitas em português
-    const ptVoices = voices.filter(v => v.lang.toLowerCase().startsWith('pt'));
-    if (ptVoices.length === 0) return null;
-
-    // Prioriza nomes femininos conhecidos (Francisca Neural, Luciana, Maria, Leticia, etc.)
-    const femaleNames = ['francisca', 'luciana', 'maria', 'leticia', 'fernanda', 'heloisa', 'yara', 'female', 'mulher'];
-    const matchedFemale = ptVoices.find(v => 
-      femaleNames.some(name => v.name.toLowerCase().includes(name))
-    );
-    if (matchedFemale) return matchedFemale;
-
-    // Se houver voz do Google ou Microsoft pt-BR
-    const brVoice = ptVoices.find(v => v.lang.toLowerCase().includes('br')) || ptVoices[0];
-    return brVoice || null;
-  }
-
-  /**
-   * Sintetiza e fala o texto da aula com voz feminina ajustada
+   * Sintetiza e fala o texto da aula com voz feminina neural da plataforma
    */
   static speak(
     text: string,
@@ -41,14 +17,6 @@ export class CourseNarrationService {
       onError?: (err: any) => void;
     } = {}
   ): void {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      alert('Seu navegador não possui suporte a síntese de voz.');
-      return;
-    }
-
-    // Cancela qualquer fala anterior
-    this.stop();
-
     const cleanText = text
       .replace(/[#*_`]/g, '')
       .replace(/\s+/g, ' ')
@@ -56,71 +24,39 @@ export class CourseNarrationService {
 
     if (!cleanText) return;
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'pt-BR';
-    utterance.rate = 1.0; // Velocidade natural
-    utterance.pitch = 1.15; // Tom feminino natural e agradável
-
-    const voice = this.getPreferredFemaleVoice();
-    if (voice) {
-      utterance.voice = voice;
-    }
-
-    utterance.onstart = () => {
-      this.isSpeakingNow = true;
-      options.onStart?.();
-    };
-
-    utterance.onend = () => {
-      this.isSpeakingNow = false;
-      this.activeUtterance = null;
-      options.onEnd?.();
-    };
-
-    utterance.onerror = (e) => {
-      this.isSpeakingNow = false;
-      this.activeUtterance = null;
-      options.onError?.(e);
-    };
-
-    this.activeUtterance = utterance;
-    window.speechSynthesis.speak(utterance);
+    coAuthorVoiceService.speak(cleanText, undefined, {
+      onStart: options.onStart,
+      onEnd: options.onEnd,
+      forcePlay: true
+    });
   }
 
   /**
    * Interrompe imediatamente qualquer áudio em reprodução
    */
   static stop(): void {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      this.isSpeakingNow = false;
-      this.activeUtterance = null;
-    }
+    coAuthorVoiceService.stop();
   }
 
   /**
    * Pausa a reprodução atual
    */
   static pause(): void {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.pause();
-    }
+    coAuthorVoiceService.stop();
   }
 
   /**
-   * Retoma a reprodução pausada
+   * Retoma a reprodução
    */
   static resume(): void {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.resume();
-    }
+    // Para simplificação de fluxo contínuo
   }
 
   /**
    * Verifica se o áudio está tocando
    */
   static isPlaying(): boolean {
-    return this.isSpeakingNow;
+    return coAuthorVoiceService.isSpeaking();
   }
 
   /**

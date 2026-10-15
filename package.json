@@ -35,7 +35,7 @@
     "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
     "lucide-react": "^1.48.0",
-    "msedge-tts": "^2.0.9",
+    "msedge-tts": "^2.1.0",
     "pdfjs-dist": "^6.3.289",
     "pg": "^8.23.1",
     "puppeteer-core": "^25.10.0",

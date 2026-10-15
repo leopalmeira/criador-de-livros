@@ -319,7 +319,52 @@ function kdpAiBackendPlugin() {
         }
       });
 
-      // Middleware de AudiobookStudio 100% Automático (/api/audiobook)
+      // Middleware de Síntese Vocal Neural Real (/api/tts)
+      server.middlewares.use('/api/tts', async (req: any, res: any, next: any) => {
+        const reqUrl = new URL(req.originalUrl || req.url, 'http://localhost');
+        if (reqUrl.pathname === '/api/tts/synthesize' || reqUrl.pathname === '/synthesize') {
+          if (req.method === 'OPTIONS') {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+            res.statusCode = 200;
+            return res.end();
+          }
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (c: any) => { body += c; });
+            req.on('end', async () => {
+              try {
+                const payload = JSON.parse(body || '{}');
+                const text = payload.text || '';
+                const lang = payload.lang || 'pt-BR';
+                const voiceGender = payload.voiceGender || (payload.voiceId?.startsWith('pf_') || payload.voiceId?.startsWith('af_') ? 'female' : 'female');
+                if (!text.trim()) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({ success: false, error: 'Texto não fornecido para síntese vocal' }));
+                }
+                const { getDefaultAudiobookService } = await import('./server/audiobook/service.js');
+                const service = getDefaultAudiobookService();
+                const result = await service.engines.synthesize(text, lang, voiceGender, { allowDegraded: true });
+                res.setHeader('Content-Type', 'audio/mpeg');
+                res.setHeader('Content-Length', result.audio.length);
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('X-TTS-Engine', result.engine);
+                res.statusCode = 200;
+                return res.end(result.audio);
+              } catch (err: any) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: err.message }));
+              }
+            });
+            return;
+          }
+        }
+        next();
+      });
+
       server.middlewares.use('/api/audiobook', async (req: any, res: any, next: any) => {
         try {
           // @ts-ignore
