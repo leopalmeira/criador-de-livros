@@ -367,6 +367,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       input: {
         index: resolve(__dirname, 'index.html'),
@@ -375,6 +376,12 @@ export default defineConfig({
         background: resolve(__dirname, 'src/background/index.ts')
       },
       output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules/jspdf')) return 'vendor-jspdf';
+          if (id.includes('node_modules/pdfjs-dist')) return 'vendor-pdfjs';
+          if (id.includes('node_modules/lucide-react')) return 'vendor-lucide';
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) return 'vendor-react';
+        },
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'background') {
             return 'background.js';

@@ -5,11 +5,11 @@
   "main": "server.js",
   "scripts": {
     "dev": "vite",
-    "build:main": "node --max-old-space-size=440 ./node_modules/vite/bin/vite.js build",
-    "build:content": "node --max-old-space-size=440 ./node_modules/vite/bin/vite.js build --config vite.content.config.ts",
+    "build:main": "node --max-old-space-size=380 ./node_modules/vite/bin/vite.js build",
+    "build:content": "node --max-old-space-size=380 ./node_modules/vite/bin/vite.js build --config vite.content.config.ts",
     "build": "npm run build:main && npm run build:content",
-    "start": "node --max-old-space-size=440 server.js",
-    "start:local": "node --env-file=.env --max-old-space-size=440 server.js",
+    "start": "node --max-old-space-size=380 server.js",
+    "start:local": "node --env-file=.env --max-old-space-size=380 server.js",
     "preview": "node server.js",
     "test": "vitest run",
     "seed:admin": "node --env-file=.env scripts/seed-admin.js"
