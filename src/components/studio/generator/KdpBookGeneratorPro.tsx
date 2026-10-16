@@ -466,6 +466,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   // Estados Editoriais Avançados (Prompt Mestre)
   const [temaSelecionado, setTemaSelecionado] = useState('');
   const [subtemaSelecionado, setSubtemaSelecionado] = useState('');
+
+  // Wizard Editorial — Stepper de Progressão
+  const [wizardStep, setWizardStep] = useState<number>(1);
   const [faixaEtaria, setFaixaEtaria] = useState<AgeBandId | ''>('');
   const [uniqueAngle, setUniqueAngle] = useState('');
   const [bookPromise, setBookPromise] = useState('');
@@ -3513,8 +3516,82 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </span>
             </div>
 
+            {/* STEPPER VISUAL — WIZARD EDITORIAL PROMPT MASTER */}
+            <div style={{ flexShrink: 0, padding: '10px 4px 6px', borderBottom: '1px solid #e2e8f0', marginBottom: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                {[
+                  { step: 1, label: ui('Tema', 'Theme'), icon: '🎯' },
+                  { step: 2, label: ui('Mercado', 'Market'), icon: '📊' },
+                  { step: 3, label: ui('Título', 'Title'), icon: '📖' },
+                  { step: 4, label: ui('Diferencial', 'Edge'), icon: '💡' },
+                  { step: 5, label: ui('Estrutura', 'Structure'), icon: '✍️' },
+                  { step: 6, label: ui('Produção', 'Production'), icon: '🚀' },
+                ].map((s, idx, arr) => {
+                  const isActive = wizardStep === s.step;
+                  const isComplete = s.step === 1 ? !!temaSelecionado
+                    : s.step === 2 ? marketReferences.length > 0
+                    : s.step === 3 ? !!titulo.trim()
+                    : s.step === 4 ? !!(uniqueAngle.trim() || bookPromise.trim() || targetReader.trim())
+                    : s.step === 5 ? !!topico.trim() && !!autor.trim()
+                    : !!livro;
+                  const isUnlocked = s.step === 1 ? true
+                    : s.step === 2 ? !!temaSelecionado
+                    : s.step === 3 ? !!temaSelecionado
+                    : s.step === 4 ? !!titulo.trim()
+                    : s.step === 5 ? !!titulo.trim()
+                    : !!titulo.trim() && !!topico.trim();
+                  return (
+                    <React.Fragment key={s.step}>
+                      <button
+                        type="button"
+                        onClick={() => isUnlocked && setWizardStep(s.step)}
+                        title={isUnlocked ? s.label : ui('Complete as etapas anteriores', 'Complete prior steps')}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                          background: 'none', border: 'none', cursor: isUnlocked ? 'pointer' : 'not-allowed',
+                          opacity: isUnlocked ? 1 : 0.4, padding: '2px 4px', minWidth: 0, flex: 1,
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800,
+                          background: isActive ? 'linear-gradient(135deg, #2563eb, #0ea5e9)'
+                            : isComplete ? 'linear-gradient(135deg, #10b981, #059669)'
+                            : '#e2e8f0',
+                          color: (isActive || isComplete) ? '#ffffff' : '#94a3b8',
+                          boxShadow: isActive ? '0 0 10px rgba(37, 99, 235, 0.4)' : 'none',
+                          transition: 'all 0.25s ease'
+                        }}>
+                          {isComplete && !isActive ? '✓' : s.icon}
+                        </div>
+                        <span style={{
+                          fontSize: 9, fontWeight: isActive ? 800 : 600,
+                          color: isActive ? '#0f172a' : isComplete ? '#059669' : '#94a3b8',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          maxWidth: 56
+                        }}>
+                          {s.label}
+                        </span>
+                      </button>
+                      {idx < arr.length - 1 && (
+                        <div style={{
+                          flex: '0 0 auto', height: 2, width: 12, borderRadius: 1,
+                          background: isComplete ? '#10b981' : '#e2e8f0',
+                          transition: 'background 0.3s ease', marginTop: -8
+                        }} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* CORPO DO FORMULÁRIO COM ROLAGEM INDEPENDENTE E DESIGN REFINADO */}
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 6 }}>
+
+            {/* ═══════ WIZARD STEP 1: TEMA CENTRAL ═══════ */}
+            <div style={{ display: wizardStep === 1 ? undefined : 'none' }}>
 
             {/* CARD DO AGENTE COAUTHOR (CONVERSACIONAL & FÓRMULA BESTSELLER AMAZON) */}
             <CoAuthorCard
@@ -3647,6 +3724,18 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
+            {/* Navegação Step 1 → 2 */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12, marginBottom: 6 }}>
+              <button type="button" onClick={() => { if (temaSelecionado) setWizardStep(2); else setWizardStep(3); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: temaSelecionado ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: temaSelecionado ? 'pointer' : 'not-allowed', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+                {ui('Próximo', 'Next')} <ChevronRight size={15} />
+              </button>
+            </div>
+
+            </div>{/* FIM WIZARD STEP 1 */}
+
+            {/* ═══════ WIZARD STEP 2: INTELIGÊNCIA DE MERCADO ═══════ */}
+            <div style={{ display: wizardStep === 2 ? undefined : 'none' }}>
+
             {/* ETAPA 2 — INTELIGÊNCIA DE MERCADO AMAZON KDP */}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -3760,7 +3849,20 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
+            {/* Navegação Step 2 ← → 3 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
+              <button type="button" onClick={() => setWizardStep(1)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+              </button>
+              <button type="button" onClick={() => setWizardStep(3)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+                {ui('Próximo', 'Next')} <ChevronRight size={15} />
+              </button>
+            </div>
 
+            </div>{/* FIM WIZARD STEP 2 */}
+
+            {/* ═══════ WIZARD STEP 3: TÍTULO & SUBTÍTULO ═══════ */}
+            <div style={{ display: wizardStep === 3 ? undefined : 'none' }}>
 
             {/* ETAPA 3 — TÍTULO DO LIVRO (COM IA E VALIDADOR DE ORIGINALIDADE) */}
             <div style={{ marginBottom: 12 }}>
@@ -4017,6 +4119,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
+            {/* Navegação Step 3 ← → 4 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
+              <button type="button" onClick={() => setWizardStep(2)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+              </button>
+              <button type="button" onClick={() => { if (titulo.trim()) setWizardStep(4); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: titulo.trim() ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: titulo.trim() ? 'pointer' : 'not-allowed', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+                {ui('Próximo', 'Next')} <ChevronRight size={15} />
+              </button>
+            </div>
+
+            </div>{/* FIM WIZARD STEP 3 */}
+
+            {/* ═══════ WIZARD STEP 4: DIFERENCIAL EDITORIAL ═══════ */}
+            <div style={{ display: wizardStep === 4 ? undefined : 'none' }}>
+
             {/* ETAPA 4 — DIFERENCIAL EDITORIAL & ESTRATÉGIA KDP (COM SUGESTÕES DE IA) */}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -4200,6 +4317,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               </div>
             </div>
+
+            {/* Navegação Step 4 ← → 5 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
+              <button type="button" onClick={() => setWizardStep(3)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+              </button>
+              <button type="button" onClick={() => setWizardStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+                {ui('Próximo', 'Next')} <ChevronRight size={15} />
+              </button>
+            </div>
+
+            </div>{/* FIM WIZARD STEP 4 */}
+
+            {/* ═══════ WIZARD STEP 5: ESTRUTURA & CONFIGURAÇÃO ═══════ */}
+            <div style={{ display: wizardStep === 5 ? undefined : 'none' }}>
 
             {/* Autor */}
             <div style={{ marginBottom: 12 }}>
@@ -4437,6 +4569,28 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 />
                 Incluir sumário diagramado com numeração KDP
               </label>
+            </div>
+
+            {/* Navegação Step 5 ← → 6 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
+              <button type="button" onClick={() => setWizardStep(4)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+              </button>
+              <button type="button" onClick={() => { if (titulo.trim() && topico.trim()) setWizardStep(6); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: (titulo.trim() && topico.trim()) ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: (titulo.trim() && topico.trim()) ? 'pointer' : 'not-allowed', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+                🚀 {ui('Ir para Produção', 'Go to Production')} <ChevronRight size={15} />
+              </button>
+            </div>
+
+            </div>{/* FIM WIZARD STEP 5 */}
+
+            {/* ═══════ WIZARD STEP 6: PRODUÇÃO ═══════ */}
+            <div style={{ display: wizardStep === 6 ? undefined : 'none' }}>
+
+            {/* Navegação Step 6 ← (Voltar) */}
+            <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 8, marginBottom: 10 }}>
+              <button type="button" onClick={() => setWizardStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <ChevronLeft size={14} /> {ui('Voltar à Estrutura', 'Back to Structure')}
+              </button>
             </div>
 
             {/* INFORMAÇÃO DE CRÉDITOS DO LIVRO (US$ 3 POR LIVRO GERADO) */}
@@ -4778,6 +4932,9 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
             </div>
+
+            </div>{/* FIM WIZARD STEP 6 */}
+
             </div>
           </div>
 
