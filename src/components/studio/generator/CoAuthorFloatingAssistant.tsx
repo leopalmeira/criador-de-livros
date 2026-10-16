@@ -6,6 +6,7 @@ import {
   Image as ImageIcon, Download, CheckSquare, Search, Volume2, VolumeX
 } from 'lucide-react';
 import { chamarGeminiTexto, chamarImagen } from '../../../services/kdp-ai-engine';
+import { executarPipelineCompletoCapaReplicate } from '../../../services/replicate-book-cover-pipeline';
 import { cleanChapterTitle } from '../../../services/kdp-editorial-review';
 import {
   fetchAllReadyBooks,
@@ -70,8 +71,12 @@ interface Message {
   chapterProposalCard?: ChapterProposal;
   coverImage?: {
     dataUrl: string;
+    backCoverUrl?: string;
+    wrapUrl?: string;
+    rawImageUrl?: string;
     promptUsed: string;
     applied?: boolean;
+    activeTab?: 'frente' | 'contracapa' | 'wrap';
   };
   suggestionCard?: {
     chapterNumber: number;
@@ -257,12 +262,35 @@ ${capsResumo}
 
   const buildBookFullContext = buildEnredoFullContext;
 
-  // Gerador de Capa Autoral com IA diretamente dentro do chat
+  // Alternar abas de visualização da capa no chat (Frente / Contracapa / Wrap Aberto KDP)
+  const handleToggleCoverTab = (msgId: string, tab: 'frente' | 'contracapa' | 'wrap') => {
+    setMessages(prev => prev.map(m => {
+      if (m.id === msgId && m.coverImage) {
+        return {
+          ...m,
+          coverImage: { ...m.coverImage, activeTab: tab }
+        };
+      }
+      return m;
+    }));
+  };
+
+  // Download direto do asset da capa gerada
+  const handleDownloadCoverAsset = (dataUrl: string, filename: string) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  // Gerador de Capa Autoral com IA via Replicate FLUX.1 + Diagramação Estruturada KDP
   const handleGenerateAuthorCover = async (userPrompt?: string) => {
     setIsLoading(true);
-    setLoadingStatus('🎨 CoAuthor pintando conceito de Capa Autoral com IA...');
+    setLoadingStatus('🎨 CoAuthor estruturando prompt e acionando API do Replicate...');
 
-    const promptUsuario = userPrompt || 'Crie uma capa autoral e impactante para este livro.';
+    const promptUsuario = userPrompt || 'Crie a capa com o Replicate, contracapa e wrap completo KDP.';
     const userMsg: Message = {
       id: `msg_user_${Date.now()}`,
       sender: 'user',
@@ -272,53 +300,63 @@ ${capsResumo}
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      const systemArt = `Você é um Diretor de Arte Editorial e Capista de Elite para bestsellers da Amazon KDP.
-Crie um prompt em INGLÊS para geração de imagem artística no formato vertical 2:3.
-O prompt deve focar em:
-- Composição cinematográfica ou refinada adequada ao gênero "${currentBookGenre}" e livro "${currentBookTitle}".
-- Iluminação dramática, texturas ricas, atmosfera imersiva inspirada no enredo: "${storyArc.slice(0, 300)}".
-- ESPAÇO NEGATIVO generoso no topo para tipografia.
-- REGRA VITAL: SEM TEXTO, SEM LETRAS, SEM SELOS (no text, no letters, no watermark, no logos).`;
+      // Feedback imediato falado para confirmação instantânea
+      coAuthorVoiceService.speak(
+        `Gerando a capa frontal, a contracapa e o wrap completo com a API do Replicate para o seu livro.`,
+        `status_cover_${Date.now()}`
+      );
 
-      const promptDirection = `Instrução do Autor: "${promptUsuario}".
-Título do Livro: "${currentBookTitle}"
-Gênero: "${currentBookGenre}"
-Enredo Principal: "${storyArc.slice(0, 400)}"
+      const numPags = currentBookCaps.length ? Math.max(24, currentBookCaps.length * 6) : (currentConfig?.paginasAlvo || 100);
 
-Escreva APENAS o prompt em inglês detalhado para o gerador de imagem:`;
-
-      const artRes = await chamarGeminiTexto(promptDirection, {
-        systemInstruction: systemArt,
-        temperature: 0.9,
-        maxTokens: 300
+      const resultado = await executarPipelineCompletoCapaReplicate({
+        titulo: currentBookTitle,
+        subtitulo: currentBookSubtitle,
+        autor: currentBookAuthor,
+        genero: currentBookGenre,
+        premissa: storyArc || currentBookTitle,
+        customPrompt: userPrompt,
+        numeroPaginas: numPags
       });
 
-      const promptFinal = (artRes?.texto || '').trim() || `Cinematic book cover art, atmospheric lighting, ${currentBookGenre}, inspired by ${currentBookTitle}, masterpiece, clean negative space, no text, 8k`;
-
-      const imagemUrl = await chamarImagen(promptFinal, '2:3');
+      // Sincroniza imediatamente com a bancada do estúdio
+      if (onSetBookCover && resultado.capaFrontalDataUrl) {
+        onSetBookCover(resultado.capaFrontalDataUrl);
+      }
 
       const agentMsg: Message = {
         id: `msg_agent_${Date.now()}`,
         sender: 'agent',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `Criei uma proposta de Capa Autoral exclusiva para **"${currentBookTitle}"** inspirada no nosso enredo! Compus uma arte dramática com espaço limpo para a tipografia KDP.\n\nVocê pode incorporá-la imediatamente ao livro ou me pedir ajustes ("deixe mais sombria", "mude as cores para azul", etc.):`,
+        text: `🎨 **Capa Oficial, Contracapa e Wrap KDP Gerados com Sucesso via Replicate!**\n\nEnviei um prompt artístico em inglês altamente estruturado para a API do Replicate. A diagramação seguiu com rigor a hierarquia editorial:\n• **Título imponente no topo** com tipografia alinhada ao gênero;\n• **Subtítulo posicionado logo acima do nome do autor** na base;\n• **Nome do autor no rodapé** com espaçamento editorial;\n• **Contracapa 6x9** com sinopse, benefícios e código KDP;\n• **Capa Aberta Completa (Wrap)** com lombada proporcional calculada para ${numPags} páginas.\n\nVocê pode alternar entre as 3 visões, baixar os arquivos em alta resolução ou solicitar variações.`,
         coverImage: {
-          dataUrl: imagemUrl,
-          promptUsed: promptFinal,
-          applied: false
+          dataUrl: resultado.capaFrontalDataUrl,
+          backCoverUrl: resultado.contracapaDataUrl,
+          wrapUrl: resultado.wrapDataUrl,
+          rawImageUrl: resultado.fundoImgUrl,
+          promptUsed: resultado.promptEstruturado,
+          applied: true,
+          activeTab: 'frente'
         }
       };
 
       setMessages(prev => [...prev, agentMsg]);
-      coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
+      coAuthorVoiceService.speak(
+        `Sua capa frontal, contracapa e a visão aberta do livro foram geradas com a API do Replicate! O título está em destaque no topo, o subtítulo logo acima do seu nome de autor e o fundo em total harmonia com o livro.`,
+        agentMsg.id
+      );
     } catch (err: any) {
+      console.error('Erro na pipeline Replicate de capas:', err);
       const errM: Message = {
         id: `msg_err_${Date.now()}`,
         sender: 'system',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `Erro ao gerar capa autoral: ${err.message || 'Verifique a conexão com a API'}.`
+        text: `Erro ao gerar capa com Replicate: ${err.message || 'Verifique a conexão com a API'}.`
       };
       setMessages(prev => [...prev, errM]);
+      coAuthorVoiceService.speak(
+        `Ocorreu uma instabilidade ao gerar a capa com o Replicate. Por favor, tente novamente em instantes.`,
+        errM.id
+      );
     } finally {
       setIsLoading(false);
       setLoadingStatus('CoAuthor analisando...');
@@ -748,7 +786,13 @@ TEXTO:
       return;
     }
 
-    if (actionType === 'capa' || /capa autoral|gerar capa|criar capa|fazer capa|mudar capa/i.test(textToSend)) {
+    // Desvio prioritário para Geração de Capa via Replicate FLUX.1 (Capa Frontal, Contracapa e Wrap KDP)
+    if (
+      actionType === 'capa' ||
+      /replicate|gerar capa|criar capa|fazer capa|fa[çc]a a capa|crie a capa|gerar a capa|capa oficial|capa e contracapa|duas capas|contracapa|wrap completo|wrap kdp|capa do livro|capa autoral|mudar capa|nova capa|desenhar capa/i.test(
+        textToSend
+      )
+    ) {
       if (!userPrompt) setInputText('');
       await handleGenerateAuthorCover(textToSend);
       return;
@@ -1540,88 +1584,263 @@ Responda em tom conversacional para áudio mantendo foco 100% no enredo:`;
                       }}>
                         {msg.text}
 
-                        {/* EXIBIÇÃO DE CAPA AUTORAL GERADA NO CHAT COM BOTÃO DE INCORPORAÇÃO */}
+                        {/* SUÍTE COMPLETA DE CAPAS KDP VIA REPLICATE (FRENTE, CONTRACAPA E WRAP ABERTO) */}
                         {msg.coverImage && (
                           <div style={{
                             marginTop: 12,
-                            padding: 10,
-                            borderRadius: 10,
+                            padding: 12,
+                            borderRadius: 12,
                             background: '#0f172a',
-                            border: '1px solid #334155',
-                            color: '#ffffff'
+                            border: '1.5px solid #1e293b',
+                            color: '#ffffff',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                              <span style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <Palette size={13} /> Proposta de Capa Autoral
+                            {/* CABEÇALHO DO CARD DE CAPAS REPLICATE */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Palette size={14} color="#38bdf8" />
+                                Suíte de Capas KDP • Replicate FLUX.1
                               </span>
-                              {msg.coverImage.applied && (
+                              {msg.coverImage.applied ? (
                                 <span style={{ background: '#059669', color: '#ffffff', fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
                                   ✓ Incorporada ao Livro
+                                </span>
+                              ) : (
+                                <span style={{ background: '#f59e0b', color: '#000000', fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 800 }}>
+                                  Pronta para Incorporar
                                 </span>
                               )}
                             </div>
 
-                            <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#000000', marginBottom: 10 }}>
-                              <img
-                                src={msg.coverImage.dataUrl}
-                                alt="Capa Autoral do CoAuthor"
-                                style={{
-                                  width: '100%',
-                                  maxHeight: 320,
-                                  objectFit: 'contain',
-                                  display: 'block',
-                                  margin: '0 auto'
-                                }}
-                              />
-                            </div>
-
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              {!msg.coverImage.applied ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleApplyCoverToBook(msg.coverImage!, msg.id)}
-                                  style={{
-                                    flex: 1,
-                                    padding: '8px 12px',
-                                    borderRadius: 6,
-                                    background: 'linear-gradient(135deg, #059669, #047857)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 6,
-                                    boxShadow: '0 2px 4px rgba(5, 150, 105, 0.3)'
-                                  }}
-                                >
-                                  <Sparkles size={13} /> Incorporar esta Capa ao Livro
-                                </button>
-                              ) : (
-                                <div style={{ fontSize: 11, color: '#34d399', fontWeight: 700, padding: 4 }}>
-                                  ✓ Esta imagem agora é o fundo oficial do seu livro!
-                                </div>
-                              )}
-
+                            {/* SELETOR DE ABAS DAS CAPAS (FRENTE / CONTRACAPA / WRAP ABERTO) */}
+                            <div style={{
+                              display: 'flex',
+                              gap: 6,
+                              marginBottom: 10,
+                              background: '#1e293b',
+                              padding: 4,
+                              borderRadius: 8
+                            }}>
                               <button
                                 type="button"
-                                onClick={() => handleGenerateAuthorCover(`Crie uma variação com iluminação ou atmosfera alternativa para a capa de "${currentBookTitle}".`)}
+                                onClick={() => handleToggleCoverTab(msg.id, 'frente')}
                                 style={{
-                                  padding: '8px 12px',
+                                  flex: 1,
+                                  padding: '6px 8px',
                                   borderRadius: 6,
-                                  background: '#1e293b',
-                                  color: '#cbd5e1',
-                                  border: '1px solid #475569',
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  cursor: 'pointer'
+                                  border: 'none',
+                                  background: (msg.coverImage.activeTab || 'frente') === 'frente' ? '#0284c7' : 'transparent',
+                                  color: (msg.coverImage.activeTab || 'frente') === 'frente' ? '#ffffff' : '#94a3b8',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
                                 }}
                               >
-                                🔄 Outra Variação
+                                📕 Capa Frontal
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCoverTab(msg.id, 'contracapa')}
+                                style={{
+                                  flex: 1,
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: 'none',
+                                  background: msg.coverImage.activeTab === 'contracapa' ? '#0284c7' : 'transparent',
+                                  color: msg.coverImage.activeTab === 'contracapa' ? '#ffffff' : '#94a3b8',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                📄 Contracapa
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCoverTab(msg.id, 'wrap')}
+                                style={{
+                                  flex: 1,
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: 'none',
+                                  background: msg.coverImage.activeTab === 'wrap' ? '#0284c7' : 'transparent',
+                                  color: msg.coverImage.activeTab === 'wrap' ? '#ffffff' : '#94a3b8',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                📖 Capa Aberta (Wrap)
                               </button>
                             </div>
+
+                            {/* VISUALIZADOR DA CAPA SELECIONADA */}
+                            {(() => {
+                              const activeTab = msg.coverImage.activeTab || 'frente';
+                              const currentDataUrl =
+                                activeTab === 'contracapa'
+                                  ? (msg.coverImage.backCoverUrl || msg.coverImage.dataUrl)
+                                  : activeTab === 'wrap'
+                                  ? (msg.coverImage.wrapUrl || msg.coverImage.dataUrl)
+                                  : msg.coverImage.dataUrl;
+
+                              const assetFilename =
+                                activeTab === 'contracapa'
+                                  ? `${currentBookTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}_contracapa_kdp.png`
+                                  : activeTab === 'wrap'
+                                  ? `${currentBookTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}_wrap_aberto_kdp.png`
+                                  : `${currentBookTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}_capa_frontal_kdp.png`;
+
+                              return (
+                                <>
+                                  <div style={{
+                                    position: 'relative',
+                                    borderRadius: 8,
+                                    overflow: 'hidden',
+                                    background: '#020617',
+                                    marginBottom: 10,
+                                    border: '1px solid #334155',
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    padding: activeTab === 'wrap' ? 8 : 4
+                                  }}>
+                                    <img
+                                      src={currentDataUrl}
+                                      alt={activeTab}
+                                      style={{
+                                        width: '100%',
+                                        maxHeight: activeTab === 'wrap' ? 240 : 340,
+                                        objectFit: 'contain',
+                                        display: 'block'
+                                      }}
+                                    />
+                                  </div>
+
+                                  {/* PROMPT ESTRUTURADO ENVIADO AO REPLICATE */}
+                                  {msg.coverImage.promptUsed && (
+                                    <details style={{
+                                      marginBottom: 10,
+                                      background: '#090d16',
+                                      borderRadius: 6,
+                                      border: '1px solid #1e293b',
+                                      fontSize: 10
+                                    }}>
+                                      <summary style={{
+                                        padding: '6px 10px',
+                                        cursor: 'pointer',
+                                        color: '#38bdf8',
+                                        fontWeight: 700,
+                                        userSelect: 'none'
+                                      }}>
+                                        🔍 Ver Prompt Estruturado Replicate (Inglês)
+                                      </summary>
+                                      <div style={{
+                                        padding: '8px 10px',
+                                        borderTop: '1px solid #1e293b',
+                                        color: '#cbd5e1',
+                                        fontFamily: 'monospace',
+                                        fontSize: 9.5,
+                                        lineHeight: 1.45,
+                                        whiteSpace: 'pre-wrap',
+                                        maxHeight: 110,
+                                        overflowY: 'auto'
+                                      }}>
+                                        {msg.coverImage.promptUsed}
+                                      </div>
+                                    </details>
+                                  )}
+
+                                  {/* BOTÕES DE AÇÃO (DOWNLOAD, INCORPORAR, NOVA VARIAÇÃO) */}
+                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadCoverAsset(currentDataUrl, assetFilename)}
+                                      style={{
+                                        flex: 1,
+                                        minWidth: 120,
+                                        padding: '7px 10px',
+                                        borderRadius: 6,
+                                        background: '#1e293b',
+                                        border: '1px solid #475569',
+                                        color: '#f8fafc',
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 5
+                                      }}
+                                      title="Baixar imagem atual em alta resolução PNG"
+                                    >
+                                      <Download size={13} /> Baixar {activeTab === 'wrap' ? 'Wrap' : activeTab === 'contracapa' ? 'Contracapa' : 'Frente'}
+                                    </button>
+
+                                    {!msg.coverImage.applied ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApplyCoverToBook(msg.coverImage!, msg.id)}
+                                        style={{
+                                          flex: 1,
+                                          minWidth: 140,
+                                          padding: '7px 10px',
+                                          borderRadius: 6,
+                                          background: 'linear-gradient(135deg, #059669, #047857)',
+                                          color: '#ffffff',
+                                          border: 'none',
+                                          fontSize: 10.5,
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 5,
+                                          boxShadow: '0 2px 4px rgba(5, 150, 105, 0.3)'
+                                        }}
+                                      >
+                                        <Sparkles size={13} /> Incorporar ao Livro
+                                      </button>
+                                    ) : (
+                                      <div style={{
+                                        fontSize: 10,
+                                        color: '#34d399',
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                        padding: '0 6px'
+                                      }}>
+                                        <Check size={13} /> Capa Ativa
+                                      </div>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleGenerateAuthorCover(`Gere outra proposta de capa no Replicate com iluminação dramática alternativa para "${currentBookTitle}".`)}
+                                      style={{
+                                        padding: '7px 10px',
+                                        borderRadius: 6,
+                                        background: '#334155',
+                                        color: '#e2e8f0',
+                                        border: 'none',
+                                        fontSize: 10.5,
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 4
+                                      }}
+                                    >
+                                      <RefreshCw size={12} /> Replicate
+                                    </button>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         )}
 

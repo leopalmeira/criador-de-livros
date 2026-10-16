@@ -1762,15 +1762,16 @@ ${ganchoImediato}`;
     );
 
     // Dimensionamento harmônico do título (ou personalizado pelo autor)
-    let fontSizeTit = customTituloConfig?.fontSize || 110;
+    let fontSizeTit = customTituloConfig?.fontSize || 116;
     if (!customTituloConfig?.fontSize) {
-      if (obraTitulo.length > 50) fontSizeTit = 74;
-      else if (obraTitulo.length > 32) fontSizeTit = 86;
-      else if (obraTitulo.length > 20) fontSizeTit = 98;
-      else if (obraTitulo.length < 14) fontSizeTit = 122; // Títulos concisos ganham presença imponente
+      if (obraTitulo.length > 50) fontSizeTit = 82;
+      else if (obraTitulo.length > 32) fontSizeTit = 96;
+      else if (obraTitulo.length > 20) fontSizeTit = 114;
+      else if (obraTitulo.length < 14) fontSizeTit = 138; // Títulos concisos ganham presença imponente lá no topo
     }
 
-    const baseCentroTitulo = layoutTitulo === 'topo' ? 440 : 1040;
+    // TÍTULO LÁ EM CIMA GRANDE (Terço Superior da Capa)
+    const baseCentroTitulo = 420;
     const centroTitulo = baseCentroTitulo + (customTituloConfig?.offsetY || 0);
 
     const chosenFontFamily = customTituloConfig?.fontFamily || configTipo.fontFamilyTitle;
@@ -1788,7 +1789,7 @@ ${ganchoImediato}`;
     let yTit = Math.round(centroTitulo - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
     const xTitulo = tituloAlinhadoEsquerda ? 150 : canvas.width / 2;
 
-    // Gradiente vertical para conferir acabamento harmônico ao título
+    // Gradiente vertical para conferir acabamento harmônico e nobre ao título
     const gradTitulo = ctx.createLinearGradient(0, yTit - lineHTit, 0, yTit + alturaTotalTit);
     gradTitulo.addColorStop(0, configTipo.titleGradient[0]);
     gradTitulo.addColorStop(1, configTipo.titleGradient[1]);
@@ -1802,40 +1803,8 @@ ${ganchoImediato}`;
       yTit += lineHTit;
     });
 
-    // 2. SUBTÍTULO COMERCIAL HARMONIZADO
-    if (obraSubtituloLimpo) {
-      ctx.textAlign = 'center';
-      let fontSizeSub = 44;
-      if (obraSubtituloLimpo.length > 90) fontSizeSub = 36;
-      else if (obraSubtituloLimpo.length > 55) fontSizeSub = 40;
-
-      ctx.font = `${configTipo.fontWeightSubtitle} ${fontSizeSub}px ${configTipo.fontFamilySubtitle}`;
-      ctx.fillStyle = configTipo.subtitleColor;
-      ctx.shadowColor = configTipo.shadowColor;
-      ctx.shadowBlur = Math.round(configTipo.shadowBlur * 0.75);
-
-      const linhasSub = quebrarLinhas(ctx, obraSubtituloLimpo, canvas.width - 280);
-      const lineHSub = Math.round(fontSizeSub * 1.35);
-      const alturaTotalSub = linhasSub.length * lineHSub;
-
-      let ySub: number;
-      if (layoutTitulo === 'topo') {
-        ySub = yTit + 50;
-      } else {
-        const yBaseSub = 2100;
-        ySub = Math.max(1760, yBaseSub - alturaTotalSub + fontSizeSub);
-      }
-
-      linhasSub.forEach(l => {
-        ctx.strokeStyle = configTipo.strokeColor;
-        ctx.lineWidth = Math.max(2, configTipo.strokeWidth - 1);
-        ctx.strokeText(l, canvas.width / 2, ySub);
-        ctx.fillText(l, canvas.width / 2, ySub);
-        ySub += lineHSub;
-      });
-    }
-
-    // 3. NOME DO AUTOR NO RODAPÉ COM TIPOGRAFIA HARMONIOSA
+    // 2. NOME DO AUTOR NA PARTE DE BAIXO DO LIVRO (RODAPÉ)
+    const yAutor = canvas.height - 140; // 2260px
     ctx.shadowBlur = configTipo.shadowBlur;
     ctx.shadowColor = configTipo.shadowColor;
     ctx.font = `${configTipo.fontWeightAuthor} 46px ${configTipo.fontFamilyAuthor}`;
@@ -1846,8 +1815,37 @@ ${ganchoImediato}`;
       : obraAutorLimpo;
     ctx.strokeStyle = configTipo.strokeColor;
     ctx.lineWidth = Math.max(2, configTipo.strokeWidth - 1);
-    ctx.strokeText(spacedAutor, canvas.width / 2, canvas.height - 140);
-    ctx.fillText(spacedAutor, canvas.width / 2, canvas.height - 140);
+    ctx.strokeText(spacedAutor, canvas.width / 2, yAutor);
+    ctx.fillText(spacedAutor, canvas.width / 2, yAutor);
+
+    // 3. SUBTÍTULO COMERCIAL HARMONIZADO: UM POUCO ACIMA DO NOME DO AUTOR
+    if (obraSubtituloLimpo) {
+      ctx.textAlign = 'center';
+      let fontSizeSub = 42;
+      if (obraSubtituloLimpo.length > 90) fontSizeSub = 36;
+      else if (obraSubtituloLimpo.length > 55) fontSizeSub = 39;
+
+      ctx.font = `${configTipo.fontWeightSubtitle} ${fontSizeSub}px ${configTipo.fontFamilySubtitle}`;
+      ctx.fillStyle = configTipo.subtitleColor;
+      ctx.shadowColor = configTipo.shadowColor;
+      ctx.shadowBlur = Math.round(configTipo.shadowBlur * 0.75);
+
+      const linhasSub = quebrarLinhas(ctx, obraSubtituloLimpo, canvas.width - 280);
+      const lineHSub = Math.round(fontSizeSub * 1.34);
+      const alturaTotalSub = linhasSub.length * lineHSub;
+
+      // Ancorado imediatamente acima do nome do autor com respiro editorial
+      const yBaseSub = yAutor - 90;
+      let ySub = yBaseSub - alturaTotalSub + fontSizeSub;
+
+      linhasSub.forEach(l => {
+        ctx.strokeStyle = configTipo.strokeColor;
+        ctx.lineWidth = Math.max(2, configTipo.strokeWidth - 1);
+        ctx.strokeText(l, canvas.width / 2, ySub);
+        ctx.fillText(l, canvas.width / 2, ySub);
+        ySub += lineHSub;
+      });
+    }
 
     return canvas.toDataURL('image/png');
   };
