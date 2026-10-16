@@ -246,6 +246,22 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <span>Criar Livro de Puzzles</span>
                 <span className="sidebar-badge new" style={{ background: '#0284c7', color: '#fff' }}>KDP</span>
               </button>
+
+              {onOpenBatchGenerator && (
+                <button
+                  className="sidebar-nav-item"
+                  onClick={onOpenBatchGenerator}
+                  title="Gerador de Livros em Lote (1 a 20)"
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    borderColor: 'rgba(16, 185, 129, 0.25)'
+                  }}
+                >
+                  <Zap size={16} color="#10b981" />
+                  <span>Gerador em Lote</span>
+                  <span className="sidebar-badge new" style={{ background: '#10b981', color: '#fff' }}>1-20</span>
+                </button>
+              )}
             </div>
 
             {/* SEÇÃO 2: PROJETOS */}
@@ -426,84 +442,113 @@ export const BookIntelDashboard: React.FC<Props> = ({
               </div>
             )}
 
-            {/* HERO BANNER DE BOAS-VINDAS */}
-            <div className="intel-hero-card">
-              <div className="hero-text-side">
-                <span className="hero-greeting">{t('hero.greeting')}</span>
-                <h1 className="hero-main-title">{t('hero.welcome')}</h1>
-                <p className="hero-description">
-                  {t('hero.description')}
-                </p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button className="btn-hero-cta" onClick={onCreateNewProject}>
-                    <Plus size={18} /> {t('hero.btnNewBook')}
-                  </button>
-
-                  {/* NOVO: BOTÃO DE DESTAQUE CRIAR E-BOOK DE CURSO */}
-                  <button
-                    className="btn-hero-cta"
-                    onClick={() => {
-                      if (onCreateCourseEbook) onCreateCourseEbook();
-                      else onCreateNewProject();
-                    }}
-                    style={{
-                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                      color: '#ffffff',
-                      fontWeight: 800,
-                      border: '1px solid rgba(16, 185, 129, 0.4)',
-                      boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8
-                    }}
-                    title="Criar E-book de Curso Profissionalizante com IA, pesquisa de mercado e Replicate"
-                  >
-                    <GraduationCap size={18} /> Criar E-book de Curso
-                  </button>
-
-                  {/* BOTÃO DE GERAR EM LOTE (1 A 20 LIVROS) */}
-                  {onOpenBatchGenerator && (
-                    <button
-                      className="btn-hero-cta"
-                      onClick={onOpenBatchGenerator}
-                      style={{
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
-                      }}
-                      title={t('batch.subtitle')}
-                    >
-                      <Zap size={18} /> {t('hero.btnBatch')}
-                    </button>
-                  )}
-
-
-                </div>
+            {/* CABEÇALHO COMPACTO DA DASHBOARD COM BOTÕES ALINHADOS AO LADO */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+                padding: '12px 18px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 12,
+                marginBottom: 16,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
+              }}
+            >
+              <div>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#64748b',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    display: 'block',
+                    marginBottom: 2
+                  }}
+                >
+                  {t('hero.greeting')}
+                </span>
+                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.3px' }}>
+                  {t('hero.welcome')}
+                </h1>
               </div>
 
-              {/* MOCKUP DO LAPTOP COM LOGO AMAZON KDP */}
-              <div className="hero-visual-side">
-                <div className="laptop-mockup-wrapper">
-                  <div className="laptop-screen">
-                    <div className="laptop-display-content">
-                      <div className="amazon-kdp-brand-card">
-                        <div className="amazon-kdp-text">
-                          <span className="amazon-txt">amazon</span>
-                          <span className="kdp-txt">kdp</span>
-                        </div>
-                        <div className="amazon-smile-curve" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="laptop-base" />
-                  {/* Pilha de Livros ao lado do laptop */}
-                  <div className="mockup-books-stack">
-                    <div className="mockup-book book-top" />
-                    <div className="mockup-book book-mid" />
-                    <div className="mockup-book book-bot" />
-                  </div>
-                </div>
+              {/* BOTÕES COMPACTOS DO LADO */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={onCreateNewProject}
+                  style={{
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={t('hero.btnNewBook')}
+                >
+                  <Plus size={16} /> {t('hero.btnNewBook')}
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (onCreateCourseEbook) onCreateCourseEbook();
+                    else onCreateNewProject();
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    fontSize: 13,
+                    boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Criar E-book de Curso Profissionalizante com IA, pesquisa de mercado e Replicate"
+                >
+                  <GraduationCap size={16} /> Criar E-book de Curso
+                </button>
+
+                {onOpenBatchGenerator && (
+                  <button
+                    onClick={onOpenBatchGenerator}
+                    style={{
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 14px',
+                      fontSize: 13,
+                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={t('batch.subtitle')}
+                  >
+                    <Zap size={16} /> {t('hero.btnBatch')}
+                  </button>
+                )}
               </div>
             </div>
 
