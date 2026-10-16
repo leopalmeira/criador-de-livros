@@ -358,7 +358,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     startPage('sumario');
     tocPages = 1;
     doc.setFont('times', 'bold').setFontSize(16).setTextColor(20);
-    const tocTitle = isEn ? 'TABLE OF CONTENTS' : isEs ? 'ÍNDICE GENERAL' : 'SUMÁRIO';
+    const tocTitle = isEn ? 'Table of Contents' : isEs ? 'Índice' : 'Sumário';
     doc.text(tocTitle, LW / 2, y + 0.35, { align: 'center' });
 
     doc.setFont('times', 'normal').setFontSize(9).setTextColor(130);
@@ -543,7 +543,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     // Separação profissional de parágrafos editoriais KDP:
     const rawBlocks = body.split(/\r?\n\s*\r?\n/).map(block => block.trim()).filter(Boolean);
     const paras = rawBlocks.map(block => {
-      if (SCENE_BREAK.test(block)) return '✦   ✦   ✦';
+      if (SCENE_BREAK.test(block)) return '* * *';
       return block
         .replace(/\r?\n+/g, ' ')
         .replace(/\*\*(.*?)\*\*/g, '$1')

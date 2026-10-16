@@ -153,8 +153,12 @@ export function getRealisticCinematicSvgDataUrl(description: string, theme: stri
 export async function generateCoverVisualWithReplicate(
   title: string,
   genre: string = 'Thriller',
-  visualStyle: string = 'Fotografia Cinematográfica 35mm Realista'
+  visualStyle: string = 'Fotografia Cinematográfica 35mm Realista',
+  author: string = 'Author',
+  subtitle?: string
 ): Promise<string> {
-  const prompt = `Award-winning bestselling book cover photograph, "${title}", ${genre}, ${visualStyle}, cinematic lighting, dramatic atmosphere, 35mm film photography, 8k resolution, photorealistic, fine art, no letters, no text, no watermark`;
+  const authorLine = author ? `by Author ${author}` : '';
+  const subtitleLine = subtitle ? `, subtitle "${subtitle}"` : '';
+  const prompt = `Award-winning bestselling book cover artwork, title "${title}"${subtitleLine}, ${authorLine}, genre ${genre}, ${visualStyle}, cinematic lighting, dramatic atmosphere, 35mm film photography, 8k resolution, photorealistic, fine art, clear typography, professional publishing standard`;
   return generateFrameVisualWithReplicate(prompt, 'cover', '2:3');
 }

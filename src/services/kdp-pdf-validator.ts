@@ -220,7 +220,10 @@ export async function validatePdf(input: ValidatePdfInput): Promise<PdfValidatio
     const eps = byChapter.get(ci) || [];
     const got = strict(eps.flatMap(stripHeadFoot).join(' '));
     const title = cleanChapterTitle(input.chapters[ci].titulo) || `Capítulo ${ci + 1}`;
-    const exp = strict(`CAPÍTULO ${ci + 1} ${title} ${build.sanitizedText[ci] || ''}`);
+    const isGeneric = /^cap[ií]tulo\s*\d+$/i.test((title || '').trim());
+    const exp = isGeneric
+      ? strict(`CAPÍTULO ${ci + 1} ${build.sanitizedText[ci] || ''}`)
+      : strict(`CAPÍTULO ${ci + 1} ${title} ${build.sanitizedText[ci] || ''}`);
     totalExpWords += exp.split(' ').filter(Boolean).length;
     totalGotWords += got.split(' ').filter(Boolean).length;
     if (got !== exp) {

@@ -231,15 +231,15 @@ The background scene must be an evocative, masterpiece-grade visual world specif
 - **Setting & Geography**: ${composicaoFundo}
 - **Camera Lens & Perspective**: Shot on an 80mm medium-format architectural lens, eye-level or three-quarter low angle, establishing cinematic depth without distortion. The focal center of the composition captures tactile realism: authentic textures of damp wood, weathered bark, dew-slicked pine needles, misty stone, or brushed metal.
 - **Atmospheric Conditions**: Volumetric morning mist or swirling twilight fog rolling across the ground plane, subtle moisture particles catching glancing light rays, creating rich layers of foreground, midground, and deep background horizon.
-- **Compositional Clean Zones**: Ample uncluttered negative space reserved across the upper 30% of the vertical frame specifically engineered to host dominant, high-impact book title typography. The lower 22% of the vertical frame remains clean, shadowed, and grounded to receive the commercial subtitle and author byline in crystal-clear contrast.
-- **Strict Negative Constraints**: PURE VISUAL ARTWORK ONLY. ABSOLUTELY NO EMBEDDED TYPOGRAPHY, NO FAKE LETTERS, NO FAKE WORDS, NO WATERMARKS, NO LOGOS, NO BADGES, NO MEDALS, NO CIRCULAR SEALS, NO PRE-RENDERED BOOK FRAMES.`
+- **Typographic Integration Zones**: The upper third is deliberately composed to integrate the bold, monumental Book Title "${titulo}". The lower quadrant provides rich, shadowed contrast to display the Subtitle "${subtitulo}" and the authoritative Author line "Author: ${autor}" with pristine legibility.
+- **Strict Negative Constraints**: NO GIBBERISH TEXT, NO MISSPELLED GLYPHS, NO UNWANTED LABELS, NO WATERMARKS, NO RANDOM LOGOS, NO BADGES, NO MEDALS, NO CIRCULAR SEALS, NO PRE-RENDERED 3D BOOK FRAMES OR MOCKUPS. Only the exact intended typography (Title, Subtitle, and Author) with pristine spelling.`
     : `### 2. CENOGRAFIA CINEMATOGRÁFICA E COMPOSIÇÃO DE FUNDO
 A arte de fundo deve constituir um mundo visual autêntico e de nível de obra-prima, desenhado especificamente para o universo de ${generoNome}.
 - **Ambientação e Cenário**: ${composicaoFundo}
 - **Perspectiva e Lente de Câmera**: Enquadramento cinematográfico vertical 2:3 fotografado com lente média de 80mm em formato médio, ângulo nivelado ou sutilmente inferior, transmitindo imponência sem distorções artificiais. A textura da madeira úmida, das pedras encharcadas de orvalho, dos troncos centenários e da névoa viva deve transmitir realismo tátil de alto padrão.
 - **Atmosfera e Condições Climáticas**: Névoa volumétrica densa deslizando pelo solo, partículas sutis de umidade suspensas no ar refratando a luz difusa, criando planos de profundidade claros entre primeiro plano, plano médio e horizonte.
-- **Zonas Limpas de Diagramação (Clean Zones)**: Terço superior (30% do topo da imagem) amplo, desobstruído e harmonioso, concebido estrategicamente para abrigar o título em escala monumental. A base inferior (22% da base) permanece limpa e sombreada com elegância para acomodar o subtítulo e o nome do autor com legibilidade cristalina.
-- **Regras Negativas Inegociáveis**: ARTE VISUAL PURA. ABSOLUTAMENTE NENHUM TEXTO EMBUTIDO, NENHUMA LETRA DEFORMADA DE IA, NENHUM SELO, NENHUMA MEDALHA, NENHUM LOGOTIPO, NENHUMA MARCA D'ÁGUA, NENHUMA MOLDURA ARTIFICIAL.`;
+- **Zonas de Integração Tipográfica na Capa**: O terço superior é composto especialmente para integrar com imponência o Título oficial "${titulo}". A zona inferior oferece contraste elegante e sombreado para acomodar com legibilidade cristalina o Subtítulo "${subtitulo}" e a chancela do autor "Author: ${autor}" (ou "por ${autor}").
+- **Regras Negativas Inegociáveis**: NENHUM TEXTO ALEATÓRIO OU DEFORMADO (NO GIBBERISH), NENHUMA LETRA BORRADA, NENHUM SELO, NENHUMA MEDALHA, NENHUM LOGOTIPO, NENHUMA MARCA D'ÁGUA, NENHUMA MOLDURA ARTIFICIAL OU MOCKUP 3D. Apenas a tipografia oficial exata da obra (Título, Subtítulo e Autor) renderizada com escrita perfeita.`;
 
   // Bloco 3: Iluminação e Paleta Cromática
   const secao3_Iluminacao = isEn
@@ -254,35 +254,47 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
 ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
 - **Separação Tonal e Contraste**: Equilíbrio minucioso entre tons escuros profundos e pontos de luz especulares vibrantes. A profundidade cromática garante que a capa se destaque com nitidez espetacular tanto na versão ampliada quanto em miniaturas de catálogos e telas de dispositivos móveis.`;
 
-  // Bloco 4: Tipografia Estruturada KDP
+  // Bloco 4: Tipografia Estruturada KDP (Título, Subtítulo e Autor na Capa)
   const secao4_Tipografia = isEn
-    ? `### 4. TYPOGRAPHY & LAYOUT ARCHITECTURE (KDP BEST-SELLER STANDARD)
-- **Book Title Placement**: Positioned boldly in the UPPER THIRD (y: 12% to 26% from top).
-  - **Font Style**: ${fonteTituloSugerida}.
+    ? `### 4. COVER TYPOGRAPHY & LAYOUT ARCHITECTURE (MANDATORY ELEMENTS)
+The cover artwork MUST display the complete editorial identity directly on the cover with impeccable typographic finish:
+- **Book Title Rendered on Cover**: Prominently displayed in the UPPER THIRD (y: 12% to 26% from top).
+  - **Exact Title Text**: "${titulo}"
+  - **Font Style & Tone**: ${fonteTituloSugerida}.
   - **Typographic Treatment**: Monumental scale, authoritative letter-spacing, ${texturaTipografica}. Subtle drop shadow and micro-stroke ensuring total separation and legibility against the background.
-- **Commercial Subtitle**: Positioned SLIGHTLY LARGER, located directly ABOVE the author's name in the lower quadrant.
+- **Commercial Subtitle Rendered on Cover**: Positioned SLIGHTLY LARGER, located directly ABOVE the author's name in the lower quadrant.
+  - **Exact Subtitle Text**: "${subtitulo}"
   - **Font Style**: Clean, modern serif or high-contrast sans-serif, uppercase with generous tracking (0.12em), crisp contrast against shadowed base ground.
-- **Author Byline Placement**: Positioned directly BELOW the commercial subtitle, resting in the dignified baseline of the cover.
+- **Author Line Rendered on Cover**: Positioned directly BELOW the commercial subtitle, resting in the dignified baseline of the cover.
+  - **Exact Author Text**: "Author: ${autor}" or "by ${autor}"
   - **Font Style**: Distinguished small caps with refined tracking, perfectly proportioned to communicate author brand prestige and credibility.`
-    : `### 4. ARQUITETURA TIPOGRÁFICA E DIAGRAMAÇÃO KDP (PADRÃO BEST-SELLER)
-- **Posicionamento do Título**: Localizado no TERÇO SUPERIOR DA CAPA (lá em cima grande, y: 12% a 26% do topo).
-  - **Estilo da Fonte do Título**: ${fonteTituloSugerida}.
-  - **Tratamento Tipográfico**: Escala imponente, tracking marcante, ${texturaTipografica}. Contorno sutil e sombra projetada suave garantindo contraste total e legibilidade perfeita sobre a arte.
-- **Subtítulo Comercial**: Posicionado UM POUCO MAIOR, logo ACIMA DO NOME DO AUTOR na parte inferior.
-  - **Estilo da Fonte do Subtítulo**: Tipografia refinada em versalete ou itálico elegante, kerning harmonioso e contraste translúcido garantindo leitura rápida da promessa do livro.
-- **Nome do Autor**: Posicionado logo ABAIXO DO SUBTÍTULO, no rodapé definitivo da capa.
+    : `### 4. ARQUITETURA TIPOGRÁFICA DA CAPA (ELEMENTOS OBRIGATÓRIOS NA CAPA)
+A capa DEVE conter gravada na sua composição a identidade editorial completa da obra com acabamento de excelência:
+- **Título do Livro Gravado na Capa**: Exibido com imponência no TERÇO SUPERIOR DA CAPA (y: 12% a 26% do topo).
+  - **Texto Exato do Título**: "${titulo}"
+  - **Estilo da Fonte e Tom**: ${fonteTituloSugerida}.
+  - **Tratamento Tipográfico**: Escala monumental, tracking marcante, ${texturaTipografica}. Contorno sutil e sombra projetada suave garantindo contraste total e legibilidade perfeita sobre a arte.
+- **Subtítulo Comercial Gravado na Capa**: Posicionado UM POUCO MAIOR, logo ACIMA DO NOME DO AUTOR no quadrante inferior.
+  - **Texto Exato do Subtítulo**: "${subtitulo}"
+  - **Estilo da Fonte do Subtítulo**: Tipografia refinada em versalete ou itálico elegante, kerning harmonioso e contraste garantindo leitura rápida da promessa do livro.
+- **Nome do Autor Gravado na Capa**: Posicionado logo ABAIXO DO SUBTÍTULO, na linha de base definitiva da capa.
+  - **Texto Exato do Autor**: "Author: ${autor}" (ou "por ${autor}")
   - **Estilo da Fonte do Autor**: Versalete nobre com espaçamento equilibrado entre caracteres, estabelecendo a chancela de autoridade da autoria.`;
 
-  // Bloco 5: Prompt Técnico Otimizado em Inglês para Motores de Imagem (FLUX / Replicate / Midjourney)
+  // Bloco 5: Prompt Técnico Otimizado com Tipografia (Título, Subtítulo e Autor) para Motores de Imagem (FLUX / Midjourney / Replicate / Ideogram)
+  const authorDisplay = isEn ? `Author: ${autor} (by ${autor})` : `Author: ${autor} (por ${autor})`;
   const promptTecnicoMotor = [
-    `Masterpiece book cover background visual art for "${titulo}".`,
-    `Genre and tone: ${generoNome}. Style: ${estiloRecomendado}.`,
-    `Subject setting: ${composicaoFundo}`,
-    `Lighting: ${iluminacaoCenica}`,
+    `Masterpiece bestselling book cover artwork for "${titulo}".`,
+    `Genre and tone: ${generoNome}. Visual aesthetic: ${estiloRecomendado}.`,
+    `Cover Typography & Mandatory Text Elements Rendered Directly on Cover:`,
+    `- Book Title on Cover: Large bold monumental lettering reading exactly "${titulo}" positioned across the upper third in ${fonteTituloSugerida}.`,
+    `- Subtitle on Cover: Clear, readable typography reading exactly "${subtitulo}" positioned in the lower quadrant directly above the author credit.`,
+    `- Author on Cover: Prominent author credit reading exactly "${authorDisplay}" centered along the dignified baseline of the cover.`,
+    `Subject setting & background environment: ${composicaoFundo}`,
+    `Lighting & atmosphere: ${iluminacaoCenica}`,
     `Color grading: ${paletaCoresSugerida.join(', ')}.`,
-    `Camera perspective: 80mm medium format lens, 35mm cinematic film grain, shallow depth of field, authentic real-world materials, believable organic foliage and architectural textures, ultra-photorealistic.`,
-    `Framing: Vertical 2:3 aspect ratio (1600x2400 standard book cover proportions). Ample clean negative space in the upper third for monumental book title typography, and uncluttered shadowed lower baseline for subtitle and author name.`,
-    `STRICT NEGATIVE PROMPT: Pure visual fine art illustration only, ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO FAKE WORDS, NO NUMBERS, NO TYPOGRAPHY, NO LETTERING, NO WATERMARK, NO LOGOS, NO BADGES, NO MEDALS, NO LABELS, NO STAMPS, NO FRAMES, clean pristine composition, 8k resolution, award-winning visual cinematography.`
+    `Camera perspective & technical quality: Shot on 80mm medium-format lens, fine 35mm cinematic film grain, shallow depth of field, tactile real-world materials, ultra-photorealistic 8k render, prestigious bestseller commercial finish.`,
+    `Framing: Vertical 2:3 aspect ratio (1600x2400 standard book cover proportions). Flawless typographic hierarchy with total contrast and legibility, crisp letterforms, no misspelled words, no distorted glyphs, no mockups, pristine print-ready publication.`
   ].join('\n\n');
 
   // Bloco 6: Diretrizes Finais de Renderização Editorial

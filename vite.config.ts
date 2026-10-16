@@ -1,3 +1,4 @@
+process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = 'true';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path, { resolve } from 'path';
