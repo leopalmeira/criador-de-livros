@@ -5,6 +5,8 @@
 // Inclui Analisador de Áudio em Tempo Real (VAD), Barge-in (Interrupção por Voz) e Viva-Voz Contínuo
 // ================================================================
 
+import { coAuthorVoiceService } from './coauthor-voice-service';
+
 export interface SpeechRecognitionState {
   isSupported: boolean;
   isListening: boolean;
@@ -55,6 +57,27 @@ class CoAuthorSpeechRecognitionEngine {
           this.continuousModeInternal = savedContinuous === 'true';
         }
       } catch {}
+    }
+  }
+
+  /**
+   * REGRA CENTRAL INEGOCIÁVEL DO SISTEMA: PRIORIDADE ABSOLUTA DA VOZ DO AUTOR (BARGE-IN)
+   * Se o autor começar a falar ou emitir voz no microfone, a IA deve parar de falar NO MESMO INSTANTE.
+   * Cancela qualquer áudio ou síntese da IA e libera o canal para gravação do autor.
+   */
+  public triggerBargeIn(): void {
+    try {
+      if (coAuthorVoiceService.isSpeaking()) {
+        coAuthorVoiceService.stop();
+      }
+    } catch {}
+
+    if (this.onUserInterruptedCallback) {
+      try {
+        this.onUserInterruptedCallback();
+      } catch (e) {
+        console.warn('[CoAuthorSpeech] Erro no callback de interrupção:', e);
+      }
     }
   }
 
@@ -231,12 +254,13 @@ class CoAuthorSpeechRecognitionEngine {
         const normalized = Math.min(100, Math.round((average / 128) * 100));
 
         this.audioLevelInternal = normalized;
-        const speakingNow = normalized > 13;
+        const speakingNow = normalized > 6; // Sensibilidade otimizada para capturar imediatamente a fala do autor
         this.isUserSpeakingInternal = speakingNow;
 
-        // BARGE-IN: Se o usuário falou enquanto o agente estava falando, aciona interrupção imediata!
-        if (speakingNow && this.onUserInterruptedCallback) {
-          this.onUserInterruptedCallback();
+        // REGRA DE OURO: BARGE-IN IMEDIATO!
+        // Se o autor emitiu voz no microfone, a IA se cala no mesmo instante
+        if (speakingNow) {
+          this.triggerBargeIn();
         }
 
         this.notify();
@@ -328,6 +352,9 @@ class CoAuthorSpeechRecognitionEngine {
     this.finalTranscriptInternal = '';
     this.clearSilenceTimer();
 
+    // Prioridade imediata: se a IA estiver falando, cala no ato de abrir o microfone
+    this.triggerBargeIn();
+
     const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     try {
@@ -339,15 +366,24 @@ class CoAuthorSpeechRecognitionEngine {
 
       this.recognition.onstart = () => {
         this.isListeningInternal = true;
+        this.triggerBargeIn();
         this.playChime('start');
         this.notify();
       };
 
+      this.recognition.onsoundstart = () => {
+        // Assim que o microfone registrar o primeiro som do autor, cala a IA
+        this.triggerBargeIn();
+      };
+
+      this.recognition.onspeechstart = () => {
+        // Assim que o motor de reconhecimento detectar voz humana, cala a IA
+        this.triggerBargeIn();
+      };
+
       this.recognition.onresult = (event: any) => {
-        // BARGE-IN: Ao receber som/palavras reconhecidas, cala o assistente caso ele ainda esteja falando
-        if (this.onUserInterruptedCallback) {
-          this.onUserInterruptedCallback();
-        }
+        // BARGE-IN GARANTIDO: Prioridade absoluta da voz do autor
+        this.triggerBargeIn();
 
         let interim = '';
         let finalSegment = '';

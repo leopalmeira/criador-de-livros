@@ -7,7 +7,8 @@ import {
   Wrench, HeartHandshake, Layers, BookCheck, ClipboardCheck,
   ChevronDown, ChevronUp, Save, X, Lightbulb, UserCheck,
   ArrowLeft, Download, Maximize2, Minimize2, CheckSquare, Search,
-  FileCheck, ExternalLink, Bookmark, HelpCircle, Volume2, VolumeX
+  FileCheck, ExternalLink, Bookmark, HelpCircle, Volume2, VolumeX,
+  Lock, Mic, CheckCircle
 } from 'lucide-react';
 import { chamarGeminiTexto } from '../../../services/kdp-ai-engine';
 import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrity-engine';
@@ -34,6 +35,8 @@ import {
 } from '../../../services/ready-books-service';
 import { coAuthorVoiceService } from '../../../services/coauthor-voice-service';
 import { CoAuthorVoiceToggle } from './CoAuthorVoiceToggle';
+import { CoAuthorVoiceModalBar } from './CoAuthorVoiceModalBar';
+import { AmazonLiveService } from '../../../services/amazon-live-service';
 import { BookArchitecturePanel, type BookArchitectureData } from './BookArchitecturePanel';
 
 export type CoAuthorBookType = 'tecnico' | 'autoajuda' | 'pratico' | 'ficcao';
@@ -158,6 +161,76 @@ const EXEMPLOS_PRONTOS: Array<{
     premissa: 'Um cirurgião descobre que o novo sistema de IA do hospital prevê a morte de pacientes antes dos sintomas, e sua própria filha é a próxima na lista.',
     elementos: 'A diretora ambiciosa ocultando falhas; invasão tensa ao data center subterrâneo; uma aliada na corregedoria; reviravoltas intensas e clímax conclusivo.',
     formula: 'Capítulos dinâmicos com cliffhangers intensos no final de cada um, ritmo acelerado estilo Dan Brown, vocabulário popular e desfecho 100% definitivo.'
+  }
+];
+
+// Estágios da Esteira Editorial Sequencial (Só avança após conclusão do passo anterior)
+export type EditorialStage = 1 | 2 | 3 | 4 | 5 | 6;
+// 1 = Tema & Nicho Amazon KDP
+// 2 = Título Comercial Magnético
+// 3 = Subtítulo de Conversão com Promessa
+// 4 = Sumário Estrutural dos Capítulos
+// 5 = Redação dos Capítulos (Aprovação capítulo a capítulo)
+// 6 = Capa Oficial KDP & Obra Concluída
+
+export interface TemaAmazonOption {
+  id: string;
+  titulo: string;
+  nicho: string;
+  badge: string;
+  descricao: string;
+  perfil: CoAuthorBookType;
+}
+
+// Opções de Temas & Nichos de Alta Conversão na Amazon KDP
+export const TEMAS_AMAZON_KDP: TemaAmazonOption[] = [
+  {
+    id: 'produtividade',
+    titulo: 'Foco Profundo & Rotina Inabalável',
+    nicho: 'Autoajuda & Desenvolvimento Pessoal',
+    badge: '🔥 Bestseller Amazon #1',
+    descricao: 'Como vencer a distração digital, recuperar 4 horas diárias de foco extremo e eliminar a procrastinação crônica.',
+    perfil: 'autoajuda'
+  },
+  {
+    id: 'ia_prompts',
+    titulo: 'Engenharia de Prompts & IA Prática',
+    nicho: 'Técnico & Automação Profissional',
+    badge: '⚙️ Alta Demanda KDP',
+    descricao: 'Guia definitivo e prático para automatizar tarefas de trabalho, análise de dados e rotinas com IA sem jargões.',
+    perfil: 'tecnico'
+  },
+  {
+    id: 'financas_90d',
+    titulo: 'Liberdade Financeira em 90 Dias',
+    nicho: 'Guia Prático Passo a Passo (Finanças)',
+    badge: '💰 Alta Conversão KDP',
+    descricao: 'Método comprovado para estancar dívidas, renegociar com bancos e montar reserva de emergência sem fórmulas mágicas.',
+    perfil: 'pratico'
+  },
+  {
+    id: 'inteligencia_emocional',
+    titulo: 'Inteligência Emocional & Estoicismo',
+    nicho: 'Desenvolvimento Pessoal & Filosofia Prática',
+    badge: '🛡️ Tendência Global',
+    descricao: 'Técnicas diárias para manter serenidade, controle mental inabalável sob pressão e resiliência psicológica.',
+    perfil: 'autoajuda'
+  },
+  {
+    id: 'saude_biohacking',
+    titulo: 'Biohacking & Energia Vital Constante',
+    nicho: 'Saúde, Hábitos & Longevidade',
+    badge: '⚡ Alta Retenção Kindle',
+    descricao: 'Protocolos de sono reparador, nutrição anti-inflamatória e clareza mental para alta performance biológica.',
+    perfil: 'pratico'
+  },
+  {
+    id: 'thriller_ficcao',
+    titulo: 'O Diagnóstico Oculto: Thriller Médico',
+    nicho: 'Ficção, Suspense & Mistério',
+    badge: '📖 Ritmo Viciante Dan Brown',
+    descricao: 'Um cirurgião descobre mortes suspeitas causadas pelo sistema do hospital antes que sua filha seja a próxima vítima.',
+    perfil: 'ficcao'
   }
 ];
 
@@ -378,10 +451,25 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   idiomaAtual = 'Português',
   onStartNewBook
 }) => {
-  // Aba ativa interna do estúdio: 'arquitetura' | 'chat' | 'diagramado' | 'revisao' | 'exportar'
-  const [internalTab, setInternalTab] = useState<'arquitetura' | 'chat' | 'diagramado' | 'revisao' | 'exportar'>(() => {
-    return (bookState?.capitulos && bookState.capitulos.length > 0) ? 'chat' : 'arquitetura';
+  // Aba ativa interna do estúdio: 'chat' | 'arquitetura' | 'diagramado' | 'revisao' (A CONVERSA É O EIXO CENTRAL)
+  const [internalTab, setInternalTab] = useState<'chat' | 'arquitetura' | 'diagramado' | 'revisao'>('chat');
+
+  // Estado da Esteira Editorial Sequencial Rígida (Passos 1 a 6: só passa para o próximo quando o atual for concluído)
+  const [editorialStage, setEditorialStage] = useState<EditorialStage>(() => {
+    const total = totalCapsDesejado || 8;
+    const caps = bookState?.capitulos?.length || 0;
+    if (caps >= total && caps > 0) return 6;
+    if (caps > 0) return 5;
+    if (bookState?.subtitulo && bookState.subtitulo.trim()) return 4;
+    if (bookState?.titulo && bookState.titulo.trim() && bookState.titulo !== 'Nova Obra KDP') return 3;
+    if (contextData?.premissaVisao?.trim()) return 2;
+    return 1;
   });
+
+  // Sugestões dinâmicas de Títulos e Subtítulos derivadas da Amazon KDP
+  const [suggestedTitlesAmazon, setSuggestedTitlesAmazon] = useState<Array<{ title: string; rationale: string }>>([]);
+  const [suggestedSubtitlesAmazon, setSuggestedSubtitlesAmazon] = useState<Array<{ subtitle: string; rationale: string }>>([]);
+  const [isLoadingAmazonSuggestions, setIsLoadingAmazonSuggestions] = useState<boolean>(false);
 
   // Quantidade de Capítulos customizável antes e durante a produção da obra
   const [customTotalCaps, setCustomTotalCaps] = useState<number>(() => {
@@ -1121,43 +1209,326 @@ MOTIVO: ...
     }
   };
 
-  // Aplicar título sugerido diretamente ao livro
+  // GERAÇÃO DE SUGESTÕES DE TÍTULOS ORIUNDOS DA AMAZON KDP (PASSO 2)
+  const gerarSugestoesTitulosAmazon = async (tema: string, tipo: CoAuthorBookType) => {
+    setIsLoadingAmazonSuggestions(true);
+    setAiLoadingStatus('Pesquisando tendências e títulos de alta conversão na Amazon KDP...');
+
+    try {
+      let termosReais: string[] = [];
+      try {
+        const seed = tema.split(/\s+/).slice(0, 3).join(' ');
+        termosReais = await AmazonLiveService.getLiveSuggestions(seed, 'br');
+      } catch (e) {
+        console.warn('Fallback amazon live keywords:', e);
+      }
+
+      const promptTitulos = `Você é o Estrategista de Bestsellers e Títulos Comerciais da Amazon KDP.
+Tema do Livro: "${tema}"
+Perfil Editorial: ${tipo}
+Termos reais em alta na Amazon: ${termosReais.slice(0, 5).join(', ') || 'alta demanda KDP'}
+
+Crie exatamente 5 TÍTULOS COMERCIAIS magnéticos, impactantes e curtos para capa na Amazon KDP.
+Para cada título, apresente a justificativa estratégica (rationale) de por que ele gera cliques e atrai o leitor na Amazon.
+
+Responda ESTRITAMENTE em formato JSON puro:
+[
+  { "title": "Título Magnético 1", "rationale": "Gatilho de autoridade e alta taxa de busca na Amazon" },
+  { "title": "Título Magnético 2", "rationale": "Promessa de transformação imediata" },
+  { "title": "Título Magnético 3", "rationale": "Curiosidade e retenção" },
+  { "title": "Título Magnético 4", "rationale": "Método comprovado sem enrolação" },
+  { "title": "Título Magnético 5", "rationale": "Forte apelo comercial e clareza total" }
+]`;
+
+      const res = await chamarGeminiTexto(promptTitulos, { temperature: 0.75, maxTokens: 1200 });
+      const match = res.texto.match(/\[[\s\S]*\]/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        setSuggestedTitlesAmazon(parsed);
+      } else {
+        setSuggestedTitlesAmazon([
+          { title: `O Poder de ${tema.slice(0, 32)}`, rationale: 'Padrão clássico de bestseller com alta taxa de conversão' },
+          { title: 'Inabalável: O Método Definitivo', rationale: 'Gatilho de autoridade e segurança para o leitor' },
+          { title: 'Do Caos à Maestria Diária', rationale: 'Promessa de transformação prática imediata' },
+          { title: 'A Arte da Execução Implacável', rationale: 'Forte apelo comercial e foco em ação' },
+          { title: 'Manual Prático de Alta Performance', rationale: 'Direto, pragmático e sem enrolação' }
+        ]);
+      }
+    } catch (err) {
+      console.error('Erro ao gerar títulos da Amazon:', err);
+    } finally {
+      setIsLoadingAmazonSuggestions(false);
+      setAiLoadingStatus('');
+    }
+  };
+
+  // GERAÇÃO DE SUGESTÕES DE SUBTÍTULOS COM PROMESSA CLARA (PASSO 3)
+  const gerarSugestoesSubtitulosAmazon = async (titulo: string, tema: string, tipo: CoAuthorBookType) => {
+    setIsLoadingAmazonSuggestions(true);
+    setAiLoadingStatus('Gerando subtítulos de alta conversão no padrão Amazon KDP...');
+
+    try {
+      const promptSubtitulos = `Você é o Estrategista de Vendas e Copywriter da Amazon KDP.
+Título Oficial: "${titulo}"
+Tema da Obra: "${tema}"
+Perfil Editorial: ${tipo}
+
+Crie exatamente 5 SUBTÍTULOS DE ALTA CONVERSÃO KDP.
+Cada subtítulo DEVE:
+1. Conter a promessa explícita do que o leitor vai alcançar.
+2. Eliminar uma grande dor ou objeção comum (ex: sem ansiedade, sem jargões, sem fórmulas mágicas).
+3. Ter um formato magnético de bestseller comprovado na Amazon.
+
+Responda ESTRITAMENTE em formato JSON puro:
+[
+  { "subtitle": "Como Vencer a Procrastinação e Ter 4 Horas de Foco Sem Ansiedade", "rationale": "Gatilho de quebra de objeção e promessa direta" },
+  { "subtitle": "O Passo a Passo Prático Para Dominar Hábitos e Conquistar Resultados Reais", "rationale": "Estrutura pragmática de guia de ação" },
+  { "subtitle": "O Guia Definitivo Para Transformar Sua Rotina e Destravar Alta Produtividade", "rationale": "Foco em resolução de problema" },
+  { "subtitle": "Estratégias Reais Testadas no Campo de Batalha Para Blindar Sua Mente", "rationale": "Autoridade e aplicabilidade" },
+  { "subtitle": "Um Método Simples e Eficaz Para Mudar de Vida em Menos de 30 Dias", "rationale": "Especificidade temporal e baixo atrito" }
+]`;
+
+      const res = await chamarGeminiTexto(promptSubtitulos, { temperature: 0.75, maxTokens: 1200 });
+      const match = res.texto.match(/\[[\s\S]*\]/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        setSuggestedSubtitlesAmazon(parsed);
+      } else {
+        setSuggestedSubtitlesAmazon([
+          { subtitle: 'Como Dominar Hábitos Práticos e Vencer a Procrastinação Sem Fórmulas Mágicas', rationale: 'Promessa direta com quebra de objeção' },
+          { subtitle: 'O Passo a Passo Testado Para Conquistar Resultados Reais em 30 Dias', rationale: 'Gatilho de especificidade temporal' },
+          { subtitle: 'O Guia Definitivo Para Profissionais Que Buscam Alta Performance', rationale: 'Posicionamento e público qualificado' },
+          { subtitle: 'Estratégias Reais Para Blindar Sua Mente e Ter Foco Diário', rationale: 'Foco em resolução de dor' },
+          { subtitle: 'Um Método Simplificado Para Transformar Sua Rotina Hoje Mesmo', rationale: 'Ação imediata sem atrito' }
+        ]);
+      }
+    } catch (err) {
+      console.error('Erro ao gerar subtítulos da Amazon:', err);
+    } finally {
+      setIsLoadingAmazonSuggestions(false);
+      setAiLoadingStatus('');
+    }
+  };
+
+  // PASSO 1 -> PASSO 2: ESCOLHER TEMA (SÓ AVANÇA APÓS SELEÇÃO)
+  const handleSelectTema = async (temaTexto: string, perfilSugerido?: CoAuthorBookType) => {
+    setFlowTema(temaTexto);
+    if (perfilSugerido) {
+      setTipoLivro(perfilSugerido);
+    }
+    setRespostasBriefing(prev => ({ ...prev, premissa: temaTexto }));
+
+    if (bookState) {
+      const atualizado = {
+        ...bookState,
+        tipoLivro: perfilSugerido || tipoLivro,
+        genero: perfilSugerido === 'autoajuda' ? 'Autoajuda & Desenvolvimento Pessoal' : (perfilSugerido === 'tecnico' ? 'Técnico' : 'Geral')
+      };
+      onUpdateBookState(atualizado);
+      onSaveProgress(atualizado);
+    }
+
+    setEditorialStage(2);
+
+    const msg: CoAuthorMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'agent',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `🎯 **Passo 1 Concluído! Tema selecionado:**\n\n` +
+        `📌 *"${temaTexto}"*\n\n` +
+        `Excelente! Esse nicho possui alta tração e buscas no Amazon KDP.\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👉 **Passo 2: Escolha o Título Comercial Bestseller**\n` +
+        `Abaixo estão as 5 sugestões de títulos comerciais de busca da Amazon KDP. Você pode clicar no card para escolher ou ditar por voz:`,
+      suggestedActions: []
+    };
+
+    setMessages(prev => [...prev, msg]);
+    coAuthorVoiceService.speak(`Tema selecionado com sucesso! Agora, no Passo 2, escolha um dos títulos comerciais da Amazon abaixo ou diga o seu título por voz.`, msg.id);
+
+    await gerarSugestoesTitulosAmazon(temaTexto, perfilSugerido || tipoLivro);
+  };
+
+  // PASSO 2 -> PASSO 3: ESCOLHER TÍTULO (SÓ AVANÇA APÓS SELEÇÃO)
+  const handleSelectTitulo = async (tituloEscolhido: string) => {
+    setFlowTitulo(tituloEscolhido);
+    if (bookState) {
+      const atualizado = {
+        ...bookState,
+        titulo: tituloEscolhido
+      };
+      onUpdateBookState(atualizado);
+      onSaveProgress(atualizado);
+    }
+
+    setEditorialStage(3);
+
+    const msg: CoAuthorMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'agent',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `📖 **Passo 2 Concluído! Título oficial definido:**\n\n` +
+        `🏆 **"${tituloEscolhido}"**\n\n` +
+        `Forte, magnético e com alto potencial de conversão na Amazon KDP!\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👉 **Passo 3: Escolha o Subtítulo de Conversão**\n` +
+        `O subtítulo é o gatilho decisivo para convencer o leitor a comprar o livro na Amazon. Escolha uma das 5 opções abaixo ou dite por voz:`,
+      suggestedActions: []
+    };
+
+    setMessages(prev => [...prev, msg]);
+    coAuthorVoiceService.speak(`Título aprovado: "${tituloEscolhido}". Agora, no Passo 3, escolha o subtítulo de conversão abaixo ou dite por voz.`, msg.id);
+
+    await gerarSugestoesSubtitulosAmazon(tituloEscolhido, flowTema || respostasBriefing.premissa, tipoLivro);
+  };
+
+  // PASSO 3 -> PASSO 4: ESCOLHER SUBTÍTULO (SÓ AVANÇA APÓS SELEÇÃO)
+  const handleSelectSubtitulo = async (subtituloEscolhido: string) => {
+    setFlowSubtitulo(subtituloEscolhido);
+    if (bookState) {
+      const atualizado = {
+        ...bookState,
+        subtitulo: subtituloEscolhido
+      };
+      onUpdateBookState(atualizado);
+      onSaveProgress(atualizado);
+    }
+
+    setEditorialStage(4);
+
+    const msg: CoAuthorMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'agent',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `✨ **Passo 3 Concluído! Subtítulo definido:**\n\n` +
+        `💡 *"${subtituloEscolhido}"*\n\n` +
+        `Promessa comercial forte e consolidada! Agora no **Passo 4**, estamos estruturando a arquitetura dos capítulos (Sumário da Obra)...`,
+      suggestedActions: []
+    };
+
+    setMessages(prev => [...prev, msg]);
+    coAuthorVoiceService.speak(`Subtítulo aprovado! Agora no Passo 4 estamos estruturando o sumário dos capítulos.`, msg.id);
+
+    await gerarEstruturaSumario(flowTitulo, subtituloEscolhido, flowTema || respostasBriefing.premissa, tipoLivro);
+  };
+
+  // GERAÇÃO DA ESTRUTURA DO SUMÁRIO (PASSO 4)
+  const gerarEstruturaSumario = async (titulo: string, subtitulo: string, tema: string, tipo: CoAuthorBookType) => {
+    setIsAiProcessing(true);
+    setAiLoadingStatus('Projetando sumário e capítulos estruturados para aprovação editorial...');
+
+    try {
+      const totalCaps = customTotalCaps || totalCapsDesejado || 8;
+      const plano = await orchestrateEditorialPlan(
+        {
+          title: titulo,
+          subtitle: subtitulo,
+          genre: tipo === 'autoajuda' ? 'Autoajuda' : (tipo === 'tecnico' ? 'Técnico' : 'Geral'),
+          language: idiomaAtual,
+          topic: tema,
+          promise: subtitulo,
+          differentiator: `Padrão editorial bestseller Amazon KDP para ${tipo}`
+        },
+        totalCaps
+      );
+
+      setEditorialPlan(plano);
+
+      const listaCaps = plano.chapters.map((ch, idx) =>
+        `• **Capítulo ${idx + 1}:** ${cleanChapterTitle(ch.title)} — *${ch.objective}*`
+      ).join('\n');
+
+      const msgSumario: CoAuthorMessage = {
+        id: `msg-${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `📋 **Passo 4: Proposta de Sumário Estruturado (${plano.chapters.length} Capítulos)**\n\n` +
+          `📖 **Obra:** ${titulo}\n` +
+          `✨ **Subtítulo:** ${subtitulo}\n\n` +
+          `${listaCaps}\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `Para começarmos a escrever o **Capítulo 1**, clique em **"Aprovar Sumário"** ou diga por voz: *"Aprovar sumário"* ou *"Pode começar"*.`,
+        suggestedActions: [
+          { label: '✅ Aprovar Sumário e Escrever Capítulo 1', action: 'aprovar_sumario', primary: true },
+          { label: '🔄 Gerar Nova Proposta de Capítulos', action: 'regenerar_sumario' }
+        ]
+      };
+
+      setMessages(prev => [...prev, msgSumario]);
+      coAuthorVoiceService.speak(`Sumário com ${plano.chapters.length} capítulos projetado! Diga "Aprovar" ou clique no botão para começarmos a escrever o Capítulo 1.`, msgSumario.id);
+    } catch (err: any) {
+      console.error('Erro ao estruturar sumário:', err);
+    } finally {
+      setIsAiProcessing(false);
+      setAiLoadingStatus('');
+    }
+  };
+
+  // PASSO 4 -> PASSO 5: APROVAR SUMÁRIO E INICIAR REDAÇÃO
+  const handleAprovarSumario = async () => {
+    setEditorialStage(5);
+    await executarEscritaCapitulo(1, {
+      premissa: flowTema || respostasBriefing.premissa,
+      elementos: respostasBriefing.elementos || 'Capítulos estruturados com passo a passo e resolução de problemas',
+      formula: flowSubtitulo || respostasBriefing.formula || 'Bestseller Amazon KDP'
+    });
+  };
+
+  // PASSO 5: APROVAR CAPÍTULO ATUAL E ESCREVER PRÓXIMO (OU CONCLUIR SE FOR O ÚLTIMO)
+  const handleAprovarCapituloEAvancar = async () => {
+    const capsAtuais = bookState?.capitulos?.length || 0;
+    const totalCaps = customTotalCaps || totalCapsDesejado || 8;
+
+    if (capsAtuais >= totalCaps) {
+      // Obra concluída! Avança para o Passo 6 (Capa & Conclusão KDP)
+      setEditorialStage(6);
+      const msgFinal: CoAuthorMessage = {
+        id: `msg-${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `🎉 **PARABÉNS! OBRA 100% CONCLUÍDA E APROVADA!**\n\n` +
+          `Todos os ${totalCaps} capítulos do livro **"${bookState?.titulo || flowTitulo}"** foram escritos e aprovados com sucesso!\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `👉 **Passo 6: Capa Oficial KDP & Publicação Liberada**\n` +
+          `A capa oficial diagramada e o PDF de publicação oficial no Amazon KDP estão prontos para download!`,
+        suggestedActions: [
+          { label: '📥 Baixar PDF Diagramado Oficial KDP', action: 'baixar_pdf', primary: true },
+          { label: '📄 Baixar Manuscrito Completo (TXT)', action: 'baixar_txt' },
+          { label: '📖 Folhear Livro Diagramado', action: 'ir_diagramado' },
+          { label: '🛡️ Ver Revisão Editorial', action: 'ir_revisao' }
+        ]
+      };
+      setMessages(prev => [...prev, msgFinal]);
+      coAuthorVoiceService.speak(`Parabéns! Todos os capítulos foram aprovados com sucesso. Seu livro está completo e o PDF pronto para o Amazon KDP!`, msgFinal.id);
+      return;
+    }
+
+    const proximoNum = capsAtuais + 1;
+    await executarEscritaCapitulo(proximoNum, {
+      premissa: flowTema || respostasBriefing.premissa,
+      elementos: respostasBriefing.elementos || 'Capítulos estruturados com passo a passo e resolução de problemas',
+      formula: flowSubtitulo || respostasBriefing.formula || 'Bestseller Amazon KDP'
+    });
+  };
+
+  // Compatibilidade com ações diretas
   const handleApplyTitleSuggestion = (title: string, subtitle: string) => {
-    setFlowTitulo(title);
-    setFlowSubtitulo(subtitle);
-    if (bookState) {
-      const atualizado = {
-        ...bookState,
-        titulo: title,
-        subtitulo: subtitle
-      };
-      onUpdateBookState(atualizado);
-      onSaveProgress(atualizado);
+    handleSelectTitulo(title);
+    if (subtitle) {
+      handleSelectSubtitulo(subtitle);
     }
-    setActiveFlowStep(3); // Avança automaticamente para o sumário de capítulos!
   };
 
-  // Salvar tema e premissa no Passo 1
   const handleSaveFlowTema = () => {
-    setRespostasBriefing(prev => ({
-      ...prev,
-      premissa: flowTema
-    }));
-    setActiveFlowStep(2); // Avança para o Passo 2 (Título & Subtítulo)
+    if (flowTema.trim()) {
+      handleSelectTema(flowTema.trim());
+    }
   };
 
-  // Salvar título no Passo 2
   const handleSaveFlowTitulo = () => {
-    if (bookState) {
-      const atualizado = {
-        ...bookState,
-        titulo: flowTitulo || 'Novo Livro KDP',
-        subtitulo: flowSubtitulo
-      };
-      onUpdateBookState(atualizado);
-      onSaveProgress(atualizado);
+    if (flowTitulo.trim()) {
+      handleSelectTitulo(flowTitulo.trim());
     }
-    setActiveFlowStep(3); // Avança para o Passo 3 (Sumário de Capítulos)
   };
 
   // ENVIO DA MENSAGEM DO AUTOR COM PROCESSAMENTO REAL VIA GEMINI
@@ -1181,6 +1552,141 @@ MOTIVO: ...
     setAiLoadingStatus('CoAuthor está analisando seu pedido e formulando a resposta editorial...');
 
     const textoLower = texto.toLowerCase();
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // ESTEIRA EDITORIAL RIGIDAMENTE GUIADA (VOZ & TEXTO): PASSO A PASSO
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // 1. PASSO 1: SELEÇÃO DE TEMA POR VOZ OU ESCRITA
+    if (editorialStage === 1) {
+      if (textoLower.includes('tema 1') || textoLower.includes('opção 1') || textoLower.includes('primeiro tema') || textoLower.includes('foco profundo')) {
+        await handleSelectTema(TEMAS_AMAZON_KDP[0].descricao, TEMAS_AMAZON_KDP[0].perfil);
+        return;
+      }
+      if (textoLower.includes('tema 2') || textoLower.includes('opção 2') || textoLower.includes('segundo tema') || textoLower.includes('engenharia de prompts') || textoLower.includes('ia')) {
+        await handleSelectTema(TEMAS_AMAZON_KDP[1].descricao, TEMAS_AMAZON_KDP[1].perfil);
+        return;
+      }
+      if (textoLower.includes('tema 3') || textoLower.includes('opção 3') || textoLower.includes('terceiro tema') || textoLower.includes('liberdade financeira') || textoLower.includes('finanças')) {
+        await handleSelectTema(TEMAS_AMAZON_KDP[2].descricao, TEMAS_AMAZON_KDP[2].perfil);
+        return;
+      }
+      if (textoLower.includes('tema 4') || textoLower.includes('opção 4') || textoLower.includes('quarto tema') || textoLower.includes('inteligência emocional') || textoLower.includes('estoicismo')) {
+        await handleSelectTema(TEMAS_AMAZON_KDP[3].descricao, TEMAS_AMAZON_KDP[3].perfil);
+        return;
+      }
+      if (textoLower.includes('tema 5') || textoLower.includes('opção 5') || textoLower.includes('quinto tema') || textoLower.includes('biohacking') || textoLower.includes('saúde')) {
+        await handleSelectTema(TEMAS_AMAZON_KDP[4].descricao, TEMAS_AMAZON_KDP[4].perfil);
+        return;
+      }
+      if (textoLower.includes('tema 6') || textoLower.includes('opção 6') || textoLower.includes('sexto tema') || textoLower.includes('thriller') || textoLower.includes('ficção')) {
+        await handleSelectTema(TEMAS_AMAZON_KDP[5].descricao, TEMAS_AMAZON_KDP[5].perfil);
+        return;
+      }
+      // O autor ditou uma ideia/tema personalizado:
+      await handleSelectTema(texto, tipoLivro);
+      return;
+    }
+
+    // 2. PASSO 2: SELEÇÃO DE TÍTULO POR VOZ OU ESCRITA
+    if (editorialStage === 2) {
+      if (suggestedTitlesAmazon.length > 0) {
+        if (textoLower.includes('título 1') || textoLower.includes('titulo 1') || textoLower.includes('opção 1') || textoLower.includes('primeiro título')) {
+          await handleSelectTitulo(suggestedTitlesAmazon[0].title);
+          return;
+        }
+        if (textoLower.includes('título 2') || textoLower.includes('titulo 2') || textoLower.includes('opção 2') || textoLower.includes('segundo título')) {
+          await handleSelectTitulo(suggestedTitlesAmazon[1]?.title || suggestedTitlesAmazon[0].title);
+          return;
+        }
+        if (textoLower.includes('título 3') || textoLower.includes('titulo 3') || textoLower.includes('opção 3') || textoLower.includes('terceiro título')) {
+          await handleSelectTitulo(suggestedTitlesAmazon[2]?.title || suggestedTitlesAmazon[0].title);
+          return;
+        }
+        if (textoLower.includes('título 4') || textoLower.includes('titulo 4') || textoLower.includes('opção 4') || textoLower.includes('quarto título')) {
+          await handleSelectTitulo(suggestedTitlesAmazon[3]?.title || suggestedTitlesAmazon[0].title);
+          return;
+        }
+        if (textoLower.includes('título 5') || textoLower.includes('titulo 5') || textoLower.includes('opção 5') || textoLower.includes('quinto título')) {
+          await handleSelectTitulo(suggestedTitlesAmazon[4]?.title || suggestedTitlesAmazon[0].title);
+          return;
+        }
+      }
+      // O autor ditou ou digitou um título próprio:
+      await handleSelectTitulo(texto);
+      return;
+    }
+
+    // 3. PASSO 3: SELEÇÃO DE SUBTÍTULO POR VOZ OU ESCRITA
+    if (editorialStage === 3) {
+      if (suggestedSubtitlesAmazon.length > 0) {
+        if (textoLower.includes('subtítulo 1') || textoLower.includes('subtitulo 1') || textoLower.includes('opção 1') || textoLower.includes('primeiro subtítulo')) {
+          await handleSelectSubtitulo(suggestedSubtitlesAmazon[0].subtitle);
+          return;
+        }
+        if (textoLower.includes('subtítulo 2') || textoLower.includes('subtitulo 2') || textoLower.includes('opção 2') || textoLower.includes('segundo subtítulo')) {
+          await handleSelectSubtitulo(suggestedSubtitlesAmazon[1]?.subtitle || suggestedSubtitlesAmazon[0].subtitle);
+          return;
+        }
+        if (textoLower.includes('subtítulo 3') || textoLower.includes('subtitulo 3') || textoLower.includes('opção 3') || textoLower.includes('terceiro subtítulo')) {
+          await handleSelectSubtitulo(suggestedSubtitlesAmazon[2]?.subtitle || suggestedSubtitlesAmazon[0].subtitle);
+          return;
+        }
+        if (textoLower.includes('subtítulo 4') || textoLower.includes('subtitulo 4') || textoLower.includes('opção 4') || textoLower.includes('quarto subtítulo')) {
+          await handleSelectSubtitulo(suggestedSubtitlesAmazon[3]?.subtitle || suggestedSubtitlesAmazon[0].subtitle);
+          return;
+        }
+        if (textoLower.includes('subtítulo 5') || textoLower.includes('subtitulo 5') || textoLower.includes('opção 5') || textoLower.includes('quinto subtítulo')) {
+          await handleSelectSubtitulo(suggestedSubtitlesAmazon[4]?.subtitle || suggestedSubtitlesAmazon[0].subtitle);
+          return;
+        }
+      }
+      // O autor ditou ou digitou um subtítulo próprio:
+      await handleSelectSubtitulo(texto);
+      return;
+    }
+
+    // 4. PASSO 4: APROVAÇÃO DO SUMÁRIO POR VOZ OU ESCRITA
+    if (editorialStage === 4) {
+      if (
+        textoLower.includes('aprovar sumário') ||
+        textoLower.includes('aprovar sumario') ||
+        textoLower.includes('aprovar') ||
+        textoLower.includes('aprovado') ||
+        textoLower.includes('pode começar') ||
+        textoLower.includes('pode escrever') ||
+        textoLower.includes('vamos começar') ||
+        textoLower.includes('escrever capítulo 1') ||
+        textoLower.includes('escrever capitulo 1') ||
+        textoLower.includes('iniciar escrita') ||
+        textoLower.includes('concordo')
+      ) {
+        await handleAprovarSumario();
+        return;
+      }
+      if (textoLower.includes('outra proposta') || textoLower.includes('gerar outro') || textoLower.includes('regenerar sumário')) {
+        await gerarEstruturaSumario(flowTitulo, flowSubtitulo, flowTema || respostasBriefing.premissa, tipoLivro);
+        return;
+      }
+    }
+
+    // 5. PASSO 5: APROVAÇÃO DO CAPÍTULO E AVANÇO SEQUENCIAL
+    if (editorialStage === 5) {
+      if (
+        textoLower.includes('aprovado') ||
+        textoLower.includes('aprovar capítulo') ||
+        textoLower.includes('aprovar capitulo') ||
+        textoLower.includes('próximo capítulo') ||
+        textoLower.includes('proximo capitulo') ||
+        textoLower.includes('pode continuar') ||
+        textoLower.includes('continuar') ||
+        textoLower.includes('ficou ótimo') ||
+        textoLower.includes('está aprovado')
+      ) {
+        await handleAprovarCapituloEAvancar();
+        return;
+      }
+    }
 
     // ROTEAMENTO DIRETO: REVISÃO EDITORIAL GLOBAL DE TODA A OBRA DE UMA VEZ
     if (
@@ -1958,9 +2464,25 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
       if (msgCard && msgCard.fullBookReviewCard) {
         await handleApplyFullEnrichment(msgCard.id, msgCard.fullBookReviewCard.chaptersEnrichment);
       }
+    } else if (action === 'aprovar_sumario') {
+      await handleAprovarSumario();
+    } else if (action === 'regenerar_sumario') {
+      await gerarEstruturaSumario(flowTitulo, flowSubtitulo, flowTema || respostasBriefing.premissa, tipoLivro);
     } else if (action === 'baixar_pdf') {
-      setInternalTab('exportar');
       await handleDownloadPdf();
+    } else if (action === 'baixar_txt') {
+      if (bookState?.capitulos) {
+        const manuscrito = bookState.capitulos.map((c, i) => `=== CAPÍTULO ${i + 1}: ${c.titulo} ===\n\n${c.texto}`).join('\n\n\n');
+        const blob = new Blob([manuscrito], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(bookState.titulo || 'Livro').replace(/\s+/g, '_')}_Manuscrito.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
     } else if (action === 'pedir_enredo') {
       await handleSendUserInput('Por favor, faça uma checagem completa do enredo e coerência da obra.');
     } else if (action === 'pedir_coesao') {
@@ -2421,52 +2943,6 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 </div>
                 <div style={{ fontSize: 10.5, color: '#64748b' }}>
                   Auditoria ortográfica & KDP
-                </div>
-              </div>
-            </button>
-
-            {/* 5. EXPORTAR KDP */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFlowStep(null);
-                setInternalTab('exportar');
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 12px',
-                borderRadius: 8,
-                border: internalTab === 'exportar' ? '1px solid rgba(245, 158, 11, 0.45)' : '1px solid transparent',
-                background: internalTab === 'exportar' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-                color: internalTab === 'exportar' ? '#ffffff' : '#cbd5e1',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  background: internalTab === 'exportar' ? '#d97706' : 'rgba(255, 255, 255, 0.06)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: internalTab === 'exportar' ? '#ffffff' : '#94a3b8',
-                  flexShrink: 0
-                }}
-              >
-                <Download size={15} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: internalTab === 'exportar' ? 800 : 600 }}>
-                  Exportar KDP
-                </div>
-                <div style={{ fontSize: 10.5, color: '#64748b' }}>
-                  Arquivos e publicação Amazon
                 </div>
               </div>
             </button>
@@ -3141,326 +3617,6 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
       )}
 
       {/* ==================================================================== */}
-      {/* 2.1 PAINEL EXPANSÍVEL: FLUXO EDITORIAL DINÂMICO (PASSOS 1, 2 E 3) */}
-      {/* ==================================================================== */}
-      {activeFlowStep !== null && (
-        <div
-          style={{
-            flexShrink: 0,
-            background: '#ffffff',
-            borderBottom: '2px solid #0284c7',
-            padding: '18px 28px',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 14,
-            maxHeight: '42vh',
-            overflowY: 'auto'
-          }}
-        >
-          {/* TOPO DO PAINEL DO FLUXO */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 7,
-                  background: '#0284c7',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: 13
-                }}
-              >
-                {activeFlowStep}
-              </div>
-              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
-                {activeFlowStep === 1 && 'Etapa 1: Editar Tema, Ideia Central & Gênero'}
-                {activeFlowStep === 2 && 'Etapa 2: Título, Subtítulo & IA de Conversão KDP'}
-                {activeFlowStep === 3 && 'Etapa 3: Sumário Estrutural dos Capítulos'}
-              </h4>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActiveFlowStep(null)}
-              style={{
-                background: '#f1f5f9',
-                border: 'none',
-                borderRadius: 6,
-                padding: '5px 12px',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#64748b',
-                cursor: 'pointer'
-              }}
-            >
-              ✕ Fechar e Voltar ao Chat
-            </button>
-          </div>
-
-          {/* CONTEÚDO ETAPA 1: TEMA & IDEIA */}
-          {activeFlowStep === 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
-                Altere ou defina a premissa central. A inteligência editorial adaptará as sugestões de capítulos e estilo a este tema:
-              </p>
-              <textarea
-                value={flowTema}
-                onChange={e => setFlowTema(e.target.value)}
-                placeholder="Ex: Guia prático de transformação pessoal e hábitos matinais para aumentar foco e disciplina diária..."
-                rows={3}
-                style={{
-                  width: '100%',
-                  padding: 12,
-                  borderRadius: 8,
-                  border: '1.5px solid #cbd5e1',
-                  fontSize: 13.5,
-                  fontFamily: 'inherit',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 12.5, color: '#64748b' }}>
-                  Gênero ativo: <strong>{tipoLivro.toUpperCase()}</strong>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveFlowTema}
-                  style={{
-                    background: '#0284c7',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: 7,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                >
-                  <Save size={14} /> Salvar Tema & Ir para Título →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* CONTEÚDO ETAPA 2: TÍTULO & SUBTÍTULO COM IA */}
-          {activeFlowStep === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Título do Livro:
-                  </label>
-                  <input
-                    type="text"
-                    value={flowTitulo}
-                    onChange={e => setFlowTitulo(e.target.value)}
-                    placeholder="Ex: O Poder do Hábito Inabalável"
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      borderRadius: 7,
-                      border: '1.5px solid #cbd5e1',
-                      fontSize: 13.5,
-                      fontWeight: 700,
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Subtítulo (Gatilho de Vendas KDP):
-                  </label>
-                  <input
-                    type="text"
-                    value={flowSubtitulo}
-                    onChange={e => setFlowSubtitulo(e.target.value)}
-                    placeholder="Ex: Como Transformar Sua Rotina e Destravar Alta Produtividade"
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      borderRadius: 7,
-                      border: '1.5px solid #cbd5e1',
-                      fontSize: 13.5,
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* BOTÃO PARA GERAR SUGESTÕES DE TÍTULOS COM IA */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={handleGenerateTitleSuggestions}
-                  disabled={isSuggestingTitles}
-                  style={{
-                    background: '#f0f9ff',
-                    border: '1.5px solid #bae6fd',
-                    color: '#0284c7',
-                    padding: '8px 14px',
-                    borderRadius: 7,
-                    fontSize: 12.5,
-                    fontWeight: 800,
-                    cursor: isSuggestingTitles ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                >
-                  {isSuggestingTitles ? <BookEnginAnimatedBook size="micro" /> : <Sparkles size={14} />}
-                  <span>{isSuggestingTitles ? 'Criando 5 Títulos Bestseller com IA...' : '✨ Sugerir 5 Títulos Bestseller com IA'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveFlowTitulo}
-                  style={{
-                    background: '#0284c7',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: 7,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                >
-                  <Save size={14} /> Salvar Título & Ir para Sumário →
-                </button>
-              </div>
-
-              {/* CARDS DE SUGESTÕES GERADAS */}
-              {titleSuggestions.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: '#0369a1' }}>
-                    Escolha uma sugestão para aplicar imediatamente:
-                  </span>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
-                    {titleSuggestions.map((sug, sIdx) => (
-                      <div
-                        key={sIdx}
-                        onClick={() => handleApplyTitleSuggestion(sug.title, sug.subtitle)}
-                        style={{
-                          background: '#f8fafc',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: 8,
-                          padding: 10,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.borderColor = '#0284c7')}
-                        onMouseLeave={e => (e.currentTarget.style.borderColor = '#cbd5e1')}
-                      >
-                        <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{sug.title}</div>
-                        <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}>{sug.subtitle}</div>
-                        <div style={{ fontSize: 10.5, color: '#059669', marginTop: 4, fontStyle: 'italic' }}>
-                          💡 {sug.rationale}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* CONTEÚDO ETAPA 3: SUMÁRIO & CAPÍTULOS */}
-          {activeFlowStep === 3 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: '#475569' }}>
-                  Capítulos planejados ou já escritos ({bookState?.capitulos?.length || 0} de {totalCaps}):
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveFlowStep(null);
-                    setInternalTab('chat');
-                  }}
-                  style={{
-                    background: '#10b981',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '7px 14px',
-                    borderRadius: 7,
-                    fontSize: 12.5,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                >
-                  ✍️ Ir para Redação dos Capítulos no Chat
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {(bookState?.capitulos || []).map((cap, cIdx) => (
-                  <div
-                    key={cIdx}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      background: '#f8fafc',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: 7
-                    }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-                      Capítulo {cIdx + 1}: {cleanChapterTitle(cap.titulo)}
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 11, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                        ✓ {cap.texto.split(/\s+/).filter(Boolean).length} palavras
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleHumanizeChapter(cIdx)}
-                        disabled={isHumanizingChapter === cIdx}
-                        style={{
-                          background: '#ffffff',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: 6,
-                          padding: '3px 8px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: isHumanizingChapter === cIdx ? 'not-allowed' : 'pointer',
-                          color: '#0284c7'
-                        }}
-                      >
-                        {isHumanizingChapter === cIdx ? '✨ Humanizando...' : '✨ Humanizar'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                {(!bookState?.capitulos || bookState.capitulos.length === 0) && (
-                  <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
-                    Nenhum capítulo escrito ainda nesta obra. Clique no botão de redação para começar o Capítulo 1!
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ==================================================================== */}
       {/* 3. CONTEÚDO PRINCIPAL (COM CONTENÇÃO TOTAL DE SCROLL) */}
       {/* ==================================================================== */}
 
@@ -3490,6 +3646,125 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
       {/* ──────────────────────────────────────────────────────────────────── */}
       {internalTab === 'chat' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+          
+          {/* BARRA SUPERIOR FIXA: STEPPER EDITORIAL SEQUENCIAL RIGOROSO (PASSOS 1 A 6) */}
+          <div
+            style={{
+              flexShrink: 0,
+              background: '#ffffff',
+              borderBottom: '1px solid #e2e8f0',
+              padding: '12px 24px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Esteira Editorial Amazon KDP
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 12, background: '#e0f2fe', color: '#0284c7' }}>
+                  Passo {editorialStage} de 6
+                </span>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  • Só passa para o próximo passo quando o anterior for concluído • Controle total por voz ou clique
+                </span>
+              </div>
+
+              <div style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>
+                {flowTitulo ? (
+                  <span>Obra: <strong style={{ color: '#0f172a' }}>{flowTitulo}</strong></span>
+                ) : (
+                  <span>Nova Obra KDP</span>
+                )}
+              </div>
+            </div>
+
+            {/* OS 6 PASSOS SEQUENCIAIS DA ESTEIRA */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: 8
+              }}
+            >
+              {[
+                { step: 1, label: '1. Tema & Nicho', desc: flowTema ? '✓ Definido' : 'Em seleção' },
+                { step: 2, label: '2. Título Comercial', desc: flowTitulo && flowTitulo !== 'Nova Obra KDP' ? '✓ Definido' : (editorialStage >= 2 ? 'Em seleção' : 'Bloqueado') },
+                { step: 3, label: '3. Subtítulo KDP', desc: flowSubtitulo ? '✓ Definido' : (editorialStage >= 3 ? 'Em seleção' : 'Bloqueado') },
+                { step: 4, label: '4. Sumário & Caps', desc: editorialStage > 4 ? '✓ Aprovado' : (editorialStage === 4 ? 'Aprovação' : 'Bloqueado') },
+                { step: 5, label: '5. Redação Caps', desc: (bookState?.capitulos?.length || 0) > 0 ? `${bookState?.capitulos?.length || 0}/${customTotalCaps} caps` : (editorialStage === 5 ? 'Escrevendo' : 'Bloqueado') },
+                { step: 6, label: '6. Capa & Conclusão', desc: editorialStage === 6 ? '✓ Obra Pronta' : 'Bloqueado' }
+              ].map((st) => {
+                const isCurrent = editorialStage === st.step;
+                const isCompleted = editorialStage > st.step;
+                const isLocked = editorialStage < st.step;
+
+                return (
+                  <div
+                    key={st.step}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: isCurrent
+                        ? '1.5px solid #0284c7'
+                        : isCompleted
+                        ? '1px solid #a7f3d0'
+                        : '1px solid #e2e8f0',
+                      background: isCurrent
+                        ? '#f0f9ff'
+                        : isCompleted
+                        ? '#ecfdf5'
+                        : '#f8fafc',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                      opacity: isLocked ? 0.6 : 1,
+                      cursor: isCompleted ? 'pointer' : 'default',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onClick={() => {
+                      if (isCompleted) {
+                        setEditorialStage(st.step as EditorialStage);
+                      }
+                    }}
+                    title={isLocked ? 'Conclua a etapa anterior para desbloquear' : (isCompleted ? 'Clique para revisitar' : 'Etapa ativa')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span
+                        style={{
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          color: isCurrent ? '#0284c7' : isCompleted ? '#065f46' : '#64748b'
+                        }}
+                      >
+                        {st.label}
+                      </span>
+                      {isCompleted ? (
+                        <CheckCircle size={13} color="#059669" />
+                      ) : isLocked ? (
+                        <Lock size={12} color="#94a3b8" />
+                      ) : (
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0284c7' }} />
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        color: isCurrent ? '#0369a1' : isCompleted ? '#047857' : '#94a3b8',
+                        fontWeight: 600
+                      }}
+                    >
+                      {st.desc}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* FEED DE MENSAGENS COM SCROLL ESTRITAMENTE INTERNO */}
           <div
             ref={chatScrollContainerRef}
@@ -3512,6 +3787,592 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 gap: 20
               }}
             >
+              {/* CARD ATIVO INTERATIVO DA ETAPA ATUAL DA ESTEIRA */}
+              {editorialStage === 1 && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    border: '1.5px solid #0284c7',
+                    borderRadius: 12,
+                    padding: 20,
+                    boxShadow: '0 4px 16px rgba(2, 132, 199, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 8, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
+                      <Lightbulb size={20} />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                        Passo 1: Escolha o Tema ou Nicho da sua Obra
+                      </h4>
+                      <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                        Selecione um nicho de alta conversão da Amazon KDP abaixo ou dite sua ideia por voz no microfone:
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, marginTop: 14 }}>
+                    {TEMAS_AMAZON_KDP.map((tema) => (
+                      <div
+                        key={tema.id}
+                        onClick={() => handleSelectTema(tema.descricao, tema.perfil)}
+                        style={{
+                          padding: 14,
+                          borderRadius: 10,
+                          border: '1px solid #cbd5e1',
+                          background: '#f8fafc',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = '#0284c7';
+                          e.currentTarget.style.background = '#f0f9ff';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = '#cbd5e1';
+                          e.currentTarget.style.background = '#f8fafc';
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: 6 }}>
+                            {tema.badge}
+                          </span>
+                          <span style={{ fontSize: 10.5, color: '#64748b', fontWeight: 600 }}>{tema.nicho}</span>
+                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                          {tema.titulo}
+                        </div>
+                        <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.45 }}>
+                          {tema.descricao}
+                        </div>
+                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: '#0284c7', fontSize: 12, fontWeight: 700 }}>
+                          <span>Escolher este tema</span> <ArrowRight size={13} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* CARD ATIVO: PASSO 2 (TÍTULO COMERCIAL AMAZON KDP) */}
+              {editorialStage === 2 && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    border: '1.5px solid #0284c7',
+                    borderRadius: 12,
+                    padding: 20,
+                    boxShadow: '0 4px 16px rgba(2, 132, 199, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
+                        <Award size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                          Passo 2: Escolha o Título Comercial Bestseller (Amazon KDP)
+                        </h4>
+                        <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                          Tema ativo: <strong>{flowTema || 'Tema selecionado'}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => gerarSugestoesTitulosAmazon(flowTema || 'desenvolvimento pessoal', tipoLivro)}
+                      disabled={isLoadingAmazonSuggestions}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 7,
+                        border: '1px solid #bae6fd',
+                        background: '#f0f9ff',
+                        color: '#0284c7',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: isLoadingAmazonSuggestions ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5
+                      }}
+                    >
+                      <RotateCw size={13} className={isLoadingAmazonSuggestions ? 'animate-spin' : ''} />
+                      <span>{isLoadingAmazonSuggestions ? 'Buscando...' : 'Gerar outros títulos'}</span>
+                    </button>
+                  </div>
+
+                  {isLoadingAmazonSuggestions ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>
+                      <BookEnginAnimatedBook size="sm" />
+                      <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 600 }}>
+                        Pesquisando títulos de alta conversão na Amazon KDP...
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                      {(suggestedTitlesAmazon.length > 0 ? suggestedTitlesAmazon : [
+                        { title: `O Poder de ${flowTema ? flowTema.slice(0, 30) : 'Foco & Rotina'}`, rationale: 'Alta taxa de conversão em buscas da Amazon' },
+                        { title: 'Inabalável: O Método Definitivo', rationale: 'Gatilho de autoridade e segurança' },
+                        { title: 'Do Caos à Maestria Diária', rationale: 'Promessa de transformação imediata' },
+                        { title: 'A Arte da Execução Implacável', rationale: 'Forte apelo comercial e foco em ação' },
+                        { title: 'Manual Prático de Alta Performance', rationale: 'Direto, pragmático e sem enrolação' }
+                      ]).map((sug, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => handleSelectTitulo(sug.title)}
+                          style={{
+                            padding: '12px 16px',
+                            borderRadius: 8,
+                            border: '1px solid #cbd5e1',
+                            background: '#f8fafc',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.borderColor = '#0284c7';
+                            e.currentTarget.style.background = '#f0f9ff';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.borderColor = '#cbd5e1';
+                            e.currentTarget.style.background = '#f8fafc';
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: 14.5, fontWeight: 800, color: '#0f172a' }}>
+                              {idx + 1}. {sug.title}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#059669', marginTop: 2, fontStyle: 'italic' }}>
+                              💡 {sug.rationale}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: 6,
+                              background: '#0284c7',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                          >
+                            Escolher Título →
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CARD ATIVO: PASSO 3 (SUBTÍTULO DE CONVERSÃO AMAZON KDP) */}
+              {editorialStage === 3 && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    border: '1.5px solid #0284c7',
+                    borderRadius: 12,
+                    padding: 20,
+                    boxShadow: '0 4px 16px rgba(2, 132, 199, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
+                        <FileCheck size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                          Passo 3: Escolha o Subtítulo de Conversão (Amazon KDP)
+                        </h4>
+                        <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                          Título ativo: <strong>{flowTitulo}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => gerarSugestoesSubtitulosAmazon(flowTitulo, flowTema || 'desenvolvimento pessoal', tipoLivro)}
+                      disabled={isLoadingAmazonSuggestions}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 7,
+                        border: '1px solid #bae6fd',
+                        background: '#f0f9ff',
+                        color: '#0284c7',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: isLoadingAmazonSuggestions ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5
+                      }}
+                    >
+                      <RotateCw size={13} className={isLoadingAmazonSuggestions ? 'animate-spin' : ''} />
+                      <span>{isLoadingAmazonSuggestions ? 'Buscando...' : 'Gerar outros subtítulos'}</span>
+                    </button>
+                  </div>
+
+                  {isLoadingAmazonSuggestions ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>
+                      <BookEnginAnimatedBook size="sm" />
+                      <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 600 }}>
+                        Criando propostas de subtítulos de alta conversão...
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                      {(suggestedSubtitlesAmazon.length > 0 ? suggestedSubtitlesAmazon : [
+                        { subtitle: 'Como Vencer a Procrastinação e Ter 4 Horas de Foco Sem Ansiedade', rationale: 'Promessa direta com quebra de objeção' },
+                        { subtitle: 'O Passo a Passo Prático Para Dominar Hábitos e Conquistar Resultados Reais', rationale: 'Estrutura pragmática de guia de ação' },
+                        { subtitle: 'O Guia Definitivo Para Transformar Sua Rotina e Destravar Alta Produtividade', rationale: 'Foco em resolução de problema' },
+                        { subtitle: 'Estratégias Reais Testadas no Campo de Batalha Para Blindar Sua Mente', rationale: 'Autoridade e aplicabilidade' },
+                        { subtitle: 'Um Método Simples e Eficaz Para Mudar de Vida em Menos de 30 Dias', rationale: 'Especificidade temporal e baixo atrito' }
+                      ]).map((sug, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => handleSelectSubtitulo(sug.subtitle)}
+                          style={{
+                            padding: '12px 16px',
+                            borderRadius: 8,
+                            border: '1px solid #cbd5e1',
+                            background: '#f8fafc',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.borderColor = '#0284c7';
+                            e.currentTarget.style.background = '#f0f9ff';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.borderColor = '#cbd5e1';
+                            e.currentTarget.style.background = '#f8fafc';
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                              {idx + 1}. {sug.subtitle}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#059669', marginTop: 2, fontStyle: 'italic' }}>
+                              💡 {sug.rationale}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: 6,
+                              background: '#0284c7',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                          >
+                            Escolher Subtítulo →
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CARD ATIVO: PASSO 4 (SUMÁRIO E CAPÍTULOS ESTRUTURADOS) */}
+              {editorialStage === 4 && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    border: '1.5px solid #0284c7',
+                    borderRadius: 12,
+                    padding: 20,
+                    boxShadow: '0 4px 16px rgba(2, 132, 199, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
+                        <Layers size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                          Passo 4: Sumário e Estrutura dos Capítulos
+                        </h4>
+                        <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                          Obra: <strong>{flowTitulo}</strong> {flowSubtitulo ? `— ${flowSubtitulo}` : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAprovarSumario}
+                      disabled={isAiProcessing}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: 8,
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: 13.5,
+                        fontWeight: 800,
+                        cursor: isAiProcessing ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                      <span>✅ Aprovar Sumário e Iniciar Capítulo 1</span>
+                    </button>
+                  </div>
+
+                  <p style={{ margin: '0 0 12px', fontSize: 13, color: '#475569' }}>
+                    Revise os capítulos planejados para a sua obra. Você pode aprovar por voz dizendo <strong>"Aprovar sumário"</strong> ou <strong>"Pode começar"</strong>:
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+                    {(editorialPlan?.chapters || [
+                      { title: 'A Crise da Atenção Moderna', objective: 'Compreender o cenário atual de dispersão' },
+                      { title: 'A Biologia da Distração', objective: 'Descobrir por que o cérebro busca dopamina rápida' },
+                      { title: 'O Método dos Blocos de Foco', objective: 'Como estruturar sprints inabaláveis de trabalho' },
+                      { title: 'Eliminando Vazamentos Invisíveis', objective: 'Faxina digital prática e sem notificações' },
+                      { title: 'Rotinas Matinais de Alto Impacto', objective: 'Construir as primeiras 2 horas perfeitas do dia' },
+                      { title: 'Energia Vital e Resistência ao Cansaço', objective: 'Sono, hidratação e pausas estratégicas' },
+                      { title: 'Superando Recaídas e Procrastinação', objective: 'Plano de emergência para dias caóticos' },
+                      { title: 'A Vida com Foco Inabalável', objective: 'Consolidação e conclusão do método' }
+                    ]).map((ch, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          border: '1px solid #e2e8f0',
+                          background: '#f8fafc',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 12
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 900, color: '#0284c7', background: '#e0f2fe', width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {idx + 1}
+                          </span>
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>
+                            {cleanChapterTitle(ch.title)}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>
+                          {ch.objective}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* CARD ATIVO: PASSO 5 (REDAÇÃO DOS CAPÍTULOS COM APROVAÇÃO RÍGIDA) */}
+              {editorialStage === 5 && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    border: '1.5px solid #10b981',
+                    borderRadius: 12,
+                    padding: 18,
+                    boxShadow: '0 4px 16px rgba(16, 185, 129, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+                        <BookOpen size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 15.5, fontWeight: 800, color: '#065f46' }}>
+                          Passo 5: Redação Guiada ({capsConcluidos} de {customTotalCaps} capítulos escritos)
+                        </h4>
+                        <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                          Fluxo rígido: o CoAuthor só passa para o próximo capítulo após sua aprovação explícita (por voz ou clique).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={handleAprovarCapituloEAvancar}
+                        disabled={isAiProcessing}
+                        style={{
+                          padding: '9px 18px',
+                          borderRadius: 8,
+                          background: 'linear-gradient(135deg, #10b981, #059669)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: 13,
+                          fontWeight: 800,
+                          cursor: isAiProcessing ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
+                        }}
+                      >
+                        <CheckCircle2 size={15} />
+                        <span>{capsConcluidos >= customTotalCaps ? '🎉 Concluir Obra' : `✅ Aprovar e Escrever Capítulo ${capsConcluidos + 1}`}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* CARD ATIVO: PASSO 6 (CAPA OFICIAL KDP & OBRA CONCLUÍDA) */}
+              {editorialStage === 6 && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    border: '2px solid #059669',
+                    borderRadius: 14,
+                    padding: 24,
+                    boxShadow: '0 8px 24px rgba(5, 150, 105, 0.12)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 10, background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+                      <Award size={26} />
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#065f46' }}>
+                        🎉 Passo 6: Obra Concluída & Capa Oficial KDP Pronta!
+                      </h3>
+                      <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                        Todos os capítulos foram escritos, revisados e aprovados no padrão oficial da Amazon KDP.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap', background: '#f8fafc', padding: 18, borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 18 }}>
+                    {capaDataUrl ? (
+                      <img
+                        src={capaDataUrl}
+                        alt="Capa Oficial KDP"
+                        style={{ width: 100, height: 150, objectFit: 'cover', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
+                      />
+                    ) : (
+                      <div style={{ width: 100, height: 150, background: '#0f172a', color: '#38bdf8', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8, textAlign: 'center' }}>
+                        <BookCheck size={28} />
+                        <span style={{ fontSize: 11, fontWeight: 800, marginTop: 8 }}>CAPA KDP 6x9</span>
+                      </div>
+                    )}
+
+                    <div style={{ flex: 1, minWidth: 240 }}>
+                      <h4 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 900, color: '#0f172a' }}>
+                        {bookState?.titulo || flowTitulo}
+                      </h4>
+                      <p style={{ margin: '0 0 10px', fontSize: 13.5, color: '#64748b' }}>
+                        {bookState?.subtitulo || flowSubtitulo}
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: '#ecfdf5', color: '#065f46' }}>
+                          ✓ {capsConcluidos} capítulos aprovados
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: '#e0f2fe', color: '#0369a1' }}>
+                          ~{totalPalavras.toLocaleString()} palavras
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: '#f1f5f9', color: '#475569' }}>
+                          ~{Math.max(24, Math.ceil((totalPalavras || 1) / 250))} páginas (Formato 6x9)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleDownloadPdf}
+                      disabled={isGeneratingPdf}
+                      style={{
+                        padding: '12px 24px',
+                        borderRadius: 8,
+                        background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        cursor: isGeneratingPdf ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
+                      }}
+                    >
+                      {isGeneratingPdf ? <BookEnginAnimatedBook size="micro" /> : <Download size={17} />}
+                      <span>{isGeneratingPdf ? 'Gerando Diagramação KDP...' : '📥 Baixar PDF Diagramado Oficial KDP'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleActionClick('baixar_txt')}
+                      style={{
+                        padding: '12px 20px',
+                        borderRadius: 8,
+                        background: '#ffffff',
+                        color: '#334155',
+                        border: '1px solid #cbd5e1',
+                        fontSize: 13.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 7
+                      }}
+                    >
+                      <FileText size={16} /> Baixar Manuscrito TXT
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInternalTab('diagramado')}
+                      style={{
+                        padding: '12px 20px',
+                        borderRadius: 8,
+                        background: '#f8fafc',
+                        color: '#059669',
+                        border: '1px solid #a7f3d0',
+                        fontSize: 13.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 7
+                      }}
+                    >
+                      <BookOpen size={16} /> Folhear Livro Diagramado
+                    </button>
+                  </div>
+                </div>
+              )}
               {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -4099,69 +4960,83 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 ))}
               </div>
 
-              {/* FORMULÁRIO DE ENVIO COM CAMPO DE TEXTO ERGONÔMICO */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendUserInput();
-                }}
-                style={{ display: 'flex', gap: 10, alignItems: 'center' }}
-              >
-                <input
-                  type="text"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  disabled={isAiProcessing}
-                  placeholder={
-                    isAiProcessing
-                      ? 'Aguarde... o Agente CoAuthor está processando...'
-                      : 'Converse com o CoAuthor: dê instruções, peça ajustes, solicite checagem de enredo ou capítulos...'
-                  }
-                  style={{
-                    flex: 1,
-                    padding: '12px 18px',
-                    borderRadius: 10,
-                    border: '1.5px solid #cbd5e1',
-                    fontSize: 14.5,
-                    background: isAiProcessing ? '#f1f5f9' : '#ffffff',
-                    color: '#0f172a',
-                    outline: 'none',
-                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)'
-                  }}
-                />
+              {/* FORMULÁRIO DE ENVIO COM BARRA DE VOZ HANDS-FREE E CAMPO DE TEXTO ERGONÔMICO */}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', width: '100%' }}>
+                {/* BARRA DE VOZ CONTÍNUA / HANDS-FREE COM CORTE IMEDIATO DE SOM (BARGE-IN) */}
+                <div style={{ flexShrink: 0 }}>
+                  <CoAuthorVoiceModalBar
+                    onSendMessage={(transcript) => {
+                      handleSendUserInput(transcript);
+                    }}
+                    isLoading={isAiProcessing}
+                    disabled={isAiProcessing}
+                  />
+                </div>
 
-                <button
-                  type="submit"
-                  disabled={!userInput.trim() || isAiProcessing}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '12px 22px',
-                    borderRadius: 10,
-                    background: !userInput.trim() || isAiProcessing
-                      ? '#cbd5e1'
-                      : 'linear-gradient(135deg, #0284c7, #0369a1)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontSize: 14,
-                    fontWeight: 800,
-                    cursor: !userInput.trim() || isAiProcessing ? 'not-allowed' : 'pointer',
-                    boxShadow: userInput.trim() && !isAiProcessing ? '0 3px 10px rgba(2, 132, 199, 0.3)' : 'none',
-                    transition: 'all 0.15s ease'
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendUserInput();
                   }}
+                  style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 0 }}
                 >
-                  {isAiProcessing ? (
-                    <>
-                      <BookEnginAnimatedBook size="micro" /> Gerando...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={15} /> Enviar
-                    </>
-                  )}
-                </button>
-              </form>
+                  <input
+                    type="text"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    disabled={isAiProcessing}
+                    placeholder={
+                      isAiProcessing
+                        ? 'Aguarde... o Agente CoAuthor está processando...'
+                        : 'Fale por voz no microfone ou digite: escolha temas, títulos, aprove sumário ou dê instruções...'
+                    }
+                    style={{
+                      flex: 1,
+                      padding: '12px 18px',
+                      borderRadius: 10,
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: 14.5,
+                      background: isAiProcessing ? '#f1f5f9' : '#ffffff',
+                      color: '#0f172a',
+                      outline: 'none',
+                      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)'
+                    }}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={!userInput.trim() || isAiProcessing}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '12px 22px',
+                      borderRadius: 10,
+                      background: !userInput.trim() || isAiProcessing
+                        ? '#cbd5e1'
+                        : 'linear-gradient(135deg, #0284c7, #0369a1)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: 14,
+                      fontWeight: 800,
+                      cursor: !userInput.trim() || isAiProcessing ? 'not-allowed' : 'pointer',
+                      boxShadow: userInput.trim() && !isAiProcessing ? '0 3px 10px rgba(2, 132, 199, 0.3)' : 'none',
+                      transition: 'all 0.15s ease',
+                      flexShrink: 0
+                    }}
+                  >
+                    {isAiProcessing ? (
+                      <>
+                        <BookEnginAnimatedBook size="micro" /> Gerando...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={15} /> Enviar
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
             </div>
           </footer>
         </div>
@@ -4670,116 +5545,6 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 })}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ──────────────────────────────────────────────────────────────────── */}
-      {/* MODO 4: PREPARAÇÃO & EXPORTAÇÃO KDP (DOWNLOAD DIRETO DO PDF) */}
-      {/* ──────────────────────────────────────────────────────────────────── */}
-      {internalTab === 'exportar' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '36px 48px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div
-            style={{
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: 12,
-              padding: 28,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <Download size={26} color="#0284c7" />
-              <div>
-                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a' }}>
-                  Exportação & Publicação Oficial Amazon KDP
-                </h2>
-                <p style={{ margin: '4px 0 0', fontSize: 14, color: '#64748b' }}>
-                  Gere o PDF com a diagramação definitiva pronto para impressão ou submissão no KDP.
-                </p>
-              </div>
-            </div>
-
-            {pdfSuccessMessage && (
-              <div
-                style={{
-                  margin: '16px 0',
-                  padding: '14px 18px',
-                  background: '#ecfdf5',
-                  border: '1px solid #a7f3d0',
-                  borderRadius: 8,
-                  color: '#065f46',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8
-                }}
-              >
-                <CheckCircle2 size={18} color="#059669" />
-                <span>{pdfSuccessMessage}</span>
-              </div>
-            )}
-
-            <div style={{ marginTop: 24, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={isGeneratingPdf || capsConcluidos === 0}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '14px 28px',
-                  borderRadius: 10,
-                  background: isGeneratingPdf || capsConcluidos === 0
-                    ? '#cbd5e1'
-                    : 'linear-gradient(135deg, #0284c7, #0369a1)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 15,
-                  fontWeight: 800,
-                  cursor: isGeneratingPdf || capsConcluidos === 0 ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
-                }}
-              >
-                {isGeneratingPdf ? <BookEnginAnimatedBook size="micro" /> : <Download size={18} />}
-                <span>{isGeneratingPdf ? 'Gerando Diagramação KDP...' : '📥 Baixar PDF Diagramado Oficial KDP'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (!bookState?.capitulos) return;
-                  const manuscrito = bookState.capitulos.map((c, i) => `=== CAPÍTULO ${i + 1}: ${c.titulo} ===\n\n${c.texto}`).join('\n\n\n');
-                  const blob = new Blob([manuscrito], { type: 'text/plain;charset=utf-8' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `${(bookState.titulo || 'Livro').replace(/\s+/g, '_')}_Manuscrito.txt`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                }}
-                disabled={capsConcluidos === 0}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '14px 22px',
-                  borderRadius: 10,
-                  background: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: capsConcluidos === 0 ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <FileText size={16} /> Baixar Manuscrito Completo (TXT)
-              </button>
-            </div>
           </div>
         </div>
       )}
