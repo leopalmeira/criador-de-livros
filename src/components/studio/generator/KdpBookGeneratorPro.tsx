@@ -2750,6 +2750,37 @@ ${ganchoImediato}`;
     }
   };
 
+  // BAIXAR MANUSCRITO COMPLETO EM TXT
+  const baixarManuscritoTXT = () => {
+    if (!livro || livro.capitulos.length === 0) {
+      setStatusMsg('Gere ao menos um capítulo para baixar o manuscrito.');
+      setStatusType('error');
+      return;
+    }
+
+    const cabecalho = `================================================================================
+${livro.titulo.toUpperCase()}
+${livro.subtitulo ? `${livro.subtitulo}\n` : ''}Autor: ${livro.autor}
+Gênero: ${livro.genero}
+Total de Capítulos: ${livro.capitulos.length}
+================================================================================\n\n`;
+
+    const corpo = livro.capitulos.map((c, i) => {
+      return `--------------------------------------------------------------------------------\nCAPÍTULO ${i + 1}: ${c.titulo.toUpperCase()}\n--------------------------------------------------------------------------------\n\n${c.texto}\n\n`;
+    }).join('\n');
+
+    const blob = new Blob([cabecalho + corpo], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${livro.titulo.replace(/\s+/g, '_')}_Manuscrito.txt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    setStatusMsg('✓ Manuscrito completo em TXT baixado com sucesso!');
+    setStatusType('ok');
+  };
+
   // BAIXAR PDF KDP DIAGRAMADO (MULTI-PASSE COM CAPA, SUMÁRIO E SILHUETAS MARGINAIS)
   const baixarPDF = async () => {
     if (!livro || livro.capitulos.length === 0) {
@@ -3346,13 +3377,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
   };
 
   return (
-    <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#f8fafc', height: '100vh', maxHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* HEADER ELEGANTE DO BOOKENGIN (TEMA CLARO) */}
       <header
         style={{
+          flexShrink: 0,
           background: '#ffffff',
           borderBottom: '1px solid #e2e8f0',
-          padding: '14px 28px',
+          padding: '10px 24px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -3420,8 +3452,6 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-
-
           <div
             style={{
               fontSize: 12,
@@ -3442,39 +3472,49 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         </div>
       </header>
 
-      {/* ÁREA PRINCIPAL EM GRID */}
-      <main style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 20px', width: '100%', flex: 1 }}>
+      {/* ÁREA PRINCIPAL EM GRID FIXO (BANCADA STUDIO MODERNA) */}
+      <main style={{ maxWidth: 1720, margin: '0 auto', padding: '12px 18px', width: '100%', flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '460px 1fr',
-            gap: 24,
-            alignItems: 'start'
+            gridTemplateColumns: '440px 1fr',
+            gap: 16,
+            alignItems: 'stretch',
+            flex: 1,
+            minHeight: 0,
+            height: '100%',
+            overflow: 'hidden'
           }}
         >
           {/* ========================================================= */}
-          {/* COLUNA 1: PAINEL DE CONFIGURAÇÃO (CARD CLARO) */}
+          {/* COLUNA 1: PAINEL DE CONFIGURAÇÃO (ROLAGEM INDEPENDENTE) */}
           {/* ========================================================= */}
           <div
             style={{
               background: '#ffffff',
               border: '1px solid #e2e8f0',
               borderRadius: 12,
-              padding: 24,
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
+              padding: '16px 16px 12px 16px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              minHeight: 0,
+              overflow: 'hidden'
             }}
           >
-
-
             {/* CABEÇALHO ELEGANTE DO PAINEL */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #f1f5f9' }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
-                <Compass size={17} color="#0284c7" /> {ui('Configuração da Obra', 'Book Production Setup')}
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Compass size={16} color="#0284c7" /> {ui('Configuração da Obra', 'Book Production Setup')}
               </h2>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
                 {livro ? `${livro.capitulos.length} caps gerados` : 'Novo Projeto'}
               </span>
             </div>
+
+            {/* CORPO DO FORMULÁRIO COM ROLAGEM INDEPENDENTE E DESIGN REFINADO */}
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 6 }}>
 
             {/* CARD DO AGENTE COAUTHOR (CONVERSACIONAL & FÓRMULA BESTSELLER AMAZON) */}
             <CoAuthorCard
@@ -4738,30 +4778,34 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
             </div>
+            </div>
           </div>
 
           {/* ========================================================= */}
-          {/* COLUNA 2: CARD DE PRÉ-VISUALIZAÇÃO COM ABAS */}
+          {/* COLUNA 2: CARD DE PRÉ-VISUALIZAÇÃO COM ABAS (TRAVADO NA TELA) */}
           {/* ========================================================= */}
           <div
             style={{
               background: '#ffffff',
               border: '1px solid #e2e8f0',
               borderRadius: 12,
-              padding: 24,
+              padding: '16px 18px',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
               display: 'flex',
               flexDirection: 'column',
-              minHeight: 700
+              height: '100%',
+              minHeight: 0,
+              overflow: 'hidden'
             }}
           >
             {/* CABEÇALHO DE ABAS DE PRÉ-VISUALIZAÇÃO */}
             <div
               style={{
+                flexShrink: 0,
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                paddingBottom: 14,
+                paddingBottom: 10,
                 borderBottom: '1px solid #f1f5f9',
                 marginBottom: 16,
                 flexWrap: 'wrap',
@@ -4922,10 +4966,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             </div>
 
             {/* ÁREA DE EXIBIÇÃO CONFORME A ABA ATIVA */}
-            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
               {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
               {activeTab === 'preview' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 4 }}>
                   {/* PAINEL DO MOTOR DE SILHUETAS MARGINAIS COM 3% DE SANGRIA EXTERNA */}
                   {/* PAINEL DO MOTOR DE SILHUETAS ARTÍSTICAS & MARCAS D'ÁGUA P&B */}
                   {/* PAINEL DIDÁTICO E VISUAL: ACABAMENTO EDITORIAL DE MIOLO (SILHUETA & MARCA D'ÁGUA P&B) */}
@@ -5389,7 +5433,54 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         <CheckCircle2 size={16} color="#16a34a" />
                         <span>Manuscrito: {livro.capitulos.length} capítulos ({livro.capitulos.reduce((acc, c) => acc + (c.texto?.split(/\s+/).filter(Boolean).length || 0), 0)} palavras)</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {/* BOTÃO PRINCIPAL DE DOWNLOAD DE PDF DIAGRAMADO OFICIAL KDP */}
+                        <button
+                          type="button"
+                          onClick={baixarPDF}
+                          disabled={!livro || livro.capitulos.length === 0}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 15px',
+                            borderRadius: 6,
+                            background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)'
+                          }}
+                          title="Baixar Livro Diagramado em PDF Oficial Amazon KDP (Formato 6x9)"
+                        >
+                          <Download size={14} /> 📥 Baixar PDF Diagramado (6x9 KDP)
+                        </button>
+
+                        {/* BOTÃO PARA BAIXAR TXT */}
+                        <button
+                          type="button"
+                          onClick={baixarManuscritoTXT}
+                          disabled={!livro || livro.capitulos.length === 0}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '7px 12px',
+                            borderRadius: 6,
+                            background: '#f8fafc',
+                            color: '#334155',
+                            border: '1px solid #cbd5e1',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
+                          }}
+                          title="Baixar todo o texto do livro em arquivo TXT"
+                        >
+                          <Download size={13} /> TXT
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => setIsEditingManuscriptInline(!isEditingManuscriptInline)}
@@ -5397,7 +5488,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
-                            padding: '7px 14px',
+                            padding: '7px 13px',
                             borderRadius: 6,
                             background: isEditingManuscriptInline ? '#0f172a' : '#ffffff',
                             color: isEditingManuscriptInline ? '#ffffff' : '#0f172a',
@@ -5408,7 +5499,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           }}
                           title="Alternar entre o modo de edição direta e o modo de visualização diagramada"
                         >
-                          <Edit3 size={14} /> {isEditingManuscriptInline ? '👁️ Ver Diagramação' : '✏️ Editar Manuscrito'}
+                          <Edit3 size={14} /> {isEditingManuscriptInline ? '👁️ Ver Diagramação' : '✏️ Editar'}
                         </button>
                         <button
                           type="button"
@@ -5417,7 +5508,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
-                            padding: '7px 16px',
+                            padding: '7px 14px',
                             borderRadius: 6,
                             background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
                             color: '#ffffff',
@@ -5429,7 +5520,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           }}
                           title="Abrir revisor interativo para folhear e validar cada página antes de gerar o PDF"
                         >
-                          <BookOpen size={14} /> 📖 Folhear Página por Página
+                          <BookOpen size={14} /> 📖 Folhear
                         </button>
                       </div>
                     </div>
@@ -5438,7 +5529,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   <div
                     ref={previewScrollRef}
                     style={{
-                      height: capaFinal ? 460 : 560,
+                      flex: 1,
+                      minHeight: 460,
                       overflowY: 'auto',
                       background: '#ffffff',
                       border: '1px solid #e2e8f0',

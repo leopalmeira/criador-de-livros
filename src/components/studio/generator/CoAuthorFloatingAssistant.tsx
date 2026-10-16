@@ -11,6 +11,7 @@ import {
   fetchAllReadyBooks,
   saveUpdatedBookToDb,
   inferCoAuthorBookType,
+  reviewFullBookWithCoAuthor,
   type ReadyBookRecord
 } from '../../../services/ready-books-service';
 import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
@@ -142,10 +143,39 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
       sender: 'agent',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       text: (bookState?.titulo && bookState?.capitulos?.length > 0)
-        ? `E aí! Estou com o manuscrito de **"${bookState.titulo}"** aberto aqui na bancada (${bookState.capitulos.length} capítulos). Podemos fazer uma revisão de ponta a ponta na obra toda, enriquecer com mais detalhes ou trabalhar na capa. O que você quer focar agora?`
+        ? `E aí! Estou com o manuscrito de **"${bookState.titulo}"** aberto aqui na bancada com **todos os ${bookState.capitulos.length} capítulos**. Podemos fazer uma revisão crítica completa de ponta a ponta na obra inteira de uma só vez ou elaborar o fechamento definitivo do livro todo. O que você prefere atacar agora?`
         : `E aí! Bancada editorial pronta. Você pode falar comigo por voz para conversarmos e criarmos seu livro juntos: me conte a ideia da história ou enredo, vamos definir título, subtítulo na Amazon, páginas e capítulos. A cada capítulo que você for autorizando, eu vou salvando no seu livro até o desfecho final e a criação da capa. O que vamos criar hoje?`
     }
   ]);
+
+  const hasWelcomedRef = useRef<string | null>(null);
+
+  // Quando o CoAuthor for aberto e o livro tiver capítulos, apresenta a capacidade de revisar a obra toda
+  useEffect(() => {
+    if (!isOpen) return;
+    const caps = activeBookRecord?.capitulos || bookState?.capitulos || [];
+    const bookTitle = activeBookRecord?.title || bookState?.titulo || currentConfig?.titulo || 'Livro em Produção';
+    const key = `${bookTitle}_${caps.length}`;
+
+    if (caps.length > 0 && hasWelcomedRef.current !== key) {
+      hasWelcomedRef.current = key;
+      const totalWords = caps.reduce((acc: number, c: any) => acc + ((c.texto || c.conteudo || '').split(/\s+/).filter(Boolean).length || 0), 0);
+      const text = `E aí! Estou com o manuscrito de **"${bookTitle}"** aberto aqui na nossa bancada com **todos os ${caps.length} capítulos** (${totalWords.toLocaleString()} palavras escritas)!\n\nPosso fazer a **Revisão Editorial Global de ponta a ponta na obra inteira de uma só vez**, auditar o ritmo e consistência de todos os capítulos ou elaborar o **Fechamento Definitivo do livro todo** amarrando todas as pontas soltas da trama. O que você prefere atacar agora?`;
+
+      setMessages(prev => {
+        // Se a primeira mensagem ainda for a padrão ou vazia, substitui
+        if (prev.length <= 1) {
+          return [{
+            id: `msg_welcome_${Date.now()}`,
+            sender: 'agent',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text
+          }];
+        }
+        return prev;
+      });
+    }
+  }, [isOpen, bookState?.titulo, bookState?.capitulos?.length, activeBookRecord?.id]);
 
   const handleSelectReadyBook = (book: ReadyBookRecord) => {
     setActiveBookRecord(book);
@@ -157,7 +187,7 @@ export const CoAuthorFloatingAssistant: React.FC<CoAuthorFloatingAssistantProps>
       id: `msg_loaded_${Date.now()}`,
       sender: 'agent',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text: `Carreguei a obra **"${book.title}"** aqui na nossa bancada! Ela possui ${book.capitulos.length} capítulos e cerca de ${book.totalWords.toLocaleString()} palavras (Perfil: **${book.tipoLivro.toUpperCase()}**).\n\nPodemos fazer uma revisão de ponta a ponta na obra toda, aprofundar ${book.tipoLivro === 'ficcao' ? 'a história e os diálogos' : 'o conteúdo prático e exemplos'}, ou lapidar um capítulo específico. Me conta o que você prefere atacar!`
+      text: `Carreguei a obra **"${book.title}"** aqui na nossa bancada com todos os seus ${book.capitulos.length} capítulos (${book.totalWords.toLocaleString()} palavras no perfil **${book.tipoLivro.toUpperCase()}**).\n\nPosso fazer uma **revisão de ponta a ponta na obra toda de uma vez** ou trabalhar no fechamento global do livro. Me diga como prefere começar!`
     };
     setMessages(prev => [...prev, msgLoaded]);
     coAuthorVoiceService.speak(msgLoaded.text, msgLoaded.id);
@@ -489,12 +519,234 @@ Redija o Capítulo ${chapterNum} completo entre as tags:`;
     }
   };
 
+  // 1. REVISÃO DA OBRA INTEIRA DE UMA VEZ PARA TODOS OS CAPÍTULOS
+  const handleExecuteFullBookReview = async () => {
+    if (currentBookCaps.length === 0) {
+      const msgVazio: Message = {
+        id: `msg_empty_${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `Ainda não temos capítulos gravados no livro para revisar. Vamos começar redigindo o Capítulo 1!`
+      };
+      setMessages(prev => [...prev, msgVazio]);
+      coAuthorVoiceService.speak(msgVazio.text, msgVazio.id);
+      return;
+    }
+
+    setIsLoading(true);
+    setLoadingStatus(`📖 CoAuthor lendo e auditando todos os ${currentBookCaps.length} capítulos de "${currentBookTitle}"...`);
+
+    const userPromptMsg: Message = {
+      id: `msg_user_${Date.now()}`,
+      sender: 'user',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `Por favor, faça uma revisão editorial global de toda a obra "${currentBookTitle}", analisando todos os ${currentBookCaps.length} capítulos de uma só vez.`
+    };
+    setMessages(prev => [...prev, userPromptMsg]);
+
+    try {
+      const totalWords = currentBookCaps.reduce((acc: number, c: any) => acc + ((c.texto || c.conteudo || '').split(/\s+/).filter(Boolean).length || 0), 0);
+
+      const readyBook: ReadyBookRecord = {
+        id: activeBookRecord?.id || `book_${Date.now()}`,
+        source: 'project',
+        title: currentBookTitle,
+        subtitle: currentBookSubtitle,
+        author: currentBookAuthor,
+        genre: currentBookGenre,
+        tipoLivro: inferCoAuthorBookType(currentBookGenre, currentBookTitle),
+        chaptersCount: currentBookCaps.length,
+        totalWords,
+        capitulos: currentBookCaps.map((c: any, i: number) => ({
+          numero: i + 1,
+          titulo: cleanChapterTitle(c.titulo || `Capítulo ${i + 1}`),
+          texto: c.texto || c.conteudo || ''
+        })),
+        meta: {
+          palavrasPorCap: Math.round(totalWords / currentBookCaps.length) || 1200,
+          paginasAlvo: currentConfig?.paginasAlvo || Math.max(24, Math.round(totalWords / 250))
+        },
+        updatedAt: Date.now()
+      };
+
+      const reviewResult = await reviewFullBookWithCoAuthor(readyBook, (st: string) => setLoadingStatus(st));
+
+      const agentReply: Message = {
+        id: `msg_agent_${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `Fiz a auditoria e revisão crítica completa de ponta a ponta em todos os **${currentBookCaps.length} capítulos** de **"${currentBookTitle}"**!\n\n${reviewResult.summary}\n\nIdentifiquei oportunidades para aprofundar a narrativa e fortalecer os capítulos. Abaixo estão os acréscimos editoriais prontos. Você pode aprovar tudo de uma só vez ou verificar capítulo por capítulo:`,
+        fullBookReviewCard: {
+          summary: reviewResult.summary,
+          chaptersEnrichment: reviewResult.chaptersReview.map(cr => ({
+            chapterNumber: cr.chapterNumber,
+            chapterTitle: cr.chapterTitle,
+            rationale: cr.rationale,
+            additionText: cr.additionText
+          })),
+          applied: false
+        }
+      };
+
+      setMessages(prev => [...prev, agentReply]);
+      coAuthorVoiceService.speak(
+        `Concluí a revisão editorial completa de todos os ${currentBookCaps.length} capítulos do seu livro! A estrutura está sólida. Formulei propostas de enriquecimento prontas para elevar a qualidade de cada capítulo. Você pode aplicar tudo na obra toda com um único clique ou comando de voz.`,
+        agentReply.id
+      );
+    } catch (err: any) {
+      const errorMsg: Message = {
+        id: `msg_err_${Date.now()}`,
+        sender: 'system',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `Erro ao executar a revisão da obra toda: ${err.message || 'Verifique a conexão'}.`
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+      setLoadingStatus('CoAuthor analisando...');
+    }
+  };
+
+  // 2. FECHAMENTO DO LIVRO TODO (CLÍMAX, RESOLUÇÃO DE TODAS AS PONTAS E EPÍLOGO)
+  const handleExecuteFullBookClosure = async () => {
+    if (currentBookCaps.length === 0) {
+      const msgVazio: Message = {
+        id: `msg_empty_${Date.now()}`,
+        sender: 'agent',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `Ainda não temos capítulos escritos para realizar o fechamento da obra. Vamos começar com o Capítulo 1!`
+      };
+      setMessages(prev => [...prev, msgVazio]);
+      coAuthorVoiceService.speak(msgVazio.text, msgVazio.id);
+      return;
+    }
+
+    setIsLoading(true);
+    setLoadingStatus(`🏁 CoAuthor analisando todos os ${currentBookCaps.length} capítulos para criar o Fechamento Definitivo do Livro Todo...`);
+
+    const userPromptMsg: Message = {
+      id: `msg_user_${Date.now()}`,
+      sender: 'user',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: `Elabore o fechamento completo e definitivo do livro todo, amarrando os arcos e mistérios de todos os ${currentBookCaps.length} capítulos.`
+    };
+    setMessages(prev => [...prev, userPromptMsg]);
+
+    try {
+      const bibliaEnredo = buildEnredoFullContext();
+      const capFinalNum = currentBookCaps.length + 1;
+
+      const systemInstruction = `Você é um editor sênior e mestre de narrativa para o Amazon KDP.
+Obra: "${currentBookTitle}" | Gênero: "${currentBookGenre}" | Tipo: ${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO / NARRATIVA'}
+${bibliaEnredo}
+
+SUA MISSÃO EXCLUSIVA:
+Criar o FECHAMENTO DEFINITIVO DO LIVRO TODO!
+1. Analise o arco geral desenvolvido desde o Capítulo 1 até o Capítulo ${currentBookCaps.length}.
+2. Amarre todas as pontas soltas da trama, mistérios, motivações e conflitos.
+3. ${isTechnicalBook
+  ? 'Crie o fechamento com um Framework Integrado Definitivo, plano de ação mestre do leitor, próximos passos na carreira e mensagem inspiradora de encerramento.'
+  : 'Crie o clímax decisivo e o epílogo arrebatador que conclui com maestria os destinos dos personagens e deixa uma marca inesquecível no leitor.'}
+
+FORMATO ESTRUTURADO OBRIGATÓRIO:
+<<<PROPOSTA_CAPITULO>>>
+NUMERO: ${capFinalNum}
+TITULO: [Título impactante para o Fechamento / Epílogo Final da Obra]
+RESUMO: [Resumo de como este fechamento amarra todos os arcos do livro todo]
+TEXTO:
+[Texto completo, emocionante e definitivo do fechamento da obra]
+<<<FIM_PROPOSTA_CAPITULO>>>`;
+
+      const promptText = `Crie agora o FECHAMENTO DEFINITIVO DA HISTÓRIA DE PONTA A PONTA, conectando todos os ${currentBookCaps.length} capítulos da obra:`;
+
+      const res = await chamarGeminiTexto(promptText, {
+        systemInstruction,
+        temperature: 0.8,
+        maxTokens: 4800
+      });
+
+      const respostaIA = res?.texto || '';
+      const capMatch = respostaIA.match(/<<<PROPOSTA_CAPITULO>>>([\s\S]*?)<<<FIM_PROPOSTA_CAPITULO>>>/);
+
+      if (capMatch) {
+        const bloco = capMatch[1];
+        const numMatch = bloco.match(/NUMERO:\s*(\d+)/i);
+        const titMatch = bloco.match(/TITULO:\s*([^\n]+)/i);
+        const resMatch = bloco.match(/RESUMO:\s*([\s\S]*?)(?=TEXTO:)/i);
+        const txtMatch = bloco.match(/TEXTO:\s*([\s\S]*)/i);
+
+        const num = numMatch ? parseInt(numMatch[1], 10) : capFinalNum;
+        const tit = titMatch ? cleanChapterTitle(titMatch[1].trim()) : 'Fechamento Definitivo & Epílogo';
+        const resumo = resMatch ? resMatch[1].trim() : 'Fechamento definitivo da obra inteira, amarrando todos os arcos da história.';
+        const textoCap = txtMatch ? txtMatch[1].trim() : bloco.trim();
+        const words = textoCap.split(/\s+/).filter(Boolean).length;
+
+        const proposalCard: ChapterProposal = {
+          numero: num,
+          titulo: tit,
+          texto: textoCap,
+          palavras: words,
+          resumo,
+          applied: false
+        };
+
+        const agentMsg: Message = {
+          id: `msg_closure_${Date.now()}`,
+          sender: 'agent',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `🏁 **Fechamento Global da Obra Completa Pronto!**\n\nAnalisei os **${currentBookCaps.length} capítulos** anteriores e compus o desfecho definitivo: **"${tit}"** (${words.toLocaleString()} palavras).\n\n${resumo}\n\nVocê pode autorizar e salvar como o capítulo de conclusão definitiva da obra abaixo:`,
+          chapterProposalCard: proposalCard
+        };
+
+        setMessages(prev => [...prev, agentMsg]);
+        coAuthorVoiceService.speak(
+          `Criei o Fechamento Definitivo do livro todo! Analisei todos os ${currentBookCaps.length} capítulos e amarrei as pontas soltas da história no clímax final "${tit}". Se você aprovar, já gravamos no livro e finalizamos a história com chave de ouro!`,
+          agentMsg.id
+        );
+      } else {
+        const agentMsg: Message = {
+          id: `msg_agent_${Date.now()}`,
+          sender: 'agent',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: respostaIA
+        };
+        setMessages(prev => [...prev, agentMsg]);
+        coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
+      }
+    } catch (err: any) {
+      const errorMsg: Message = {
+        id: `msg_err_${Date.now()}`,
+        sender: 'system',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `Erro ao criar o fechamento do livro: ${err.message || 'Verifique a conexão'}.`
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+      setLoadingStatus('CoAuthor analisando...');
+    }
+  };
+
   const handleSendMessage = async (
     userPrompt?: string,
     actionType?: 'enredo-global' | 'fechamento' | 'profundidade' | 'capa' | 'acrescimo-capitulo'
   ) => {
     const textToSend = userPrompt || inputText.trim();
     if (!textToSend && !actionType) return;
+
+    // Desvio prioritário para Revisão da Obra Inteira de Uma Vez
+    if (actionType === 'enredo-global' || /revisar obra|revisar tudo|revisar todos|revisar o livro|revisar obra inteira|revisar a obra|revisar todos os cap|auditar obra|auditoria/i.test(textToSend)) {
+      if (!userPrompt) setInputText('');
+      await handleExecuteFullBookReview();
+      return;
+    }
+
+    // Desvio prioritário para Fechamento do Livro Todo
+    if (actionType === 'fechamento' || /fechamento|fechar o livro|fechar a hist[oó]ria|desfecho da obra|concluir o livro|cl[ií]max final|ep[ií]logo/i.test(textToSend)) {
+      if (!userPrompt) setInputText('');
+      await handleExecuteFullBookClosure();
+      return;
+    }
 
     if (actionType === 'capa' || /capa autoral|gerar capa|criar capa|fazer capa|mudar capa/i.test(textToSend)) {
       if (!userPrompt) setInputText('');
@@ -545,100 +797,6 @@ Redija o Capítulo ${chapterNum} completo entre as tags:`;
         setIsLoading(false);
         const targetCap = currentBookCaps.length + 1;
         await generateChapterProposal(targetCap, textToSend);
-        return;
-      }
-
-      // 3. MODO GLOBAL NA OBRA COMPLETA (SE JÁ TIVER CAPÍTULOS E FOR PEDIDO EXPLÍCITO)
-      const isGlobalAction = actionType === 'enredo-global' || actionType === 'fechamento' || actionType === 'profundidade'
-        || /revisar tudo|revisar todo o livro|revisar a obra toda|todos os cap|diagn[oó]stico da obra/i.test(textToSend);
-
-      if (isGlobalAction && currentBookCaps.length > 0) {
-        setLoadingStatus('📖 CoAuthor analisando a Obra Completa de ponta a ponta...');
-
-        const systemInstruction = `Você é o coautor parceiro e experiente de escrita para o autor nesta obra do Amazon KDP.
-Obra: "${currentBookTitle}" | Gênero: "${currentBookGenre}" | Tipo: ${isTechnicalBook ? 'TÉCNICO / NÃO-FICÇÃO' : 'FICÇÃO / NARRATIVA'}
-Você está trabalhando diretamente sobre toda a obra:
-${buildEnredoFullContext()}
-
-REGRAS INEGOCIÁVEIS DE COMUNICAÇÃO:
-1. NUNCA use frases clichês ou robóticas de IA.
-2. Fale como um colega escritor ou editor sênior humano e experiente: direto ao ponto, colaborativo, perspicaz.
-3. Se já houver mensagens no histórico, mantenha a conversa fluida e contínua.
-4. ${
-  isTechnicalBook
-    ? `DIRETRIZ TÉCNICA: Analise a solidez do conteúdo, clareza do método, aplicabilidade prática e didática.`
-    : `DIRETRIZ DE FICÇÃO: Analise continuidade entre os capítulos, arcos dos personagens e ritmo das cenas.`
-}
-
-FORMATO ESTRUTURADO DE RETORNO OBRIGATÓRIO:
-<<<SUGESTAO_OBRA_COMPLETA>>>
-RESUMO: [Resumo do diagnóstico geral e o que foi aprimorado na obra]
-[CAP 1]
-JUSTIFICATIVA: [Por que este enriquecimento melhora o capítulo 1]
-ACRESCIMO: [O texto pronto para ser adicionado ao capítulo 1]
-[/CAP]
-<<<FIM_OBRA_COMPLETA>>>`;
-
-        const promptText = `━━━ PEDIDO ATUAL DO AUTOR ━━━\n"${textToSend}"\n\nAnalise a obra de ponta a ponta:`;
-
-        const resultadoIA = await chamarGeminiTexto(promptText, {
-          systemInstruction,
-          temperature: 0.8,
-          maxTokens: 4500
-        });
-
-        const respostaIA = resultadoIA?.texto || '';
-        let cleanText = respostaIA;
-        let fullReviewData: Message['fullBookReviewCard'] | undefined = undefined;
-
-        const globalMatch = respostaIA.match(/<<<SUGESTAO_OBRA_COMPLETA>>>([\s\S]*?)<<<FIM_OBRA_COMPLETA>>>/);
-        if (globalMatch) {
-          const bloco = globalMatch[1];
-          const resumoMatch = bloco.match(/RESUMO:\s*([\s\S]*?)(?=\[CAP|\n\n)/i);
-          const resumo = resumoMatch ? resumoMatch[1].trim() : 'Diagnóstico editorial completo da obra.';
-
-          const chaptersEnrichment: ChapterEnrichmentItem[] = [];
-          const capRegex = /\[CAP\s*(\d+)\][\s\S]*?JUSTIFICATIVA:\s*([\s\S]*?)(?=ACRESCIMO:)ACRESCIMO:\s*([\s\S]*?)\[\/CAP\]/gi;
-          let match;
-
-          while ((match = capRegex.exec(bloco)) !== null) {
-            const capNum = parseInt(match[1], 10);
-            const just = match[2].trim();
-            const acre = match[3].trim();
-            if (capNum && acre) {
-              chaptersEnrichment.push({
-                chapterNumber: capNum,
-                chapterTitle: cleanChapterTitle(currentBookCaps[capNum - 1]?.titulo || `Capítulo ${capNum}`),
-                rationale: just,
-                additionText: acre
-              });
-            }
-          }
-
-          if (chaptersEnrichment.length > 0) {
-            fullReviewData = {
-              summary: resumo,
-              chaptersEnrichment,
-              applied: false
-            };
-          }
-
-          cleanText = respostaIA.replace(/<<<SUGESTAO_OBRA_COMPLETA>>>[\s\S]*?<<<FIM_OBRA_COMPLETA>>>/, '').trim();
-          if (!cleanText) {
-            cleanText = `Analisei a obra inteira de ponta a ponta e elaborei propostas de enriquecimento editorial para ${chaptersEnrichment.length} capítulos. Veja o plano abaixo:`;
-          }
-        }
-
-        const agentMsg: Message = {
-          id: `msg_agent_${Date.now()}`,
-          sender: 'agent',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: cleanText,
-          fullBookReviewCard: fullReviewData
-        };
-
-        setMessages(prev => [...prev, agentMsg]);
-        coAuthorVoiceService.speak(agentMsg.text, agentMsg.id);
         return;
       }
 
@@ -1221,25 +1379,50 @@ Responda em tom conversacional para áudio mantendo foco 100% no enredo:`;
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleSendMessage('Faça uma revisão crítica e completa da obra inteira de uma vez. Analise consistência de arcos, ritmo de todos os capítulos, furos e elabore sugestões de acréscimo estruturadas.', 'enredo-global')}
-                    disabled={isLoading}
+                    onClick={() => handleExecuteFullBookReview()}
+                    disabled={isLoading || chaptersCount === 0}
                     style={{
-                      padding: '6px 11px',
+                      padding: '6px 12px',
                       borderRadius: 6,
-                      background: '#ffffff',
-                      border: '1.5px solid #0284c7',
+                      background: chaptersCount > 0 ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#ffffff',
+                      border: chaptersCount > 0 ? 'none' : '1.5px solid #cbd5e1',
                       fontSize: 11,
-                      fontWeight: 700,
-                      color: '#0369a1',
-                      cursor: 'pointer',
+                      fontWeight: 800,
+                      color: chaptersCount > 0 ? '#ffffff' : '#94a3b8',
+                      cursor: isLoading || chaptersCount === 0 ? 'not-allowed' : 'pointer',
                       whiteSpace: 'nowrap',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 5,
-                      boxShadow: '0 1px 2px rgba(2, 132, 199, 0.08)'
+                      boxShadow: chaptersCount > 0 ? '0 1px 4px rgba(2, 132, 199, 0.35)' : 'none'
                     }}
+                    title="Analisa todos os capítulos da obra de uma só vez com plano de enriquecimento editorial completo"
                   >
-                    📖 Revisar Obra Inteira de Uma Vez
+                    📖 Revisar Obra Inteira {chaptersCount > 0 ? `(${chaptersCount} Caps)` : 'de Uma Vez'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExecuteFullBookClosure()}
+                    disabled={isLoading || chaptersCount === 0}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      background: chaptersCount > 0 ? 'linear-gradient(135deg, #059669, #047857)' : '#ffffff',
+                      border: chaptersCount > 0 ? 'none' : '1px solid #cbd5e1',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: chaptersCount > 0 ? '#ffffff' : '#94a3b8',
+                      cursor: isLoading || chaptersCount === 0 ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      boxShadow: chaptersCount > 0 ? '0 1px 4px rgba(5, 150, 105, 0.35)' : 'none'
+                    }}
+                    title="Analisa toda a obra para criar o fechamento épico definitivo, amarrando todos os arcos e mistérios"
+                  >
+                    🏁 Fechamento do Livro Todo
                   </button>
 
                   <button
@@ -1255,10 +1438,10 @@ Responda em tom conversacional para áudio mantendo foco 100% no enredo:`;
                       padding: '6px 11px',
                       borderRadius: 6,
                       background: '#ffffff',
-                      border: '1.5px solid #059669',
+                      border: '1.5px solid #cbd5e1',
                       fontSize: 11,
                       fontWeight: 700,
-                      color: '#047857',
+                      color: '#334155',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
                       display: 'flex',
@@ -1266,29 +1449,7 @@ Responda em tom conversacional para áudio mantendo foco 100% no enredo:`;
                       gap: 4
                     }}
                   >
-                    {isTechnicalBook ? '⚙️ Enriquecer Conteúdo Técnico' : '✨ Enriquecer História & Diálogos'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSendMessage('Revise o fechamento global da obra: analise se o clímax e os capítulos finais amarram todas as pontas soltas da trama e elabore o fechamento definitivo com impacto emocional ou prático.', 'fechamento')}
-                    disabled={isLoading}
-                    style={{
-                      padding: '6px 11px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                  >
-                    🎯 Fechamento da Obra
+                    {isTechnicalBook ? '⚙️ Enriquecer Técnico' : '✨ Enriquecer História'}
                   </button>
 
                   <button
