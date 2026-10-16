@@ -19,10 +19,15 @@ import {
   ArrowRight,
   Save,
   PenTool,
-  Search
+  Search,
+  Check,
+  Tag,
+  Target,
+  Users
 } from 'lucide-react';
 import { chamarGeminiTexto } from '../../../services/kdp-ai-engine';
 import { AmazonLiveService } from '../../../services/amazon-live-service';
+import { BOOK_THEMES, getTheme, isChildrenTheme, type BookTheme } from '../../../data/book-themes';
 import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 import type { CoAuthorBookType } from './CoAuthorAgentSuite';
 
@@ -37,6 +42,11 @@ export interface BookArchitectureData {
   sobrecapaTexto: string;
   sobrecapaPaleta: string;
   fraseDestaqueSobrecapa?: string;
+  tema?: string;
+  subtema?: string;
+  faixaEtaria?: string;
+  publicoAlvo?: string;
+  diferencial?: string;
 }
 
 export interface BookArchitecturePanelProps {
@@ -51,6 +61,9 @@ export interface BookArchitecturePanelProps {
   initialSobrecapaTexto?: string;
   initialFraseDestaque?: string;
   coverDataUrl?: string | null;
+  initialTheme?: string;
+  initialSubtheme?: string;
+  initialFaixaEtaria?: string;
   onApplyArchitecture: (data: BookArchitectureData) => void;
   onNavigateToChat?: () => void;
   isSaving?: boolean;
@@ -68,6 +81,9 @@ export const BookArchitecturePanel: React.FC<BookArchitecturePanelProps> = ({
   initialSobrecapaTexto = '',
   initialFraseDestaque = '',
   coverDataUrl = null,
+  initialTheme = '',
+  initialSubtheme = '',
+  initialFaixaEtaria = '',
   onApplyArchitecture,
   onNavigateToChat,
   isSaving = false
@@ -78,6 +94,21 @@ export const BookArchitecturePanel: React.FC<BookArchitecturePanelProps> = ({
   const [autor, setAutor] = useState<string>(initialAuthor);
   const [tipoLivro, setTipoLivro] = useState<CoAuthorBookType>(initialBookType);
   const [premissa, setPremissa] = useState<string>(initialPremise);
+
+  // ─── Estados de Tema Central e Inteligência de Mercado (Prompt Master) ───
+  const [temaSelecionado, setTemaSelecionado] = useState<string>(initialTheme || '');
+  const [subtemaSelecionado, setSubtemaSelecionado] = useState<string>(initialSubtheme || '');
+  const [usarTemaLivre, setUsarTemaLivre] = useState<boolean>(false);
+  const [temaLivre, setTemaLivre] = useState<string>('');
+  const [faixaEtaria, setFaixaEtaria] = useState<string>(initialFaixaEtaria || '');
+  const [publicoAlvo, setPublicoAlvo] = useState<string>('');
+  const [diferencial, setDiferencial] = useState<string>('');
+  const [marketTrends, setMarketTrends] = useState<string[]>([]);
+  const [isLoadingTrends, setIsLoadingTrends] = useState<boolean>(false);
+
+  // Tema final e checagem de obra infantil
+  const temaFinal = (usarTemaLivre && temaLivre.trim()) ? temaLivre.trim() : temaSelecionado;
+  const isInfantil = isChildrenTheme(temaFinal) || (typeof initialGenre === 'string' && initialGenre.toLowerCase().includes('infantil'));
 
   // Quantidade de Capítulos
   const [totalCapitulos, setTotalCapitulos] = useState<number>(() => {
@@ -181,23 +212,78 @@ export const BookArchitecturePanel: React.FC<BookArchitecturePanelProps> = ({
 
   const paletaAtiva = paletas[sobrecapaPaleta as keyof typeof paletas] || paletas.harmonia_capa;
 
-  // ─── Gerar Sugestões de Títulos com IA ───
+  // ─── Consultar Tendências de Mercado na Amazon KDP ───
+  const handleConsultarTendenciasTema = async () => {
+    const query = (temaFinal || 'livros').slice(0, 30);
+    setIsLoadingTrends(true);
+    try {
+      const sugs = await AmazonLiveService.getLiveSuggestions(query, 'br');
+      if (sugs && sugs.length > 0) {
+        setMarketTrends(sugs.slice(0, 8));
+      } else {
+        const found = getTheme(temaFinal);
+        const fbSub = found?.subthemes || [];
+        setMarketTrends(
+          fbSub.length > 0
+            ? fbSub.map(s => `${temaFinal}: ${s}`)
+            : [
+                `${temaFinal} guia prático`,
+                `${temaFinal} para iniciantes`,
+                `como dominar ${temaFinal}`,
+                `estratégias de ${temaFinal}`
+              ]
+        );
+      }
+    } catch (e) {
+      console.warn('Erro ao consultar tendências do tema:', e);
+      setMarketTrends([
+        `${temaFinal} essencial`,
+        `passo a passo ${temaFinal}`,
+        `manual definitivo ${temaFinal}`
+      ]);
+    } finally {
+      setIsLoadingTrends(false);
+    }
+  };
+
+  // ─── Gerar Sugestões de Títulos com IA Baseado no Tema Central ───
   const handleGerarTitulosIA = async () => {
     setIsSuggestingTitles(true);
     try {
       const prompt = `Você é um Consultor Editorial Sênior e Especialista em Bestsellers da Amazon KDP.
-Crie 5 propostas magnéticas de TÍTULO e SUBTÍTULO para uma obra antes do início da escrita.
-Gênero: ${tipoLivro}
-Premissa / Assunto: ${premissa || titulo || 'Transformação e conhecimento de alto valor'}
+Crie 5 propostas magnéticas de TÍTULO e SUBTÍTULO para uma obra antes do início da escrita, rigorosamente alinhadas ao TEMA CENTRAL escolhido.
+
+TEMA CENTRAL DA OBRA: ${temaFinal || 'Desenvolvimento pessoal e alta conversão'}
+SUBTEMA / ESPECIALIZAÇÃO: ${subtemaSelecionado || 'Geral'}
+GÊNERO / FORMATO: ${tipoLivro}
+${isInfantil && faixaEtaria ? `FAIXA ETÁRIA OBRIGATÓRIA: ${faixaEtaria}` : ''}
+${publicoAlvo ? `PÚBLICO-ALVO: ${publicoAlvo}` : ''}
+${diferencial ? `DIFERENCIAL ÚNICO: ${diferencial}` : ''}
+Premissa / Assunto: ${premissa || 'Transformação e conhecimento de alto valor'}
 Meta de Porte: ${projection.paginasEstimadas} páginas em ${totalCapitulos} capítulos.
 
 FORMATO OBRIGATÓRIO (retorne 5 opções sem introdução):
 [OPCAO 1]
 TITULO: ...
 SUBTITULO: ...
-MOTIVO: Por que fisga o leitor no algoritmo da Amazon
+MOTIVO: Por que fisga o leitor no algoritmo da Amazon e valoriza o tema
 [/OPCAO]
 [OPCAO 2]
+TITULO: ...
+SUBTITULO: ...
+MOTIVO: ...
+[/OPCAO]
+[OPCAO 3]
+TITULO: ...
+SUBTITULO: ...
+MOTIVO: ...
+[/OPCAO]
+[OPCAO 4]
+TITULO: ...
+SUBTITULO: ...
+MOTIVO: ...
+[/OPCAO]
+[OPCAO 5]
 TITULO: ...
 SUBTITULO: ...
 MOTIVO: ...
@@ -221,7 +307,7 @@ MOTIVO: ...
           options.push({
             title: tMatch[1].replace(/[*_"`]/g, '').trim(),
             subtitle: sMatch ? sMatch[1].replace(/[*_"`]/g, '').trim() : '',
-            rationale: mMatch ? mMatch[1].trim() : 'Alta aderência editorial'
+            rationale: mMatch ? mMatch[1].trim() : 'Alta aderência editorial ao tema'
           });
         }
       }
@@ -296,7 +382,12 @@ TEXTO_SOBRECAPA:
       paginasEstimadas: projection.paginasEstimadas,
       sobrecapaTexto: sobrecapaTexto.trim(),
       sobrecapaPaleta,
-      fraseDestaqueSobrecapa: fraseDestaque.trim()
+      fraseDestaqueSobrecapa: fraseDestaque.trim(),
+      tema: temaFinal,
+      subtema: subtemaSelecionado,
+      faixaEtaria,
+      publicoAlvo,
+      diferencial
     });
   };
 
@@ -347,7 +438,7 @@ TEXTO_SOBRECAPA:
             📐 Arquitetura da Obra, Capa & Sobrecapa
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: 13.5, color: '#cbd5e1' }}>
-            Escolha o título, subtítulo, quantidade de capítulos e ajuste o slider lateral de densidade de palavras com projeção imediata de páginas.
+            Defina o tema central, título magnético, quantidade de capítulos e ajuste o slider lateral de densidade de palavras com projeção imediata de páginas.
           </p>
         </div>
 
@@ -410,7 +501,393 @@ TEXTO_SOBRECAPA:
         }}
       >
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* BLOCO 1: IDENTIDADE DO LIVRO (TÍTULO, SUBTÍTULO & GÊNERO) */}
+        {/* BLOCO 1: TEMA CENTRAL DA OBRA & INTELIGÊNCIA EDITORIAL (PROMPT MASTER) */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <section
+          style={{
+            background: '#ffffff',
+            borderRadius: 14,
+            border: '1.5px solid #bfdbfe',
+            padding: 24,
+            boxShadow: '0 4px 14px rgba(2, 132, 199, 0.06)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                }}
+              >
+                <Compass size={20} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                    1. Tema Central & Nicho da Obra (Defina antes do Título)
+                  </h3>
+                  <span
+                    style={{
+                      background: '#dbeafe',
+                      color: '#1e40af',
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      letterSpacing: 0.4
+                    }}
+                  >
+                    PASSO FUNDAMENTAL
+                  </span>
+                </div>
+                <span style={{ fontSize: 12.5, color: '#64748b' }}>
+                  O tema central orienta o enredo, o vocabulário, o nicho de mercado e as propostas de título da IA.
+                </span>
+              </div>
+            </div>
+
+            <div>
+              {temaFinal ? (
+                <span
+                  style={{
+                    background: '#f0fdf4',
+                    color: '#15803d',
+                    border: '1px solid #bbf7d0',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5
+                  }}
+                >
+                  <Check size={14} color="#15803d" /> Tema Ativo: <strong>{temaFinal}</strong>
+                </span>
+              ) : (
+                <span
+                  style={{
+                    background: '#fef3c7',
+                    color: '#b45309',
+                    border: '1px solid #fde68a',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '4px 10px',
+                    borderRadius: 6
+                  }}
+                >
+                  ⚠️ Escolha o Tema para destravar sugestões ideais
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* GRID: SELEÇÃO DE TEMA + SUBTEMA */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 16 }}>
+            {/* TEMA CENTRAL */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 12.5, fontWeight: 800, color: '#334155' }}>
+                  Tema Central do Livro:
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setUsarTemaLivre(!usarTemaLivre)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#0284c7',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {usarTemaLivre ? '← Escolher do catálogo (60 temas)' : '✏️ Digitar tema livre'}
+                </button>
+              </div>
+
+              {usarTemaLivre ? (
+                <input
+                  type="text"
+                  value={temaLivre}
+                  onChange={e => setTemaLivre(e.target.value)}
+                  placeholder="Ex: Inteligência Artificial para Gestores de Tráfego"
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 8,
+                    border: '1.5px solid #0284c7',
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    color: '#0f172a',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#f0f9ff'
+                  }}
+                />
+              ) : (
+                <select
+                  value={temaSelecionado}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setTemaSelecionado(val);
+                    const found = getTheme(val);
+                    if (found && found.subthemes.length > 0) {
+                      setSubtemaSelecionado(found.subthemes[0]);
+                    } else {
+                      setSubtemaSelecionado('');
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 8,
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    color: '#0f172a',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#ffffff'
+                  }}
+                >
+                  <option value="">-- Selecione o Tema da Obra ({BOOK_THEMES.length} opções) --</option>
+                  <optgroup label="📘 Não Ficção, Guias, Negócios & Autoajuda">
+                    {BOOK_THEMES.filter(t => t.kind === 'nao-ficcao').map(t => (
+                      <option key={t.id} value={t.label}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="📕 Ficção, Suspense, Romance & Fantasia">
+                    {BOOK_THEMES.filter(t => t.kind === 'ficcao').map(t => (
+                      <option key={t.id} value={t.label}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="👶 Infantil & Histórias Ilustradas (Faixa Etária Obrigatória)">
+                    {BOOK_THEMES.filter(t => t.kind === 'infantil').map(t => (
+                      <option key={t.id} value={t.label}>👶 {t.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🎨 Atividades, Colorir & Puzzles">
+                    {BOOK_THEMES.filter(t => t.kind === 'atividades').map(t => (
+                      <option key={t.id} value={t.label}>🎨 {t.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="✨ Outros Temas & Mistos">
+                    {BOOK_THEMES.filter(t => t.kind === 'misto').map(t => (
+                      <option key={t.id} value={t.label}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              )}
+            </div>
+
+            {/* SUBTEMA DINÂMICO OU ESPECIALIZAÇÃO */}
+            <div>
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
+                Subtema / Especialização Editorial:
+              </label>
+              {getTheme(temaSelecionado)?.subthemes && getTheme(temaSelecionado)!.subthemes.length > 0 && !usarTemaLivre ? (
+                <select
+                  value={subtemaSelecionado}
+                  onChange={e => setSubtemaSelecionado(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 8,
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: 13.5,
+                    color: '#0f172a',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#ffffff'
+                  }}
+                >
+                  <option value="">-- Todos os ângulos do tema --</option>
+                  {getTheme(temaSelecionado)!.subthemes.map(sub => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={subtemaSelecionado}
+                  onChange={e => setSubtemaSelecionado(e.target.value)}
+                  placeholder="Ex: Foco profundo, gestão do tempo ou para iniciantes"
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 8,
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: 13.5,
+                    color: '#0f172a',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* FAIXA ETÁRIA OBRIGATÓRIA (SE FOR TEMA INFANTIL OU GÊNERO INFANTIL) */}
+          {isInfantil && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: '12px 16px',
+                background: '#fffbeb',
+                border: '1.5px solid #fde68a',
+                borderRadius: 8
+              }}
+            >
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: '#92400e', marginBottom: 4 }}>
+                👶 Faixa Etária Obrigatória (Regra KDP Infantil):
+              </label>
+              <span style={{ display: 'block', fontSize: 11.5, color: '#b45309', marginBottom: 8 }}>
+                A faixa etária calibra o vocabulário, tamanho das frases, narrativa e complexidade moral do texto.
+              </span>
+              <select
+                value={faixaEtaria}
+                onChange={e => setFaixaEtaria(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 6,
+                  border: '1.5px solid #d97706',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#78350f',
+                  background: '#ffffff'
+                }}
+              >
+                <option value="">-- Selecione a Faixa Etária --</option>
+                <option value="3-5 anos">3–5 anos (Frases ultracurtas, vocabulário concreto e sonoro)</option>
+                <option value="6-8 anos">6–8 anos (Linguagem acessível, narrativa direta e ilustrações)</option>
+                <option value="9-12 anos">9–12 anos (Vocabulário intermediário, desafios e mistérios)</option>
+                <option value="13-15 anos">13–15 anos (Transição Young Adult, temas identitários)</option>
+                <option value="16-17 anos">16–17 anos (Linguagem madura e reflexiva)</option>
+              </select>
+            </div>
+          )}
+
+          {/* PÚBLICO-ALVO & DIFERENCIAL */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                Público-Alvo Leitor:
+              </label>
+              <input
+                type="text"
+                value={publicoAlvo}
+                onChange={e => setPublicoAlvo(e.target.value)}
+                placeholder="Ex: Empreendedores, concurseiros, entusiastas de mistério..."
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 7,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 12.5,
+                  color: '#334155',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                Diferencial Competitivo Único:
+              </label>
+              <input
+                type="text"
+                value={diferencial}
+                onChange={e => setDiferencial(e.target.value)}
+                placeholder="Ex: Passo a passo descomplicado em 7 dias sem jargões"
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 7,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 12.5,
+                  color: '#334155',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* CONSULTA DE TENDÊNCIAS AO VIVO DA AMAZON PARA O TEMA */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleConsultarTendenciasTema}
+                disabled={isLoadingTrends}
+                style={{
+                  background: '#f8fafc',
+                  border: '1.5px solid #0284c7',
+                  color: '#0369a1',
+                  padding: '8px 16px',
+                  borderRadius: 7,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: isLoadingTrends ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <Search size={14} color="#0284c7" />
+                <span>{isLoadingTrends ? 'Consultando tendências...' : `🔎 Tendências de "${temaFinal || 'Tema'}" na Amazon KDP`}</span>
+              </button>
+              <span style={{ fontSize: 11.5, color: '#64748b' }}>
+                Verifica em tempo real os termos mais buscados por compradores da Amazon
+              </span>
+            </div>
+
+            {/* TAGS DE TENDÊNCIAS */}
+            {marketTrends.length > 0 && (
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Termos em alta:</span>
+                {marketTrends.map((trend, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      if (!subtemaSelecionado) setSubtemaSelecionado(trend);
+                      else setDiferencial(trend);
+                    }}
+                    title="Clique para usar como subtema/diferencial"
+                    style={{
+                      background: '#f0f9ff',
+                      border: '1px solid #bae6fd',
+                      color: '#0369a1',
+                      padding: '3px 8px',
+                      borderRadius: 12,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Tag size={10} color="#0284c7" /> {trend}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* BLOCO 2: IDENTIDADE DO LIVRO (TÍTULO, SUBTÍTULO & GÊNERO) */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section
           style={{
@@ -437,20 +914,64 @@ TEXTO_SOBRECAPA:
               >
                 <BookOpen size={18} />
               </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                    1. Título & Subtítulo Comercial da Obra
-                  </h3>
-                  <span style={{ fontSize: 12.5, color: '#64748b' }}>
-                    Defina o título magnético e o gancho de promessa que posiciona seu livro no topo da Amazon KDP.
-                  </span>
-                </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                  2. Título & Subtítulo Comercial da Obra
+                </h3>
+                <span style={{ fontSize: 12.5, color: '#64748b' }}>
+                  Defina o título magnético e o gancho de promessa que posiciona seu livro no topo da Amazon KDP.
+                </span>
               </div>
+            </div>
 
-              <span style={{ fontSize: 12, color: '#64748b' }}>
-                Autor da Obra: <strong style={{ color: '#0f172a' }}>{autor}</strong>
+            <span style={{ fontSize: 12, color: '#64748b' }}>
+              Autor da Obra: <strong style={{ color: '#0f172a' }}>{autor}</strong>
+            </span>
+          </div>
+
+          {/* SINALIZADOR VISUAL DO TEMA VINCULADO */}
+          {temaFinal ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                padding: '8px 12px',
+                borderRadius: 8,
+                marginBottom: 16,
+                fontSize: 12.5,
+                color: '#166534'
+              }}
+            >
+              <Compass size={15} color="#15803d" />
+              <span>
+                Alinhado ao Tema Central: <strong>{temaFinal}</strong>
+                {subtemaSelecionado ? ` • Especialização: ${subtemaSelecionado}` : ''}
               </span>
             </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                padding: '8px 12px',
+                borderRadius: 8,
+                marginBottom: 16,
+                fontSize: 12.5,
+                color: '#92400e'
+              }}
+            >
+              <HelpCircle size={15} color="#b45309" />
+              <span>
+                Dica: Selecione o <strong>Tema Central</strong> no Bloco 1 acima para que a IA crie títulos com altíssima taxa de conversão na Amazon.
+              </span>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 16, marginBottom: 16 }}>
             {/* TÍTULO */}
@@ -647,7 +1168,7 @@ TEXTO_SOBRECAPA:
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* BLOCO 2: CAPÍTULOS + SLIDER LATERAL COM PROJEÇÃO DINÂMICA KDP */}
+        {/* BLOCO 3: CAPÍTULOS + SLIDER LATERAL COM PROJEÇÃO DINÂMICA KDP */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section
           style={{
@@ -675,7 +1196,7 @@ TEXTO_SOBRECAPA:
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                2. Quantidade de Capítulos & Slider Deslizante de Palavras
+                3. Quantidade de Capítulos & Slider Deslizante de Palavras
               </h3>
               <span style={{ fontSize: 12.5, color: '#64748b' }}>
                 Deslize o controle de palavras por capítulo para ver a projeção do livro físico e páginas KDP ao lado.
@@ -909,7 +1430,7 @@ TEXTO_SOBRECAPA:
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* BLOCO 3: CAPA & SOBRECAPA (DUST JACKET) EM PLENA SINTONIA */}
+        {/* BLOCO 4: CAPA & SOBRECAPA (DUST JACKET) EM PLENA SINTONIA */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section
           style={{
@@ -938,7 +1459,7 @@ TEXTO_SOBRECAPA:
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                  3. Capa & Sobrecapa em Sintonia Visual (Com Gancho Instigante)
+                  4. Capa & Sobrecapa em Sintonia Visual (Com Gancho Instigante)
                 </h3>
                 <span style={{ fontSize: 12.5, color: '#64748b' }}>
                   A sobrecapa (contracapa) deve harmonizar com a capa e contar um pedaço da história para prender a curiosidade do leitor.

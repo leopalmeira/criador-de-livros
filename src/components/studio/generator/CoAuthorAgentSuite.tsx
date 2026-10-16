@@ -908,6 +908,8 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
     premissa: string;
     elementos: string;
     formula: string;
+    tema?: string;
+    subtema?: string;
   }>({
     premissa: contextData.premissaVisao || '',
     elementos: contextData.elementosChave || '',
@@ -1014,7 +1016,10 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
     setFlowTitulo(data.titulo);
     setFlowSubtitulo(data.subtitulo);
     setCustomTotalCaps(data.totalCapitulos);
-    if (data.premissa) {
+    if (data.tema) {
+      setFlowTema(data.tema);
+      setRespostasBriefing(prev => ({ ...prev, tema: data.tema }));
+    } else if (data.premissa) {
       setFlowTema(data.premissa);
       setRespostasBriefing(prev => ({ ...prev, premissa: data.premissa }));
     }
@@ -1052,6 +1057,7 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
       sender: 'agent',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       text: `Excelente! A arquitetura da obra foi configurada com maestria:\n\n` +
+        (data.tema ? `🎯 **Tema Central:** ${data.tema}${data.subtema ? ` (${data.subtema})` : ''}\n` : '') +
         `📖 **Título:** ${data.titulo}\n` +
         (data.subtitulo ? `✨ **Subtítulo:** ${data.subtitulo}\n` : '') +
         `📐 **Estrutura:** ${data.totalCapitulos} capítulos com meta de ${data.palavrasPorCapitulo.toLocaleString('pt-BR')} palavras/capítulo\n` +
@@ -3636,6 +3642,8 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
           initialSobrecapaTexto={bookState?.sobrecapaTexto || ''}
           initialFraseDestaque={bookState?.fraseDestaqueSobrecapa || ''}
           coverDataUrl={capaDataUrl}
+          initialTheme={flowTema || respostasBriefing.tema || ''}
+          initialSubtheme={respostasBriefing.subtema || ''}
           onApplyArchitecture={handleApplyArchitecture}
           onNavigateToChat={() => setInternalTab('chat')}
         />
