@@ -3376,7 +3376,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
   };
 
   return (
-    <div style={{ background: '#f8fafc', height: '100vh', maxHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* HEADER ELEGANTE DO BOOKENGIN (TEMA CLARO) */}
       <header
         style={{
@@ -3387,7 +3387,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 40
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -3471,22 +3474,19 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         </div>
       </header>
 
-      {/* ÁREA PRINCIPAL EM GRID FIXO (BANCADA STUDIO MODERNA) */}
-      <main style={{ maxWidth: 1720, margin: '0 auto', padding: '12px 18px', width: '100%', flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* ÁREA PRINCIPAL EM GRID FLUIDO (COM SCROLL PARA VER A PARTE DE BAIXO) */}
+      <main style={{ maxWidth: 1720, margin: '0 auto', padding: '12px 18px', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: '440px 1fr',
             gap: 16,
-            alignItems: 'stretch',
-            flex: 1,
-            minHeight: 0,
-            height: '100%',
-            overflow: 'hidden'
+            alignItems: 'start',
+            width: '100%'
           }}
         >
           {/* ========================================================= */}
-          {/* COLUNA 1: PAINEL DE CONFIGURAÇÃO (ROLAGEM INDEPENDENTE) */}
+          {/* COLUNA 1: PAINEL DE CONFIGURAÇÃO (STICKY COM ROLAGEM INDEPENDENTE) */}
           {/* ========================================================= */}
           <div
             style={{
@@ -3497,8 +3497,9 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
               display: 'flex',
               flexDirection: 'column',
-              height: '100%',
-              minHeight: 0,
+              position: 'sticky',
+              top: 70,
+              maxHeight: 'calc(100vh - 86px)',
               overflow: 'hidden'
             }}
           >
@@ -4781,7 +4782,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           </div>
 
           {/* ========================================================= */}
-          {/* COLUNA 2: CARD DE PRÉ-VISUALIZAÇÃO COM ABAS (TRAVADO NA TELA) */}
+          {/* COLUNA 2: ESPAÇO DE CRIAÇÃO & VISUALIZAÇÃO COM SIDEBAR LATERAL DE CONTROLE */}
           {/* ========================================================= */}
           <div
             style={{
@@ -4791,184 +4792,27 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               padding: '16px 18px',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
               display: 'flex',
-              flexDirection: 'column',
-              height: '100%',
-              minHeight: 0,
-              overflow: 'hidden'
+              flexDirection: 'row',
+              gap: 16,
+              alignItems: 'flex-start',
+              width: '100%',
+              boxSizing: 'border-box'
             }}
           >
-            {/* CABEÇALHO DE ABAS DE PRÉ-VISUALIZAÇÃO */}
-            <div
-              style={{
-                flexShrink: 0,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingBottom: 10,
-                borderBottom: '1px solid #f1f5f9',
-                marginBottom: 16,
-                flexWrap: 'wrap',
-                gap: 10
-              }}
-            >
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('preview')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: activeTab === 'preview' ? '#0f172a' : '#e2e8f0',
-                    background: activeTab === 'preview' ? '#0f172a' : '#ffffff',
-                    color: activeTab === 'preview' ? '#ffffff' : '#475569',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <BookOpen size={14} /> {ui('Livro Diagramado', 'Manuscript')}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('capa')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: activeTab === 'capa' ? '#0f172a' : '#e2e8f0',
-                    background: activeTab === 'capa' ? '#0f172a' : '#ffffff',
-                    color: activeTab === 'capa' ? '#ffffff' : '#475569',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <ImageIcon size={14} /> {ui('Capa KDP', 'KDP Cover')} {capaFinal && '✓'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('promo')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: activeTab === 'promo' ? '#0f172a' : '#e2e8f0',
-                    background: activeTab === 'promo' ? '#0f172a' : '#ffffff',
-                    color: activeTab === 'promo' ? '#ffffff' : '#475569',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Sparkles size={14} /> {ui('Página Promocional', 'Promo Landing')} {promoData && '✓'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('auditoria')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: activeTab === 'auditoria' ? '#0f172a' : '#e2e8f0',
-                    background: activeTab === 'auditoria' ? '#0f172a' : '#ffffff',
-                    color: activeTab === 'auditoria' ? '#ffffff' : '#475569',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <ShieldCheck size={14} /> {ui('Auditoria Editorial', 'Editorial Audit')} {auditReport && `(${auditReport.score}%)`}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('planner')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: activeTab === 'planner' ? '#0f172a' : '#e2e8f0',
-                    background: activeTab === 'planner' ? '#0f172a' : '#ffffff',
-                    color: activeTab === 'planner' ? '#ffffff' : '#475569',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <FileText size={14} /> {ui('Planner & Diário', 'Planner & Journal')}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('coauthor')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: activeTab === 'coauthor' ? '#0284c7' : '#e2e8f0',
-                    background: activeTab === 'coauthor' ? 'linear-gradient(135deg, #0284c7, #4f46e5)' : '#ffffff',
-                    color: activeTab === 'coauthor' ? '#ffffff' : '#0369a1',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: activeTab === 'coauthor' ? '0 2px 8px rgba(2, 132, 199, 0.25)' : 'none'
-                  }}
-                >
-                  <Bot size={14} /> {ui('Agente CoAuthor', 'CoAuthor Agent')} ✨
-                </button>
-              </div>
-            </div>
-
-            {/* ÁREA DE EXIBIÇÃO CONFORME A ABA ATIVA + SIDEBAR DE AÇÕES LATERAL */}
+            {/* COLUNA CENTRAL: CONTEÚDO PRINCIPAL (LIVRO DIAGRAMADO, CAPA, AUDITORIA, ETC.) */}
             <div
               style={{
                 flex: 1,
-                minHeight: 0,
+                minWidth: 0,
                 display: 'flex',
-                flexDirection: 'row',
-                gap: 16,
-                position: 'relative',
-                overflow: 'hidden',
-                alignItems: 'stretch'
+                flexDirection: 'column',
+                gap: 14,
+                boxSizing: 'border-box'
               }}
             >
-              {/* COLUNA ESQUERDA: CONTEÚDO PRINCIPAL (LIVRO DIAGRAMADO, CAPA, AUDITORIA, ETC.) */}
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  minHeight: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflowY: 'auto',
-                  paddingRight: 4
-                }}
-              >
-                {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
-                {activeTab === 'preview' && (
-                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 4 }}>
+              {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
+              {activeTab === 'preview' && (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {/* PAINEL DO MOTOR DE SILHUETAS MARGINAIS COM 3% DE SANGRIA EXTERNA */}
                   {/* PAINEL DO MOTOR DE SILHUETAS ARTÍSTICAS & MARCAS D'ÁGUA P&B */}
                   {/* PAINEL DIDÁTICO E VISUAL: ACABAMENTO EDITORIAL DE MIOLO (SILHUETA & MARCA D'ÁGUA P&B) */}
@@ -6081,121 +5925,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   }}
                 >
                   {capaFinal ? (
-                    <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 780 }}>
-                      
-                      {/* BARRA SUPERIOR: ALTERNADOR DE VISUALIZAÇÃO (VISÃO ABERTA KDP / FRENTE / CONTRACAPA) */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        width: '100%',
-                        flexWrap: 'wrap',
-                        gap: 12,
-                        marginBottom: 12,
-                        paddingBottom: 12,
-                        borderBottom: '1px solid #e2e8f0'
-                      }}>
-                        {/* SELETOR DE MODOS */}
-                        <div style={{
-                          display: 'inline-flex',
-                          background: '#e2e8f0',
-                          padding: 4,
-                          borderRadius: 8,
-                          gap: 4
-                        }}>
-                          <button
-                            type="button"
-                            onClick={() => setViewModeCapa('wrap')}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '6px 12px',
-                              borderRadius: 6,
-                              border: 'none',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              background: viewModeCapa === 'wrap' ? '#ffffff' : 'transparent',
-                              color: viewModeCapa === 'wrap' ? '#0f172a' : '#64748b',
-                              boxShadow: viewModeCapa === 'wrap' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                            title="Visualizar a Capa Completa Aberta com Contracapa + Lombada + Frente (como no Print Previewer da Amazon KDP)"
-                          >
-                            <BookOpen size={14} color={viewModeCapa === 'wrap' ? '#2563eb' : '#64748b'} />
-                            <span>📖 Visão Aberta KDP</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setViewModeCapa('front')}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '6px 12px',
-                              borderRadius: 6,
-                              border: 'none',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              background: viewModeCapa === 'front' ? '#ffffff' : 'transparent',
-                              color: viewModeCapa === 'front' ? '#0f172a' : '#64748b',
-                              boxShadow: viewModeCapa === 'front' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                            title="Visualizar apenas a Capa Frontal (Kindle eBook ou frente do livro)"
-                          >
-                            <span>📕 Capa Frontal</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setViewModeCapa('back')}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '6px 12px',
-                              borderRadius: 6,
-                              border: 'none',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              background: viewModeCapa === 'back' ? '#ffffff' : 'transparent',
-                              color: viewModeCapa === 'back' ? '#0f172a' : '#64748b',
-                              boxShadow: viewModeCapa === 'back' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                            title="Visualizar a Contracapa diagramada com sinopse, benefícios e área de código de barras KDP"
-                          >
-                            <span>📘 Contracapa</span>
-                          </button>
-                        </div>
-
-                        {/* TOGGLE GUIAS TÉCNICAS KDP */}
-                        {viewModeCapa === 'wrap' && (
-                          <label style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: '#334155',
-                            cursor: 'pointer',
-                            userSelect: 'none'
-                          }}>
-                            <input
-                              type="checkbox"
-                              checked={showKdpGuides}
-                              onChange={(e) => handleToggleGuides(e.target.checked)}
-                              style={{ cursor: 'pointer', accentColor: '#2563eb' }}
-                            />
-                            <span>Exibir Guias Técnicas KDP (Corte & Sangria)</span>
-                          </label>
-                        )}
-                      </div>
+                    <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 840 }}>
 
                       {/* BANNER TÉCNICO INFORMATIVO DE CONFORMIDADE COM AMAZON KDP */}
                       <div style={{
@@ -7472,11 +7202,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
               </div>
 
-              {/* SIDEBAR VERTICAL DE AÇÕES GLOBAL (AO LADO, SEM OCUPAR O RODAPÉ DO LIVRO OU CAPA) */}
+              {/* SIDEBAR VERTICAL DE AÇÕES & CONTROLES (AO LADO, COM AS ABAS DO PAINEL SUPERIOR E MODOS) */}
               <aside
                 style={{
-                  width: 255,
+                  width: 275,
                   flexShrink: 0,
+                  position: 'sticky',
+                  top: 70,
+                  maxHeight: 'calc(100vh - 86px)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 12,
@@ -7484,20 +7217,280 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   border: '1px solid #e2e8f0',
                   borderRadius: 10,
                   padding: 14,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
                   overflowY: 'auto',
                   boxSizing: 'border-box'
                 }}
               >
                 {/* CABEÇALHO DO PAINEL LATERAL */}
-                <div style={{ paddingBottom: 10, borderBottom: '1px solid #f1f5f9' }}>
+                <div style={{ paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Sliders size={15} color="#2563eb" /> {ui('Painel de Ações', 'Action Panel')}
+                    <Sliders size={15} color="#2563eb" /> {ui('Painel de Ações & Navegação', 'Navigation & Action Panel')}
                   </div>
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                    {ui('Livro · Capa · Publicação', 'Book · Cover · Publishing')}
+                    {ui('Telas, ferramentas e exportações na vertical', 'Screens, tools & exports in vertical sidebar')}
                   </div>
                 </div>
+
+                {/* GRUPO 1: SELETOR DE TELAS (O ANTIGO PAINEL SUPERIOR HORIZONTAL) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                    {ui('Telas do Projeto', 'Project Screens')}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('preview')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid',
+                      borderColor: activeTab === 'preview' ? '#0f172a' : '#e2e8f0',
+                      background: activeTab === 'preview' ? '#0f172a' : '#f8fafc',
+                      color: activeTab === 'preview' ? '#ffffff' : '#334155',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <BookOpen size={14} color={activeTab === 'preview' ? '#38bdf8' : '#64748b'} />
+                    {ui('Livro Diagramado', 'Typeset Manuscript')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('capa')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid',
+                      borderColor: activeTab === 'capa' ? '#0f172a' : '#e2e8f0',
+                      background: activeTab === 'capa' ? '#0f172a' : '#f8fafc',
+                      color: activeTab === 'capa' ? '#ffffff' : '#334155',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <ImageIcon size={14} color={activeTab === 'capa' ? '#38bdf8' : '#64748b'} />
+                    {ui('Capa KDP', 'KDP Cover')} {capaFinal && '✓'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('promo')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid',
+                      borderColor: activeTab === 'promo' ? '#0f172a' : '#e2e8f0',
+                      background: activeTab === 'promo' ? '#0f172a' : '#f8fafc',
+                      color: activeTab === 'promo' ? '#ffffff' : '#334155',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <Sparkles size={14} color={activeTab === 'promo' ? '#38bdf8' : '#64748b'} />
+                    {ui('Página Promocional', 'Promo Page')} {promoData && '✓'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('auditoria')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid',
+                      borderColor: activeTab === 'auditoria' ? '#0f172a' : '#e2e8f0',
+                      background: activeTab === 'auditoria' ? '#0f172a' : '#f8fafc',
+                      color: activeTab === 'auditoria' ? '#ffffff' : '#334155',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <ShieldCheck size={14} color={activeTab === 'auditoria' ? '#38bdf8' : '#64748b'} />
+                    {ui('Auditoria Editorial', 'Editorial Audit')} {auditReport && `(${auditReport.score}%)`}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('planner')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid',
+                      borderColor: activeTab === 'planner' ? '#0f172a' : '#e2e8f0',
+                      background: activeTab === 'planner' ? '#0f172a' : '#f8fafc',
+                      color: activeTab === 'planner' ? '#ffffff' : '#334155',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <FileText size={14} color={activeTab === 'planner' ? '#38bdf8' : '#64748b'} />
+                    {ui('Planner & Diário', 'Planner & Journal')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('coauthor')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid',
+                      borderColor: activeTab === 'coauthor' ? '#0284c7' : '#e2e8f0',
+                      background: activeTab === 'coauthor' ? 'linear-gradient(135deg, #0284c7, #4f46e5)' : '#f8fafc',
+                      color: activeTab === 'coauthor' ? '#ffffff' : '#0369a1',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <Bot size={14} />
+                    {ui('Agente CoAuthor ✨', 'CoAuthor Agent ✨')}
+                  </button>
+                </div>
+
+                {/* GRUPO 2: MODOS DE VISUALIZAÇÃO DA CAPA (SE ESTIVER NA ABA CAPA) */}
+                {activeTab === 'capa' && (
+                  <>
+                    <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, background: '#f8fafc', padding: 8, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {ui('Modo de Exibição da Capa', 'Cover View Mode')}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setViewModeCapa('wrap')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 6,
+                          border: 'none',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: viewModeCapa === 'wrap' ? '#0f172a' : '#ffffff',
+                          color: viewModeCapa === 'wrap' ? '#ffffff' : '#475569',
+                          cursor: 'pointer',
+                          boxShadow: viewModeCapa === 'wrap' ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <BookOpen size={13} color={viewModeCapa === 'wrap' ? '#38bdf8' : '#64748b'} />
+                        {ui('📖 Visão Aberta KDP', '📖 Full Wrap View')}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setViewModeCapa('front')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 6,
+                          border: 'none',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: viewModeCapa === 'front' ? '#0f172a' : '#ffffff',
+                          color: viewModeCapa === 'front' ? '#ffffff' : '#475569',
+                          cursor: 'pointer',
+                          boxShadow: viewModeCapa === 'front' ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <ImageIcon size={13} color={viewModeCapa === 'front' ? '#38bdf8' : '#64748b'} />
+                        {ui('📕 Capa Frontal', '📕 Front Cover Only')}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setViewModeCapa('back')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 6,
+                          border: 'none',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: viewModeCapa === 'back' ? '#0f172a' : '#ffffff',
+                          color: viewModeCapa === 'back' ? '#ffffff' : '#475569',
+                          cursor: 'pointer',
+                          boxShadow: viewModeCapa === 'back' ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <FileText size={13} color={viewModeCapa === 'back' ? '#38bdf8' : '#64748b'} />
+                        {ui('📘 Contracapa Diagramada', '📘 Back Cover')}
+                      </button>
+
+                      {viewModeCapa === 'wrap' && (
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: '#334155',
+                          cursor: 'pointer',
+                          marginTop: 4,
+                          padding: '4px 6px'
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={showKdpGuides}
+                            onChange={(e) => handleToggleGuides(e.target.checked)}
+                            style={{ cursor: 'pointer', accentColor: '#2563eb' }}
+                          />
+                          <span>{ui('Guias KDP (Corte/Sangria)', 'KDP Guides (Bleed/Trim)')}</span>
+                        </label>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* DIVISOR */}
+                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
 
                 {/* GRUPO 1: AÇÕES EDITORIAIS DO LIVRO (MIOLO) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -7930,7 +7923,6 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </aside>
             </div>
           </div>
-        </div>
       </main>
 
       {/* MODAL FULL DO EDITOR DA PÁGINA PROMOCIONAL */}
