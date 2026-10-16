@@ -9,6 +9,7 @@ import {
 import { chamarGeminiTexto } from '../../../services/kdp-ai-engine';
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
 import { GALERIA_SILHUETAS_PB, SilhuetaMarginalConfig } from '../../../services/kdp-silhouette-service';
+import { cleanChapterTitle } from '../../../services/kdp-editorial-review';
 import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 
 export interface PageReviewerChapter {
@@ -1069,6 +1070,7 @@ Retorne APENAS a frase de continuação e fechamento, sem introdução e sem asp
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                           {livro.capitulos.map((c, i) => {
                             const startP = chapterStartPages[i] || (i + 1) * 8;
+                            const tituloLimpo = cleanChapterTitle(c.titulo || '') || `Capítulo ${i + 1}`;
                             return (
                               <div
                                 key={i}
@@ -1092,7 +1094,7 @@ Retorne APENAS a frase de continuação e fechamento, sem introdução e sem asp
                               >
                                 <span style={{ color: '#1e293b', fontWeight: 600, display: 'flex', alignItems: 'baseline', gap: 6 }}>
                                   <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Cap. {i + 1}</span>
-                                  <span>{c.titulo}</span>
+                                  <span>{tituloLimpo}</span>
                                 </span>
 
                                 <span style={{ flex: 1, borderBottom: '1px dotted #94a3b8', margin: '0 8px 3px 8px' }} />
@@ -1189,6 +1191,24 @@ Retorne APENAS a frase de continuação e fechamento, sem introdução e sem asp
                               );
                             }
 
+                            // Quebra de cena literária (✦ ✦ ✦ ou * * *)
+                            if (p === '✦   ✦   ✦' || /^(?:(?:\*\s*){3,}|[-–—_=#~]{3,}|⁂|✦\s*✦\s*✦)$/.test(p)) {
+                              return (
+                                <div
+                                  key={pIdx}
+                                  style={{
+                                    textAlign: 'center',
+                                    color: '#94a3b8',
+                                    fontSize: '0.88rem',
+                                    margin: '18px 0',
+                                    letterSpacing: '0.25em'
+                                  }}
+                                >
+                                  ✦   ✦   ✦
+                                </div>
+                              );
+                            }
+
                             // Capitular na primeira letra da primeira página do capítulo
                             const isFirstDropCap = currentPage.isFirstOfChapter && pIdx === 0 && p.length > 2;
                             if (isFirstDropCap) {
@@ -1198,19 +1218,20 @@ Retorne APENAS a frase de continuação e fechamento, sem introdução e sem asp
                                 <p
                                   key={pIdx}
                                   style={{
-                                    marginBottom: 12,
+                                    margin: '0 0 0 0',
+                                    textIndent: 0,
                                     textAlign: 'justify',
-                                    lineHeight: 1.75,
-                                    fontSize: '0.96rem',
+                                    lineHeight: 1.68,
+                                    fontSize: '0.98rem',
                                     color: '#1e293b'
                                   }}
                                 >
                                   <span
                                     style={{
                                       float: 'left',
-                                      fontSize: '3.4rem',
-                                      lineHeight: 0.8,
-                                      paddingTop: 4,
+                                      fontSize: '3.2rem',
+                                      lineHeight: 0.82,
+                                      paddingTop: 3,
                                       paddingRight: 8,
                                       paddingBottom: 2,
                                       fontWeight: 700,
@@ -1225,15 +1246,18 @@ Retorne APENAS a frase de continuação e fechamento, sem introdução e sem asp
                               );
                             }
 
+                            // Primeiro parágrafo da página sem recuo se for primeira linha após divisor
+                            const isFirstOfPage = pIdx === 0;
+
                             return (
                               <p
                                 key={pIdx}
                                 style={{
-                                  textIndent: '1.8em',
-                                  marginBottom: 12,
+                                  textIndent: isFirstOfPage ? 0 : '1.8em',
+                                  margin: '0 0 0 0',
                                   textAlign: 'justify',
-                                  lineHeight: 1.75,
-                                  fontSize: '0.96rem',
+                                  lineHeight: 1.68,
+                                  fontSize: '0.98rem',
                                   color: '#1e293b'
                                 }}
                               >

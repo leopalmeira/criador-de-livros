@@ -74,6 +74,7 @@ import { useTranslation } from '../../../services/i18n-service';
 import { PrintCoverService } from '../../../services/print-cover-service';
 import { PublishingMetadataService } from '../../../services/publishing-metadata-service';
 import { preflightPdf } from '../../../services/pdf-preflight';
+import { KdpCoverMasterPromptCard } from './KdpCoverMasterPromptCard';
 
 const newProjectId = () => newId('prj_');
 
@@ -6048,6 +6049,17 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       </div>
                     </div>
                   )}
+
+                  {/* MASTER PROMPT DE CAPA EDITORIAL (600 A 1200 PALAVRAS) */}
+                  <KdpCoverMasterPromptCard
+                    titulo={livro?.titulo || titulo}
+                    subtitulo={livro?.subtitulo || subtitulo}
+                    autor={livro?.autor || autor}
+                    genero={livro?.genero || genero}
+                    premissa={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
+                    idioma={idioma || 'pt'}
+                    compactMode={true}
+                  />
                 </div>
               )}
 
@@ -7054,6 +7066,17 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         </div>
                       )}
 
+                      {/* MASTER PROMPT DE CAPA EDITORIAL (600 A 1200 PALAVRAS) */}
+                      <KdpCoverMasterPromptCard
+                        titulo={livro?.titulo || titulo}
+                        subtitulo={livro?.subtitulo || subtitulo}
+                        autor={livro?.autor || autor}
+                        genero={livro?.genero || genero}
+                        premissa={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
+                        idioma={idioma || 'pt'}
+                        compactMode={false}
+                      />
+
                       {/* CARD DAS 7 PALAVRAS-CHAVE OFICIAIS DO AMAZON KDP */}
                       <div style={{
                         width: '100%',
@@ -7198,6 +7221,19 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       >
                         <Sparkles size={16} /> 🎨 Gerar Capa KDP com IA
                       </button>
+
+                      {/* MASTER PROMPT DISPONÍVEL IMEDIATAMENTE MESMO ANTES DE GERAR */}
+                      <div style={{ marginTop: 24, textAlign: 'left', width: '100%', maxWidth: 760 }}>
+                        <KdpCoverMasterPromptCard
+                          titulo={livro?.titulo || titulo}
+                          subtitulo={livro?.subtitulo || subtitulo}
+                          autor={livro?.autor || autor}
+                          genero={livro?.genero || genero}
+                          premissa={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
+                          idioma={idioma || 'pt'}
+                          compactMode={false}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>

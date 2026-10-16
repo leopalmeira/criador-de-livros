@@ -26,6 +26,7 @@ export interface BuildPdfInput {
     titulo: string;
     subtitulo?: string;
     autor: string;
+    genero?: string;
     idioma?: string;
     capitulos: { titulo: string; texto: string; imagemDataUrl?: string | null }[];
   };
@@ -235,13 +236,19 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     if (meta.kind === 'capa' || meta.kind === 'rosto') return;
 
     if (meta.kind === 'capitulo' && !meta.firstOfChapter) {
-      const header = isRecto(page) ? cleanTitles[meta.chapterIndex!] : bookTitle;
-      doc.setFont('times', 'italic').setFontSize(9).setTextColor(120);
-      doc.text(header, LW / 2, 0.5, { align: 'center', maxWidth: textW });
+      let rawHeader = isRecto(page) ? cleanTitles[meta.chapterIndex!] : bookTitle;
+      let header = (rawHeader || '').trim();
+      // Trunca em 34 caracteres para NUNCA quebrar em múltiplas linhas e nunca colidir com o texto
+      if (header.length > 34) {
+        header = header.slice(0, 32).trim() + '…';
+      }
+      doc.setFont('times', 'italic').setFontSize(8.5).setTextColor(115);
+      doc.text(header, LW / 2, 0.48, { align: 'center' });
       meta.header = header;
     }
-    doc.setFont('times', 'normal').setFontSize(10).setTextColor(110);
-    doc.text(String(page), LW / 2, LH - 0.5, { align: 'center' });
+    // Numeração de página na base (Folio KDP)
+    doc.setFont('times', 'normal').setFontSize(9.5).setTextColor(110);
+    doc.text(String(page), LW / 2, LH - 0.48, { align: 'center' });
     meta.number = page;
     doc.setTextColor(0);
   };
@@ -315,24 +322,34 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     warnings.push('PDF gerado SEM capa incorporada.');
   }
 
-  // 2) PÁGINA DE ROSTO
+  // 2) PÁGINA DE ROSTO OFICIAL DE LUXO (PADRÃO HARPERCOLLINS / PENGUIN)
   const isEn = Boolean(input.livro.idioma && /ingl|en/i.test(input.livro.idioma));
   const isEs = Boolean(input.livro.idioma && /espanh|es/i.test(input.livro.idioma));
 
   startPage('rosto');
-  doc.setFont('times', 'bold').setFontSize(24).setTextColor(20);
+  doc.setFont('times', 'bold').setFontSize(22).setTextColor(15);
   const tL = doc.splitTextToSize(bookTitle, textW) as string[];
-  doc.text(tL, LW / 2, LH / 3, { align: 'center' });
-  let ty = LH / 3 + tL.length * 0.38;
+  doc.text(tL, LW / 2, LH * 0.32, { align: 'center' });
+  let ty = LH * 0.32 + tL.length * 0.36;
+
   if (input.livro.subtitulo) {
-    // Subtítulo 10%+ maior para máxima visibilidade (de 13 para 15)
-    doc.setFont('times', 'italic').setFontSize(15).setTextColor(60);
-    const sL = doc.splitTextToSize(sanitize(input.livro.subtitulo), textW) as string[];
-    doc.text(sL, LW / 2, ty + 0.25, { align: 'center' });
+    doc.setFont('times', 'italic').setFontSize(13.5).setTextColor(55);
+    const sL = doc.splitTextToSize(sanitize(input.livro.subtitulo), textW - 0.4) as string[];
+    doc.text(sL, LW / 2, ty + 0.22, { align: 'center' });
+    ty += sL.length * 0.28 + 0.22;
   }
+
+  // Divisor decorativo nobre na folha de rosto
+  doc.setFont('times', 'normal').setFontSize(11).setTextColor(140);
+  doc.text('✦   ✦   ✦', LW / 2, ty + 0.35, { align: 'center' });
+
+  // Nome do Autor e Selo Editorial na base da folha de rosto
   doc.setFont('times', 'normal').setFontSize(13).setTextColor(20);
-  const authorPrefix = isEn ? 'by' : 'por';
-  doc.text(sanitize(`${authorPrefix} ${input.livro.autor}`), LW / 2, LH - 1.4, { align: 'center' });
+  const authorPrefix = isEn ? 'by' : isEs ? 'por' : 'por';
+  doc.text(sanitize(`${authorPrefix} ${input.livro.autor}`), LW / 2, LH - 1.5, { align: 'center' });
+
+  doc.setFont('times', 'normal').setFontSize(8.5).setTextColor(120);
+  doc.text('EDIÇÃO ESPECIAL AMAZON KDP • DIREITOS RESERVADOS', LW / 2, LH - 1.1, { align: 'center' });
   doc.setTextColor(0);
 
   // 3) SUMÁRIO (páginas reais vindas do passe anterior)
@@ -340,21 +357,26 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   if (input.optSumario && chapters.length > 0) {
     startPage('sumario');
     tocPages = 1;
-    doc.setFont('times', 'bold').setFontSize(18).setTextColor(20);
-    const tocTitle = isEn ? 'Table of Contents' : isEs ? 'Índice' : 'Sumário';
-    doc.text(tocTitle, LW / 2, y + 0.3, { align: 'center' });
+    doc.setFont('times', 'bold').setFontSize(16).setTextColor(20);
+    const tocTitle = isEn ? 'TABLE OF CONTENTS' : isEs ? 'ÍNDICE GENERAL' : 'SUMÁRIO';
+    doc.text(tocTitle, LW / 2, y + 0.35, { align: 'center' });
+
+    doc.setFont('times', 'normal').setFontSize(9).setTextColor(130);
+    doc.text('✦   ✦   ✦', LW / 2, y + 0.65, { align: 'center' });
     doc.setTextColor(0);
-    y += 0.95;
-    const entryH = 0.26;
+
+    y += 1.05;
+    const entryH = 0.28;
     chapters.forEach((_, i) => {
-      doc.setFont('times', 'normal').setFontSize(11);
-      const label = `${i + 1}. ${cleanTitles[i]}`;
+      doc.setFont('times', 'normal').setFontSize(10.5);
+      const cleanT = cleanTitles[i];
+      const label = `${i + 1}.  ${cleanT}`;
       const wrapped = doc.splitTextToSize(label, textW - 0.75) as string[];
       if (y + wrapped.length * entryH > bottomLimit) {
         startPage('sumario');
         tocPages++;
-        y = mT + 0.1;
-        doc.setFont('times', 'normal').setFontSize(11);
+        y = mT + 0.2;
+        doc.setFont('times', 'normal').setFontSize(10.5);
       }
       const L = leftOf(page);
       doc.text(wrapped, L, y);
@@ -362,16 +384,18 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
       const lastW = doc.getTextWidth(wrapped[wrapped.length - 1]);
       const numStr = String(tocNums ? tocNums[i] : '000');
       const rightX = L + textW;
-      const dotsFrom = L + lastW + 0.1;
-      const dotsTo = rightX - doc.getTextWidth(numStr) - 0.1;
+      const dotsFrom = L + lastW + 0.12;
+      const dotsTo = rightX - doc.getTextWidth(numStr) - 0.12;
       if (dotsTo > dotsFrom) {
-        doc.setLineDashPattern([0.012, 0.045], 0);
-        doc.setDrawColor(150);
-        doc.setLineWidth(0.008);
+        doc.setLineDashPattern([0.015, 0.045], 0);
+        doc.setDrawColor(160);
+        doc.setLineWidth(0.007);
         doc.line(dotsFrom, lastY - 0.02, dotsTo, lastY - 0.02);
         doc.setLineDashPattern([], 0);
       }
+      doc.setFont('times', 'normal').setFontSize(10.5).setTextColor(30);
       doc.text(numStr, rightX, lastY, { align: 'right' });
+      doc.setTextColor(0);
       y += wrapped.length * entryH;
     });
   }
@@ -517,10 +541,9 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     sanitized.push(body);
     
     // Separação profissional de parágrafos editoriais KDP:
-    // Divide por quebras de linha em branco e normaliza quebras internas de linha
     const rawBlocks = body.split(/\r?\n\s*\r?\n/).map(block => block.trim()).filter(Boolean);
     const paras = rawBlocks.map(block => {
-      if (SCENE_BREAK.test(block)) return '* * *';
+      if (SCENE_BREAK.test(block)) return '✦   ✦   ✦';
       return block
         .replace(/\r?\n+/g, ' ')
         .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -533,21 +556,22 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     }).filter(Boolean);
 
     if (paras.length === 0) warnings.push(`Capítulo ${ci + 1} ("${cleanTitles[ci]}") está sem texto.`);
-    let first = true;
+    let isFirstParagraphOfSection = true;
     doc.setFont('times', 'normal').setFontSize(FS).setTextColor(0);
 
-    for (const p of paras) {
+    for (let pIdx = 0; pIdx < paras.length; pIdx++) {
+      const p = paras[pIdx];
       if (SCENE_BREAK.test(p)) {
         if (remainingLines() < 4) newContentPage(ci);
         y += lineH * 0.6;
         doc.setFont('times', 'normal').setFontSize(FS);
         doc.text('* * *', leftOf(page) + textW / 2, y, { align: 'center' });
         y += lineH * 1.6;
-        first = true;
+        isFirstParagraphOfSection = true;
         continue;
       }
       doc.setFont('times', 'normal').setFontSize(FS);
-      const ind = first ? 0 : indent;
+      const ind = isFirstParagraphOfSection ? 0 : indent;
       const lines = wrapParagraph(p, ind);
       let i = 0;
       while (i < lines.length) {
@@ -582,7 +606,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
         i += take;
         if (i < lines.length) newContentPage(ci);
       }
-      first = false;
+      isFirstParagraphOfSection = false;
     }
   });
   finishPage();

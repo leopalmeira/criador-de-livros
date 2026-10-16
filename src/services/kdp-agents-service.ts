@@ -377,35 +377,125 @@ export function buildFallbackEditorialPlan(
     }
   ];
 
-  const matrizBase = isFiccao ? matrizFiccao : matrizNaoFiccao;
+  // Sanitização de tema para títulos: nunca deixar uma premissa ou parágrafo inteiro vazar no título
+  const temaSanitizado = (() => {
+    const raw = book.topic || book.subtheme || book.theme || book.title || '';
+    const clean = raw
+      .replace(/^["'“”«»]+|["'“”«»]+$/g, '')
+      .replace(/^(?:o livro|este livro|a obra|uma narrativa|narrativa|história|o enredo)\s+(?:explora|conta|apresenta|revela|trata|fala sobre|centrado em)\s+/i, '')
+      .trim();
+    const words = clean.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return 'Domínio Prático';
+    if (words.length <= 3) return clean;
+    return words.slice(0, 3).join(' ');
+  })();
+
+  // 40+ Títulos autênticos e distintos para Ficção (nunca repete títulos nem usa Parte X)
+  const titulosFiccaoBase = isEn ? [
+    'The First Omen', 'Shadows of the Past', 'Whispers in the Dark', 'Crossing the Threshold',
+    'A Fractured Memory', 'The Hidden Truth', 'Echoes of Betrayal', 'Into the Unknown',
+    'The Gathering Storm', 'Tangled Alliances', 'A Game of Deception', 'The Edge of Reason',
+    'Midnight Confessions', 'The Silent Witness', 'Under the Cold Light', 'Chasing Phantoms',
+    'The Broken Seal', 'A Veil of Deceit', 'Point of No Return', 'The Longest Night',
+    'Fires in the Distance', 'A Spark in the Fog', 'The Hunter and the Prey', 'Masks Torn Away',
+    'The Bitter Hour', 'Bloodlines and Secrets', 'The Turning Tide', 'A Fragile Truce',
+    'The Abyss Below', 'Voices from the Ashes', 'Before the Dawn', 'A Reckoning Demanded',
+    'The Final Stand', 'Crossroads of Destiny', 'When Empires Fall', 'The Last Sacrifice',
+    'Shattered Illusions', 'The Crucible of Fire', 'Resurrection of Hope', 'A New World Order'
+  ] : isEs ? [
+    'El Primer Presagio', 'Sombras del Pasado', 'Susurros en la Niebla', 'Cruzando el Umbral',
+    'Memorias Fracturadas', 'La Verdad Oculta', 'Ecos de Traición', 'Hacia lo Desconocido',
+    'La Tormenta Inminente', 'Alianzas Peligrosas', 'El Juego del Engaño', 'Al Borde del Abismo',
+    'Confesiones a Medianoche', 'El Testigo Silencioso', 'Bajo la Luz Fría', 'Cazando Fantasmas',
+    'El Sello Roto', 'Un Velo de Mentiras', 'Punto de No Retorno', 'La Noche Más Larga',
+    'Fuegos en la Lejanía', 'Un Destello en la Niebla', 'El Cazador y la Presa', 'Máscaras Caídas',
+    'La Hora Difícil', 'Linajes y Secretos', 'El Cambio de Marea', 'Una Tregua Frágil',
+    'El Abismo Interior', 'Voces entre Cenizas', 'Antes del Amanecer', 'El Ajuste de Cuentas',
+    'La Batalla Final', 'Encrucijada de Destinos', 'La Caída de la Fortaleza', 'El Último Sacrificio',
+    'Ilusiones Rotas', 'El Crisol del Fuego', 'El Renacer de la Esperanza', 'Un Nuevo Amanecer'
+  ] : [
+    'O Primeiro Presságio', 'Sombras do Passado', 'Sussurros na Névoa', 'Cruzando o Limiar',
+    'Memórias Fraturadas', 'A Verdade Oculta', 'Ecos de Traição', 'Rumo ao Desconhecido',
+    'A Tempestade Iminente', 'Alianças Perigosas', 'O Jogo do Engano', 'À Beira do Abismo',
+    'Confissões da Meia-Noite', 'A Testemunha Silenciosa', 'Sob a Luz Fria', 'Caçando Fantasmas',
+    'O Selo Rompido', 'Um Véu de Mentiras', 'Ponto Sem Retorno', 'A Noite Mais Longa',
+    'Fogo na Distância', 'Um Vislumbre na Bruma', 'O Caçador e a Presa', 'Máscaras Caídas',
+    'A Hora Decisiva', 'Linhagens e Segredos', 'A Virada da Maré', 'Uma Trégua Frágil',
+    'O Abismo Interior', 'Vozes Entre Cinzas', 'Antes da Alvorada', 'O Acerto de Contas',
+    'O Confronto Final', 'Encruzilhada de Destinos', 'A Queda da Fortaleza', 'O Último Sacrifício',
+    'Ilusões Desfeitas', 'O Crisol do Fogo', 'O Renascer da Esperança', 'Um Novo Horizonte'
+  ];
+
+  // 40+ Títulos autênticos e distintos para Não Ficção (livros de negócios, finanças, autoajuda, liderança)
+  const titulosNaoFiccaoBase = isEn ? [
+    'The Core Foundation', 'The Hidden Diagnosis', 'Unlocking Clarity', 'Mental Models for Mastery',
+    'The Execution Engine', 'Overcoming Friction', 'Strategic Leverage', 'High-Impact Habits',
+    'The Discipline Framework', 'Shattering Blind Spots', 'Building Relentless Focus', 'Data vs Intuition',
+    'The Growth Multiplier', 'Real-World Case Studies', 'Navigating Crisis', 'Optimizing Systems',
+    'The Leadership Mindset', 'Scaling Your Impact', 'The Momentum Paradox', 'Resilience by Design',
+    'Sustained Performance', 'The Compounding Effect', 'Strategic Decision-Making', 'The Antifragile Protocol',
+    'Mastering the Fundamentals', 'The Architecture of Influence', 'Eliminating Bottlenecks', 'Peak Efficiency',
+    'The Long-Term Vision', 'Auditing Your Progress', 'Continuous Mastery', 'The Ultimate Playbook'
+  ] : isEs ? [
+    'El Fundamento Esencial', 'El Diagnóstico Oculto', 'Claridad Estratégica', 'Modelos Mentales de Maestría',
+    'El Motor de Ejecución', 'Superando la Fricción', 'Apalancamiento Práctico', 'Hábitos de Alto Impacto',
+    'La Disciplina Consciente', 'Puntos Ciegos y Errores', 'Foco Imparable', 'Datos frente a Intuición',
+    'El Multiplicador del Éxito', 'Casos de Estudio Reales', 'Gestión de Crisis', 'Optimización de Sistemas',
+    'La Mentalidad de Liderazgo', 'Escalar el Impacto', 'La Paradoja del Impulso', 'Resiliencia por Diseño',
+    'Rendimiento Sostenido', 'El Efecto Compuesto', 'Toma de Decisiones', 'El Protocolo Antifrágil',
+    'Dominio de los Fundamentos', 'Arquitectura de Influencia', 'Eliminando Cuellos de Botella', 'Eficiencia Máxima',
+    'La Visión de Futuro', 'Auditoría de Resultados', 'Maestría Continua', 'El Plan de Acción Definitivo'
+  ] : [
+    'A Fundação Essencial', 'O Diagnóstico Oculto', 'Clareza Estratégica', 'Modelos Mentais de Maestria',
+    'O Motor da Execução', 'Vencendo a Fricção', 'Alavancagem Prática', 'Hábitos de Alto Impacto',
+    'A Disciplina Consciente', 'Pontos Cegos e Erros Fatais', 'Foco Inegociável', 'Dados versus Intuição',
+    'O Multiplicador de Resultados', 'Estudos de Casos Reais', 'Navegando em Crises', 'Otimização de Sistemas',
+    'A Mentalidade de Liderança', 'Escalando o Impacto', 'O Paradoxo do Impulso', 'Resiliência por Design',
+    'Performance Sustentável', 'O Efeito Cumulativo', 'Tomada de Decisão Estratégica', 'O Protocolo Antifrágil',
+    'Maestria dos Fundamentos', 'Arquitetura de Influência', 'Eliminando Gargalos', 'Eficiência Máxima',
+    'A Visão de Longo Prazo', 'Auditoria de Evolução', 'Aprimoramento Contínuo', 'O Plano de Ação Definitivo'
+  ];
+
+  const titulosBase = isFiccao ? titulosFiccaoBase : titulosNaoFiccaoBase;
   const chapters: KdpEditorialChapterPlan[] = [];
 
   for (let i = 0; i < chapterCount; i++) {
     const num = i + 1;
-    const template = matrizBase[i % matrizBase.length];
+    let title = titulosBase[i % titulosBase.length];
 
-    let title = isEn
-      ? `Chapter ${num}: ${template.title}`
-      : isEs
-      ? `Capítulo ${num}: ${template.title}`
-      : (chapterCount > matrizBase.length
-          ? `${template.title} (Parte ${Math.floor(i / matrizBase.length) + 1})`
-          : template.title);
-
-    if (num === 1) {
-      title = isEn ? `Chapter 1: The Foundation of ${temaRef}` : isEs ? `Capítulo 1: El Fundamento de ${temaRef}` : `A Fundação e os Primeiros Passos em ${temaRef}`;
-    } else if (num === chapterCount) {
-      title = isEn ? `Chapter ${num}: Conclusion & The Action Plan` : isEs ? `Capítulo ${num}: Conclusión y Plan Definitivo` : `Consolidação Definitiva e Próximos Passos`;
+    // Se o número de capítulos ultrapassar a lista base, cria variações elegantes sem usar "(Parte X)"
+    if (i >= titulosBase.length) {
+      const ciclo = Math.floor(i / titulosBase.length);
+      const sufixosVariados = isEn
+        ? ['Revisited', 'Advanced Principles', 'Deep Dive', 'Perspectives', 'The Evolution']
+        : isEs
+        ? ['Revisitado', 'Principios Avanzados', 'Profundización', 'Nuevas Perspectivas', 'La Evolución']
+        : ['Revisitado', 'Princípios Avançados', 'Aprofundamento', 'Novas Perspectivas', 'A Evolução'];
+      const sufixo = sufixosVariados[(ciclo - 1) % sufixosVariados.length];
+      title = `${title}: ${sufixo}`;
     }
+
+    // Regras especiais elegantes para Primeiro e Último Capítulo:
+    if (num === 1) {
+      title = isFiccao
+        ? (isEn ? 'The Gathering Shadows' : isEs ? 'El Despertar de las Sombras' : 'O Despertar das Sombras')
+        : (isEn ? `The Foundation: Understanding ${temaSanitizado}` : isEs ? `El Fundamento: Comprendiendo ${temaSanitizado}` : `A Fundação: Compreendendo ${temaSanitizado}`);
+    } else if (num === chapterCount) {
+      title = isFiccao
+        ? (isEn ? 'A New Dawn' : isEs ? 'Un Nuevo Amanecer' : 'O Novo Horizonte')
+        : (isEn ? 'The Master Blueprint & Next Steps' : isEs ? 'El Plan Definitivo y Próximos Pasos' : 'O Plano Definitivo e Próximos Passos');
+    }
+
+    const templateObj = (isFiccao ? matrizFiccao : matrizNaoFiccao)[i % (isFiccao ? matrizFiccao : matrizNaoFiccao).length];
 
     const transition = num === chapterCount
       ? (isEn ? 'Final conclusion and full completion of the book.' : isEs ? 'Conclusión final y cierre definitivo de la obra.' : 'Conclusão definitiva e encerramento da obra com impacto e coerência.')
-      : (isEn ? `Seamless transition into Chapter ${num + 1}.` : isEs ? `Transición fluida hacia el Capítulo ${num + 1}.` : `Transição fluida conectando as lições aprendidas com os desafios do Capítulo ${num + 1}.`);
+      : (isEn ? `Seamless transition into Chapter ${num + 1}.` : isEs ? `Transición fluida hacia el Capítulo ${num + 1}.` : `Transição fluida conectando os desdobramentos com os desafios do Capítulo ${num + 1}.`);
 
     chapters.push({
       title,
-      objective: template.objective,
-      keyPoints: [...template.keyPoints],
+      objective: templateObj.objective,
+      keyPoints: [...templateObj.keyPoints],
       transition
     });
   }

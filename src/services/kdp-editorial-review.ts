@@ -18,10 +18,32 @@ import { levenshtein, normText, normWord, splitParagraphs, stripAccents, wordsOf
 export function cleanChapterTitle(title: string): string {
   let cleaned = (title || '').trim();
   let prev = '';
+  // Remove prefixos como Capítulo 1: ou Chapter 1 -
   while (cleaned !== prev && /^(?:cap[ií]tulo|chapter|cap)\s*(?:\d+|[ivxlc]+)?\s*[:.\-–—]*\s*/i.test(cleaned)) {
     prev = cleaned;
     cleaned = cleaned.replace(/^(?:cap[ií]tulo|chapter|cap)\s*(?:\d+|[ivxlc]+)?\s*[:.\-–—]*\s*/i, '').trim();
   }
+
+  // Remove sufixos mecânicos como (Parte 1) ou - Parte 2
+  cleaned = cleaned.replace(/\s*[\(\[\{]?(?:parte|part)\s*\d+[\)\]\}]?\s*$/i, '').trim();
+
+  // Se uma premissa ou parágrafo inteiro vazou dentro do título do capítulo:
+  if (/^A Fundação e os Primeiros Passos em\s+/i.test(cleaned)) {
+    const resto = cleaned.replace(/^A Fundação e os Primeiros Passos em\s+/i, '').trim();
+    const words = resto.split(/\s+/).filter(Boolean);
+    cleaned = words.length <= 4 ? `A Fundação de ${resto}` : 'A Fundação Essencial';
+  } else if (/^The Foundation of\s+/i.test(cleaned)) {
+    const resto = cleaned.replace(/^The Foundation of\s+/i, '').trim();
+    const words = resto.split(/\s+/).filter(Boolean);
+    cleaned = words.length <= 4 ? `The Foundation of ${resto}` : 'The Core Foundation';
+  }
+
+  // Se o título ainda tiver mais de 10 palavras, condensa para as 6 primeiras palavras de impacto
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length > 8) {
+    cleaned = words.slice(0, 6).join(' ');
+  }
+
   return cleaned || (title || '').trim();
 }
 
