@@ -4941,11 +4941,34 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
             </div>
 
-            {/* ÁREA DE EXIBIÇÃO CONFORME A ABA ATIVA */}
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-              {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
-              {activeTab === 'preview' && (
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 4 }}>
+            {/* ÁREA DE EXIBIÇÃO CONFORME A ABA ATIVA + SIDEBAR DE AÇÕES LATERAL */}
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 16,
+                position: 'relative',
+                overflow: 'hidden',
+                alignItems: 'stretch'
+              }}
+            >
+              {/* COLUNA ESQUERDA: CONTEÚDO PRINCIPAL (LIVRO DIAGRAMADO, CAPA, AUDITORIA, ETC.) */}
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflowY: 'auto',
+                  paddingRight: 4
+                }}
+              >
+                {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
+                {activeTab === 'preview' && (
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 4 }}>
                   {/* PAINEL DO MOTOR DE SILHUETAS MARGINAIS COM 3% DE SANGRIA EXTERNA */}
                   {/* PAINEL DO MOTOR DE SILHUETAS ARTÍSTICAS & MARCAS D'ÁGUA P&B */}
                   {/* PAINEL DIDÁTICO E VISUAL: ACABAMENTO EDITORIAL DE MIOLO (SILHUETA & MARCA D'ÁGUA P&B) */}
@@ -6040,34 +6063,23 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
 
-              {/* ABA 2: CAPA DO LIVRO (LAYOUT CLEAN COM CANVAS EXPANDIDO E SIDEBAR VERTICAL DE AÇÕES À DIREITA) */}
+              {/* ABA 2: CAPA DO LIVRO (LAYOUT CLEAN COM CANVAS EXPANDIDO) */}
               {activeTab === 'capa' && (
                 <div
                   style={{
                     width: '100%',
+                    minWidth: 0,
                     display: 'flex',
-                    flexDirection: 'row',
-                    gap: 20,
-                    alignItems: 'flex-start',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    background: '#f8fafc',
+                    borderRadius: 12,
+                    border: '1px solid #e2e8f0',
+                    padding: 20,
+                    gap: 16,
                     boxSizing: 'border-box'
                   }}
                 >
-                  {/* COLUNA CENTRAL: CANVAS DA CAPA + MASTER PROMPT + 7 PALAVRAS-CHAVE */}
-                  <div
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      background: '#f8fafc',
-                      borderRadius: 12,
-                      border: '1px solid #e2e8f0',
-                      padding: 20,
-                      gap: 16,
-                      boxSizing: 'border-box'
-                    }}
-                  >
                   {capaFinal ? (
                     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 780 }}>
                       
@@ -7024,434 +7036,6 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       </div>
                     </div>
                   )}
-                  </div>
-
-                  {/* COLUNA LATERAL DIREITA: BARRA VERTICAL DE AÇÕES E EXPORTAÇÃO (CLEAN & ORGANIZADA) */}
-                  <div
-                    style={{
-                      width: 250,
-                      flexShrink: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 12,
-                      background: '#ffffff',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: 12,
-                      padding: 16,
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
-                      position: 'sticky',
-                      top: 16,
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    {/* CABEÇALHO DO PAINEL LATERAL */}
-                    <div style={{ paddingBottom: 10, borderBottom: '1px solid #f1f5f9' }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Sliders size={15} color="#2563eb" /> Painel de Ações
-                      </div>
-                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                        Capa, Editorial & Finalização
-                      </div>
-                    </div>
-
-                    {/* GRUPO 1: AÇÕES DA CAPA */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                        Ações da Capa KDP
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={baixarCapaCompletaPdf}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 6,
-                          background: '#0f172a',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                          textAlign: 'left'
-                        }}
-                        title="Baixar PDF de Capa Completa Aberta (Contracapa + Lombada + Frente) com medidas oficiais KDP"
-                      >
-                        <Download size={14} color="#38bdf8" /> Baixar Capa KDP (PDF)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={baixarCapa}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          color: '#0f172a',
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
-                        title="Baixar imagem PNG da Capa Frontal em 1600x2400 (Kindle eBook)"
-                      >
-                        <Download size={13} /> Frente PNG (1600x2400)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={baixarContracapaPng}
-                        disabled={!contracapaFinal}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          color: '#0f172a',
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: !contracapaFinal ? 'not-allowed' : 'pointer',
-                          opacity: !contracapaFinal ? 0.6 : 1,
-                          textAlign: 'left'
-                        }}
-                        title="Baixar imagem PNG da Contracapa diagramada"
-                      >
-                        <Download size={13} /> Contracapa PNG
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            const targetUrl = viewModeCapa === 'wrap' ? (wrapPreviewUrl || capaFinal) : viewModeCapa === 'back' ? (contracapaFinal || capaFinal) : capaFinal;
-                            if (!targetUrl) return;
-                            const blob = await (await fetch(targetUrl)).blob();
-                            await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-                            setStatusMsg('✓ Imagem copiada para a área de transferência!');
-                            setStatusType('ok');
-                          } catch {
-                            setStatusMsg('Não foi possível copiar automaticamente para a área de transferência.');
-                          }
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          color: '#334155',
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <Copy size={13} /> Copiar Imagem da Capa
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextVal = !isEditingFrontCover;
-                          setIsEditingFrontCover(nextVal);
-                          if (nextVal) {
-                            setIsEditingBackCover(false);
-                            setViewModeCapa('front');
-                          }
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: isEditingFrontCover ? '#fef3c7' : '#ffffff',
-                          color: isEditingFrontCover ? '#b45309' : '#334155',
-                          border: isEditingFrontCover ? '1px solid #fcd34d' : '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
-                        title="Ajustar posição, tamanho da fonte e tipografia"
-                      >
-                        <Palette size={13} /> {isEditingFrontCover ? 'Ocultar Ajuste Capa' : 'Ajustar Capa Frontal'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!contracapaTexto) {
-                            const smartBack = PrintCoverService.generateSmartBackCover(
-                              livro?.titulo || titulo,
-                              topico.trim() || undefined,
-                              livro?.genero || genero
-                            );
-                            setContracapaTexto({
-                              hookHeadline: smartBack.hookHeadline,
-                              synopsisText: smartBack.synopsisText,
-                              readerBenefits: smartBack.readerBenefits
-                            });
-                          }
-                          setIsEditingBackCover(!isEditingBackCover);
-                          if (!isEditingBackCover) setIsEditingFrontCover(false);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: isEditingBackCover ? '#eff6ff' : '#ffffff',
-                          color: isEditingBackCover ? '#1d4ed8' : '#334155',
-                          border: isEditingBackCover ? '1px solid #93c5fd' : '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <Sliders size={13} /> {isEditingBackCover ? 'Ocultar Contracapa' : 'Personalizar Contracapa'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleGerarOutraCapa}
-                        disabled={isRegeneratingCoverOnly || gerando}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 6,
-                          background: '#2563eb',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: isRegeneratingCoverOnly || gerando ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
-                          textAlign: 'left'
-                        }}
-                      >
-                        {isRegeneratingCoverOnly ? (
-                          <>
-                            <BookEnginAnimatedBook size="micro" /> Gerando Nova...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={13} /> ✨ Gerar Outra com IA
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* DIVISOR */}
-                    <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
-
-                    {/* GRUPO 2: FERRAMENTAS DO LIVRO */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                        Livro & Editorial
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setIsPageReviewerOpen(true)}
-                        disabled={!livro || livro.capitulos.length === 0}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 6,
-                          background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
-                          textAlign: 'left'
-                        }}
-                        title="Folhear e inspecionar cada página individualmente"
-                      >
-                        <BookOpen size={13} /> 📖 Revisar Páginas
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={baixarPDF}
-                        disabled={!livro || livro.capitulos.length === 0}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          color: '#0f172a',
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                          textAlign: 'left'
-                        }}
-                        title="Baixar Livro Diagramado em PDF KDP"
-                      >
-                        <Download size={13} /> PDF do Livro
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={executarVerificacaoCompleta}
-                        disabled={!livro || livro.capitulos.length === 0 || isAuditing}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          color: '#0f172a',
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: !livro || isAuditing ? 'not-allowed' : 'pointer',
-                          textAlign: 'left'
-                        }}
-                        title="Auditoria Editorial KDP de Conformidade"
-                      >
-                        <ShieldCheck size={13} color="#059669" /> {isAuditing ? 'Auditando...' : 'Auditar Obra KDP'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={copiarTexto}
-                        disabled={!livro || livro.capitulos.length === 0}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          color: '#475569',
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                          textAlign: 'left'
-                        }}
-                        title="Copiar Texto Integral do Manuscrito"
-                      >
-                        <Copy size={13} /> Copiar Texto
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={salvarNoCatalogo}
-                        disabled={!livro}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          color: '#475569',
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: !livro ? 'not-allowed' : 'pointer',
-                          textAlign: 'left'
-                        }}
-                        title="Salvar Estado Atual no Catálogo Local"
-                      >
-                        <Save size={13} /> Salvar Catálogo
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={baixarJSON}
-                        disabled={!livro}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          color: '#475569',
-                          border: '1px solid #cbd5e1',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: !livro ? 'not-allowed' : 'pointer',
-                          textAlign: 'left'
-                        }}
-                        title="Exportar Dados da Obra em JSON"
-                      >
-                        <FileText size={13} /> Exportar JSON
-                      </button>
-                    </div>
-
-                    {/* DIVISOR */}
-                    <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
-
-                    {/* GRUPO 3: FINALIZAÇÃO */}
-                    <div>
-                      <button
-                        type="button"
-                        onClick={finalizarLivroEGravarNaDashboard}
-                        disabled={!livro || livro.capitulos.length === 0}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 8,
-                          width: '100%',
-                          padding: '10px 14px',
-                          borderRadius: 6,
-                          background: '#0f172a',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 2px 6px rgba(15, 23, 42, 0.25)',
-                          transition: 'all 0.15s ease'
-                        }}
-                        title="Finalizar livro e disponibilizar na Dashboard"
-                      >
-                        <CheckCircle2 size={15} color="#22c55e" /> Finalizar Obra
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -7886,27 +7470,41 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
 
 
-            </div>
+              </div>
 
-            {/* BARRA DE FERRAMENTAS DO RODAPÉ (LAYOUT PROFISSIONAL, SÓBRIO E CLEAN - EXIBIDA EM OUTRAS ABAS) */}
-            {activeTab !== 'capa' && (
-              <div
+              {/* SIDEBAR VERTICAL DE AÇÕES GLOBAL (AO LADO, SEM OCUPAR O RODAPÉ DO LIVRO OU CAPA) */}
+              <aside
                 style={{
+                  width: 255,
+                  flexShrink: 0,
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  flexDirection: 'column',
                   gap: 12,
-                  marginTop: 20,
-                  padding: '14px 18px',
                   background: '#ffffff',
                   border: '1px solid #e2e8f0',
                   borderRadius: 10,
-                  flexWrap: 'wrap',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
+                  padding: 14,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                  overflowY: 'auto',
+                  boxSizing: 'border-box'
                 }}
               >
-                {/* GRUPO ESQUERDO: FERRAMENTAS, EXPORTAÇÃO E AUDITORIA */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {/* CABEÇALHO DO PAINEL LATERAL */}
+                <div style={{ paddingBottom: 10, borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Sliders size={15} color="#2563eb" /> {ui('Painel de Ações', 'Action Panel')}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                    {ui('Livro · Capa · Publicação', 'Book · Cover · Publishing')}
+                  </div>
+                </div>
+
+                {/* GRUPO 1: AÇÕES EDITORIAIS DO LIVRO (MIOLO) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                    {ui('Livro Diagramado', 'Typeset Book')}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setIsPageReviewerOpen(true)}
@@ -7914,20 +7512,22 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 16px',
+                      gap: 8,
+                      width: '100%',
+                      padding: '9px 12px',
                       borderRadius: 6,
                       background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
                       color: '#ffffff',
                       border: 'none',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 700,
                       cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
+                      boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
+                      textAlign: 'left'
                     }}
                     title="Folhear e inspecionar cada página individualmente antes de gerar o PDF"
                   >
-                    <BookOpen size={15} /> 📖 Revisar Página por Página
+                    <BookOpen size={13} /> {ui('📖 Revisar Páginas', '📖 Review Pages')}
                   </button>
 
                   <button
@@ -7937,43 +7537,22 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 14px',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
                       borderRadius: 6,
-                      background: '#f8fafc',
+                      background: '#ffffff',
                       color: '#0f172a',
                       border: '1px solid #cbd5e1',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 600,
-                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
+                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                      textAlign: 'left'
                     }}
                     title="Baixar Livro Diagramado em PDF KDP"
                   >
-                    <Download size={14} /> PDF do Livro
+                    <Download size={13} /> {ui('PDF do Livro', 'Book PDF')}
                   </button>
-
-                  {capaFinal && (
-                    <button
-                      type="button"
-                      onClick={baixarCapa}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '8px 14px',
-                        borderRadius: 6,
-                        background: '#f8fafc',
-                        color: '#0f172a',
-                        border: '1px solid #cbd5e1',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                      title="Baixar Capa Oficial Diagramada em Alta Resolução (1600x2400)"
-                    >
-                      <ImageIcon size={14} /> Capa do Livro
-                    </button>
-                  )}
 
                   <button
                     type="button"
@@ -7982,43 +7561,22 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 14px',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
                       borderRadius: 6,
-                      background: '#f8fafc',
+                      background: '#ffffff',
                       color: '#0f172a',
                       border: '1px solid #cbd5e1',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 600,
-                      cursor: !livro || isAuditing ? 'not-allowed' : 'pointer'
+                      cursor: !livro || isAuditing ? 'not-allowed' : 'pointer',
+                      textAlign: 'left'
                     }}
                     title="Auditoria Editorial KDP de Conformidade"
                   >
-                    <ShieldCheck size={14} color="#059669" /> {isAuditing ? 'Auditando...' : 'Auditar Obra'}
+                    <ShieldCheck size={13} color="#059669" /> {isAuditing ? ui('Auditando...', 'Auditing...') : ui('Auditar Obra', 'Audit Book')}
                   </button>
-
-                  {promoData && (
-                    <button
-                      type="button"
-                      onClick={() => setIsPromoModalOpen(true)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '8px 14px',
-                        borderRadius: 6,
-                        background: '#f8fafc',
-                        color: '#0f172a',
-                        border: '1px solid #cbd5e1',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                      title="Visualizar e Personalizar Página Promocional"
-                    >
-                      <Sparkles size={14} /> Página Promo
-                    </button>
-                  )}
 
                   <button
                     type="button"
@@ -8027,19 +7585,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 14px',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
                       borderRadius: 6,
-                      background: '#f8fafc',
+                      background: '#ffffff',
                       color: '#475569',
                       border: '1px solid #cbd5e1',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 600,
-                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
+                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                      textAlign: 'left'
                     }}
                     title="Copiar Texto Integral do Manuscrito"
                   >
-                    <Copy size={14} /> Copiar Texto
+                    <Copy size={13} /> {ui('Copiar Texto', 'Copy Text')}
                   </button>
 
                   <button
@@ -8049,19 +7609,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 14px',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
                       borderRadius: 6,
-                      background: '#f8fafc',
+                      background: '#ffffff',
                       color: '#475569',
                       border: '1px solid #cbd5e1',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 600,
-                      cursor: !livro ? 'not-allowed' : 'pointer'
+                      cursor: !livro ? 'not-allowed' : 'pointer',
+                      textAlign: 'left'
                     }}
                     title="Salvar Estado Atual no Catálogo Local"
                   >
-                    <Save size={14} /> Salvar Catálogo
+                    <Save size={13} /> {ui('Salvar Catálogo', 'Save Catalog')}
                   </button>
 
                   <button
@@ -8071,23 +7633,272 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 14px',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
                       borderRadius: 6,
-                      background: '#f8fafc',
+                      background: '#ffffff',
                       color: '#475569',
                       border: '1px solid #cbd5e1',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 600,
-                      cursor: !livro ? 'not-allowed' : 'pointer'
+                      cursor: !livro ? 'not-allowed' : 'pointer',
+                      textAlign: 'left'
                     }}
                     title="Exportar Dados da Obra em JSON"
                   >
-                    <FileText size={14} /> Exportar JSON
+                    <FileText size={13} /> {ui('Exportar JSON', 'Export JSON')}
                   </button>
                 </div>
 
-                {/* GRUPO DIREITO: AÇÃO PRINCIPAL DE FINALIZAÇÃO */}
+                {/* DIVISOR */}
+                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+
+                {/* GRUPO 2: AÇÕES DA CAPA KDP */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                    {ui('Capa KDP', 'KDP Cover')}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={baixarCapaCompletaPdf}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 6,
+                      background: '#0f172a',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                      textAlign: 'left'
+                    }}
+                    title="Baixar PDF de Capa Completa Aberta (Contracapa + Lombada + Frente) com medidas oficiais KDP"
+                  >
+                    <Download size={14} color="#38bdf8" /> {ui('Baixar Capa KDP (PDF)', 'Download KDP Cover (PDF)')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={baixarCapa}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                    title="Baixar imagem PNG da Capa Frontal em 1600x2400 (Kindle eBook)"
+                  >
+                    <Download size={13} /> {ui('Frente PNG (1600x2400)', 'Front PNG (1600x2400)')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={baixarContracapaPng}
+                    disabled={!contracapaFinal}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: !contracapaFinal ? 'not-allowed' : 'pointer',
+                      opacity: !contracapaFinal ? 0.6 : 1,
+                      textAlign: 'left'
+                    }}
+                    title="Baixar imagem PNG da Contracapa diagramada"
+                  >
+                    <Download size={13} /> {ui('Contracapa PNG', 'Back Cover PNG')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const targetUrl = viewModeCapa === 'wrap' ? (wrapPreviewUrl || capaFinal) : viewModeCapa === 'back' ? (contracapaFinal || capaFinal) : capaFinal;
+                        if (!targetUrl) return;
+                        const blob = await (await fetch(targetUrl)).blob();
+                        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                        setStatusMsg(ui('✓ Imagem copiada para a área de transferência!', '✓ Image copied to clipboard!'));
+                        setStatusType('ok');
+                      } catch {
+                        setStatusMsg(ui('Não foi possível copiar automaticamente para a área de transferência.', 'Could not copy to clipboard.'));
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: '#ffffff',
+                      color: '#334155',
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <Copy size={13} /> {ui('Copiar Imagem da Capa', 'Copy Cover Image')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeTab !== 'capa') setActiveTab('capa');
+                      const nextVal = !isEditingFrontCover;
+                      setIsEditingFrontCover(nextVal);
+                      if (nextVal) {
+                        setIsEditingBackCover(false);
+                        setViewModeCapa('front');
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: isEditingFrontCover ? '#fef3c7' : '#ffffff',
+                      color: isEditingFrontCover ? '#b45309' : '#334155',
+                      border: isEditingFrontCover ? '1px solid #fcd34d' : '1px solid #cbd5e1',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                    title="Ajustar posição, tamanho da fonte e tipografia"
+                  >
+                    <Palette size={13} /> {isEditingFrontCover ? ui('Ocultar Ajuste Capa', 'Hide Cover Adjust') : ui('Ajustar Capa Frontal', 'Adjust Front Cover')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeTab !== 'capa') setActiveTab('capa');
+                      if (!contracapaTexto) {
+                        const smartBack = PrintCoverService.generateSmartBackCover(
+                          livro?.titulo || titulo,
+                          topico.trim() || undefined,
+                          livro?.genero || genero
+                        );
+                        setContracapaTexto({
+                          hookHeadline: smartBack.hookHeadline,
+                          synopsisText: smartBack.synopsisText,
+                          readerBenefits: smartBack.readerBenefits
+                        });
+                      }
+                      setIsEditingBackCover(!isEditingBackCover);
+                      if (!isEditingBackCover) setIsEditingFrontCover(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: isEditingBackCover ? '#eff6ff' : '#ffffff',
+                      color: isEditingBackCover ? '#1d4ed8' : '#334155',
+                      border: isEditingBackCover ? '1px solid #93c5fd' : '1px solid #cbd5e1',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <Sliders size={13} /> {isEditingBackCover ? ui('Ocultar Contracapa', 'Hide Back Cover') : ui('Personalizar Contracapa', 'Customize Back Cover')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeTab !== 'capa') setActiveTab('capa');
+                      handleGerarOutraCapa();
+                    }}
+                    disabled={isRegeneratingCoverOnly || gerando}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 6,
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: isRegeneratingCoverOnly || gerando ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
+                      textAlign: 'left'
+                    }}
+                  >
+                    {isRegeneratingCoverOnly ? (
+                      <>
+                        <BookEnginAnimatedBook size="micro" /> {ui('Gerando Nova...', 'Generating New...')}
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={13} /> ✨ {ui('Gerar Outra com IA', 'Generate Another with AI')}
+                      </>
+                    )}
+                  </button>
+
+                  {promoData && (
+                    <button
+                      type="button"
+                      onClick={() => setIsPromoModalOpen(true)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: 6,
+                        background: '#ffffff',
+                        color: '#0f172a',
+                        border: '1px solid #cbd5e1',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                      title="Visualizar e Personalizar Página Promocional"
+                    >
+                      <Sparkles size={13} /> {ui('Página Promocional', 'Promo Page')}
+                    </button>
+                  )}
+                </div>
+
+                {/* DIVISOR */}
+                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+
+                {/* GRUPO 3: AÇÃO PRINCIPAL DE FINALIZAÇÃO */}
                 <div>
                   <button
                     type="button"
@@ -8096,25 +7907,28 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: 8,
-                      padding: '10px 20px',
+                      width: '100%',
+                      padding: '12px 14px',
                       borderRadius: 6,
                       background: '#0f172a',
                       color: '#ffffff',
                       border: 'none',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 700,
                       cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
                       boxShadow: '0 2px 6px rgba(15, 23, 42, 0.25)',
-                      transition: 'all 0.15s ease'
+                      transition: 'all 0.15s ease',
+                      textAlign: 'center'
                     }}
                     title="Compilar obra e disponibilizar na Dashboard com Manuscrito, PDF do Livro, PDF da Capa e PDF da Página"
                   >
-                    <CheckCircle2 size={16} /> Finalizar Livro (Disponibilizar na Dashboard)
+                    <CheckCircle2 size={15} color="#22c55e" /> {ui('Finalizar Livro (Dashboard)', 'Finalize Book (Dashboard)')}
                   </button>
                 </div>
-              </div>
-            )}
+              </aside>
+            </div>
           </div>
         </div>
       </main>
