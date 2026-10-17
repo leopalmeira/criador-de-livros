@@ -153,7 +153,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
-          const { BackendCoverService } = await import('./src/services/backend-cover-service');
+          const { BackendCoverService } = await import('./src/services/backend-cover-service.ts');
 
           // Rota: GET /api/covers/api-key-status
           if (req.method === 'GET' && (url === '/api-key-status' || url === '/api-key-status/')) {
@@ -289,7 +289,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
-          const { AmazonLiveService } = await import('./src/services/amazon-live-service');
+          const { AmazonLiveService } = await import('./src/services/amazon-live-service.ts');
           const reqUrl = new URL(req.url, 'http://localhost');
           const pathname = reqUrl.pathname;
 
@@ -368,6 +368,7 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 1500,
+    reportCompressedSize: false,
     rollupOptions: {
       input: {
         index: resolve(__dirname, 'index.html'),
@@ -379,8 +380,18 @@ export default defineConfig({
         manualChunks: (id) => {
           if (id.includes('node_modules/jspdf')) return 'vendor-jspdf';
           if (id.includes('node_modules/pdfjs-dist')) return 'vendor-pdfjs';
+          if (id.includes('node_modules/html2canvas')) return 'vendor-html2canvas';
+          if (id.includes('node_modules/dompurify')) return 'vendor-purify';
           if (id.includes('node_modules/lucide-react')) return 'vendor-lucide';
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) return 'vendor-react';
+          if (id.includes('src/services/kdp-ai-engine')) return 'engine-ai';
+          if (id.includes('src/services/kdp-pdf-builder') || id.includes('src/services/pdf-preflight')) return 'engine-pdf';
+          if (id.includes('src/data/book-themes')) return 'data-themes';
+          if (id.includes('src/components/studio/course/')) return 'studio-course';
+          if (id.includes('src/components/studio/coloring/')) return 'studio-coloring';
+          if (id.includes('src/components/studio/puzzle/')) return 'studio-puzzle';
+          if (id.includes('src/components/studio/cinematic/')) return 'studio-cinematic';
+          if (id.includes('src/components/studio/audiobook/')) return 'studio-audiobook';
         },
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'background') {

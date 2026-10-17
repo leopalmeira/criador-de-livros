@@ -11,6 +11,6 @@ services:
       - key: NODE_VERSION
         value: 22.14.0
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=380"
+        value: "--max-old-space-size=420"
       - key: VITE_CONFIG_NATIVE_IGNORE_WARNING
         value: "true"
