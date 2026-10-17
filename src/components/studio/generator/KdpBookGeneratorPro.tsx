@@ -4,7 +4,8 @@ import {
   Play, Square, RefreshCw, Trash2, ArrowLeft, Check, Layers,
   Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight, ChevronLeft,
   ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2,
-  Award, Palette, Edit3, Star, Sliders, Compass, TrendingUp, Bot
+  Award, Palette, Edit3, Star, Sliders, Compass, TrendingUp, Bot,
+  Volume2, VolumeX, Pause, SkipForward, SkipBack, Upload
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -530,6 +531,24 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   // Histórico de Capas Geradas para o Carrossel e Escolha Visual
   const [historicoCapas, setHistoricoCapas] = useState<ItemHistoricoCapa[]>([]);
   const [indiceCapaCarrossel, setIndiceCapaCarrossel] = useState<number>(0);
+
+  // Referência para importação de capa local (PNG, JPG, WEBP)
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Estados do Agente Leitor de Áudio (Capítulo por Capítulo / Obra Toda)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [isAudioPaused, setIsAudioPaused] = useState(false);
+  const [audioReadingCapIndex, setAudioReadingCapIndex] = useState<number | null>(null);
+  const [audioMode, setAudioMode] = useState<'single' | 'full'>('single');
+  const [audioSpeed, setAudioSpeed] = useState<number>(1.0);
+  const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
+  const [totalChunksCount, setTotalChunksCount] = useState<number>(0);
+
+  const audioChunksRef = useRef<string[]>([]);
+  const audioCapIndexRef = useRef<number>(0);
+  const audioModeRef = useRef<'single' | 'full'>('single');
+  const audioSpeedRef = useRef<number>(1.0);
+  const isAudioActiveRef = useRef<boolean>(false);
 
   // Status e controle do pipeline
   const [gerando, setGerando] = useState(false);
@@ -2038,6 +2057,212 @@ ${ganchoImediato}`;
     setStatusMsg('✓ Contracapa atualizada com sucesso!');
     setStatusType('ok');
     setIsEditingBackCover(false);
+  };
+
+  // ─── AGENTE LEITOR DE ÁUDIO DO MANUSCRITO (VOZ NEURAL CAPÍTULO A CAPÍTULO OU OBRA TODA) ───
+  const splitTextIntoSpeechChunks = (rawText: string): string[] => {
+    if (!rawText) return [];
+    const clean = rawText
+      .replace(/###\s*/g, '')
+      .replace(/[*_#`]/g, '')
+      .replace(/\n+/g, ' ')
+      .trim();
+
+    const sentences = clean.match(/[^.!?;\n]+[.!?;\n]+/g) || [clean];
+    const chunks: string[] = [];
+    let current = '';
+
+    for (const s of sentences) {
+      if ((current + ' ' + s).length > 220) {
+        if (current.trim()) chunks.push(current.trim());
+        current = s;
+      } else {
+        current = current ? current + ' ' + s : s;
+      }
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks.length > 0 ? chunks : [clean];
+  };
+
+  const stopAudioReading = () => {
+    isAudioActiveRef.current = false;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsPlayingAudio(false);
+    setIsAudioPaused(false);
+    setAudioReadingCapIndex(null);
+    setCurrentChunkIndex(0);
+    setTotalChunksCount(0);
+  };
+
+  const pauseAudioReading = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.pause();
+      setIsAudioPaused(true);
+    }
+  };
+
+  const resumeAudioReading = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.resume();
+      setIsAudioPaused(false);
+    }
+  };
+
+  const playSpeechChunk = (chunkIndex: number) => {
+    if (!isAudioActiveRef.current || !livro || !livro.capitulos) return;
+    const capIdx = audioCapIndexRef.current;
+    const cap = livro.capitulos[capIdx];
+    if (!cap) {
+      stopAudioReading();
+      return;
+    }
+
+    const chunks = audioChunksRef.current;
+    if (chunkIndex >= chunks.length) {
+      if (audioModeRef.current === 'full' && capIdx + 1 < livro.capitulos.length) {
+        setTimeout(() => {
+          if (isAudioActiveRef.current) {
+            startAudioReading(capIdx + 1, 'full');
+          }
+        }, 500);
+      } else {
+        stopAudioReading();
+        setStatusMsg(ui('✓ Leitura de áudio concluída com sucesso!', '✓ Audio reading completed successfully!'));
+        setStatusType('ok');
+      }
+      return;
+    }
+
+    setCurrentChunkIndex(chunkIndex);
+    const textToSpeak = chunks[chunkIndex];
+
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      alert('Seu navegador não possui suporte a síntese de voz nativa.');
+      stopAudioReading();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = idioma === 'inglês' ? 'en-US' : idioma === 'espanhol' ? 'es-ES' : 'pt-BR';
+    utterance.rate = audioSpeedRef.current;
+
+    const voices = window.speechSynthesis.getVoices();
+    const langCode = utterance.lang.toLowerCase().slice(0, 2);
+    const matchingVoice = voices.find(v => v.lang.toLowerCase().includes(langCode) && (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('Francisca') || v.name.includes('Google') || v.name.includes('Luciana') || v.name.includes('Helena')))
+      || voices.find(v => v.lang.toLowerCase().includes(langCode))
+      || voices[0];
+
+    if (matchingVoice) {
+      utterance.voice = matchingVoice;
+    }
+
+    utterance.onend = () => {
+      if (isAudioActiveRef.current) {
+        playSpeechChunk(chunkIndex + 1);
+      }
+    };
+
+    utterance.onerror = (e: any) => {
+      if (e.error === 'interrupted' || e.error === 'canceled') return;
+      console.warn('Síntese de voz evento de erro:', e);
+      if (isAudioActiveRef.current) {
+        playSpeechChunk(chunkIndex + 1);
+      }
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const startAudioReading = (capIndex: number, mode: 'single' | 'full' = 'single') => {
+    if (!livro || !livro.capitulos || !livro.capitulos[capIndex]) return;
+
+    stopAudioReading();
+
+    const cap = livro.capitulos[capIndex];
+    const fullText = `Capítulo ${capIndex + 1}: ${cap.titulo}. ${cap.texto}`;
+    const chunks = splitTextIntoSpeechChunks(fullText);
+
+    audioChunksRef.current = chunks;
+    audioCapIndexRef.current = capIndex;
+    audioModeRef.current = mode;
+    audioSpeedRef.current = audioSpeed;
+    isAudioActiveRef.current = true;
+
+    setAudioReadingCapIndex(capIndex);
+    setAudioMode(mode);
+    setIsPlayingAudio(true);
+    setIsAudioPaused(false);
+    setCurrentChunkIndex(0);
+    setTotalChunksCount(chunks.length);
+
+    playSpeechChunk(0);
+  };
+
+  const skipToNextAudioChapter = () => {
+    if (!livro || audioReadingCapIndex === null) return;
+    if (audioReadingCapIndex + 1 < livro.capitulos.length) {
+      startAudioReading(audioReadingCapIndex + 1, audioMode);
+    } else {
+      stopAudioReading();
+    }
+  };
+
+  const skipToPrevAudioChapter = () => {
+    if (!livro || audioReadingCapIndex === null) return;
+    if (audioReadingCapIndex > 0) {
+      startAudioReading(audioReadingCapIndex - 1, audioMode);
+    }
+  };
+
+  const changeAudioSpeed = (newSpeed: number) => {
+    setAudioSpeed(newSpeed);
+    audioSpeedRef.current = newSpeed;
+    if (isPlayingAudio && !isAudioPaused) {
+      playSpeechChunk(currentChunkIndex);
+    }
+  };
+
+  // ─── IMPORTAÇÃO DE CAPA PRÓPRIA (PNG, JPG, WEBP) ───
+  const handleImportarCapa = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert(ui('Por favor, selecione uma imagem válida (PNG, JPG, WEBP).', 'Please select a valid image (PNG, JPG, WEBP).'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target?.result as string;
+      if (!dataUrl) return;
+
+      setCapaFinal(dataUrl);
+      setFundoImg(dataUrl);
+      setActiveTab('capa');
+      setStatusMsg(ui('✓ Capa importada com sucesso! Gerando contracapa e wrap KDP...', '✓ Cover imported successfully! Generating back cover and KDP wrap...'));
+      setStatusType('ok');
+
+      const obTitle = livro?.titulo || titulo.trim() || 'Obra Editorial';
+      const obAuthor = livro?.autor || autor.trim() || 'Autor';
+      const obGenre = livro?.genero || genero.trim() || 'Geral';
+      const obSynopsis = bookPromise || uniqueAngle || topico || subtitulo;
+
+      await gerarContracapaEWrap(dataUrl, obTitle, obAuthor, obGenre, obSynopsis);
+
+      if (livro) {
+        salvarProgressoLocal(livro, dataUrl, dataUrl);
+      }
+
+      setStatusMsg(ui('✓ Capa personalizada importada e integrada com sucesso!', '✓ Custom cover imported and integrated successfully!'));
+      setStatusType('ok');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   // Recomposição tipográfica da Capa Frontal com posição e fonte customizadas (a partir do fundo limpo)
@@ -4709,6 +4934,42 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <Sparkles size={16} /> 🎨 Gerar Capa & Página Promocional
             </button>
 
+            {/* INPUT DE ARQUIVO OCULTO PARA IMPORTAR CAPA EXTERNA */}
+            <input
+              type="file"
+              ref={coverFileInputRef}
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleImportarCapa}
+              style={{ display: 'none' }}
+            />
+
+            {/* BOTÃO IMPORTAR CAPA DO COMPUTADOR */}
+            <button
+              type="button"
+              onClick={() => coverFileInputRef.current?.click()}
+              disabled={gerando}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '10px 12px',
+                background: '#ffffff',
+                color: '#0f172a',
+                border: '1px solid #cbd5e1',
+                borderRadius: 8,
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginBottom: 10,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+              }}
+              title="Importar imagem própria de capa (PNG, JPG, WEBP) para gerar contracapa e wrap KDP oficial"
+            >
+              <Upload size={15} color="#2563eb" /> 📁 Importar Capa do Computador
+            </button>
+
             {/* CONTINUAR E DESCARTAR */}
             {livro && livro.capitulos.length > 0 && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -5416,6 +5677,202 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     )}
                   </div>
 
+                  {/* PLAYER DO AGENTE NARRADOR DE ÁUDIO DO MANUSCRITO */}
+                  {livro && livro.capitulos.length > 0 && (isPlayingAudio || isAudioPaused) && (
+                    <div
+                      style={{
+                        width: '100%',
+                        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+                        borderRadius: 10,
+                        padding: '14px 18px',
+                        color: '#ffffff',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        boxShadow: '0 4px 16px rgba(15, 23, 42, 0.3)',
+                        border: '1px solid #312e81',
+                        marginBottom: 12
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 8,
+                            background: 'rgba(99, 102, 241, 0.25)',
+                            border: '1px solid rgba(129, 140, 248, 0.4)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#818cf8'
+                          }}>
+                            {isAudioPaused ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>
+                                🎙️ {ui('Agente Narrador BookEngin', 'BookEngin Voice Narrator')}
+                              </span>
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                background: audioMode === 'full' ? '#4338ca' : '#0369a1',
+                                color: '#ffffff'
+                              }}>
+                                {audioMode === 'full' ? ui('Obra Completa (Sequencial)', 'Full Book') : ui('Capítulo Individual', 'Single Chapter')}
+                              </span>
+                              {isAudioPaused && (
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#f59e0b', color: '#000000' }}>
+                                  {ui('PAUSADO', 'PAUSED')}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 2 }}>
+                              {audioReadingCapIndex !== null && livro.capitulos[audioReadingCapIndex] ? (
+                                <>
+                                  <b>Capítulo {audioReadingCapIndex + 1}:</b> {livro.capitulos[audioReadingCapIndex].titulo}
+                                  {totalChunksCount > 0 && (
+                                    <span style={{ opacity: 0.8, marginLeft: 8 }}>
+                                      · Sentença {currentChunkIndex + 1} de {totalChunksCount}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                ui('Pronto para iniciar leitura', 'Ready to read')
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CONTROLES DO REPRODUTOR */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={skipToPrevAudioChapter}
+                            disabled={audioReadingCapIndex === 0}
+                            style={{
+                              background: 'rgba(255,255,255,0.1)',
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              color: audioReadingCapIndex === 0 ? 'rgba(255,255,255,0.3)' : '#ffffff',
+                              borderRadius: 6,
+                              padding: '6px 10px',
+                              fontSize: 11,
+                              cursor: audioReadingCapIndex === 0 ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                            title="Capítulo Anterior"
+                          >
+                            <SkipBack size={13} /> {ui('Cap. Ant.', 'Prev Cap.')}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={isAudioPaused ? resumeAudioReading : pauseAudioReading}
+                            style={{
+                              background: isAudioPaused ? '#10b981' : '#f59e0b',
+                              border: 'none',
+                              color: '#ffffff',
+                              borderRadius: 6,
+                              padding: '6px 14px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5
+                            }}
+                          >
+                            {isAudioPaused ? <Play size={13} /> : <Pause size={13} />}
+                            {isAudioPaused ? ui('Retomar', 'Resume') : ui('Pausar', 'Pause')}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={stopAudioReading}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.25)',
+                              border: '1px solid rgba(239, 68, 68, 0.5)',
+                              color: '#fca5a5',
+                              borderRadius: 6,
+                              padding: '6px 12px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Square size={12} /> {ui('Parar', 'Stop')}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={skipToNextAudioChapter}
+                            disabled={!livro || audioReadingCapIndex === livro.capitulos.length - 1}
+                            style={{
+                              background: 'rgba(255,255,255,0.1)',
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              color: (!livro || audioReadingCapIndex === livro.capitulos.length - 1) ? 'rgba(255,255,255,0.3)' : '#ffffff',
+                              borderRadius: 6,
+                              padding: '6px 10px',
+                              fontSize: 11,
+                              cursor: (!livro || audioReadingCapIndex === livro.capitulos.length - 1) ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                            title="Próximo Capítulo"
+                          >
+                            {ui('Próx. Cap.', 'Next Cap.')} <SkipForward size={13} />
+                          </button>
+
+                          {/* VELOCIDADES */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 4, background: 'rgba(255,255,255,0.08)', padding: '2px 4px', borderRadius: 6 }}>
+                            {[1.0, 1.25, 1.5].map(spd => (
+                              <button
+                                key={spd}
+                                type="button"
+                                onClick={() => changeAudioSpeed(spd)}
+                                style={{
+                                  background: audioSpeed === spd ? '#6366f1' : 'transparent',
+                                  border: 'none',
+                                  color: '#ffffff',
+                                  borderRadius: 4,
+                                  padding: '3px 7px',
+                                  fontSize: 10.5,
+                                  fontWeight: audioSpeed === spd ? 800 : 500,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {spd}x
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* BARRA DE PROGRESSO */}
+                      {totalChunksCount > 0 && (
+                        <div style={{ width: '100%', height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${Math.min(100, Math.round(((currentChunkIndex + 1) / totalChunksCount) * 100))}%`,
+                              height: '100%',
+                              background: 'linear-gradient(90deg, #38bdf8, #818cf8)',
+                              transition: 'width 0.25s ease'
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {livro && livro.capitulos.length > 0 && (
                     <div
                       style={{
@@ -5434,6 +5891,69 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         <span>Manuscrito: {livro.capitulos.length} capítulos ({livro.capitulos.reduce((acc, c) => acc + (c.texto?.split(/\s+/).filter(Boolean).length || 0), 0)} palavras)</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {/* BOTÃO OUVIR OBRA COMPLETA */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isPlayingAudio && audioMode === 'full') {
+                              if (isAudioPaused) resumeAudioReading();
+                              else pauseAudioReading();
+                            } else {
+                              startAudioReading(0, 'full');
+                            }
+                          }}
+                          disabled={!livro || livro.capitulos.length === 0}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 13px',
+                            borderRadius: 6,
+                            background: isPlayingAudio && audioMode === 'full' ? '#4f46e5' : '#ffffff',
+                            color: isPlayingAudio && audioMode === 'full' ? '#ffffff' : '#4338ca',
+                            border: '1px solid #c7d2fe',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                            boxShadow: isPlayingAudio && audioMode === 'full' ? '0 2px 6px rgba(79, 70, 229, 0.3)' : 'none'
+                          }}
+                          title="Ouvir toda a obra narrada em sequência do primeiro ao último capítulo"
+                        >
+                          <Headphones size={13} /> {isPlayingAudio && audioMode === 'full' ? (isAudioPaused ? '▶️ Retomar Obra' : '⏸️ Pausar Obra') : '🎧 Ouvir Obra Toda'}
+                        </button>
+
+                        {/* BOTÃO OUVIR CAPÍTULO ATUAL */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const targetIdx = audioReadingCapIndex !== null ? audioReadingCapIndex : 0;
+                            if (isPlayingAudio && audioReadingCapIndex === targetIdx && audioMode === 'single') {
+                              if (isAudioPaused) resumeAudioReading();
+                              else pauseAudioReading();
+                            } else {
+                              startAudioReading(targetIdx, 'single');
+                            }
+                          }}
+                          disabled={!livro || livro.capitulos.length === 0}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 12px',
+                            borderRadius: 6,
+                            background: isPlayingAudio && audioMode === 'single' ? '#0284c7' : '#ffffff',
+                            color: isPlayingAudio && audioMode === 'single' ? '#ffffff' : '#0369a1',
+                            border: '1px solid #bae6fd',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                            boxShadow: isPlayingAudio && audioMode === 'single' ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none'
+                          }}
+                          title="Ouvir o capítulo atual narrado"
+                        >
+                          <Volume2 size={13} /> {isPlayingAudio && audioMode === 'single' ? (isAudioPaused ? '▶️ Retomar Cap.' : '⏸️ Pausar Cap.') : '🔊 Ouvir Cap. Atual'}
+                        </button>
+
                         {/* BOTÃO PRINCIPAL DE DOWNLOAD DE PDF DIAGRAMADO OFICIAL KDP */}
                         <button
                           type="button"
@@ -5911,6 +6431,70 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                             <ImageIcon size={11} /> Ilustrar Capítulo
                                           </>
                                         )}
+                                      </button>
+
+                                      {/* BOTÃO OUVIR ESTE CAPÍTULO NARRADO */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (isPlayingAudio && audioReadingCapIndex === idx && audioMode === 'single') {
+                                            if (isAudioPaused) resumeAudioReading();
+                                            else pauseAudioReading();
+                                          } else {
+                                            startAudioReading(idx, 'single');
+                                          }
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 6,
+                                          padding: '4px 10px',
+                                          borderRadius: 6,
+                                          background: isPlayingAudio && audioReadingCapIndex === idx && audioMode === 'single' ? '#0284c7' : '#f8fafc',
+                                          color: isPlayingAudio && audioReadingCapIndex === idx && audioMode === 'single' ? '#ffffff' : '#0369a1',
+                                          border: '1px solid #bae6fd',
+                                          fontSize: 11,
+                                          fontWeight: 600,
+                                          cursor: 'pointer'
+                                        }}
+                                        title="Ouvir a narração em áudio deste capítulo individual"
+                                      >
+                                        <Volume2 size={11} />
+                                        {isPlayingAudio && audioReadingCapIndex === idx && audioMode === 'single'
+                                          ? (isAudioPaused ? ui('Retomar Cap.', 'Resume Cap.') : ui('Pausar Cap.', 'Pause Cap.'))
+                                          : ui('Ouvir Capítulo', 'Listen Chapter')}
+                                      </button>
+
+                                      {/* BOTÃO OUVIR A PARTIR DAQUI (SEQUENCIAL ATÉ O FIM) */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (isPlayingAudio && audioReadingCapIndex === idx && audioMode === 'full') {
+                                            if (isAudioPaused) resumeAudioReading();
+                                            else pauseAudioReading();
+                                          } else {
+                                            startAudioReading(idx, 'full');
+                                          }
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 6,
+                                          padding: '4px 10px',
+                                          borderRadius: 6,
+                                          background: isPlayingAudio && audioReadingCapIndex === idx && audioMode === 'full' ? '#4f46e5' : '#f8fafc',
+                                          color: isPlayingAudio && audioReadingCapIndex === idx && audioMode === 'full' ? '#ffffff' : '#4338ca',
+                                          border: '1px solid #c7d2fe',
+                                          fontSize: 11,
+                                          fontWeight: 600,
+                                          cursor: 'pointer'
+                                        }}
+                                        title="Iniciar narração contínua a partir deste capítulo até o final da obra"
+                                      >
+                                        <Headphones size={11} />
+                                        {isPlayingAudio && audioReadingCapIndex === idx && audioMode === 'full'
+                                          ? (isAudioPaused ? ui('Retomar Obra', 'Resume All') : ui('Pausar Obra', 'Pause All'))
+                                          : ui('Ouvir a partir daqui', 'Listen from here')}
                                       </button>
                                     </div>
                                   </div>
@@ -6747,6 +7331,28 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                 >
                                   🔄 Gerar Novo Fundo Limpo com IA (Sem Texto)
                                 </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => coverFileInputRef.current?.click()}
+                                  style={{
+                                    padding: '9px 15px',
+                                    background: '#0f172a',
+                                    color: '#ffffff',
+                                    border: '1px solid #334155',
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    boxShadow: '0 2px 6px rgba(15, 23, 42, 0.2)'
+                                  }}
+                                  title="Substituir por outra imagem de capa própria salva no seu computador"
+                                >
+                                  <Upload size={14} /> 📁 Importar Outra Capa (PNG/JPG)
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -6907,6 +7513,29 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         }}
                       >
                         <Sparkles size={16} /> 🎨 Gerar Capa KDP com IA
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => coverFileInputRef.current?.click()}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '10px 20px',
+                          borderRadius: 6,
+                          background: '#0f172a',
+                          color: '#ffffff',
+                          border: '1px solid #334155',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(15, 23, 42, 0.25)',
+                          marginLeft: 10
+                        }}
+                        title="Importar imagem salva no seu computador (PNG, JPG, WEBP)"
+                      >
+                        <Upload size={16} /> 📁 Importar Capa do Computador
                       </button>
 
                       {/* MASTER PROMPT DISPONÍVEL IMEDIATAMENTE MESMO ANTES DE GERAR */}
@@ -7655,6 +8284,97 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     {ui('Livro Diagramado', 'Typeset Book')}
                   </div>
 
+                  {/* BOTÃO NARRAR OBRA COMPLETA */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isPlayingAudio && audioMode === 'full') {
+                        if (isAudioPaused) resumeAudioReading();
+                        else pauseAudioReading();
+                      } else {
+                        startAudioReading(0, 'full');
+                      }
+                    }}
+                    disabled={!livro || livro.capitulos.length === 0}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: isPlayingAudio && audioMode === 'full' ? '#4f46e5' : '#ffffff',
+                      color: isPlayingAudio && audioMode === 'full' ? '#ffffff' : '#3730a3',
+                      border: '1px solid #c7d2fe',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                      textAlign: 'left'
+                    }}
+                    title="Ouvir a obra inteira narrada sequencialmente pelo Agente de Áudio"
+                  >
+                    <Headphones size={13} /> {isPlayingAudio && audioMode === 'full' ? (isAudioPaused ? ui('Retomar Obra', 'Resume All') : ui('Pausar Obra', 'Pause All')) : ui('🎧 Ouvir Obra Completa', '🎧 Listen Full Book')}
+                  </button>
+
+                  {/* BOTÃO NARRAR CAPÍTULO ATUAL */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetIdx = audioReadingCapIndex !== null ? audioReadingCapIndex : 0;
+                      if (isPlayingAudio && audioReadingCapIndex === targetIdx && audioMode === 'single') {
+                        if (isAudioPaused) resumeAudioReading();
+                        else pauseAudioReading();
+                      } else {
+                        startAudioReading(targetIdx, 'single');
+                      }
+                    }}
+                    disabled={!livro || livro.capitulos.length === 0}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: isPlayingAudio && audioMode === 'single' ? '#0284c7' : '#ffffff',
+                      color: isPlayingAudio && audioMode === 'single' ? '#ffffff' : '#0369a1',
+                      border: '1px solid #bae6fd',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                      textAlign: 'left'
+                    }}
+                    title="Ouvir narração do capítulo atual"
+                  >
+                    <Volume2 size={13} /> {isPlayingAudio && audioMode === 'single' ? (isAudioPaused ? ui('Retomar Cap.', 'Resume Cap.') : ui('Pausar Cap.', 'Pause Cap.')) : ui('🔊 Ouvir Cap. Atual', '🔊 Listen Current Cap.')}
+                  </button>
+
+                  {/* BOTÃO PARAR ÁUDIO (SE ATIVO) */}
+                  {(isPlayingAudio || isAudioPaused) && (
+                    <button
+                      type="button"
+                      onClick={stopAudioReading}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        padding: '7px 12px',
+                        borderRadius: 6,
+                        background: '#fef2f2',
+                        color: '#dc2626',
+                        border: '1px solid #fecaca',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                      title="Parar a narração de áudio imediatamente"
+                    >
+                      <Square size={12} /> {ui('⏹️ Parar Narração de Áudio', '⏹️ Stop Audio Narrator')}
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => setIsPageReviewerOpen(true)}
@@ -7809,6 +8529,30 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
                     {ui('Capa KDP', 'KDP Cover')}
                   </div>
+
+                  {/* BOTÃO IMPORTAR CAPA EXTERNA */}
+                  <button
+                    type="button"
+                    onClick={() => coverFileInputRef.current?.click()}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                    title="Importar imagem própria de capa salva no computador (PNG, JPG, WEBP)"
+                  >
+                    <Upload size={13} color="#2563eb" /> {ui('📁 Importar Capa (PNG/JPG)', '📁 Import Cover (PNG/JPG)')}
+                  </button>
 
                   <button
                     type="button"
