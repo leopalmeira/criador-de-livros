@@ -48,6 +48,7 @@ import {
   type CoAuthorContextData
 } from './CoAuthorAgentSuite';
 import { CoAuthorFloatingAssistant } from './CoAuthorFloatingAssistant';
+import { coAuthorVoiceService, type VoiceGender } from '../../../services/coauthor-voice-service';
 import {
   orchestrateEditorialPlan,
   buildFallbackEditorialPlan,
@@ -535,7 +536,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   // Referência para importação de capa local (PNG, JPG, WEBP)
   const coverFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estados do Agente Leitor de Áudio (Capítulo por Capítulo / Obra Toda)
+  // Estados do Agente Leitor de Áudio Neural (Mesmo motor e voz humana natural do CoAuthor)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isAudioPaused, setIsAudioPaused] = useState(false);
   const [audioReadingCapIndex, setAudioReadingCapIndex] = useState<number | null>(null);
@@ -543,12 +544,17 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [audioSpeed, setAudioSpeed] = useState<number>(1.0);
   const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
   const [totalChunksCount, setTotalChunksCount] = useState<number>(0);
+  const [audioVoiceGender, setAudioVoiceGender] = useState<VoiceGender>(coAuthorVoiceService.getVoiceGender());
 
   const audioChunksRef = useRef<string[]>([]);
   const audioCapIndexRef = useRef<number>(0);
   const audioModeRef = useRef<'single' | 'full'>('single');
   const audioSpeedRef = useRef<number>(1.0);
   const isAudioActiveRef = useRef<boolean>(false);
+  const currentAudioElemRef = useRef<HTMLAudioElement | null>(null);
+  const audioAbortControllerRef = useRef<AbortController | null>(null);
+  const audioNextPromiseRef = useRef<Promise<string | null> | null>(null);
+  const audioPlayTokenRef = useRef<number>(0);
 
   // Status e controle do pipeline
   const [gerando, setGerando] = useState(false);
@@ -592,6 +598,14 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
 
   // Modal do Revisor Editorial Página por Página (Folhear & Validar Finais de Frase)
   const [isPageReviewerOpen, setIsPageReviewerOpen] = useState(false);
+
+  // Sincroniza a voz neural humana ativa (Francisca/Antônio) com o serviço do CoAuthor
+  useEffect(() => {
+    const unsub = coAuthorVoiceService.subscribe((st) => {
+      setAudioVoiceGender(st.gender);
+    });
+    return unsub;
+  }, []);
 
   // Sistema de Auditoria & Verificação em 1 Clique
   const [auditReport, setAuditReport] = useState<FullBookVerificationReport | null>(null);
@@ -2059,36 +2073,92 @@ ${ganchoImediato}`;
     setIsEditingBackCover(false);
   };
 
-  // ─── AGENTE LEITOR DE ÁUDIO DO MANUSCRITO (VOZ NEURAL CAPÍTULO A CAPÍTULO OU OBRA TODA) ───
+  // ─── AGENTE LEITOR DE ÁUDIO DO MANUSCRITO (VOZ NEURAL HUMANA DA PLATAFORMA - MESMO MOTOR DO COAUTHOR) ───
   const splitTextIntoSpeechChunks = (rawText: string): string[] => {
     if (!rawText) return [];
-    const clean = rawText
-      .replace(/###\s*/g, '')
-      .replace(/[*_#`]/g, '')
-      .replace(/\n+/g, ' ')
-      .trim();
+    return coAuthorVoiceService.splitIntoChunks(rawText);
+  };
 
-    const sentences = clean.match(/[^.!?;\n]+[.!?;\n]+/g) || [clean];
-    const chunks: string[] = [];
-    let current = '';
+  const fetchNeuralSpeechAudioUrl = async (text: string, signal?: AbortSignal): Promise<string | null> => {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
 
-    for (const s of sentences) {
-      if ((current + ' ' + s).length > 220) {
-        if (current.trim()) chunks.push(current.trim());
-        current = s;
-      } else {
-        current = current ? current + ' ' + s : s;
+    const gender = coAuthorVoiceService.getVoiceGender();
+    const lang = idioma === 'inglês' ? 'en-US' : idioma === 'espanhol' ? 'es-ES' : 'pt-BR';
+
+    // 1. Tenta endpoint principal de voz neural humana (/api/audiobook/preview-voice)
+    try {
+      const res = await fetch('/api/audiobook/preview-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: lang,
+          voiceGender: gender,
+          text: trimmed
+        }),
+        signal
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob && blob.size > 200) {
+          return URL.createObjectURL(blob);
+        }
       }
+    } catch (err: any) {
+      if (err.name === 'AbortError') throw err;
+      console.warn('[AgenteNarrador] Endpoint neural primário oscilou:', err);
     }
-    if (current.trim()) chunks.push(current.trim());
-    return chunks.length > 0 ? chunks : [clean];
+
+    // 2. Tenta rota secundária (/api/tts/synthesize)
+    try {
+      const res = await fetch('/api/tts/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: trimmed,
+          lang,
+          voiceGender: gender
+        }),
+        signal
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob && blob.size > 200) {
+          return URL.createObjectURL(blob);
+        }
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') throw err;
+    }
+
+    return null;
   };
 
   const stopAudioReading = () => {
     isAudioActiveRef.current = false;
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    audioPlayTokenRef.current++;
+
+    if (audioAbortControllerRef.current) {
+      try { audioAbortControllerRef.current.abort(); } catch {}
+      audioAbortControllerRef.current = null;
     }
+
+    if (currentAudioElemRef.current) {
+      try {
+        currentAudioElemRef.current.pause();
+        currentAudioElemRef.current.currentTime = 0;
+        currentAudioElemRef.current.src = '';
+      } catch {}
+      currentAudioElemRef.current = null;
+    }
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
+
+    audioNextPromiseRef.current = null;
     setIsPlayingAudio(false);
     setIsAudioPaused(false);
     setAudioReadingCapIndex(null);
@@ -2097,20 +2167,26 @@ ${ganchoImediato}`;
   };
 
   const pauseAudioReading = () => {
+    if (currentAudioElemRef.current) {
+      currentAudioElemRef.current.pause();
+    }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.pause();
-      setIsAudioPaused(true);
     }
+    setIsAudioPaused(true);
   };
 
   const resumeAudioReading = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    if (currentAudioElemRef.current) {
+      currentAudioElemRef.current.playbackRate = audioSpeedRef.current;
+      currentAudioElemRef.current.play().catch(e => console.warn(e));
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.resume();
-      setIsAudioPaused(false);
     }
+    setIsAudioPaused(false);
   };
 
-  const playSpeechChunk = (chunkIndex: number) => {
+  const playSpeechChunk = async (chunkIndex: number) => {
     if (!isAudioActiveRef.current || !livro || !livro.capitulos) return;
     const capIdx = audioCapIndexRef.current;
     const cap = livro.capitulos[capIdx];
@@ -2129,52 +2205,82 @@ ${ganchoImediato}`;
         }, 500);
       } else {
         stopAudioReading();
-        setStatusMsg(ui('✓ Leitura de áudio concluída com sucesso!', '✓ Audio reading completed successfully!'));
+        setStatusMsg(ui('✓ Leitura de áudio neural concluída com sucesso!', '✓ Neural audio reading completed successfully!'));
         setStatusType('ok');
       }
       return;
     }
 
+    const currentToken = ++audioPlayTokenRef.current;
     setCurrentChunkIndex(chunkIndex);
     const textToSpeak = chunks[chunkIndex];
 
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      alert('Seu navegador não possui suporte a síntese de voz nativa.');
-      stopAudioReading();
-      return;
-    }
+    try {
+      // 1. Obtém áudio neural MP3 (se já tiver em prefetch, usa o prefetch instantâneo)
+      let audioUrl = audioNextPromiseRef.current
+        ? await audioNextPromiseRef.current
+        : await fetchNeuralSpeechAudioUrl(textToSpeak, audioAbortControllerRef.current?.signal);
 
-    window.speechSynthesis.cancel();
+      if (!isAudioActiveRef.current || audioPlayTokenRef.current !== currentToken) return;
 
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = idioma === 'inglês' ? 'en-US' : idioma === 'espanhol' ? 'es-ES' : 'pt-BR';
-    utterance.rate = audioSpeedRef.current;
+      // 2. Dispara imediatamente o prefetch do PRÓXIMO chunk em paralelo para zero delay
+      if (chunkIndex + 1 < chunks.length) {
+        audioNextPromiseRef.current = fetchNeuralSpeechAudioUrl(chunks[chunkIndex + 1], audioAbortControllerRef.current?.signal);
+      } else {
+        audioNextPromiseRef.current = null;
+      }
 
-    const voices = window.speechSynthesis.getVoices();
-    const langCode = utterance.lang.toLowerCase().slice(0, 2);
-    const matchingVoice = voices.find(v => v.lang.toLowerCase().includes(langCode) && (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('Francisca') || v.name.includes('Google') || v.name.includes('Luciana') || v.name.includes('Helena')))
-      || voices.find(v => v.lang.toLowerCase().includes(langCode))
-      || voices[0];
+      // 3. Se tiver o áudio neural humano da plataforma (mesma voz do CoAuthor):
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        currentAudioElemRef.current = audio;
+        audio.playbackRate = audioSpeedRef.current;
 
-    if (matchingVoice) {
-      utterance.voice = matchingVoice;
-    }
+        audio.onended = () => {
+          if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
+            playSpeechChunk(chunkIndex + 1);
+          }
+        };
 
-    utterance.onend = () => {
-      if (isAudioActiveRef.current) {
+        audio.onerror = () => {
+          console.warn('[AgenteNarrador] Erro no player de áudio neural, usando fallback gracioso');
+          if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
+            playSpeechChunk(chunkIndex + 1);
+          }
+        };
+
+        await audio.play().catch(err => {
+          console.warn('[AgenteNarrador] Autoplay bloqueado ou cancelado:', err);
+        });
+      } else {
+        // Fallback de emergência caso o servidor de voz esteja inacessível
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(textToSpeak);
+          utterance.lang = idioma === 'inglês' ? 'en-US' : idioma === 'espanhol' ? 'es-ES' : 'pt-BR';
+          utterance.rate = audioSpeedRef.current;
+          utterance.onend = () => {
+            if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
+              playSpeechChunk(chunkIndex + 1);
+            }
+          };
+          utterance.onerror = () => {
+            if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
+              playSpeechChunk(chunkIndex + 1);
+            }
+          };
+          window.speechSynthesis.speak(utterance);
+        } else {
+          playSpeechChunk(chunkIndex + 1);
+        }
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.warn('[AgenteNarrador] Erro durante a síntese vocal:', err);
+      if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
         playSpeechChunk(chunkIndex + 1);
       }
-    };
-
-    utterance.onerror = (e: any) => {
-      if (e.error === 'interrupted' || e.error === 'canceled') return;
-      console.warn('Síntese de voz evento de erro:', e);
-      if (isAudioActiveRef.current) {
-        playSpeechChunk(chunkIndex + 1);
-      }
-    };
-
-    window.speechSynthesis.speak(utterance);
+    }
   };
 
   const startAudioReading = (capIndex: number, mode: 'single' | 'full' = 'single') => {
@@ -2191,6 +2297,7 @@ ${ganchoImediato}`;
     audioModeRef.current = mode;
     audioSpeedRef.current = audioSpeed;
     isAudioActiveRef.current = true;
+    audioAbortControllerRef.current = new AbortController();
 
     setAudioReadingCapIndex(capIndex);
     setAudioMode(mode);
@@ -2221,8 +2328,20 @@ ${ganchoImediato}`;
   const changeAudioSpeed = (newSpeed: number) => {
     setAudioSpeed(newSpeed);
     audioSpeedRef.current = newSpeed;
-    if (isPlayingAudio && !isAudioPaused) {
-      playSpeechChunk(currentChunkIndex);
+    if (currentAudioElemRef.current) {
+      currentAudioElemRef.current.playbackRate = newSpeed;
+    }
+  };
+
+  const toggleVoiceGenderNarrador = () => {
+    const nextGender: VoiceGender = audioVoiceGender === 'female' ? 'male' : 'female';
+    coAuthorVoiceService.setVoiceGender(nextGender);
+    setAudioVoiceGender(nextGender);
+    if (isPlayingAudio) {
+      audioNextPromiseRef.current = null;
+      if (!isAudioPaused) {
+        playSpeechChunk(currentChunkIndex);
+      }
     }
   };
 
@@ -5719,10 +5838,20 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                 fontWeight: 700,
                                 padding: '2px 8px',
                                 borderRadius: 4,
+                                background: 'linear-gradient(135deg, #059669, #10b981)',
+                                color: '#ffffff'
+                              }}>
+                                ✨ {audioVoiceGender === 'female' ? 'Francisca Neural (Voz CoAuthor)' : 'Antônio Neural (Voz CoAuthor)'}
+                              </span>
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: 4,
                                 background: audioMode === 'full' ? '#4338ca' : '#0369a1',
                                 color: '#ffffff'
                               }}>
-                                {audioMode === 'full' ? ui('Obra Completa (Sequencial)', 'Full Book') : ui('Capítulo Individual', 'Single Chapter')}
+                                {audioMode === 'full' ? ui('Obra Completa', 'Full Book') : ui('Capítulo Individual', 'Single Chapter')}
                               </span>
                               {isAudioPaused && (
                                 <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#f59e0b', color: '#000000' }}>
@@ -5854,6 +5983,29 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                               </button>
                             ))}
                           </div>
+
+                          {/* SELETOR DE VOZ NEURAL (FRANCISCA / ANTÔNIO - COAUTHOR) */}
+                          <button
+                            type="button"
+                            onClick={toggleVoiceGenderNarrador}
+                            style={{
+                              background: 'rgba(255,255,255,0.12)',
+                              border: '1px solid rgba(255,255,255,0.25)',
+                              color: '#ffffff',
+                              borderRadius: 6,
+                              padding: '5px 9px',
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              marginLeft: 4
+                            }}
+                            title="Alternar entre a voz neural da Francisca e do Antônio (mesma voz do CoAuthor)"
+                          >
+                            🎙️ {audioVoiceGender === 'female' ? 'Voz: Francisca' : 'Voz: Antônio'}
+                          </button>
                         </div>
                       </div>
 

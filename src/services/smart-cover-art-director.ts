@@ -4,7 +4,7 @@
 // e Biblioteca Tipográfica Profissional por Gênero
 // ================================================================
 
-import { CoverTypographyPalette } from './kdp-cover-art-direction.ts';
+import { CoverTypographyPalette } from './kdp-cover-art-direction';
 
 export type BookCoverGenreCategory =
   | 'thriller-suspense'
