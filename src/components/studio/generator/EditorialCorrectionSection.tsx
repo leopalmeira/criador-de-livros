@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Wand2, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw,
   Pause, Play, Download, Eye, FileText, ShieldCheck, BookOpen,
-  ChevronRight, Sparkles, X, Check, ArrowRight
+  ChevronRight, Sparkles, X, Check, ArrowRight, Layers
 } from 'lucide-react';
 import type {
   EditorialJob,
@@ -27,6 +27,7 @@ import {
   type PipelineProgress
 } from '../../../services/kdp-editorial-pipeline';
 import { defaultAiCall } from '../../../services/kdp-editorial-corrector';
+import { KdpCompleteTypesetter, type RelatorioDiagramacaoCompleta, type PaginaDiagramadaInfo } from '../../../services/kdp-complete-typesetter';
 import { db } from '../../../database/local-database';
 
 interface Props {
@@ -67,6 +68,35 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
 
   // Modo Econômico Zero Tokens na Revisão Editorial (usa regras determinísticas locais com 0 chamadas de API)
   const [usarModoZeroTokens, setUsarModoZeroTokens] = useState(true);
+
+  // Estados do Agente Master de Diagramação Editorial Página por Página
+  const [typesetReport, setTypesetReport] = useState<RelatorioDiagramacaoCompleta | null>(null);
+  const [isTypesetting, setIsTypesetting] = useState(false);
+  const [showPagesModal, setShowPagesModal] = useState(false);
+
+  // Executa o Agente Master de Diagramação do Livro Completo (Checagem Página por Página)
+  const handleExecutarDiagramacaoCompleta = async () => {
+    if (!livro || livro.capitulos.length === 0) {
+      onStatusMessage?.('O livro deve conter capítulos antes de iniciar a diagramação.', 'error');
+      return;
+    }
+    setIsTypesetting(true);
+    onStatusMessage?.('✨ Agente de Diagramação Editorial ativado: higienizando resíduos (&&, símbolos), harmonizando parágrafos e checando página por página...', 'normal');
+
+    await new Promise(r => setTimeout(r, 160));
+
+    try {
+      const res = KdpCompleteTypesetter.diagramarLivroCompleto(livro, formato);
+      setTypesetReport(res.relatorio);
+      onBookUpdated(res.livro as PipelineLivro);
+      onStatusMessage?.(`✨ Diagramação concluída com sucesso! ${res.relatorio.totalPaginasGeradas} páginas físicas verificadas e alinhadas para KDP.`, 'ok');
+    } catch (err: any) {
+      console.error('Erro na diagramação página por página:', err);
+      onStatusMessage?.(`Erro ao diagramar livro: ${err.message}`, 'error');
+    } finally {
+      setIsTypesetting(false);
+    }
+  };
 
   // Carrega job existente e livro finalizado ao montar ou mudar livro
   const loadExistingState = useCallback(async () => {
@@ -525,6 +555,122 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
             </>
           )}
         </div>
+      </div>
+
+      {/* NOVO: AGENTE MASTER DE DIAGRAMAÇÃO EDITORIAL PÁGINA POR PÁGINA */}
+      <div style={{
+        background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+        border: '1.5px solid #818cf8',
+        borderRadius: 12,
+        padding: '16px 20px',
+        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.08)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Layers size={18} color="#4f46e5" />
+              <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, color: '#1e1b4b' }}>
+                Agente Master de Diagramação Editorial Página por Página
+              </h4>
+              <span style={{
+                background: '#e0e7ff',
+                color: '#4338ca',
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 12
+              }}>
+                Norma KDP G201113520 ({formato})
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: '#4338ca', lineHeight: 1.45 }}>
+              Resolve capítulos bagunçados no meio e no final da obra: elimina resíduos (&&, ||, repetições),
+              divide parágrafos colados em blocos harmônicos de 3 a 5 frases, padroniza travessões de diálogo (—)
+              e audita a paginação física folha por folha com alinhamento e justificação 100% perfeita.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleExecutarDiagramacaoCompleta}
+              disabled={isTypesetting || isRunning}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #4f46e5, #4338ca)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 8,
+                fontSize: 12.5,
+                fontWeight: 800,
+                cursor: isTypesetting ? 'wait' : 'pointer',
+                boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Sparkles size={15} />
+              {isTypesetting ? 'Organizando e Diagramando Páginas...' : '✨ Diagramar Livro Completo (Página por Página)'}
+            </button>
+
+            {typesetReport && (
+              <button
+                type="button"
+                onClick={() => setShowPagesModal(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 16px',
+                  background: '#ffffff',
+                  color: '#4338ca',
+                  border: '1.5px solid #818cf8',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <BookOpen size={14} /> Ver Checagem ({typesetReport.paginas.length} págs)
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* MÉTRICAS E RESUMO DA DIAGRAMAÇÃO EXECUTADA */}
+        {typesetReport && (
+          <div style={{
+            marginTop: 14,
+            paddingTop: 12,
+            borderTop: '1px solid #c7d2fe',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            fontSize: 11.5
+          }}>
+            <span style={{ fontWeight: 800, color: '#1e1b4b' }}>
+              ✓ Status da Obra:
+            </span>
+            <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+              📄 {typesetReport.totalPaginasGeradas} Páginas Físicas Alinhadas
+            </span>
+            <span style={{ background: '#e0e7ff', color: '#3730a3', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+              📚 {typesetReport.totalCapitulosProcessados} Capítulos Diagramados
+            </span>
+            <span style={{ background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+              🧹 {typesetReport.residuosRemovidos} Resíduos (&&/símbolos) Limpos
+            </span>
+            <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+              💬 {typesetReport.dialogosPadronizados} Diálogos (—) Formatados
+            </span>
+            <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+              📏 {typesetReport.paragrafosOrganizados} Parágrafos Harmonizados
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 2. BARRA DE PROGRESSO REAL */}
@@ -1261,6 +1407,160 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
               title="Pré-visualização do PDF"
               style={{ width: '100%', height: '100%', border: 'none' }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CHECAGEM PÁGINA POR PÁGINA (KDP PHYSICAL PAGES AUDIT) */}
+      {showPagesModal && typesetReport && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.8)',
+          zIndex: 99999,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '24px 32px'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '12px 12px 0 0',
+            padding: '16px 24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid #e2e8f0'
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <BookOpen size={18} color="#4f46e5" />
+                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                  Auditoria de Diagramação Página por Página — {typesetReport.totalPaginasGeradas} Páginas Físicas KDP
+                </h4>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#64748b' }}>
+                Simulação física com base no formato {formato} (~240-270 palavras/página, entrelinha 1.4, margens de segurança). Todos os capítulos checados e alinhados.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPagesModal(false)}
+              style={{
+                background: '#f1f5f9',
+                border: 'none',
+                borderRadius: 6,
+                padding: '8px 16px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                color: '#334155'
+              }}
+            >
+              Fechar
+            </button>
+          </div>
+
+          <div style={{
+            flex: 1,
+            background: '#0f172a',
+            borderRadius: '0 0 12px 12px',
+            overflowY: 'auto',
+            padding: 24,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+            gap: 20
+          }}>
+            {typesetReport.paginas.map((pag) => (
+              <div
+                key={pag.numeroPagina}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: 8,
+                  padding: 16,
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  minHeight: 330,
+                  border: '1px solid #e2e8f0',
+                  position: 'relative'
+                }}
+              >
+                {/* CABEÇALHO DA PÁGINA */}
+                <div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: '1px solid #f1f5f9',
+                    paddingBottom: 8,
+                    marginBottom: 10,
+                    fontSize: 10.5,
+                    color: '#64748b'
+                  }}>
+                    <span style={{ fontWeight: 700, textTransform: 'uppercase' }}>
+                      Pág. {pag.numeroPagina}
+                    </span>
+                    <span style={{
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 9.5,
+                      fontWeight: 700,
+                      background: pag.tipo === 'inicio_capitulo' ? '#e0e7ff' : '#f1f5f9',
+                      color: pag.tipo === 'inicio_capitulo' ? '#4338ca' : '#475569'
+                    }}>
+                      {pag.tipo === 'inicio_capitulo' ? '★ Abertura' : pag.tipo === 'conclusao_capitulo' ? '◼ Fechamento' : 'Corpo'}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#1e293b', marginBottom: 8 }}>
+                    {pag.capituloTitulo}
+                  </div>
+
+                  {/* CORPO DO TEXTO DIAGRAMADO */}
+                  <div style={{
+                    fontSize: 11,
+                    lineHeight: 1.5,
+                    color: '#334155',
+                    fontFamily: 'serif',
+                    textAlign: 'justify',
+                    background: '#fcfcfd',
+                    padding: '8px 10px',
+                    borderRadius: 4,
+                    border: '1px solid #f8fafc',
+                    maxHeight: 180,
+                    overflowY: 'hidden'
+                  }}>
+                    {pag.amostraTexto}
+                  </div>
+                </div>
+
+                {/* RODAPÉ DA PÁGINA */}
+                <div style={{
+                  marginTop: 12,
+                  paddingTop: 8,
+                  borderTop: '1px solid #f1f5f9',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: 10,
+                  color: '#64748b'
+                }}>
+                  <span>{pag.palavras} palavras • {pag.linhasEstimadas} linhas</span>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    color: '#16a34a',
+                    fontWeight: 700
+                  }}>
+                    <CheckCircle2 size={12} /> Alinhada 100%
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

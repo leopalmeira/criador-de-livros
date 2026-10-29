@@ -113,7 +113,7 @@ class CoAuthorVoiceEngine {
    */
   public getActiveVoiceLabel(): string {
     const gender = this.getVoiceGender();
-    return gender === 'female' ? 'Francisca Neural (Humana Natural)' : 'Antônio Neural (Humano Natural)';
+    return gender === 'female' ? 'Francisca Neural (pt-BR-FranciscaNeural)' : 'Antônio Neural (pt-BR-AntonioNeural)';
   }
 
   /**
@@ -315,6 +315,7 @@ class CoAuthorVoiceEngine {
         body: JSON.stringify({
           language: 'pt-BR',
           voiceGender: gender,
+          voiceId: gender === 'female' ? 'edge:pt-BR-FranciscaNeural' : 'edge:pt-BR-AntonioNeural',
           text: trimmed
         }),
         signal
@@ -341,7 +342,8 @@ class CoAuthorVoiceEngine {
         body: JSON.stringify({
           text: trimmed,
           lang: 'pt-BR',
-          voiceGender: gender
+          voiceGender: gender,
+          voiceId: gender === 'female' ? 'edge:pt-BR-FranciscaNeural' : 'edge:pt-BR-AntonioNeural'
         }),
         signal
       });
@@ -364,6 +366,7 @@ class CoAuthorVoiceEngine {
 
   /**
    * Fallback de emergência caso o servidor local esteja completamente desconectado
+   * Garante a seleção da voz Francisca instalada no navegador/sistema.
    */
   private fallbackSpeakChunk(chunk: string, playToken: number): Promise<void> {
     return new Promise((resolve) => {
@@ -374,7 +377,21 @@ class CoAuthorVoiceEngine {
       const utterance = new SpeechSynthesisUtterance(chunk);
       utterance.lang = 'pt-BR';
       utterance.rate = 1.0;
-      utterance.pitch = 1.1;
+      utterance.pitch = 1.0;
+
+      // Seleciona obrigatoriamente a voz Francisca ou melhor voz brasileira neural instalada
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        const franciscaVoice = voices.find(v => 
+          /francisca/i.test(v.name) || /francisca/i.test(v.voiceURI)
+        ) || voices.find(v => 
+          v.lang.startsWith('pt') && (/natural/i.test(v.name) || /google/i.test(v.name) || /maria/i.test(v.name) || /luciana/i.test(v.name))
+        ) || voices.find(v => v.lang === 'pt-BR' || v.lang.startsWith('pt'));
+
+        if (franciscaVoice) {
+          utterance.voice = franciscaVoice;
+        }
+      } catch {}
 
       utterance.onend = () => resolve();
       utterance.onerror = () => resolve();

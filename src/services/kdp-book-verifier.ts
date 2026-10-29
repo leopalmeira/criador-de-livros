@@ -24,6 +24,8 @@ export interface VerifierIssue {
 }
 
 import { applyDeterministicFixes } from './editorial-rules';
+import { KdpCompleteTypesetter, type RelatorioDiagramacaoCompleta, type PaginaDiagramadaInfo } from './kdp-complete-typesetter';
+export { KdpCompleteTypesetter, type RelatorioDiagramacaoCompleta, type PaginaDiagramadaInfo };
 
 export interface VerificationModuleStatus {
   id: VerifierCategory;
@@ -512,5 +514,17 @@ export class KdpBookVerifier {
     });
 
     return { livro: livroAtualizado, fixedCount };
+  }
+
+  /**
+   * Executa a diagramação e checagem do livro por completo página por página
+   * com sanitização profunda, divisão de parágrafos, travessões de diálogo (—)
+   * e simulação física de páginas KDP.
+   */
+  public static diagramarLivroCompletoPaginaPorPagina<T extends LivroLike>(
+    livro: T,
+    trimSize = '6x9'
+  ): { livro: T; relatorio: RelatorioDiagramacaoCompleta } {
+    return KdpCompleteTypesetter.diagramarLivroCompleto(livro as any, trimSize) as { livro: T; relatorio: RelatorioDiagramacaoCompleta };
   }
 }

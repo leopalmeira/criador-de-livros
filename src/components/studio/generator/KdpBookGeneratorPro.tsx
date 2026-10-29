@@ -712,6 +712,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const currentAudioElemRef = useRef<HTMLAudioElement | null>(null);
   const audioAbortControllerRef = useRef<AbortController | null>(null);
   const audioNextPromiseRef = useRef<Promise<string | null> | null>(null);
+  const audioQueuePoolRef = useRef<Map<number, HTMLAudioElement>>(new Map());
+  const audioUrlCacheRef = useRef<Map<string, string>>(new Map());
+  const audioPrefetchPromisesRef = useRef<Map<number, Promise<HTMLAudioElement | null>>>(new Map());
   const audioPlayTokenRef = useRef<number>(0);
 
   // Status e controle do pipeline
@@ -2943,8 +2946,18 @@ ${ganchoImediato}`;
     const trimmed = text.trim();
     if (!trimmed) return null;
 
-    const gender = coAuthorVoiceService.getVoiceGender();
+    const cacheKey = `neural_francisca_${idioma}_${trimmed}`;
+    if (audioUrlCacheRef.current.has(cacheKey)) {
+      return audioUrlCacheRef.current.get(cacheKey)!;
+    }
+
     const lang = idioma === 'inglês' ? 'en-US' : idioma === 'espanhol' ? 'es-ES' : 'pt-BR';
+    // Obrigatoriamente voz Francisca para português (pt-BR-FranciscaNeural)
+    const voiceId = idioma === 'inglês'
+      ? 'edge:en-US-JennyNeural'
+      : idioma === 'espanhol'
+      ? 'edge:es-ES-ElviraNeural'
+      : 'edge:pt-BR-FranciscaNeural';
 
     // 1. Tenta endpoint principal de voz neural humana (/api/audiobook/preview-voice)
     try {
@@ -2953,7 +2966,8 @@ ${ganchoImediato}`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           language: lang,
-          voiceGender: gender,
+          voiceGender: 'female',
+          voiceId,
           text: trimmed
         }),
         signal
@@ -2962,7 +2976,9 @@ ${ganchoImediato}`;
       if (res.ok) {
         const blob = await res.blob();
         if (blob && blob.size > 200) {
-          return URL.createObjectURL(blob);
+          const url = URL.createObjectURL(blob);
+          audioUrlCacheRef.current.set(cacheKey, url);
+          return url;
         }
       }
     } catch (err: any) {
@@ -2978,7 +2994,8 @@ ${ganchoImediato}`;
         body: JSON.stringify({
           text: trimmed,
           lang,
-          voiceGender: gender
+          voiceGender: 'female',
+          voiceId
         }),
         signal
       });
@@ -2986,7 +3003,9 @@ ${ganchoImediato}`;
       if (res.ok) {
         const blob = await res.blob();
         if (blob && blob.size > 200) {
-          return URL.createObjectURL(blob);
+          const url = URL.createObjectURL(blob);
+          audioUrlCacheRef.current.set(cacheKey, url);
+          return url;
         }
       }
     } catch (err: any) {
@@ -2994,6 +3013,47 @@ ${ganchoImediato}`;
     }
 
     return null;
+  };
+
+  /**
+   * Pré-carrega um segmento de fala em um elemento HTMLAudioElement antecipado com buffer pronto
+   */
+  const preloadAudioSegment = async (
+    chunkIndex: number,
+    text: string,
+    signal?: AbortSignal
+  ): Promise<HTMLAudioElement | null> => {
+    if (audioQueuePoolRef.current.has(chunkIndex)) {
+      return audioQueuePoolRef.current.get(chunkIndex)!;
+    }
+    if (audioPrefetchPromisesRef.current.has(chunkIndex)) {
+      return audioPrefetchPromisesRef.current.get(chunkIndex)!;
+    }
+
+    const promise = (async () => {
+      const audioUrl = await fetchNeuralSpeechAudioUrl(text, signal);
+      if (!audioUrl) return null;
+      const audio = new Audio(audioUrl);
+      audio.preload = 'auto';
+      audio.playbackRate = audioSpeedRef.current;
+      try { audio.load(); } catch {}
+      audioQueuePoolRef.current.set(chunkIndex, audio);
+      return audio;
+    })();
+
+    audioPrefetchPromisesRef.current.set(chunkIndex, promise);
+    return promise;
+  };
+
+  /**
+   * Garante o buffer contínuo dos próximos chunks antecipadamente para zero delay e leitura sem interrupções
+   */
+  const ensurePrefetchAhead = (startIndex: number, segments: NarrationSegment[], lookahead = 3) => {
+    for (let i = startIndex; i < Math.min(segments.length, startIndex + lookahead); i++) {
+      if (!audioQueuePoolRef.current.has(i) && !audioPrefetchPromisesRef.current.has(i)) {
+        preloadAudioSegment(i, segments[i].speechText, audioAbortControllerRef.current?.signal);
+      }
+    }
   };
 
   const scrollToActiveNarration = (capIdx: number, pIdx: number) => {
@@ -3073,6 +3133,17 @@ ${ganchoImediato}`;
       } catch {}
       currentAudioElemRef.current = null;
     }
+
+    // Esvazia a fila de prefetch de áudio
+    audioQueuePoolRef.current.forEach((a) => {
+      try {
+        a.pause();
+        a.currentTime = 0;
+        a.src = '';
+      } catch {}
+    });
+    audioQueuePoolRef.current.clear();
+    audioPrefetchPromisesRef.current.clear();
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try { window.speechSynthesis.cancel(); } catch {}
@@ -3160,24 +3231,20 @@ ${ganchoImediato}`;
 
     const textToSpeak = seg.speechText;
 
+    // Dispara prefetch dos próximos 3 chunks antecipadamente para zero delay entre as falas
+    ensurePrefetchAhead(chunkIndex + 1, segments, 3);
+
     try {
-      // 1. Obtém áudio neural MP3 (se já tiver em prefetch, usa o prefetch instantâneo)
-      let audioUrl = audioNextPromiseRef.current
-        ? await audioNextPromiseRef.current
-        : await fetchNeuralSpeechAudioUrl(textToSpeak, audioAbortControllerRef.current?.signal);
+      // 1. Obtém elemento de áudio (instantâneo se já estiver no pool pré-carregado em background)
+      let audio = audioQueuePoolRef.current.get(chunkIndex) || null;
+      if (!audio) {
+        audio = await preloadAudioSegment(chunkIndex, textToSpeak, audioAbortControllerRef.current?.signal);
+      }
 
       if (!isAudioActiveRef.current || audioPlayTokenRef.current !== currentToken) return;
 
-      // 2. Dispara imediatamente o prefetch do PRÓXIMO chunk em paralelo para zero delay
-      if (chunkIndex + 1 < segments.length) {
-        audioNextPromiseRef.current = fetchNeuralSpeechAudioUrl(segments[chunkIndex + 1].speechText, audioAbortControllerRef.current?.signal);
-      } else {
-        audioNextPromiseRef.current = null;
-      }
-
-      // 3. Se tiver o áudio neural humano da plataforma (mesma voz do CoAuthor):
-      if (audioUrl) {
-        const audio = new Audio(audioUrl);
+      // 2. Se tiver áudio neural com voz Francisca:
+      if (audio) {
         currentAudioElemRef.current = audio;
         audio.playbackRate = audioSpeedRef.current;
 
@@ -3191,7 +3258,7 @@ ${ganchoImediato}`;
         };
 
         audio.onerror = () => {
-          console.warn('[AgenteNarrador] Erro no player de áudio neural, usando fallback gracioso');
+          console.warn('[AgenteNarrador] Erro no player de áudio neural, passando ao próximo chunk');
           try {
             cinematicAudioDirector.setDucking(false);
           } catch {}
@@ -3208,12 +3275,27 @@ ${ganchoImediato}`;
           console.warn('[AgenteNarrador] Autoplay bloqueado ou cancelado:', err);
         });
       } else {
-        // Fallback de emergência caso o servidor de voz esteja inacessível
+        // Fallback de emergência caso o servidor de voz esteja inacessível: seleciona obrigatoriamente a Francisca
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(textToSpeak);
           utterance.lang = idioma === 'inglês' ? 'en-US' : idioma === 'espanhol' ? 'es-ES' : 'pt-BR';
           utterance.rate = audioSpeedRef.current;
+
+          // Seleciona Francisca ou melhor voz brasileira neural disponível no sistema
+          try {
+            const voices = window.speechSynthesis.getVoices();
+            const franciscaVoice = voices.find(v => 
+              /francisca/i.test(v.name) || /francisca/i.test(v.voiceURI)
+            ) || voices.find(v => 
+              v.lang.startsWith('pt') && (/natural/i.test(v.name) || /google/i.test(v.name) || /maria/i.test(v.name) || /luciana/i.test(v.name))
+            ) || voices.find(v => v.lang === 'pt-BR' || v.lang.startsWith('pt'));
+
+            if (franciscaVoice) {
+              utterance.voice = franciscaVoice;
+            }
+          } catch {}
+
           utterance.onend = () => {
             try {
               cinematicAudioDirector.setDucking(false);
