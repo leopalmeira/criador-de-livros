@@ -110,7 +110,7 @@ export class PdfBuilder {
     // Linha de ornamento gráfico clássico
     doc.setFont('times', 'normal');
     doc.setFontSize(14);
-    doc.text('― ◆ ―', widthMm / 2, heightMm * 0.48, { align: 'center' });
+    doc.text('* * *', widthMm / 2, heightMm * 0.48, { align: 'center' });
 
     // Nome do autor
     doc.setFont('times', 'bold');
@@ -460,7 +460,7 @@ export class PdfBuilder {
       doc.setFont('times', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(140, 140, 140);
-      doc.text('― ✦ ―', widthMm / 2, currentY, { align: 'center' });
+      doc.text('* * *', widthMm / 2, currentY, { align: 'center' });
       currentY += 12;
     } else {
       doc.setFont('helvetica', 'bold');
@@ -545,6 +545,7 @@ export class PdfBuilder {
           }
 
           // Aplica recuo apenas na primeira linha do parágrafo
+          doc.text(line, leftMargin + (lineIdx === 0 ? firstLineIndent : 0), currentY);
           currentY += lineHeight;
         });
 

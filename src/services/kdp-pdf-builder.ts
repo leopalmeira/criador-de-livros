@@ -28,9 +28,14 @@ export interface BuildPdfInput {
     autor: string;
     genero?: string;
     idioma?: string;
+    sinopse?: string;
+    ganchoContracapa?: string;
+    beneficiosContracapa?: string[];
     capitulos: { titulo: string; texto: string; imagemDataUrl?: string | null }[];
   };
   capaDataUrl?: string | null;
+  contracapaDataUrl?: string | null;
+  incluirContracapa?: boolean;
   bookType?: BookType;
   formato: string;
   optSumario: boolean;
@@ -48,7 +53,7 @@ export interface BuildPdfInput {
   };
 }
 
-export type PageKind = 'capa' | 'rosto' | 'sumario' | 'capitulo';
+export type PageKind = 'capa' | 'rosto' | 'sumario' | 'capitulo' | 'contracapa';
 
 export interface PageMeta {
   page: number;
@@ -79,12 +84,14 @@ const CP1252_EXTRA = new Set('€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•�
 const REPLACE: Record<string, string> = {
   '\u00a0': ' ', '\u2009': ' ', '\u202f': ' ', '\u2002': ' ', '\u2003': ' ', '\u2011': '-', '\u2212': '-',
   '\u200b': '', '\u200c': '', '\u200d': '', '\ufeff': '', '\u2192': '->', '\u2190': '<-', '\u2713': '', '\u2714': '',
-  '\u2605': '*', '\u2606': '*', '\u2764': '', '\u2026': '…', '\u00ad': '',
+  '\u2605': '*', '\u2606': '*', '\u2726': '*', '\u2727': '*', '\u2756': '*', '\u25c6': '*', '\u25c7': '*',
+  '\u2764': '', '\u2026': '…', '\u00ad': '',
 };
 
 export function sanitizeForPdf(text: string, onUnsupported?: (ch: string) => void): string {
   let out = '';
-  const clean = ManuscriptIntegrityEngine.cleanLaTeXResiduals(text || '');
+  const cleanLatex = ManuscriptIntegrityEngine.cleanLaTeXResiduals(text || '');
+  const clean = ManuscriptIntegrityEngine.cleanLexicalAndOrthographicArtifacts(cleanLatex);
   for (const ch of clean) {
     if (ch === '\n') { out += ch; continue; }
     if (REPLACE[ch] !== undefined) { out += REPLACE[ch]; continue; }
@@ -96,6 +103,151 @@ export function sanitizeForPdf(text: string, onUnsupported?: (ch: string) => voi
     out += '?';
   }
   return out;
+}
+
+/**
+ * Desenha um ornamento vetorial clássico (linhas simétricas + losangos centrais)
+ * Substitui glifos Unicode (como '✦') que corrompem fontes WinAnsi em "'&".
+ */
+function drawEditorialOrnament(
+  doc: jsPDF,
+  cx: number,
+  cy: number,
+  halfSpan: number = 0.65,
+  rgb: [number, number, number] = [135, 140, 150]
+): void {
+  doc.saveGraphicsState();
+  doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+  doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+  doc.setLineWidth(0.008);
+
+  // Linhas laterais
+  doc.line(cx - halfSpan, cy, cx - 0.14, cy);
+  doc.line(cx + 0.14, cy, cx + halfSpan, cy);
+
+  // Pequenos pontos/losangos centrais
+  doc.circle(cx, cy, 0.022, 'F');
+  doc.circle(cx - 0.075, cy, 0.013, 'F');
+  doc.circle(cx + 0.075, cy, 0.013, 'F');
+  doc.restoreGraphicsState();
+}
+
+/**
+ * Renderiza uma Contracapa Oficial Amazon KDP (G201113520) em vetores de alta precisão
+ * no fechamento do PDF quando uma imagem de contracapa não foi fornecida separadamente.
+ */
+function renderVectorKdpBackCover(
+  doc: jsPDF,
+  LW: number,
+  LH: number,
+  input: BuildPdfInput,
+  sanitize: (s: string) => string
+): void {
+  doc.saveGraphicsState();
+
+  // 1. Fundo Editorial Profundo (Slate/Navy Nobre)
+  doc.setFillColor(12, 18, 32);
+  doc.rect(0, 0, LW, LH, 'F');
+
+  // 2. Moldura Dupla Ornamental dentro da Margem de Segurança KDP (0.25" da borda)
+  const safeM = 0.35;
+  doc.setDrawColor(180, 142, 68); // Ouro Envelhecido
+  doc.setLineWidth(0.014);
+  doc.rect(safeM, safeM, LW - safeM * 2, LH - safeM * 2, 'S');
+  doc.setLineWidth(0.006);
+  doc.rect(safeM + 0.05, safeM + 0.05, LW - (safeM + 0.05) * 2, LH - (safeM + 0.05) * 2, 'S');
+
+  const padX = 0.68;
+  const maxW = LW - padX * 2;
+  let curY = 0.92;
+
+  // 3. Selo Superior de Categoria
+  const generoLabel = sanitize((input.livro.genero || 'EDIÇÃO OFICIAL AMAZON KDP').toUpperCase());
+  doc.setFont('helvetica', 'bold').setFontSize(8.5).setTextColor(212, 175, 55);
+  doc.text(generoLabel, LW / 2, curY, { align: 'center' });
+  curY += 0.22;
+
+  drawEditorialOrnament(doc, LW / 2, curY, 0.85, [212, 175, 55]);
+  curY += 0.38;
+
+  // 4. Gancho Comercial (Hook Headline)
+  const defaultHook = `Alguns segredos cobram um preço alto demais para permanecerem nas sombras.`;
+  const hook = sanitize(input.livro.ganchoContracapa || defaultHook);
+  doc.setFont('times', 'bolditalic').setFontSize(14).setTextColor(248, 250, 252);
+  const hookLines = doc.splitTextToSize(hook, maxW) as string[];
+  doc.text(hookLines, LW / 2, curY, { align: 'center' });
+  curY += hookLines.length * 0.24 + 0.25;
+
+  // 5. Sinopse Editorial da Obra
+  const rawChaptersPreview = input.livro.capitulos
+    .slice(0, 2)
+    .map(c => (c.texto || '').split(/\n+/)[0] || '')
+    .join(' ')
+    .slice(0, 460);
+  const fallbackSynopsis = rawChaptersPreview
+    ? `${rawChaptersPreview.trim()}...`
+    : `Em "${input.livro.titulo}", ${input.livro.autor} conduz o leitor por uma trama magnética, construída com ritmo cinematográfico, profundidade psicológica e reviravoltas inesquecíveis.`;
+  const synopsis = sanitize(input.livro.sinopse || fallbackSynopsis);
+
+  doc.setFont('times', 'normal').setFontSize(10.5).setTextColor(226, 232, 240);
+  const synLines = doc.splitTextToSize(synopsis, maxW) as string[];
+  const visibleSynLines = synLines.slice(0, 14);
+  doc.text(visibleSynLines, padX, curY);
+  curY += visibleSynLines.length * 0.205 + 0.28;
+
+  // 6. Destaques da Edição (Bullets)
+  const benefits = (input.livro.beneficiosContracapa && input.livro.beneficiosContracapa.length > 0)
+    ? input.livro.beneficiosContracapa
+    : [
+        'Narrativa envolvente com progressão rigorosa de cenas e conflitos',
+        'Personagens densos com diálogos autênticos e atmosfera imersiva',
+        'Edição diagramada segundo os padrões internacionais Amazon KDP'
+      ];
+
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(203, 213, 225);
+  for (const b of benefits.slice(0, 3)) {
+    if (curY > LH - 2.35) break;
+    doc.setFillColor(212, 175, 55);
+    doc.circle(padX + 0.06, curY - 0.04, 0.025, 'F');
+    const bLines = doc.splitTextToSize(sanitize(b), maxW - 0.22) as string[];
+    doc.text(bLines, padX + 0.18, curY);
+    curY += bLines.length * 0.18 + 0.1;
+  }
+
+  // 7. Assinatura do Autor & Selo à esquerda na base
+  const footerY = LH - 1.35;
+  doc.setFont('times', 'bold').setFontSize(11).setTextColor(248, 250, 252);
+  doc.text(sanitize(input.livro.autor.toUpperCase()), padX, footerY);
+  doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(148, 163, 184);
+  doc.text('EDIÇÃO OFICIAL AMAZON KDP', padX, footerY + 0.18);
+  doc.text(`Formato ${input.formato}" • Especificação G201113520`, padX, footerY + 0.32);
+
+  // 8. Área Oficial Reservada ao Código de Barras Amazon KDP (2.0" x 1.2" no canto inferior direito)
+  // Regra KDP G201113520: mínimo de 0.25" da lombada (direita da contracapa) e 0.25" da borda inferior de corte
+  const bcW = 2.0;
+  const bcH = 1.2;
+  const bcX = LW - 0.48 - bcW;
+  const bcY = LH - 0.48 - bcH;
+
+  doc.setFillColor(255, 255, 255);
+  doc.rect(bcX, bcY, bcW, bcH, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.01);
+  doc.rect(bcX, bcY, bcW, bcH, 'S');
+
+  // Barras verticais ilustrativas de ISBN/EAN-13
+  doc.setFillColor(15, 23, 42);
+  for (let bx = bcX + 0.16; bx < bcX + bcW - 0.16; bx += 0.045) {
+    const bw = Math.round(bx * 100) % 3 === 0 ? 0.022 : 0.011;
+    doc.rect(bx, bcY + 0.14, bw, bcH - 0.46, 'F');
+  }
+
+  doc.setFont('helvetica', 'bold').setFontSize(6.5).setTextColor(51, 65, 85);
+  doc.text('ISBN / BARCODE AMAZON KDP (2.0" x 1.2")', bcX + bcW / 2, bcY + bcH - 0.18, { align: 'center' });
+  doc.setFont('helvetica', 'normal').setFontSize(5.8).setTextColor(100, 116, 139);
+  doc.text('Zona de Segurança Oficial G201113520', bcX + bcW / 2, bcY + bcH - 0.07, { align: 'center' });
+
+  doc.restoreGraphicsState();
 }
 
 // ---------------------------------------------------------------
@@ -185,10 +337,15 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   const mT = 0.85;
   const mB = 0.9;
   const textW = LW - inner - outer;
-  const lineH = 0.215;
+  const lineH = 0.222;
+  const paraGap = 0.045;
   const FS = 11;
   const indent = 0.25;
   const bottomLimit = LH - mB;
+
+  const restoreBodyFont = () => {
+    doc.setFont('times', 'normal').setFontSize(FS).setTextColor(22, 27, 38);
+  };
 
   const pageMeta: PageMeta[] = [];
   let page = 0;
@@ -212,7 +369,9 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     }
     return {
       ...c,
-      titulo: ManuscriptIntegrityEngine.cleanLaTeXResiduals(c.titulo || ''),
+      titulo: ManuscriptIntegrityEngine.cleanLexicalAndOrthographicArtifacts(
+        ManuscriptIntegrityEngine.cleanLaTeXResiduals(c.titulo || '')
+      ),
       texto: sanitized.cleanText,
     };
   });
@@ -233,7 +392,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   const finishPage = () => {
     if (page === 0) return;
     const meta = pageMeta[page - 1];
-    if (meta.kind === 'capa' || meta.kind === 'rosto') return;
+    if (meta.kind === 'capa' || meta.kind === 'rosto' || meta.kind === 'contracapa') return;
 
     if (meta.kind === 'capitulo' && !meta.firstOfChapter) {
       let rawHeader = isRecto(page) ? cleanTitles[meta.chapterIndex!] : bookTitle;
@@ -250,7 +409,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     doc.setFont('times', 'normal').setFontSize(9.5).setTextColor(110);
     doc.text(String(page), LW / 2, LH - 0.48, { align: 'center' });
     meta.number = page;
-    doc.setTextColor(0);
+    restoreBodyFont();
   };
 
   const startPage = (kind: PageKind, chapterIndex?: number, firstOfChapter?: boolean) => {
@@ -262,7 +421,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     y = mT;
 
     // Renderização de Silhueta de Fundo (DESENHADA ANTES DO TEXTO PARA FICAR POR TRÁS)
-    if (input.silhuetaConfig?.ativado && input.silhuetaConfig.imagemDataUrl && kind !== 'capa' && kind !== 'rosto') {
+    if (input.silhuetaConfig?.ativado && input.silhuetaConfig.imagemDataUrl && kind !== 'capa' && kind !== 'rosto' && kind !== 'contracapa') {
       const paginas = input.silhuetaConfig.paginasSelecionadas || [];
       const deveRenderizar = Boolean(input.silhuetaConfig.aplicarTodas || paginas.includes(page));
       if (deveRenderizar) {
@@ -296,6 +455,9 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
         }
       }
     }
+
+    // Garante que toda nova página comece com a fonte de corpo de texto (11pt) restaurada
+    restoreBodyFont();
   };
 
   // 1) CAPA
@@ -339,9 +501,8 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     ty += sL.length * 0.28 + 0.22;
   }
 
-  // Divisor decorativo nobre na folha de rosto
-  doc.setFont('times', 'normal').setFontSize(11).setTextColor(140);
-  doc.text('✦   ✦   ✦', LW / 2, ty + 0.35, { align: 'center' });
+  // Divisor decorativo vetorial nobre na folha de rosto (sem glifos Unicode que corrompem WinAnsi)
+  drawEditorialOrnament(doc, LW / 2, ty + 0.34, 0.72, [130, 138, 150]);
 
   // Nome do Autor e Selo Editorial na base da folha de rosto
   doc.setFont('times', 'normal').setFontSize(13).setTextColor(20);
@@ -349,8 +510,8 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   doc.text(sanitize(`${authorPrefix} ${input.livro.autor}`), LW / 2, LH - 1.5, { align: 'center' });
 
   doc.setFont('times', 'normal').setFontSize(8.5).setTextColor(120);
-  doc.text('EDIÇÃO ESPECIAL AMAZON KDP • DIREITOS RESERVADOS', LW / 2, LH - 1.1, { align: 'center' });
-  doc.setTextColor(0);
+  doc.text(sanitize('EDIÇÃO ESPECIAL AMAZON KDP • DIREITOS RESERVADOS'), LW / 2, LH - 1.1, { align: 'center' });
+  restoreBodyFont();
 
   // 3) SUMÁRIO (páginas reais vindas do passe anterior)
   let tocPages = 0;
@@ -361,9 +522,9 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     const tocTitle = isEn ? 'Table of Contents' : isEs ? 'Índice' : 'Sumário';
     doc.text(tocTitle, LW / 2, y + 0.35, { align: 'center' });
 
-    doc.setFont('times', 'normal').setFontSize(9).setTextColor(130);
-    doc.text('✦   ✦   ✦', LW / 2, y + 0.65, { align: 'center' });
-    doc.setTextColor(0);
+    // Ornamento vetorial sob o título do Sumário
+    drawEditorialOrnament(doc, LW / 2, y + 0.62, 0.6, [135, 140, 150]);
+    restoreBodyFont();
 
     y += 1.05;
     const entryH = 0.28;
@@ -401,11 +562,12 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   }
 
   // 4) CAPÍTULOS
-  const spaceW = (() => { doc.setFont('times', 'normal').setFontSize(FS); return doc.getTextWidth(' '); })();
+  const spaceW = (() => { restoreBodyFont(); return doc.getTextWidth(' '); })();
   const remainingLines = () => Math.floor((bottomLimit - y + 0.001) / lineH);
   const newContentPage = (ci: number) => { startPage('capitulo', ci, false); };
 
   const wrapParagraph = (text: string, firstIndent: number): { words: string[]; width: number }[] => {
+    restoreBodyFont();
     const words = text.split(/\s+/).filter(Boolean);
     const lines: { words: string[]; width: number }[] = [];
     let cur: string[] = [];
@@ -438,7 +600,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
 
   const sanitized: string[] = [];
   const tcolor = /^#?[0-9a-f]{6}$/i.test(input.corCapitulo || '') ? input.corCapitulo.replace('#', '') : '1e293b';
-  const rgb = [0, 2, 4].map(i => parseInt(tcolor.slice(i, i + 2), 16));
+  const rgb = [0, 2, 4].map(i => parseInt(tcolor.slice(i, i + 2), 16)) as [number, number, number];
 
   chapters.forEach((cap, ci) => {
     startPage('capitulo', ci, true);
@@ -505,24 +667,23 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
       return;
     }
 
-    y = mT + 1.1;
-    doc.setFont('times', 'bold').setFontSize(10).setTextColor(130);
+    y = mT + 1.05;
+    doc.setFont('times', 'bold').setFontSize(10).setTextColor(125, 132, 145);
     doc.text(`CAPÍTULO ${ci + 1}`, LW / 2, y, { align: 'center' });
-    y += 0.4;
-    const tSize = Math.max(14, Math.min(30, Math.round(input.tamCapitulo * 1.7)));
+    y += 0.38;
+    const tSize = Math.max(14, Math.min(28, Math.round(input.tamCapitulo * 1.65)));
     const isGenericChapterTitle = /^cap[ií]tulo\s*\d+$/i.test((cleanTitles[ci] || '').trim());
     if (!isGenericChapterTitle && cleanTitles[ci].trim()) {
       doc.setFont('times', 'bold').setFontSize(tSize).setTextColor(rgb[0], rgb[1], rgb[2]);
       const titleLines = doc.splitTextToSize(cleanTitles[ci], textW) as string[];
       titleLines.forEach(l => { doc.text(l, LW / 2, y, { align: 'center' }); y += (tSize * 1.25) / 72; });
-      doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
-      doc.setLineWidth(0.012);
-      doc.line(LW / 2 - 0.35, y - 0.05, LW / 2 + 0.35, y - 0.05);
-      y += 0.5;
+      drawEditorialOrnament(doc, LW / 2, y + 0.04, 0.52, rgb);
+      y += 0.52;
     } else {
+      drawEditorialOrnament(doc, LW / 2, y - 0.08, 0.45, rgb);
       y += 0.35;
     }
-    doc.setTextColor(0);
+    restoreBodyFont();
 
     // Ilustração dedicada do capítulo (se presente)
     if (cap.imagemDataUrl) {
@@ -557,21 +718,23 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
 
     if (paras.length === 0) warnings.push(`Capítulo ${ci + 1} ("${cleanTitles[ci]}") está sem texto.`);
     let isFirstParagraphOfSection = true;
-    doc.setFont('times', 'normal').setFontSize(FS).setTextColor(0);
+    restoreBodyFont();
 
     for (let pIdx = 0; pIdx < paras.length; pIdx++) {
       const p = paras[pIdx];
       if (SCENE_BREAK.test(p)) {
         if (remainingLines() < 4) newContentPage(ci);
         y += lineH * 0.6;
-        doc.setFont('times', 'normal').setFontSize(FS);
+        restoreBodyFont();
         doc.text('* * *', leftOf(page) + textW / 2, y, { align: 'center' });
-        y += lineH * 1.6;
+        y += lineH * 1.5;
         isFirstParagraphOfSection = true;
         continue;
       }
-      doc.setFont('times', 'normal').setFontSize(FS);
-      const ind = isFirstParagraphOfSection ? 0 : indent;
+      restoreBodyFont();
+      // Diálogos iniciados por travessão têm recuo próprio padronizado; primeiro parágrafo da seção não tem recuo
+      const isDialogue = /^—\s/.test(p);
+      const ind = isFirstParagraphOfSection && !isDialogue ? 0 : indent;
       const lines = wrapParagraph(p, ind);
       let i = 0;
       while (i < lines.length) {
@@ -585,6 +748,8 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
           if (take < 1) { newContentPage(ci); continue; }
           if (take < 2 && i === 0) { newContentPage(ci); continue; }
         }
+        // Sempre restaura a fonte de corpo 11pt antes de desenhar as linhas da página atual
+        restoreBodyFont();
         const L = leftOf(page);
         for (let k = 0; k < take; k++) {
           const ln = lines[i + k];
@@ -593,23 +758,63 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
           const maxW = isFirstLine ? textW - ind : textW;
           const isLast = i + k === lines.length - 1;
           const nSp = ln.words.length - 1;
-          const extra = maxW - ln.width;
-          let justified = false;
-          if (!isLast && nSp > 0 && extra > 0 && extra / nSp <= 0.12) {
-            (doc as any).internal.write(`${((extra * 72) / nSp).toFixed(3)} Tw`);
-            justified = true;
+
+          // Justificação matemática palavra a palavra (alinhamento 100% reto nas margens esquerda e direita)
+          if (!isLast && nSp > 0) {
+            const wordWidths = ln.words.map(w => doc.getTextWidth(w));
+            const totalWordsW = wordWidths.reduce((acc, w) => acc + w, 0);
+            const totalSpace = maxW - totalWordsW;
+            const gapPerSpace = totalSpace / nSp;
+            if (gapPerSpace > 0 && gapPerSpace <= 0.35) {
+              let curX = x;
+              for (let wIdx = 0; wIdx < ln.words.length; wIdx++) {
+                doc.text(ln.words[wIdx], curX, y);
+                curX += wordWidths[wIdx] + gapPerSpace;
+              }
+            } else {
+              doc.text(ln.words.join(' '), x, y);
+            }
+          } else {
+            doc.text(ln.words.join(' '), x, y);
           }
-          doc.text(ln.words.join(' '), x, y);
-          if (justified) (doc as any).internal.write('0 Tw');
           y += lineH;
         }
         i += take;
         if (i < lines.length) newContentPage(ci);
       }
+      // Respiro sutil entre parágrafos para leitura fluida e não cansativa
+      if (y + paraGap < bottomLimit) {
+        y += paraGap;
+      }
       isFirstParagraphOfSection = false;
     }
   });
   finishPage();
+
+  // 5) CONTRACAPA OFICIAL AMAZON KDP (G201113520) NO FECHAMENTO DO LIVRO
+  if (input.contracapaDataUrl || input.incluirContracapa) {
+    startPage('capa');
+    let backRendered = false;
+    if (input.contracapaDataUrl) {
+      const info = readImageInfo(input.contracapaDataUrl);
+      if (info) {
+        const pr = LW / LH;
+        const ir = info.width / info.height;
+        let dw = LW, dh = LH, dx = 0, dy = 0;
+        if (ir > pr) { dh = LH; dw = LH * ir; dx = -(dw - LW) / 2; }
+        else if (ir < pr) { dw = LW; dh = LW / ir; dy = -(dh - LH) / 2; }
+        try {
+          doc.addImage(input.contracapaDataUrl, info.format === 'png' ? 'PNG' : 'JPEG', dx, dy, dw, dh, undefined, 'FAST');
+          backRendered = true;
+        } catch (e: any) {
+          warnings.push(`Falha ao incorporar imagem da contracapa: ${e?.message || e}`);
+        }
+      }
+    }
+    if (!backRendered) {
+      renderVectorKdpBackCover(doc, LW, LH, input, sanitize);
+    }
+  }
 
   if (unsupported.size > 0) {
     warnings.push(`Caracteres fora do alfabeto suportado pelas fontes do PDF foram substituídos por "?": ${[...unsupported].slice(0, 12).join(' ')}`);

@@ -203,9 +203,9 @@ export async function getTop50BestsellersForSegment(
   let matchedCatalog: SegmentTop50Collection | undefined;
   if (/infantil|crian|kids|children|bebe|bebê|ilustrado|faixa etaria|historinha|fábula|fabula/i.test(norm)) {
     matchedCatalog = TOP_50_SEGMENTS_CATALOG['children'];
-  } else if (/suspense|thriller|misteri|crime|policial|investig|terror|horror|morte|assassin/i.test(norm)) {
+  } else if (/suspense|thriller|misteri|mistéri|crime|policial|investig|terror|horror|morte|assassin|obsess|psicológic|psicologic|segredo|mentira|vingan|testemunha|desaparec|ficção|ficcao|romance|fantasia|sombri/i.test(norm)) {
     matchedCatalog = TOP_50_SEGMENTS_CATALOG['thriller'];
-  } else if (/finan|dinheiro|invest|riqueza|rico|bolsa/i.test(norm)) {
+  } else if (/finan|dinheiro|invest|riqueza|rico|bolsa|lucro|patrimôni|patrimoni|dividend/i.test(norm)) {
     matchedCatalog = TOP_50_SEGMENTS_CATALOG['finance'];
   } else {
     matchedCatalog = TOP_50_SEGMENTS_CATALOG['self-help'];

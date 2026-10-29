@@ -230,21 +230,157 @@ export class ManuscriptIntegrityEngine {
   }
 
   /**
-   * 3. Padronização tipográfica de diálogos
-   * Converte hífens soltos ("- ") no início de falas para travessão clássico ("— ")
+   * 3. Limpeza Lexical, Ortográfica e Remoção de Palavras sem Nexo / Símbolos Perdidos ("&&", "'&")
+   * Corrige portmanteaus gerados por IA, espanholismos, palavras coladas, letras duplicadas no início
+   * de palavras e operadores lógicos/artefatos de encoding perdidos no meio do manuscrito.
+   */
+  public static cleanLexicalAndOrthographicArtifacts(text: string): string {
+    if (!text) return '';
+    let result = text;
+
+    // 1. Remover sequências de símbolos corrompidos como "'&   '&   '&", "&&", "&amp;"
+    result = result
+      .replace(/['’ʼ]?&\s+['’ʼ]?&\s+['’ʼ]?&/g, '')
+      .replace(/['’ʼ]&/g, '')
+      .replace(/&amp;/gi, 'e')
+      // Se "&&" estiver entre palavras, substitui por " e "; se estiver isolado ou repetido, remove
+      .replace(/(?<=[a-zA-ZáéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ])\s*&&+\s*(?=[a-zA-ZáéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ])/g, ' e ')
+      .replace(/&&+/g, '')
+      // Remove ornamentos Unicode fora do WinAnsi que viram lixo no jsPDF
+      .replace(/[✦✧❖❧☙★☆✪✫✬✭✮✯❂❁❀✿✾✽✼✻✺✹✸✷✶✵✴✳✲✱✰]/g, '');
+
+    // 2. Remover marcações Markdown residuais dentro da prosa (**texto**, __texto__, ###)
+    result = result
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/^[ \t]*#{1,6}\s+/gm, '');
+
+    // 3. Corrigir dupla letra inicial maiúscula+minúscula idêntica gerada por glitch de tokenização
+    // Ex: "Aavance" -> "Avance", "Eestava" -> "Estava", "Oolhou" -> "Olhou", "Ssilêncio" -> "Silêncio"
+    result = result.replace(/\b([A-ZÁÉÍÓÚÂÊÔÃÕÇ])([a-záéíóúâêôãõç])([a-záéíóúâêôãõç]{2,})\b/g, (match, first, second, rest) => {
+      if (first.toLowerCase() === second.toLowerCase()) {
+        const lowerFull = match.toLowerCase();
+        // Exceções legítimas raras
+        if (lowerFull === 'aarão' || lowerFull === 'aaron') return match;
+        return `${first}${rest}`;
+      }
+      return match;
+    });
+
+    // 4. Dicionário de correção de palavras sem nexo (portmanteaus de IA), palavras coladas e espanholismos
+    const lexicalReplacements: Array<[RegExp, string]> = [
+      // Portmanteaus e alucinações lexicais detectadas em auditoria de PDF
+      [/\bverde-oluma\b/gi, 'verde-oliva'],
+      [/\besura\b/g, 'escura'],
+      [/\bEsura\b/g, 'Escura'],
+      [/\besuras\b/g, 'escuras'],
+      [/\besuro\b/g, 'escuro'],
+      [/\besuros\b/g, 'escuros'],
+      [/\bsomcura\b/g, 'sombria'],
+      [/\bSomcura\b/g, 'Sombria'],
+      [/\bsomcuras\b/g, 'sombrias'],
+      [/\bsomcuro\b/g, 'sombrio'],
+      [/\bsomcuros\b/g, 'sombrios'],
+      [/\brecantar\b/g, 'recitar'],
+      [/\bRecantar\b/g, 'Recitar'],
+      [/\brecantava\b/g, 'recitava'],
+      [/\brecantou\b/g, 'recitou'],
+      [/\brecantando\b/g, 'recitando'],
+
+      // Espanholismos acidentais de LLMs em português
+      [/\bavanzavam\b/g, 'avançavam'],
+      [/\bAvanzavam\b/g, 'Avançavam'],
+      [/\bavanzou\b/g, 'avançou'],
+      [/\bAvanzou\b/g, 'Avançou'],
+      [/\bavanzar\b/g, 'avançar'],
+      [/\bavanzando\b/g, 'avançando'],
+      [/\balcanzavam\b/g, 'alcançavam'],
+      [/\balcanzou\b/g, 'alcançou'],
+      [/\balcanzar\b/g, 'alcançar'],
+      [/\bcomenzou\b/g, 'começou'],
+      [/\bcomenzavam\b/g, 'começavam'],
+      [/\bcomenzar\b/g, 'começar'],
+      [/\besperanza\b/g, 'esperança'],
+      [/\bvinganza\b/g, 'vingança'],
+      [/\blembranza\b/g, 'lembrança'],
+      [/\bconfianza\b/g, 'confiança'],
+
+      // Palavras coladas (artigos/preposições + substantivos)
+      [/\baspalmas\b/g, 'as palmas'],
+      [/\bAspalmas\b/g, 'As palmas'],
+      [/\basmãos\b/g, 'as mãos'],
+      [/\bAsmãos\b/g, 'As mãos'],
+      [/\bosolhos\b/g, 'os olhos'],
+      [/\bOsolhos\b/g, 'Os olhos'],
+      [/\bassombras\b/g, 'as sombras'],
+      [/\bAssombras\b/g, 'As sombras'],
+      [/\basvozes\b/g, 'as vozes'],
+      [/\basportas\b/g, 'as portas'],
+      [/\baspedras\b/g, 'as pedras'],
+      [/\basparedes\b/g, 'as paredes'],
+      [/\baslágrimas\b/g, 'as lágrimas'],
+      [/\baspalavras\b/g, 'as palavras'],
+      [/\bospassos\b/g, 'os passos'],
+      [/\bosdedos\b/g, 'os dedos'],
+      [/\boslábios\b/g, 'os lábios'],
+      [/\bosombros\b/g, 'os ombros'],
+      [/\bnasombra\b/g, 'na sombra'],
+      [/\bnassombras\b/g, 'nas sombras'],
+      [/\bnoescuro\b/g, 'no escuro'],
+      [/\bnosilêncio\b/g, 'no silêncio'],
+      [/\bdeum\b/g, 'de um'],
+      [/\bdeuma\b/g, 'de uma'],
+      [/\bparaum\b/g, 'para um'],
+      [/\bparauma\b/g, 'para uma'],
+
+      // Concordância nominal recorrente
+      [/\bvestindo o túnica\b/gi, 'vestindo a túnica'],
+      [/\bo túnica\b/g, 'a túnica'],
+      [/\bO túnica\b/g, 'A túnica'],
+      [/\bbainha preso\b/gi, 'bainha presa'],
+      [/\breconstruiremos o império juntas\b/gi, 'reconstruiremos o império juntos'],
+    ];
+
+    for (const [pattern, replacement] of lexicalReplacements) {
+      result = result.replace(pattern, replacement);
+    }
+
+    // 5. Limpeza de espaços múltiplos na mesma linha (preservando quebras de linha)
+    result = result.replace(/[ \t]{2,}/g, ' ');
+
+    return result;
+  }
+
+  /**
+   * 4. Padronização tipográfica de diálogos
+   * Converte hífens soltos ("- ") ou aspas de diálogo no início de falas para travessão clássico ("— ")
    */
   public static standardizeDialogueTypography(text: string): string {
     if (!text) return '';
     let result = text;
 
     // Linhas iniciadas por hífen ou meia-risca seguida de espaço e letra: "- Olá" -> "— Olá"
-    result = result.replace(/^[-–][ \t]+(?=[\p{L}"“¿¡(\[])/gmu, '— ');
+    result = result.replace(/^[ \t]*[-–][ \t]+(?=[\p{L}"“¿¡(\[])/gmu, '— ');
 
     // Travessão colado sem espaço: "—Olá" -> "— Olá"
-    result = result.replace(/^—(?=[^\s—])/gmu, '— ');
+    result = result.replace(/^[ \t]*—(?=[^\s—])/gmu, '— ');
 
     // Hífen solto após quebra de parágrafo dentro de blocos de diálogo
-    result = result.replace(/(?<=\n)[-–][ \t]+(?=[\p{L}"“¿¡(\[])/gu, '— ');
+    result = result.replace(/(?<=\n)[ \t]*[-–][ \t]+(?=[\p{L}"“¿¡(\[])/gu, '— ');
+
+    // Diálogos em estilo inglês no início do parágrafo:
+    // Ex: "Não podemos ficar aqui", murmurou Kael. -> — Não podemos ficar aqui — murmurou Kael.
+    result = result.replace(
+      /^[ \t]*["“]([^"”\n]{3,220}?)["”],?\s+(disse|murmurou|sussurrou|gritou|perguntou|respondeu|exclamou|ordenou|retrucou|continuou|acrescentou|pediu|implorou|chamou|bradou|observou|comentou)\b/gmu,
+      '— $1 — $2'
+    );
+
+    // Diálogos sem travessão inicial mas com verbo dicendi explícito após vírgula em frase curta de fala:
+    // Ex: "Avance, murmurou ele, a voz rouca." -> "— Avance — murmurou ele, a voz rouca."
+    result = result.replace(
+      /^[ \t]*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n"—]{2,80}?),\s+(murmurou|sussurrou|gritou|retrucou|implorou|bradou)\s+(ele|ela|Kael|Lyra|Vane|Thorne|[A-Z][a-záéíóúâêôãõç]+)\b/gmu,
+      '— $1 — $2 $3'
+    );
 
     return result;
   }
@@ -377,14 +513,17 @@ export class ManuscriptIntegrityEngine {
     // 1. Limpeza LaTeX
     let processed = this.cleanLaTeXResiduals(text);
 
-    // 2. Remoção de marcadores de fim de bloco
+    // 2. Limpeza lexical, ortográfica e remoção de "&&" / palavras sem nexo
+    processed = this.cleanLexicalAndOrthographicArtifacts(processed);
+
+    // 3. Remoção de marcadores de fim de bloco
     const { cleanText: withoutMarkers, removedMarkers } = this.removeChapterBlockMarkers(processed);
     processed = withoutMarkers;
 
-    // 3. Padronização de diálogos
+    // 4. Padronização de diálogos
     processed = this.standardizeDialogueTypography(processed);
 
-    // 4. Verificação e reparo de truncamento
+    // 5. Verificação e reparo de truncamento
     const truncationCheck = this.checkChapterTruncation(processed);
     if (truncationCheck.isTruncated) {
       processed = this.repairTruncatedSentence(processed);

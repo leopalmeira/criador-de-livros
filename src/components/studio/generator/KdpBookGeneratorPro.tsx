@@ -73,6 +73,11 @@ import {
   type TitleSuggestion
 } from '../../../services/kdp-title-suggestion-engine';
 import {
+  KdpWorkflowGatekeeper,
+  KDP_WORKFLOW_STEPS,
+  type WorkflowStateSnapshot
+} from '../../../services/kdp-workflow-gatekeeper';
+import {
   buildCoverArtPrompt,
   getCoverTypographyTheme,
   type CoverTitleLayout,
@@ -529,8 +534,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [temaSelecionado, setTemaSelecionado] = useState('');
   const [subtemaSelecionado, setSubtemaSelecionado] = useState('');
 
-  // Wizard Editorial — Stepper de Progressão
+  // Wizard Editorial — Stepper de Progressão Sequencial Rigoroso (1 a 10)
   const [wizardStep, setWizardStep] = useState<number>(1);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [faixaEtaria, setFaixaEtaria] = useState<AgeBandId | ''>('');
   const [uniqueAngle, setUniqueAngle] = useState('');
   const [bookPromise, setBookPromise] = useState('');
@@ -2538,10 +2544,6 @@ ${ganchoImediato}`;
     const cropH = Math.floor(srcH * 0.92);
     ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
 
-    // ZERO BLUR ARTIFICIAL ATRÁS DO TÍTULO:
-    // A arte de fundo permanece 100% nítida e natural, sem faixas escuras borradas.
-    // A legibilidade é garantida por contorno tipográfico (strokeText) e sombra projetada (shadowBlur).
-
     // 1. OBTÉM PALETA E CONFIGURAÇÃO TIPOGRÁFICA ARTÍSTICA DA OBRA
     const isObraInfantil = bookType === 'children-picture-book' || /infantil|crian|kids|3-5|6-8/i.test(`${obraGenero} ${obraPremissa} ${faixaEtaria}`);
     const configTipo = getCoverTypographyTheme(
@@ -2550,6 +2552,74 @@ ${ganchoImediato}`;
       isObraInfantil ? 'playful-kids' : 'auto',
       { isKids: isObraInfantil, bookType, ageBand: faixaEtaria }
     );
+
+    // 1.1 VINHETA CINEMATOGRÁFICA SUTIL SUPERIOR E INFERIOR (ALTO CONTRASTE TIPOGRÁFICO)
+    const topVignette = ctx.createLinearGradient(0, 0, 0, 960);
+    topVignette.addColorStop(0, 'rgba(6, 9, 18, 0.72)');
+    topVignette.addColorStop(0.55, 'rgba(6, 9, 18, 0.28)');
+    topVignette.addColorStop(1, 'rgba(6, 9, 18, 0.0)');
+    ctx.fillStyle = topVignette;
+    ctx.fillRect(0, 0, canvas.width, 960);
+
+    const bottomVignette = ctx.createLinearGradient(0, canvas.height - 760, 0, canvas.height);
+    bottomVignette.addColorStop(0, 'rgba(6, 9, 18, 0.0)');
+    bottomVignette.addColorStop(0.45, 'rgba(6, 9, 18, 0.42)');
+    bottomVignette.addColorStop(1, 'rgba(6, 9, 18, 0.84)');
+    ctx.fillStyle = bottomVignette;
+    ctx.fillRect(0, canvas.height - 760, canvas.width, 760);
+
+    // 1.2 MOLDURA EDITORIAL DUPLA DE LUXO DENTRO DA ZONA SEGURA KDP G201113520 (0.25" = ~68px)
+    ctx.save();
+    const frameOuter = 68;
+    const frameInner = 84;
+    const frameColor = configTipo.titleGradient[0] || '#FDE68A';
+    ctx.strokeStyle = frameColor;
+    ctx.globalAlpha = 0.52;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(frameOuter, frameOuter, canvas.width - frameOuter * 2, canvas.height - frameOuter * 2);
+    ctx.globalAlpha = 0.28;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(frameInner, frameInner, canvas.width - frameInner * 2, canvas.height - frameInner * 2);
+
+    // Cantoneiras clássicas nos 4 cantos
+    ctx.globalAlpha = 0.72;
+    ctx.lineWidth = 3.5;
+    const cLen = 40;
+    const corners = [
+      [frameOuter, frameOuter, 1, 1],
+      [canvas.width - frameOuter, frameOuter, -1, 1],
+      [frameOuter, canvas.height - frameOuter, 1, -1],
+      [canvas.width - frameOuter, canvas.height - frameOuter, -1, -1]
+    ];
+    for (const [cx, cy, dx, dy] of corners) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + dy * cLen);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx + dx * cLen, cy);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 1.3 SELO EDITORIAL DE CATEGORIA NO TOPO
+    if (obraGenero && obraGenero.trim()) {
+      ctx.save();
+      ctx.font = `700 24px ${configTipo.fontFamilyAuthor}`;
+      ctx.fillStyle = frameColor;
+      ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = 8;
+      const sealLabel = sanitizarOrtografiaEditorialCapa(obraGenero.trim()).toUpperCase();
+      const spacedSeal = sealLabel.length <= 28 ? sealLabel.split('').join(' ') : sealLabel;
+      ctx.fillText(spacedSeal, canvas.width / 2, 148);
+      ctx.strokeStyle = frameColor;
+      ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2 - 170, 168);
+      ctx.lineTo(canvas.width / 2 + 170, 168);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // Dimensionamento harmônico do título (ou personalizado pelo autor)
     let fontSizeTit = customTituloConfig?.fontSize || 116;
@@ -2592,6 +2662,30 @@ ${ganchoImediato}`;
       ctx.fillText(l, xTitulo, yTit);
       yTit += lineHTit;
     });
+
+    // Ornamento losango de luxo abaixo do título
+    if (!tituloAlinhadoEsquerda) {
+      ctx.save();
+      const ornY = yTit - Math.round(lineHTit * 0.48);
+      ctx.strokeStyle = frameColor;
+      ctx.fillStyle = frameColor;
+      ctx.globalAlpha = 0.78;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2 - 210, ornY);
+      ctx.lineTo(canvas.width / 2 - 26, ornY);
+      ctx.moveTo(canvas.width / 2 + 26, ornY);
+      ctx.lineTo(canvas.width / 2 + 210, ornY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, ornY - 11);
+      ctx.lineTo(canvas.width / 2 + 11, ornY);
+      ctx.lineTo(canvas.width / 2, ornY + 11);
+      ctx.lineTo(canvas.width / 2 - 11, ornY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
 
     // 2. NOME DO AUTOR NA PARTE DE BAIXO DO LIVRO (RODAPÉ)
     const yAutor = canvas.height - 140; // 2260px
@@ -4037,9 +4131,16 @@ Total de Capítulos: ${livro.capitulos.length}
           titulo: livro.titulo,
           subtitulo: livro.subtitulo,
           autor: livro.autor,
+          genero: livro.genero || genero,
+          idioma: livro.idioma || idioma,
+          sinopse: contracapaTexto?.synopsisText || bookCommercialDescription || topico,
+          ganchoContracapa: contracapaTexto?.hookHeadline,
+          beneficiosContracapa: contracapaTexto?.readerBenefits,
           capitulos: livro.capitulos
         },
         capaDataUrl: capaFinal,
+        contracapaDataUrl: contracapaFinal,
+        incluirContracapa: true,
         bookType,
         formato,
         optSumario,
@@ -4227,10 +4328,16 @@ Total de Capítulos: ${livro.capitulos.length}
           titulo: livro.titulo,
           subtitulo: livro.subtitulo,
           autor: livro.autor,
+          genero: livro.genero || genero,
           idioma: livro.idioma || idioma,
+          sinopse: contracapaTexto?.synopsisText || bookCommercialDescription || topico,
+          ganchoContracapa: contracapaTexto?.hookHeadline,
+          beneficiosContracapa: contracapaTexto?.readerBenefits,
           capitulos: livro.capitulos
         },
         capaDataUrl: capaFinal,
+        contracapaDataUrl: contracapaFinal,
+        incluirContracapa: true,
         formato,
         optSumario,
         tamCapitulo,
@@ -4607,12 +4714,67 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
       setTemaSelecionado(childrenTheme?.label || 'Histórias infantis ilustradas');
       setSubtemaSelecionado(childrenTheme?.subthemes[0] || 'Aventuras com animais');
       setFaixaEtaria('6-8');
-      setActiveTab('preview');
     } else if (selectedType === 'planner' || selectedType === 'diary') {
       setActiveTab('planner');
-    } else {
-      setActiveTab('preview');
     }
+  };
+
+  // NAVEGAÇÃO SEQUENCIAL RIGOROSA (1 a 10) COM AUTO-PREENCHIMENTO E AUDITORIA DE GATEKEEPER
+  const handleAdvanceToStep = (targetStep: number) => {
+    if (targetStep < 1 || targetStep > 10) return;
+    
+    // Auto-preenche e valida cada etapa intermediária até o destino
+    let currentCompleted = [...completedSteps];
+    let stepToValidate = wizardStep;
+    
+    while (stepToValidate < targetStep) {
+      const snapshot: WorkflowStateSnapshot = {
+        wizardStep: stepToValidate,
+        completedSteps: currentCompleted,
+        temaSelecionado,
+        subtemaSelecionado,
+        faixaEtaria,
+        stanceTopic,
+        titulo,
+        subtitulo,
+        uniqueAngle,
+        bookPromise,
+        targetReader,
+        autor,
+        topico,
+        resourceNotes,
+        authorOfficialBio,
+        focusTags,
+        bookCommercialDescription,
+        capitulosCount: livro?.capitulos?.length || 0,
+        hasCover: !!capaFinal,
+        hasBackCover: !!contracapaFinal
+      };
+
+      const autofill = KdpWorkflowGatekeeper.autoFillStepRequirements(stepToValidate, snapshot);
+      if (autofill.temaSelecionado && !temaSelecionado) setTemaSelecionado(autofill.temaSelecionado);
+      if (autofill.subtemaSelecionado && !subtemaSelecionado) setSubtemaSelecionado(autofill.subtemaSelecionado);
+      if (autofill.stanceTopic && !stanceTopic) setStanceTopic(autofill.stanceTopic);
+      if (autofill.titulo && !titulo) setTitulo(autofill.titulo);
+      if (autofill.subtitulo && !subtitulo) setSubtitulo(autofill.subtitulo);
+      if (autofill.uniqueAngle && !uniqueAngle) setUniqueAngle(autofill.uniqueAngle);
+      if (autofill.bookPromise && !bookPromise) setBookPromise(autofill.bookPromise);
+      if (autofill.targetReader && !targetReader) setTargetReader(autofill.targetReader);
+      if (autofill.autor && !autor) setAutor(autofill.autor);
+      if (autofill.topico && !topico) setTopico(autofill.topico);
+      if (autofill.resourceNotes && !resourceNotes) setResourceNotes(autofill.resourceNotes);
+      if (autofill.authorOfficialBio && !authorOfficialBio) setAuthorOfficialBio(autofill.authorOfficialBio);
+      if (autofill.bookCommercialDescription && !bookCommercialDescription) setBookCommercialDescription(autofill.bookCommercialDescription);
+
+      if (!currentCompleted.includes(stepToValidate)) {
+        currentCompleted.push(stepToValidate);
+      }
+      stepToValidate++;
+    }
+
+    setCompletedSteps(currentCompleted);
+    setWizardStep(targetStep);
+    setActiveTab('wizard');
   };
 
   const selectEditorialTheme = (themeLabel: string) => {
@@ -4657,16 +4819,57 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
     setGenero(theme.label);
     if (theme.childrenBook) setFaixaEtaria('6-8');
 
+    // Sincroniza imediatamente o melhor segmento do Top 100 para o tema escolhido
+    // GARANTIA: Thriller psicológico receberá thrillers e mistérios, nunca livros de autoajuda!
+    const bestSegment = AmazonTop100Service.findBestSegmentForTheme(theme.label);
+    if (bestSegment) {
+      setSelectedSegmentId(bestSegment.id);
+      const pool = AmazonTop100Service.getActiveBookPool(bestSegment.id, excludedAsins, 10);
+      setActivePoolBooks(pool.activeBooks);
+
+      const mappedRefs: MarketReference[] = pool.activeBooks.map(b => ({
+        title: b.title,
+        subtitle: b.subtitle,
+        author: b.author,
+        asin: b.asin,
+        bsr: b.bsr,
+        rating: b.rating,
+        reviewsCount: b.reviewsCount,
+        priceUsd: b.priceUsd,
+        estimatedMonthlySales: b.estimatedMonthlySales,
+        estimatedMonthlyRevenueUsd: b.estimatedMonthlyRevenueUsd,
+        coverImage: b.coverImage,
+        amazonUrl: b.amazonUrl,
+        hookRationale: b.hookRationale,
+        rank: b.bsr,
+        rankType: 'BSR',
+        relevance: 100,
+        source: 'api/amazon/top100-segments',
+        collectedAt: Date.now()
+      }));
+      setMarketReferences(mappedRefs);
+    }
+
     // Gera imediatamente as sugestões de Título & Subtítulo para o segmento escolhido
     const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme(theme.label, firstSub, marketReferences);
     setSuggestedTitlesList(suggestions);
 
-    if (suggestions.length > 0 && (!titulo.trim() || titulo.startsWith('O Novo Código de') || titulo.startsWith('O Guia Definitivo de'))) {
+    if (suggestions.length > 0 && (!titulo.trim() || titulo.startsWith('O Novo Código de') || titulo.startsWith('O Guia Definitivo de') || titulo === 'O Efeito O')) {
       setTitulo(suggestions[0].title);
       setSubtitulo(suggestions[0].subtitle);
       setUniqueAngle(suggestions[0].uniqueAngle);
       setStanceTopic(suggestions[0].stance);
+    } else if (!stanceTopic.trim()) {
+      setStanceTopic(`Esta obra em ${theme.label} rejeita o óbvio e aprofunda os conflitos e reviravoltas essenciais para o leitor moderno.`);
     }
+
+    // Marca a Etapa 1 como concluída
+    if (!completedSteps.includes(1)) {
+      setCompletedSteps(prev => [...prev, 1]);
+    }
+
+    // Permanece na esteira ('wizard')
+    setActiveTab('wizard');
 
     // Dispara a consulta dos bestsellers bem avaliados daquele tema imediatamente
     const marketQuery = firstSub || theme.marketQuery || theme.label;
@@ -4997,14 +5200,13 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 { s: 10, name: 'Capa & Contracapa', sub: 'Prompts em Sintonia' }
               ].map((st, idx, arr) => {
                 const isActive = wizardStep === st.s;
-                const isDone = wizardStep > st.s;
+                const isDone = completedSteps.includes(st.s);
                 return (
                   <div key={st.s} style={{ display: 'flex', flexDirection: 'column' }}>
                     <button
                       type="button"
                       onClick={() => {
-                        setWizardStep(st.s);
-                        setActiveTab('wizard');
+                        handleAdvanceToStep(st.s);
                       }}
                       style={{
                         display: 'flex',
@@ -5217,7 +5419,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <button
                   type="button"
                   onClick={() => {
-                    if (wizardStep < 10) setWizardStep(wizardStep + 1);
+                    if (wizardStep < 10) handleAdvanceToStep(wizardStep + 1);
                   }}
                   disabled={wizardStep === 10}
                   style={{
@@ -5646,7 +5848,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
             {/* Navegação Step 1 → 2 */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10, marginBottom: 6 }}>
-              <button type="button" onClick={() => setWizardStep(2)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #0f172a, #1e293b)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+              <button type="button" onClick={() => handleAdvanceToStep(2)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #0f172a, #1e293b)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
                 {ui('Próximo: Análise', 'Next: Analysis')} <ChevronRight size={15} />
               </button>
             </div>
@@ -10184,8 +10386,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             </div>
                           )}
 
-                          {/* REFERÊNCIAS BESTSELLERS REAIS DA AMAZON COM BSR < 80.000 */}
-                          <div style={{
+                          {/* REFERÊNCIAS BESTSELLERS REAIS DA AMAZON COM BSR < 80.000 */}
+                          <div style={{
                             background: '#ffffff',
                             borderRadius: 10,
                             border: '1px solid #e2e8f0',

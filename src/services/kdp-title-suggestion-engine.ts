@@ -183,7 +183,21 @@ export class KdpTitleSuggestionEngine {
    */
   public static isFictionContext(theme: string = '', subtheme: string = '', text: string = ''): boolean {
     const combined = `${theme} ${subtheme} ${text}`.toLowerCase();
-    return /thriller|mistério|misterio|suspense|crime|policial|ficção|ficcao|romance|terror|horror|obsessão|obsessao|psicopata|assassin|morte|fantasia/i.test(combined);
+    return /thriller|mistério|misterio|suspense|crime|policial|ficção|ficcao|romance|terror|horror|obsessão|obsessao|psicopata|assassin|morte|fantasia|doméstico|domestico|noir|investigação|investigacao|segredo|mentira|vingança|vinganca/i.test(combined);
+  }
+
+  /**
+   * Verifica se um livro de referência pertence ao universo de não-ficção/autoajuda/finanças
+   * para evitar contaminação cruzada quando o autor escolhe Ficção/Thriller (e vice-versa).
+   */
+  public static isCompatibleReferenceBook(bookTitle: string, isTargetFiction: boolean): boolean {
+    const t = (bookTitle || '').toLowerCase();
+    const knownNonFiction = /hábitos|habitos|atômicos|atomicos|porquê|porque|efeito composto|essencialismo|hurt me|gigante interior|pai rico|psicologia financeira|milionári|milionari|foco|procrastina|ansiedade|metabolismo|negócio|negocio|investidor|dividendo|produtividade|7 hábitos|poder do hábito|mindset|arte da guerra|como fazer amigos|rápido e devagar|trabalho focado/i.test(t);
+    const knownFiction = /paciente silenciosa|empregada|garota exemplar|verity|mulher na janela|homem de giz|não conte a ninguém|nao conte a ninguem|jantar secreto|lista de convidados|sete maridos|biblioteca da meia-noite|é assim que acaba|hipótese do amor/i.test(t);
+
+    if (isTargetFiction && knownNonFiction) return false;
+    if (!isTargetFiction && knownFiction) return false;
+    return true;
   }
 
   /**
@@ -234,25 +248,31 @@ export class KdpTitleSuggestionEngine {
       };
     });
 
-    // Se houver livros de referência fornecidos, inclui títulos inspirados de forma proporcional
-    if (referenceBooks.length > 0) {
-      referenceBooks.slice(0, 2).forEach((book, idx) => {
+    // Filtra apenas livros de referência compatíveis com o gênero atual
+    const compatibleRefs = referenceBooks.filter(b => b?.title && this.isCompatibleReferenceBook(b.title, isFiction));
+
+    // Se houver livros de referência compatíveis fornecidos, inclui títulos inspirados de forma proporcional
+    if (compatibleRefs.length > 0) {
+      compatibleRefs.slice(0, 2).forEach((book, idx) => {
         const inspired = this.generateInspiredFromBook(book, theme);
-        suggestions.splice(idx + 1, 0, {
-          id: `inspired_${idx}_${Date.now()}`,
-          title: inspired.title,
-          subtitle: inspired.subtitle,
-          theme,
-          category: theme,
-          kind,
-          inspiredByBook: book.title,
-          rationale: `Inspirado nos ganchos de "${book.title}" (BSR #${book.bsr || 12000}) adaptado para originalidade total.`,
-          hookType: 'curiosidade',
-          targetBsrEstimate: book.bsr || 4500,
-          uniqueAngle: inspired.uniqueAngle,
-          stance: inspired.stance,
-          keywords: [book.title, theme, 'livro de referencia']
-        });
+        // Evita duplicar títulos já presentes na lista
+        if (!suggestions.some(s => s.title.toLowerCase() === inspired.title.toLowerCase())) {
+          suggestions.splice(idx + 1, 0, {
+            id: `inspired_${idx}_${Date.now()}`,
+            title: inspired.title,
+            subtitle: inspired.subtitle,
+            theme,
+            category: theme,
+            kind,
+            inspiredByBook: book.title,
+            rationale: `Inspirado nos ganchos de "${book.title}" (BSR #${book.bsr || 12000}) adaptado para originalidade total.`,
+            hookType: 'curiosidade',
+            targetBsrEstimate: book.bsr || 4500,
+            uniqueAngle: inspired.uniqueAngle,
+            stance: inspired.stance,
+            keywords: [book.title, theme, 'livro de referencia']
+          });
+        }
       });
     }
 

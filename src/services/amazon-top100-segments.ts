@@ -434,6 +434,47 @@ export class AmazonTop100Service {
   }
 
   /**
+   * Identifica o segmento do Top 100 mais compatível com um Tema ou Gênero escolhido na Etapa 1.
+   */
+  public static findBestSegmentForTheme(themeOrGenre: string = ''): AmazonTop100Segment {
+    const q = (themeOrGenre || '').toLowerCase();
+    if (/thriller|mistério|misterio|suspense|crime|policial|obsessão|obsessao|terror|horror|investigação|investigacao/i.test(q)) {
+      return this.getSegment('thriller-psicologico-reviravolta') || AMAZON_TOP_100_SEGMENTS[3];
+    }
+    if (/fantasia|romantasy|magia|dragão|dragao|épico|epico/i.test(q)) {
+      return this.getSegment('fantasia-epica-romantasy') || AMAZON_TOP_100_SEGMENTS[6];
+    }
+    if (/romance|amor|paixão|paixao|enemies|casal/i.test(q)) {
+      return this.getSegment('romance-dark-enemies-to-lovers') || AMAZON_TOP_100_SEGMENTS[4];
+    }
+    if (/finança|financa|invest|dinheiro|renda|patrimônio|patrimonio|economia/i.test(q)) {
+      return this.getSegment('financas-renda-passiva') || AMAZON_TOP_100_SEGMENTS[1];
+    }
+    if (/negócio|negocio|empreendedor|vendas|marketing|liderança|lideranca|copywriting|empresa/i.test(q)) {
+      return this.getSegment('empreendedorismo-vendas-copywriting') || AMAZON_TOP_100_SEGMENTS[7];
+    }
+    if (/inteligência artificial|ia|tecnologia|programação|programacao|prompt|código|codigo/i.test(q)) {
+      return this.getSegment('inteligencia-artificial-produtividade') || AMAZON_TOP_100_SEGMENTS[2];
+    }
+    if (/ansiedade|saúde mental|saude mental|estoicismo|tdah|emoção|emocao|psicologia|mente/i.test(q)) {
+      return this.getSegment('saude-mental-ansiedade-estoicismo') || AMAZON_TOP_100_SEGMENTS[5];
+    }
+    if (/saúde|saude|nutrição|nutricao|longevidade|sono|corpo|dieta|bem-estar/i.test(q)) {
+      return this.getSegment('saude-longevidade-biohacking') || AMAZON_TOP_100_SEGMENTS[9];
+    }
+    if (/comunicação|comunicacao|oratória|oratoria|persuasão|persuasao|carisma/i.test(q)) {
+      return this.getSegment('comunicacao-oratoria-relacionamento') || AMAZON_TOP_100_SEGMENTS[8];
+    }
+    if (/infantil|criança|crianca|fábula|fabula/i.test(q)) {
+      return this.getSegment('infantil-historias-ilustradas') || AMAZON_TOP_100_SEGMENTS[14];
+    }
+    if (/colorir|atividade|puzzle|passatempo/i.test(q)) {
+      return this.getSegment('livros-de-atividades-colorir-adulto') || AMAZON_TOP_100_SEGMENTS[19];
+    }
+    return this.getSegment('habitos-disciplina') || AMAZON_TOP_100_SEGMENTS[0];
+  }
+
+  /**
    * Obtém detalhes de um segmento específico pelo ID ou Rank.
    */
   public static getSegment(idOrRank: string | number): AmazonTop100Segment | undefined {

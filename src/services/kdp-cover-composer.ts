@@ -95,81 +95,190 @@ export async function comporCapaComTipografia(
 
         ctx.drawImage(img, dx, dy, dw, dh);
 
-        // ZERO BLUR ARTIFICIAL: A arte é preservada 100% nítida e natural.
-        // Contraste tipográfico obtido estritamente via sombras projetadas e contorno (strokeText).
+        // 2. Vinheta Cinematográfica Sutil (Topo e Base) para Contraste de Leitura KDP
+        // Preserva o centro da arte 100% nítido e cria profundidade nas zonas tipográficas
+        const topGrad = ctx.createLinearGradient(0, 0, 0, height * 0.34);
+        topGrad.addColorStop(0, 'rgba(6, 10, 22, 0.82)');
+        topGrad.addColorStop(0.55, 'rgba(6, 10, 22, 0.38)');
+        topGrad.addColorStop(1, 'rgba(6, 10, 22, 0)');
+        ctx.fillStyle = topGrad;
+        ctx.fillRect(0, 0, width, height * 0.34);
 
-        // Título do Livro (LIGEIRAMENTE UM POUCO ACIMA DO MEIO DA CAPA)
-        const cleanTitle = (options.titulo || 'LIVRO ILUSTRADO').toUpperCase();
-        const maxTitleWidth = width * 0.86;
+        const botGrad = ctx.createLinearGradient(0, height * 0.62, 0, height);
+        botGrad.addColorStop(0, 'rgba(6, 10, 22, 0)');
+        botGrad.addColorStop(0.45, 'rgba(6, 10, 22, 0.55)');
+        botGrad.addColorStop(1, 'rgba(6, 10, 22, 0.90)');
+        ctx.fillStyle = botGrad;
+        ctx.fillRect(0, height * 0.62, width, height * 0.38);
 
-        // Ajuste dinâmico de tamanho de fonte conforme comprimento do título
-        let titleFontSize = 100;
-        if (cleanTitle.length > 50) titleFontSize = 72;
-        else if (cleanTitle.length > 35) titleFontSize = 82;
-        else if (cleanTitle.length > 20) titleFontSize = 90;
+        // 3. Moldura Dupla Editorial dentro da Margem de Segurança KDP G201113520 (0.25" da sangria)
+        const frameOuter = 74;
+        const frameInner = 90;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(212, 175, 55, 0.72)'; // Ouro editorial
+        ctx.lineWidth = 3.5;
+        ctx.strokeRect(frameOuter, frameOuter, width - frameOuter * 2, height - frameOuter * 2);
 
-        ctx.font = `900 ${titleFontSize}px "Georgia", "Cinzel", "Times New Roman", serif`;
-        ctx.letterSpacing = '2px';
-        ctx.fillStyle = options.corTitulo || '#ffffff';
+        ctx.strokeStyle = 'rgba(254, 240, 138, 0.32)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(frameInner, frameInner, width - frameInner * 2, height - frameInner * 2);
+
+        // Cantoneiras clássicas nos 4 cantos da moldura interna
+        const cornerLen = 36;
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.9)';
+        ctx.lineWidth = 5;
+        const corners: Array<[number, number, number, number]> = [
+          [frameInner, frameInner, 1, 1],
+          [width - frameInner, frameInner, -1, 1],
+          [frameInner, height - frameInner, 1, -1],
+          [width - frameInner, height - frameInner, -1, -1],
+        ];
+        corners.forEach(([cx, cy, sx, sy]) => {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy + sy * cornerLen);
+          ctx.lineTo(cx, cy);
+          ctx.lineTo(cx + sx * cornerLen, cy);
+          ctx.stroke();
+        });
+        ctx.restore();
+
+        // 4. Selo Editorial no Topo (Safe Zone KDP)
+        ctx.textAlign = 'center';
+        const seloTexto = (options.selo || 'EDIÇÃO ESPECIAL AMAZON KDP').toUpperCase();
+        ctx.save();
+        ctx.font = '700 24px "Trebuchet MS", "Helvetica Neue", sans-serif';
+        ctx.letterSpacing = '6px';
+        ctx.fillStyle = '#fde68a';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-        ctx.shadowBlur = 28;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 6;
+        ctx.shadowBlur = 12;
+        ctx.fillText(seloTexto, width / 2, 162);
+
+        // Linha dourada sob o selo
+        ctx.strokeStyle = 'rgba(212, 175, 55, 0.65)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(width / 2 - 180, 184);
+        ctx.lineTo(width / 2 + 180, 184);
+        ctx.stroke();
+        ctx.restore();
+
+        // 5. Título Principal com Acabamento Rico (Relevo & Gradiente Marfim/Ouro)
+        const cleanTitle = (options.titulo || 'OBRA EDITORIAL KDP').toUpperCase();
+        const maxTitleWidth = width - frameInner * 2 - 90;
+
+        let titleFontSize = 108;
+        if (cleanTitle.length > 50) titleFontSize = 74;
+        else if (cleanTitle.length > 35) titleFontSize = 84;
+        else if (cleanTitle.length > 22) titleFontSize = 94;
+
+        ctx.font = `900 ${titleFontSize}px "Cinzel", "Georgia", "Times New Roman", serif`;
+        ctx.letterSpacing = '3px';
+        ctx.textAlign = 'center';
 
         const titleLines = wrapCanvasText(ctx, cleanTitle, maxTitleWidth);
-        const titleLineHeight = titleFontSize * 1.18;
+        const titleLineHeight = titleFontSize * 1.16;
         const totalTitleHeight = titleLines.length * titleLineHeight;
 
-        // Centro alvo: Y ≈ 1040px (ligeiramente um pouco acima do meio de 2400)
-        let startY = Math.round(1040 - (totalTitleHeight / 2) + (titleFontSize * 0.35));
+        // Posicionamento nobre conforme opção ou terço superior/central
+        const targetCenterY = options.posicaoTitulo === 'topo' ? 520 : options.posicaoTitulo === 'inferior' ? 1480 : 940;
+        let startY = Math.round(targetCenterY - (totalTitleHeight / 2) + (titleFontSize * 0.35));
+
+        const titleGrad = ctx.createLinearGradient(0, startY - titleFontSize, 0, startY + totalTitleHeight);
+        if (options.corTitulo) {
+          titleGrad.addColorStop(0, '#ffffff');
+          titleGrad.addColorStop(0.5, options.corTitulo);
+          titleGrad.addColorStop(1, '#d97706');
+        } else {
+          titleGrad.addColorStop(0, '#ffffff');
+          titleGrad.addColorStop(0.55, '#fef3c7');
+          titleGrad.addColorStop(1, '#f59e0b');
+        }
 
         titleLines.forEach((line) => {
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-          ctx.lineWidth = 6;
+          ctx.save();
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+          ctx.shadowBlur = 32;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 8;
+          ctx.strokeStyle = 'rgba(4, 7, 17, 0.92)';
+          ctx.lineWidth = 10;
           ctx.strokeText(line, width / 2, startY);
+
+          ctx.fillStyle = titleGrad;
           ctx.fillText(line, width / 2, startY);
+          ctx.restore();
           startY += titleLineHeight;
         });
 
-        // 7. Subtítulo Comercial (JÁ PERTO DA PARTE DE BAIXO DA CAPA, COM ESPAÇO PARA O AUTOR)
+        // 6. Ornamento Divisor Central (Losango Dourado + Linhas)
+        const ornY = startY - titleLineHeight * 0.42;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)';
+        ctx.fillStyle = '#fbbf24';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(width / 2 - 220, ornY);
+        ctx.lineTo(width / 2 - 26, ornY);
+        ctx.moveTo(width / 2 + 26, ornY);
+        ctx.lineTo(width / 2 + 220, ornY);
+        ctx.stroke();
+
+        // Losango central
+        ctx.beginPath();
+        ctx.moveTo(width / 2, ornY - 11);
+        ctx.lineTo(width / 2 + 11, ornY);
+        ctx.lineTo(width / 2, ornY + 11);
+        ctx.lineTo(width / 2 - 11, ornY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // 7. Subtítulo Comercial (Elegante e Harmônico)
         if (options.subtitulo) {
-          const subFontSize = Math.max(34, Math.min(44, Math.round(titleFontSize * 0.44)));
-          ctx.font = `italic 600 ${subFontSize}px "Georgia", serif`;
+          const subFontSize = Math.max(34, Math.min(44, Math.round(titleFontSize * 0.42)));
+          ctx.save();
+          ctx.font = `italic 600 ${subFontSize}px "Georgia", "Times New Roman", serif`;
           ctx.letterSpacing = '1px';
           ctx.fillStyle = '#f8fafc';
           ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-          ctx.shadowBlur = 18;
+          ctx.shadowBlur = 20;
           ctx.shadowOffsetY = 4;
 
-          const subLines = wrapCanvasText(ctx, options.subtitulo, width * 0.84);
-          const subLineHeight = subFontSize * 1.25;
-          const totalSubHeight = subLines.length * subLineHeight;
-
-          // Ancorado na parte de baixo da capa, terminando acima do autor (autor em height - 160)
-          const yBaseSub = height - 280;
-          let subY = Math.max(height * 0.74, yBaseSub - totalSubHeight + subFontSize);
+          const subLines = wrapCanvasText(ctx, options.subtitulo, maxTitleWidth - 40);
+          const subLineHeight = subFontSize * 1.28;
+          let subY = Math.max(ornY + 68, height - 380 - (subLines.length - 1) * subLineHeight);
 
           subLines.forEach((sLine) => {
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.lineWidth = 5;
             ctx.strokeText(sLine, width / 2, subY);
             ctx.fillText(sLine, width / 2, subY);
             subY += subLineHeight;
           });
+          ctx.restore();
         }
 
-        // Nome do Autor no Rodapé (Apenas nome do autor, com contorno nítido)
+        // 8. Pedestal do Autor no Rodapé (Respeitando a Margem de Segurança KDP G201113520)
         const autorText = (options.autor || 'AUTOR').toUpperCase();
-        ctx.font = '700 44px "Trebuchet MS", sans-serif';
-        ctx.letterSpacing = '8px';
+        ctx.save();
+        ctx.strokeStyle = 'rgba(212, 175, 55, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(width / 2 - 140, height - 232);
+        ctx.lineTo(width / 2 + 140, height - 232);
+        ctx.stroke();
+
+        ctx.font = '700 46px "Cinzel", "Trebuchet MS", sans-serif';
+        ctx.letterSpacing = '9px';
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-        ctx.shadowBlur = 20;
+        ctx.shadowBlur = 22;
         ctx.shadowOffsetY = 4;
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.90)';
-        ctx.lineWidth = 5;
-        ctx.strokeText(autorText, width / 2, height - 150);
-        ctx.fillText(autorText, width / 2, height - 150);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.92)';
+        ctx.lineWidth = 6;
+        ctx.strokeText(autorText, width / 2, height - 165);
+        ctx.fillText(autorText, width / 2, height - 165);
+        ctx.restore();
 
         // 9. Exporta em DataURL PNG
         const composedDataUrl = canvas.toDataURL('image/png', 0.95);
