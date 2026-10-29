@@ -276,6 +276,51 @@ export class KdpBookVerifier {
         }
       }
     });
+
+    // D. Símbolos ilegais ou resíduos de código (ex: &&, ||, $$)
+    if (/&&|\|\||\$\$/g.test(texto)) {
+      issues.push({
+        id: `gram-symbol-${idx}`,
+        chapterIndex: idx,
+        chapterTitle: cap.titulo,
+        type: 'gramatica',
+        typeLabel: 'Ortografia & Gramática',
+        severity: 'alta',
+        description: 'Resíduos de código ou caracteres especiais inadequados detectados (ex: "&&", "||", "$$").',
+        originalSnippet: (texto.match(/(\S+\s+)?(&&|\|\||\$\$)(\s+\S+)?/) || [''])[0],
+        suggestedFix: 'Remover caracteres especiais ou substituir por conjunção natural ("e").',
+        applied: false
+      });
+    }
+
+    // E. Vocabulário arcaico ou em desuso na sociedade moderna
+    const palavrasArcaicas = [
+      { r: /\boutrossim\b/gi, sub: 'além disso' },
+      { r: /\bquiçá\b/gi, sub: 'talvez' },
+      { r: /\bdessarte\b/gi, sub: 'dessa forma' },
+      { r: /\bconquanto\b/gi, sub: 'embora' },
+      { r: /\bdeveras\b/gi, sub: 'realmente' },
+      { r: /\bhodierno\b/gi, sub: 'atual' },
+      { r: /\balhures\b/gi, sub: 'em outro lugar' },
+      { r: /\bempecilho\b/gi, sub: 'obstáculo' }
+    ];
+    for (const arcaica of palavrasArcaicas) {
+      if (arcaica.r.test(texto)) {
+        issues.push({
+          id: `gram-archaic-${idx}-${arcaica.sub}`,
+          chapterIndex: idx,
+          chapterTitle: cap.titulo,
+          type: 'gramatica',
+          typeLabel: 'Ortografia & Literatura Moderna',
+          severity: 'baixa',
+          description: `Vocabulário arcaico ou pouco usual detectado. Recomenda-se literatura contemporânea e linguagem natural.`,
+          originalSnippet: (texto.match(arcaica.r) || [''])[0],
+          suggestedFix: `Substituir por "${arcaica.sub}" para leitura mais fluida e moderna.`,
+          applied: false
+        });
+        break;
+      }
+    }
   }
 
   // --- 3. VERIFICAÇÃO DE PARÁGRAFOS & RITMO ---
@@ -385,9 +430,36 @@ export class KdpBookVerifier {
     const antes = cap.texto;
 
     if (issue.type === 'gramatica') {
+      let t = cap.texto;
+      if (issue.id.includes('gram-symbol')) {
+        t = t.replace(/&&/g, ' e ').replace(/\|\|/g, ' ou ').replace(/\$\$/g, '').replace(/\s{2,}/g, ' ');
+      }
+      if (issue.id.includes('gram-archaic')) {
+        const arcaicas: Record<string, string> = {
+          'outrossim': 'além disso',
+          'quiçá': 'talvez',
+          'dessarte': 'dessa forma',
+          'conquanto': 'embora',
+          'deveras': 'realmente',
+          'hodierno': 'atual',
+          'alhures': 'em outro lugar',
+          'empecilho': 'obstáculo'
+        };
+        for (const [k, v] of Object.entries(arcaicas)) {
+          t = t.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
+        }
+      }
       // Usa as regras determinísticas completas de pontuação, diálogo, duplicatas e ortografia
-      const r = applyDeterministicFixes(cap.texto, issue.chapterIndex, { dialogueHyphen: true, portuguese: true });
+      const r = applyDeterministicFixes(t, issue.chapterIndex, { dialogueHyphen: true, portuguese: true });
       cap.texto = r.text;
+    } else if (issue.type === 'alucinacao') {
+      if (issue.id === 'aluc-final-open') {
+        let t = cap.texto.trim();
+        if (!/[.!?]["']?$/.test(t)) {
+          t += '.';
+        }
+        cap.texto = t;
+      }
     } else if (issue.type === 'diagramacao') {
       if (issue.id.includes('diag-no-breaks')) {
         // Quebrar em parágrafos a cada 3 sentenças

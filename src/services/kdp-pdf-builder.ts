@@ -222,31 +222,7 @@ function renderVectorKdpBackCover(
   doc.text('EDIÇÃO OFICIAL AMAZON KDP', padX, footerY + 0.18);
   doc.text(`Formato ${input.formato}" • Especificação G201113520`, padX, footerY + 0.32);
 
-  // 8. Área Oficial Reservada ao Código de Barras Amazon KDP (2.0" x 1.2" no canto inferior direito)
-  // Regra KDP G201113520: mínimo de 0.25" da lombada (direita da contracapa) e 0.25" da borda inferior de corte
-  const bcW = 2.0;
-  const bcH = 1.2;
-  const bcX = LW - 0.48 - bcW;
-  const bcY = LH - 0.48 - bcH;
-
-  doc.setFillColor(255, 255, 255);
-  doc.rect(bcX, bcY, bcW, bcH, 'F');
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.01);
-  doc.rect(bcX, bcY, bcW, bcH, 'S');
-
-  // Barras verticais ilustrativas de ISBN/EAN-13
-  doc.setFillColor(15, 23, 42);
-  for (let bx = bcX + 0.16; bx < bcX + bcW - 0.16; bx += 0.045) {
-    const bw = Math.round(bx * 100) % 3 === 0 ? 0.022 : 0.011;
-    doc.rect(bx, bcY + 0.14, bw, bcH - 0.46, 'F');
-  }
-
-  doc.setFont('helvetica', 'bold').setFontSize(6.5).setTextColor(51, 65, 85);
-  doc.text('ISBN / BARCODE AMAZON KDP (2.0" x 1.2")', bcX + bcW / 2, bcY + bcH - 0.18, { align: 'center' });
-  doc.setFont('helvetica', 'normal').setFontSize(5.8).setTextColor(100, 116, 139);
-  doc.text('Zona de Segurança Oficial G201113520', bcX + bcW / 2, bcY + bcH - 0.07, { align: 'center' });
-
+  // 8. Contracapa sem corte branco de código de barras (mantém a arte 100% contínua e limpa)
   doc.restoreGraphicsState();
 }
 

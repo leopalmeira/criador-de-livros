@@ -412,13 +412,13 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
     `2. CENTER PANEL — BOOK SPINE (6% width in the exact vertical center, defined by subtle vertical fold guides):`,
     `- Continuous dark-toned background texture connecting front and back covers.`,
     `- Vertical spine text reading "${titulo}" in matching title font and "${autor}" near the lower spine, respecting a 1.6mm safety margin from spine fold lines.`,
-    `3. LEFT PANEL — BACK COVER WITH SYNOPSIS READING & BARCODE ZONE (47% width on the left, in 100% harmony with Front Cover):`,
+    `3. LEFT PANEL — BACK COVER WITH SYNOPSIS READING (47% width on the left, in 100% harmony with Front Cover):`,
     `- Back Cover Visual Scenography: ${composicaoContracapa}`,
     `- Back Cover Upper Hook Headline (bold accent color at top of back cover): "${leituraContracapa.ganchoTopo}"`,
     `- Back Cover Brief Reading / Synopsis Block (centered in a clean, high-contrast typographic zone with generous 12.7mm outer safe margins, set in crisp readable editorial serif/sans-serif):`,
     `"${leituraContracapa.corpoSinopse.replace(/\n+/g, ' ')}"`,
     `- Back Cover Closing Editorial Line: "${leituraContracapa.chamadaFinal}"`,
-    `- Mandatory Barcode Safe Box: Clean matte white rectangular box (2.0 x 1.2 inches / 50.8 x 30.5 mm) positioned in the bottom-right corner of the Back Cover, completely free of text or focal graphics.`,
+    `- Continuous Artwork on Back Cover: Clean seamless background without artificial white boxes or placeholder cutouts.`,
     `Color Palette Unifying Front, Spine & Back: ${paletaCoresSugerida.join(', ')}.`,
     `Strict Technical Print Rules: Flat 2D full-bleed press sheet (0.125-inch / 3.2mm outer bleed on all 4 sides), zero 3D perspective distortion, zero background room/table mockup, crisp legible typography, 8k editorial print production quality.`
   ].join('\n\n');
@@ -431,7 +431,7 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
     `- Top Hook Headline (upper zone, bold accent lettering): "${leituraContracapa.ganchoTopo}"`,
     `- Central Brief Reading / Synopsis Text (middle zone, clean high-contrast editorial typography over a softly darkened atmospheric area): "${leituraContracapa.corpoSinopse.replace(/\n+/g, ' ')}"`,
     `- Closing Editorial Note (below synopsis): "${leituraContracapa.chamadaFinal}"`,
-    `- Bottom-Right Barcode Zone: Reserved clean white rectangle (50.8 x 30.5 mm) in the lower-right corner for ISBN/barcode placement.`,
+    `- Clean Artwork Distribution: Full rich atmospheric illustration flowing across the whole surface without blank cutouts or artificial white boxes.`,
     `Technical Directives: 100% visual continuity with the front cover's lighting (${iluminacaoCenica}), 0.25-inch inner text safety margin, 0.125-inch full bleed, flat 2D print-ready back cover, no 3D mockup.`
   ].join('\n\n');
 
@@ -456,7 +456,7 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
         `- **PANEL A — BACK COVER (LEFT SIDE OF SPREAD)**:`,
         `  • **Visual Continuation**: ${composicaoContracapa}`,
         `  • **Typography Layout**: Upper hook headline in accent color, central synopsis set in crisp 10.5pt–11.5pt editorial serif/sans-serif with 1.45 line height, and closing authority line above the footer.`,
-        `  • **Reserved Barcode Zone**: Mandatory clean rectangular zone (2.0 x 1.2 in / 50.8 x 30.5 mm) in the lower-right corner of the back cover, kept free of text.`,
+        `  • **Continuous Artwork**: Full illustrated background across the panel, without artificial white box cutouts.`,
         `- **PANEL B — SPINE / LOMBADA (CENTER VERTICAL STRIP)**:`,
         `  • **Visual Bridge**: Seamless transition of the background texture and lighting between front and back panels.`,
         `  • **Spine Typography**: Vertical Title "${titulo}" and Author "${autor}" centered with a minimum 0.0625 in (1.6 mm) safe margin from fold lines.`,

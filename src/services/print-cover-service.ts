@@ -422,19 +422,7 @@ export class PrintCoverService {
       const barcodeX = spineX - 10.5 - barcodeWidth;
       const barcodeY = totalHeightMm - bleedMm - 10.5 - barcodeHeight;
 
-      doc.setFillColor(255, 255, 255);
-      doc.rect(barcodeX, barcodeY, barcodeWidth, barcodeHeight, 'F');
-      doc.setDrawColor(203, 213, 225);
-      doc.rect(barcodeX, barcodeY, barcodeWidth, barcodeHeight, 'S');
-
-      doc.setTextColor(51, 65, 85);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.text('ÁREA DE CÓDIGO DE BARRAS KDP', barcodeX + (barcodeWidth / 2), barcodeY + (barcodeHeight / 2) - 2, { align: 'center' });
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.2);
-      doc.setTextColor(100, 116, 139);
-      doc.text('2.0" x 1.2" (50.8 x 30.5 mm) • G201113520', barcodeX + (barcodeWidth / 2), barcodeY + (barcodeHeight / 2) + 3, { align: 'center' });
+      // Não desenha caixa branca de código de barras para não ocultar a arte de fundo da contracapa
     }
 
     const arrayBuffer = doc.output('arraybuffer');
@@ -651,42 +639,12 @@ export class PrintCoverService {
     ctx.textAlign = align;
     ctx.fillStyle = '#94a3b8';
     ctx.font = '600 32px sans-serif';
-    ctx.fillText(`${params.author.toUpperCase()}`, anchorX, canvas.height - 270);
+    ctx.fillText(`${params.author.toUpperCase()}`, anchorX, canvas.height - 140);
     ctx.fillStyle = '#64748b';
-    ctx.font = '400 26px sans-serif';
-    ctx.fillText('Edição Oficial Amazon KDP • Diagramação Editorial', anchorX, canvas.height - 228);
+    ctx.font = '400 24px sans-serif';
+    ctx.fillText('Edição Oficial Amazon KDP • Diagramação Editorial', anchorX, canvas.height - 95);
 
-    // 6. Área Oficial Reservada para Código de Barras KDP (2" x 1.2" / 50.8mm x 30.5mm)
-    const barcodeW = 420;
-    const barcodeH = 260;
-    const barcodeX = canvas.width - marginX - barcodeW;
-    const barcodeY = canvas.height - 160 - barcodeH;
-
-    // Fundo branco do código de barras
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(barcodeX, barcodeY, barcodeW, barcodeH);
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(barcodeX, barcodeY, barcodeW, barcodeH);
-
-    // Linhas estilizadas do código de barras
-    ctx.fillStyle = '#0f172a';
-    const barStartY = barcodeY + 22;
-    const barHeight = barcodeH - 80;
-    const barSpacing = 7;
-    for (let bx = barcodeX + 22; bx < barcodeX + barcodeW - 22; bx += barSpacing) {
-      const w = (bx % 3 === 0) ? 4 : 2;
-      ctx.fillRect(bx, barStartY, w, barHeight);
-    }
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#475569';
-    ctx.font = 'bold 19px sans-serif';
-    ctx.fillText('ÁREA RESERVADA KDP', barcodeX + (barcodeW / 2), barcodeY + barcodeH - 32);
-    ctx.font = '15px sans-serif';
-    ctx.fillStyle = '#64748b';
-    ctx.fillText('(Código de barras gerado pela Amazon)', barcodeX + (barcodeW / 2), barcodeY + barcodeH - 14);
-
+    // Não desenha caixa branca de código de barras para não estragar a arte da contracapa com espaço em branco
     return canvas.toDataURL('image/png');
   }
 

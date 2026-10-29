@@ -23,6 +23,8 @@ export interface WorkflowStateSnapshot {
   temaSelecionado?: string;
   subtemaSelecionado?: string;
   genero?: string;
+  idioma?: string;
+  estadoEua?: string;
   faixaEtaria?: string;
   stanceTopic?: string;
   authorTone?: string;

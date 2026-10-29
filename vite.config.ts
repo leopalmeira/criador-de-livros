@@ -153,7 +153,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
-          const { BackendCoverService } = await import('./src/services/backend-cover-service.ts');
+          const { BackendCoverService } = await import('./src/services/backend-cover-service');
 
           // Rota: GET /api/covers/api-key-status
           if (req.method === 'GET' && (url === '/api-key-status' || url === '/api-key-status/')) {
@@ -289,7 +289,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
-          const { AmazonLiveService } = await import('./src/services/amazon-live-service.ts');
+          const { AmazonLiveService } = await import('./src/services/amazon-live-service');
           const reqUrl = new URL(req.url, 'http://localhost');
           const pathname = reqUrl.pathname;
 
@@ -313,7 +313,7 @@ function kdpAiBackendPlugin() {
           }
 
           if (pathname === '/top100-segments' || pathname === '/top100-segments/') {
-            const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments.ts');
+            const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments');
             const category = reqUrl.searchParams.get('category') || undefined;
             const query = reqUrl.searchParams.get('query') || undefined;
             const segments = AmazonTop100Service.getTop100Segments({ category, query });
@@ -324,7 +324,7 @@ function kdpAiBackendPlugin() {
           }
 
           if (pathname === '/segment-books' || pathname === '/segment-books/') {
-            const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments.ts');
+            const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments');
             const segmentId = reqUrl.searchParams.get('segmentId') || 'habitos-disciplina';
             const excluded = (reqUrl.searchParams.get('excluded') || '').split(',').filter(Boolean);
             const targetCount = parseInt(reqUrl.searchParams.get('limit') || '10', 10);
@@ -336,7 +336,7 @@ function kdpAiBackendPlugin() {
           }
 
           if (pathname === '/suggest-titles' || pathname === '/suggest-titles/') {
-            const { KdpTitleSuggestionEngine } = await import('./src/services/kdp-title-suggestion-engine.ts');
+            const { KdpTitleSuggestionEngine } = await import('./src/services/kdp-title-suggestion-engine');
             const theme = reqUrl.searchParams.get('theme') || 'Desenvolvimento Pessoal';
             const subtheme = reqUrl.searchParams.get('subtheme') || undefined;
             const bookTitle = reqUrl.searchParams.get('bookTitle') || undefined;
