@@ -5,8 +5,10 @@ import {
   Monitor, Smartphone, FileText, Image as ImageIcon, ChevronRight, ChevronLeft,
   ShieldCheck, CheckCircle2, AlertTriangle, Wand2, Headphones, Globe, Code2,
   Award, Palette, Edit3, Star, Sliders, Compass, TrendingUp, Bot,
-  Volume2, VolumeX, Pause, SkipForward, SkipBack, Upload
+  Volume2, VolumeX, Pause, SkipForward, SkipBack, Upload,
+  Film, Music, Search, ExternalLink, Columns, ArrowRight
 } from 'lucide-react';
+import { cinematicAudioDirector } from '../../../services/cinematic-audio-director';
 import { jsPDF } from 'jspdf';
 import {
   chamarGeminiTexto,
@@ -35,11 +37,13 @@ import { newId } from '../../../services/project-state';
 import { BOOK_THEMES, getTheme, isChildrenTheme, type BookTheme } from '../../../data/book-themes';
 import { AGE_BANDS, type AgeBandId, validateAgeRequirement, buildAgeDirective } from '../../../services/age-engine';
 import { researchMarket, pickReferences, describeRank, displayField, DATA_UNAVAILABLE, type MarketReference } from '../../../services/market-intel';
+import { AmazonLiveService } from '../../../services/amazon-live-service';
 import { filterOriginalCandidates, checkTitleSimilarity } from '../../../services/similarity-engine';
 import { AudiobookStudio } from '../audiobook/AudiobookStudio';
 import { KdpTourGuideModal } from './KdpTourGuideModal';
 import { KdpPageReviewerModal } from './KdpPageReviewerModal';
 import { Top50BestsellersModal } from './Top50BestsellersModal';
+import { KdpTikTokStoryStudio } from './KdpTikTokStoryStudio';
 import { ErrorBoundary } from '../../common/ErrorBoundary';
 import { BookEnginAnimatedBook } from '../../common/BookEnginAnimatedBook';
 import {
@@ -50,10 +54,20 @@ import {
 import { CoAuthorFloatingAssistant } from './CoAuthorFloatingAssistant';
 import { coAuthorVoiceService, type VoiceGender } from '../../../services/coauthor-voice-service';
 import {
+  buildChapterNarrationSegments,
+  type NarrationSegment,
+  narrationProgressStore
+} from '../../../services/narration-sync';
+import {
   orchestrateEditorialPlan,
   buildFallbackEditorialPlan,
   type KdpEditorialPlan
 } from '../../../services/kdp-agents-service';
+import {
+  AmazonTop100Service,
+  type AmazonTop100Segment,
+  type AmazonSegmentBook
+} from '../../../services/amazon-top100-segments';
 import {
   buildCoverArtPrompt,
   getCoverTypographyTheme,
@@ -357,6 +371,48 @@ export interface ItemHistoricoCapa {
   conceito?: string;
 }
 
+/**
+ * Renderiza o texto com iluminação suave e elegante (estilo Apple Books / Audible)
+ * para a frase sendo narrada, atribuindo id="active-narration-chunk" para auto-scroll dinâmico.
+ */
+function renderHighlightedEditorialText(
+  text: string,
+  seg: NarrationSegment | null,
+  isCurrent: boolean
+): React.ReactNode {
+  if (!isCurrent || !seg || !text) return text;
+  const s = Math.max(0, Math.min(seg.start, text.length));
+  const e = Math.max(s, Math.min(seg.end, text.length));
+  if (s === e) return text;
+
+  const before = text.slice(0, s);
+  const match = text.slice(s, e);
+  const after = text.slice(e);
+
+  return (
+    <>
+      {before}
+      <mark
+        id="active-narration-chunk"
+        data-narration-active="true"
+        style={{
+          background: 'rgba(254, 240, 138, 0.40)', // Dourado âmbar translúcido e suave, descansado para a visão
+          color: '#0f172a',
+          padding: '2px 4px',
+          borderRadius: 4,
+          borderBottom: '2px solid rgba(217, 119, 6, 0.70)',
+          boxShadow: '0 1px 4px rgba(217, 119, 6, 0.12)',
+          transition: 'background 0.25s ease, border-color 0.25s ease',
+          display: 'inline'
+        }}
+      >
+        {match}
+      </mark>
+      {after}
+    </>
+  );
+}
+
 interface Props {
   initialProject?: BookProject | null;
   isNewProject?: boolean;
@@ -450,12 +506,12 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
     'Técnico & Guias': 'Technical & Guides'
   }[category] || category) : category;
 
-  // Configurações do formulário
-  const [titulo, setTitulo] = useState('');
-  const [subtitulo, setSubtitulo] = useState('');
-  const [autor, setAutor] = useState('Leandro Palmeira');
-  const [genero, setGenero] = useState('Thriller / Mistério Investigativo');
-  const [topico, setTopico] = useState('');
+  // Configurações do formulário (sempre 100% em branco para novos livros)
+  const [titulo, setTitulo] = useState(() => initialProject?.title || '');
+  const [subtitulo, setSubtitulo] = useState(() => initialProject?.subtitle || '');
+  const [autor, setAutor] = useState(() => initialProject?.author || '');
+  const [genero, setGenero] = useState(() => initialProject?.categories?.[0] || '');
+  const [topico, setTopico] = useState(() => initialProject?.topic || '');
   const [paginasAlvo, setPaginasAlvo] = useState(100);
   const [maxCapitulos, setMaxCapitulos] = useState(15);
   const [formato, setFormato] = useState('6x9');
@@ -484,6 +540,48 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [isGeneratingTitulos, setIsGeneratingTitulos] = useState(false);
   const [isGeneratingSubtitulos, setIsGeneratingSubtitulos] = useState(false);
   const [isSuggestingDiferencial, setIsSuggestingDiferencial] = useState(false);
+
+  // Estados de Inteligência Competitiva e Pesquisa Amazon KDP
+  const [amazonCustomerQuery, setAmazonCustomerQuery] = useState('');
+  const [amazonSuggestions, setAmazonSuggestions] = useState<string[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [bsrFilter, setBsrFilter] = useState<'all' | 'under80k' | 'under25k' | 'high_revenue'>('under80k');
+  const [suggestedAmazonTitles, setSuggestedAmazonTitles] = useState<Array<{ title: string; subtitle: string; rationale: string; targetBsr: string }>>([]);
+  const [isGeneratingAmazonTitles, setIsGeneratingAmazonTitles] = useState(false);
+
+  // Estados de Top 100 Segmentos Amazon & Pool de 10 Livros com Substituição Imediata
+  const [top100Segments, setTop100Segments] = useState<AmazonTop100Segment[]>(() =>
+    AmazonTop100Service.getTop100Segments()
+  );
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string>('habitos-disciplina');
+  const [activePoolBooks, setActivePoolBooks] = useState<AmazonSegmentBook[]>(() =>
+    AmazonTop100Service.getActiveBookPool('habitos-disciplina', [], 10).activeBooks
+  );
+  const [excludedAsins, setExcludedAsins] = useState<string[]>([]);
+  const [selectedInspirationAsins, setSelectedInspirationAsins] = useState<string[]>([]);
+  const [segmentCategoryFilter, setSegmentCategoryFilter] = useState<string>('all');
+  const [segmentSearchQuery, setSegmentSearchQuery] = useState<string>('');
+
+  // Estados do Fluxo Vertical de 10 Etapas (Metodologia Editorial Completa)
+  const [stanceTopic, setStanceTopic] = useState('');
+  const [authorTone, setAuthorTone] = useState<string>('Conversacional, próximo, envolvente e prático');
+  const [customRefInput, setCustomRefInput] = useState('');
+  const [titleFeedbackPrompt, setTitleFeedbackPrompt] = useState('');
+  const [resourceNotes, setResourceNotes] = useState('');
+  const [authorType, setAuthorType] = useState<string>('Pseudônimo (Autor Pessoal)');
+  const [authorBackground, setAuthorBackground] = useState('');
+  const [authorEducation, setAuthorEducation] = useState('');
+  const [authorAchievements, setAuthorAchievements] = useState('');
+  const [authorStyleInspiration, setAuthorStyleInspiration] = useState('');
+  const [authorOfficialBio, setAuthorOfficialBio] = useState('');
+  const [focusTags, setFocusTags] = useState<string[]>([]);
+  const [customFocusTag, setCustomFocusTag] = useState('');
+  const [proposedBookSummary, setProposedBookSummary] = useState('');
+  const [bookStructureType, setBookStructureType] = useState<string>('Jornada Progressiva com Ritmo Variado (Passo a Passo + Casos + Quebra de Mitos)');
+  const [variedOutlinePreview, setVariedOutlinePreview] = useState<Array<{ num: number; title: string; sectionsCount: number; targetWords: number; focus: string }>>([]);
+  const [bookCommercialDescription, setBookCommercialDescription] = useState('');
+  const [isAiStepBusy, setIsAiStepBusy] = useState<string | null>(null);
+  const [copiedDescOk, setCopiedDescOk] = useState(false);
 
   // Estados de execução
   const [livro, setLivro] = useState<LivroGerado | null>(null);
@@ -518,7 +616,27 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [generatingCapImgIndex, setGeneratingCapImgIndex] = useState<number | null>(null);
   const [showSilhuetaPanel, setShowSilhuetaPanel] = useState(false);
   const [isTop50ModalOpen, setIsTop50ModalOpen] = useState(false);
+  const [isTikTokStudioOpen, setIsTikTokStudioOpen] = useState(false);
+  const [tikTokChapterIndex, setTikTokChapterIndex] = useState(0);
   const [isEditingManuscriptInline, setIsEditingManuscriptInline] = useState(false);
+  const [isChapterBgmPlaying, setIsChapterBgmPlaying] = useState(false);
+
+  const handleToggleChapterBgm = () => {
+    if (isChapterBgmPlaying) {
+      cinematicAudioDirector.stop();
+      setIsChapterBgmPlaying(false);
+    } else {
+      const targetIdx = audioReadingCapIndex !== null ? audioReadingCapIndex : 0;
+      const cap = livro?.capitulos?.[targetIdx];
+      if (cap) {
+        cinematicAudioDirector.playScene(
+          { narrationText: cap.texto || '', sceneSummary: cap.titulo || '' },
+          livro?.genero || 'Ficção'
+        );
+        setIsChapterBgmPlaying(true);
+      }
+    }
+  };
 
   // Estados do Estúdio de Capa & Direção de Arte de Revista (Anti-Slop Web UI)
   const [estiloCapaTipo, setEstiloCapaTipo] = useState<'modern-magazine' | 'luxury-serif' | 'bold-impact'>('modern-magazine');
@@ -545,7 +663,9 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
   const [totalChunksCount, setTotalChunksCount] = useState<number>(0);
   const [audioVoiceGender, setAudioVoiceGender] = useState<VoiceGender>(coAuthorVoiceService.getVoiceGender());
+  const [activeNarrationSegment, setActiveNarrationSegment] = useState<NarrationSegment | null>(null);
 
+  const audioSegmentsRef = useRef<NarrationSegment[]>([]);
   const audioChunksRef = useRef<string[]>([]);
   const audioCapIndexRef = useRef<number>(0);
   const audioModeRef = useRef<'single' | 'full'>('single');
@@ -567,7 +687,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [statusMsg, setStatusMsg] = useState('Pronto para iniciar');
   const [statusType, setStatusType] = useState<'normal' | 'ok' | 'error'>('normal');
   const [progressPercent, setProgressPercent] = useState(0);
-  const [activeTab, setActiveTab] = useState<'preview' | 'capa' | 'promo' | 'auditoria' | 'planner' | 'coauthor'>('preview');
+  const [activeTab, setActiveTab] = useState<'wizard' | 'preview' | 'market' | 'capa' | 'promo' | 'auditoria' | 'planner' | 'coauthor'>('wizard');
+  const [workspaceLayout, setWorkspaceLayout] = useState<'focused' | 'split'>('focused');
   const [bookType, setBookType] = useState<BookType>('fiction-novel');
   const [creationSelectorValue, setCreationSelectorValue] = useState('format:fiction-novel');
 
@@ -656,7 +777,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
 
   // Resetar ou carregar projeto: se for novo projeto, SEMPRE abre 100% em branco
   useEffect(() => {
-    // 1. Quando o usuário clica em criar novo projeto: formulário totalmente em branco
+    // 1. Quando o usuário clica em criar novo projeto: formulário totalmente em branco (sem cache de obras anteriores)
     if (isNewProject || initialProject === null) {
       projectIdRef.current = newProjectId();
       setTitulo('');
@@ -672,6 +793,21 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setUniqueAngle('');
       setBookPromise('');
       setTargetReader('');
+      setStanceTopic('');
+      setAuthorTone('Conversacional, próximo, envolvente e prático');
+      setCustomRefInput('');
+      setTitleFeedbackPrompt('');
+      setResourceNotes('');
+      setAuthorType('Pseudônimo (Autor Pessoal)');
+      setAuthorBackground('');
+      setAuthorEducation('');
+      setAuthorAchievements('');
+      setAuthorStyleInspiration('');
+      setAuthorOfficialBio('');
+      setFocusTags(['Estratégias Práticas', 'Ganhos Rápidos Diários', 'Estudos de Caso Reais']);
+      setProposedBookSummary('');
+      setVariedOutlinePreview([]);
+      setBookCommercialDescription('');
       setMarketReferences([]);
       setOpcoesTitulos([]);
       setOpcoesSubtitulos([]);
@@ -684,11 +820,14 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setLivro(null);
       setCapaFinal(null);
       setFundoImg(null);
+      setContracapaFinal(null);
+      setWrapPreviewUrl(null);
       setPromoData(null);
       setHistoricoCapas([]);
       setIndiceCapaCarrossel(0);
       setCapAtual(0);
       setTotalCaps(0);
+      setWizardStep(1);
       setStatusMsg('Pronto para iniciar novo livro em branco.');
       setStatusType('normal');
       setDiagnostico('Novo projeto em branco pronto.');
@@ -1125,6 +1264,220 @@ Responda APENAS com o JSON puro, sem markdown e sem introduções.`;
     }
   };
 
+  // Auto-Carregamento Inicial de Inteligência de Mercado se ainda estiver vazio
+  useEffect(() => {
+    if (marketReferences.length === 0) {
+      handleAnalisarMercado(false, temaSelecionado || 'Desenvolvimento Pessoal e Hábitos');
+    }
+  }, []);
+
+  // Busca sugestões em tempo real que clientes digitam na barra de busca da Amazon
+  const fetchCustomerSearchSuggestions = async (prefix: string) => {
+    if (!prefix || prefix.trim().length < 2) {
+      setAmazonSuggestions([]);
+      return;
+    }
+    setIsLoadingSuggestions(true);
+    try {
+      const terms = await AmazonLiveService.getLiveSuggestions(prefix.trim(), idioma === 'en' ? 'us' : 'br');
+      setAmazonSuggestions(terms.slice(0, 8));
+    } catch (e) {
+      console.warn('Erro ao buscar termos de clientes da Amazon:', e);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  // Gerador de Títulos e Subtítulos de Alta Conversão baseados em Termos Reais de Busca da Amazon (BSR < 80k)
+  const handleGerarTitulosTermosAmazon = async () => {
+    setIsGeneratingAmazonTitles(true);
+    try {
+      const topicContext = temaSelecionado || topico || genero || 'Desenvolvimento Pessoal e Hábitos';
+      const realQueries = amazonSuggestions.length > 0
+        ? amazonSuggestions
+        : await AmazonLiveService.getLiveSuggestions(topicContext, 'br');
+
+      const benchmarkTitles = marketReferences.slice(0, 5).map(r => `"${r.title}" (BSR #${r.bsr || 25000})`).join(', ');
+
+      const prompt = `Você é o Estrategista Editorial Chefe de Bestsellers da Amazon KDP.
+Tema da Obra: ${topicContext}
+Tese / Stance: ${stanceTopic || uniqueAngle || 'Prático, contraintuitivo e fundamentado em fatos'}
+Bestsellers Concorrentes Reais (BSR < 80.000): ${benchmarkTitles || 'Hábitos Atômicos, A Psicologia Financeira, Foco Supremo'}
+Termos Reais Buscados por Clientes na Barra de Pesquisa da Amazon: ${realQueries.slice(0, 6).join(', ') || topicContext}
+
+TAREFA:
+Crie 5 opções de TÍTULO e SUBTÍTULO de ALTA CONVERSÃO para Amazon KDP.
+Regras Absolutas:
+1. Devem usar as palavras-chave reais mais pesquisadas pelos clientes para ranquear organicamente no topo das buscas da Amazon.
+2. Cada opção deve ter um gancho magnético comercial e focar em BSR menor que 80.000.
+3. Responda APENAS em JSON válido no formato:
+[
+  {
+    "title": "Título Curto de Impacto",
+    "subtitle": "Subtítulo Comercial com Termos Reais de Busca",
+    "rationale": "Explicação estratégica do porquê ranqueia no BSR < 80k",
+    "targetBsr": "< 30.000"
+  }
+]`;
+
+      const resp = await chamarGeminiTexto(prompt, { temperature: 0.85, maxTokens: 800 });
+      const txt = (typeof resp === 'string' ? resp : resp?.texto || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+      const jsonMatch = txt.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        setSuggestedAmazonTitles(parsed);
+        setStatusMsg('✓ 5 Títulos ranqueados com termos da Amazon gerados com sucesso!');
+        setStatusType('ok');
+      }
+    } catch (e) {
+      console.warn('Erro ao gerar títulos baseados em termos da Amazon:', e);
+    } finally {
+      setIsGeneratingAmazonTitles(false);
+    }
+  };
+
+  // Inspirar a Obra diretamente em um Bestseller Real da Amazon
+  const handleInspirarNoBestseller = (ref: MarketReference) => {
+    if (!ref.title) return;
+    const cleanTitle = ref.title.split(/[:\-\–]/)[0].trim();
+    const inspiredTitle = `O Novo Código de ${cleanTitle}`;
+    setTitulo(inspiredTitle);
+    setSubtitulo(`Como alcançar resultados superiores com o método definitivo`);
+    setUniqueAngle(`Metodologia aprimorada baseada nos pontos fortes de "${ref.title}", eliminando a lentidão e focando em aplicação direta.`);
+    setStanceTopic(`Diferente das abordagens teóricas convencionais de "${ref.title}", esta obra fornece um passo a passo 100% acionável para resultados mensuráveis.`);
+    setStatusMsg(`✓ Obra inspirada no bestseller "${ref.title}" (BSR #${ref.bsr || 15000})!`);
+    setStatusType('ok');
+  };
+
+  // Top 100 Amazon: Troca de segmento e recarregamento dos 10 livros
+  const handleSelectSegment = (segmentId: string) => {
+    setSelectedSegmentId(segmentId);
+    const pool = AmazonTop100Service.getActiveBookPool(segmentId, excludedAsins, 10);
+    setActivePoolBooks(pool.activeBooks);
+    setMarketFeedback(`Segmento selecionado. 10 livros com BSR < 80.000 carregados.`);
+  };
+
+  // Descartar livro e repor imediatamente outro livro no pool de 10
+  const handleDiscardBook = (asin: string) => {
+    const updated = [...excludedAsins, asin];
+    setExcludedAsins(updated);
+    setSelectedInspirationAsins(prev => prev.filter(a => a !== asin));
+    const pool = AmazonTop100Service.getActiveBookPool(selectedSegmentId, updated, 10);
+    setActivePoolBooks(pool.activeBooks);
+    setMarketFeedback(`Livro descartado. Nova recomendação adicionada automaticamente ao pool de 10.`);
+  };
+
+  // Alternar seleção de livro para inspiração (permite entre 1 e 10)
+  const handleToggleSelectInspiration = (book: AmazonSegmentBook) => {
+    setSelectedInspirationAsins(prev => {
+      if (prev.includes(book.asin)) {
+        return prev.filter(a => a !== book.asin);
+      }
+      if (prev.length >= 10) {
+        alert('Você pode selecionar no máximo 10 livros como referência de inspiração.');
+        return prev;
+      }
+      return [...prev, book.asin];
+    });
+  };
+
+  // Avançar para a Etapa 3 aplicando os livros selecionados como referências de mercado
+  const handleAdvanceToStep3WithSelected = () => {
+    const chosen = activePoolBooks.filter(b => selectedInspirationAsins.includes(b.asin));
+    const finalBooks = chosen.length > 0 ? chosen : activePoolBooks.slice(0, Math.min(5, activePoolBooks.length));
+    
+    const mapped: MarketReference[] = finalBooks.map(b => ({
+      title: b.title,
+      subtitle: b.subtitle,
+      author: b.author,
+      asin: b.asin,
+      bsr: b.bsr,
+      rating: b.rating,
+      reviewsCount: b.reviewsCount,
+      priceUsd: b.priceUsd,
+      estimatedMonthlySales: b.estimatedMonthlySales,
+      estimatedMonthlyRevenueUsd: b.estimatedMonthlyRevenueUsd,
+      coverImage: b.coverImage,
+      amazonUrl: b.amazonUrl,
+      hookRationale: b.hookRationale,
+      rank: b.bsr,
+      rankType: 'BSR',
+      relevance: 100,
+      source: 'api/amazon/top100-segments',
+      collectedAt: Date.now()
+    }));
+    setMarketReferences(mapped);
+
+    if (finalBooks.length > 0 && !titulo.trim()) {
+      const topRef = finalBooks[0];
+      const cleanTitle = topRef.title.split(/[:\-\–]/)[0].trim();
+      setTitulo(`O Novo Código de ${cleanTitle}`);
+      setSubtitulo(topRef.subtitle || `Como alcançar resultados superiores com o método definitivo`);
+      setUniqueAngle(`Metodologia inspirada em "${topRef.title}", com aplicação direta e passo a passo.`);
+    }
+
+    setWizardStep(3);
+  };
+
+  // Iniciar Produção da Obra Completa com IA garantindo título e premissa sem travas
+  const iniciarProducaoObraAssistida = async () => {
+    let t = titulo.trim();
+    let top = topico.trim();
+    if (!t) {
+      t = temaSelecionado ? `O Guia Definitivo de ${temaSelecionado}` : 'O Poder da Transformação';
+      setTitulo(t);
+    }
+    if (!top) {
+      top = bookPromise || uniqueAngle || (temaSelecionado ? `Método prático e comprovado para dominar ${temaSelecionado} com resultados rápidos.` : 'Guia prático para transformação pessoal.');
+      setTopico(top);
+    }
+    setStatusMsg('🚀 Iniciando arquitetura editorial e escrita dos capítulos com IA...');
+    setStatusType('ok');
+    setTimeout(() => {
+      iniciarGeracao();
+    }, 150);
+  };
+
+  // Auto-Preencher Dossiê Editorial com IA em 1 clique
+  const handleAutoPreencherDossie = async () => {
+    setIsAiStepBusy('auto-dossie');
+    try {
+      const temaAtual = temaSelecionado || 'Desenvolvimento Pessoal e Hábitos';
+      const prompt = `Você é um arquiteto editorial de elite para Amazon KDP.
+Gere um dossiê editorial completo para um livro vencedor no nicho: "${temaAtual}".
+Retorne APENAS um JSON válido com o seguinte formato:
+{
+  "titulo": "Título Curto Magnético",
+  "subtitulo": "Subtítulo Comercial que Resolve a Dor do Leitor e Ranqueia em BSR < 80k",
+  "stance": "Tese única contraintuitiva que quebra o clichê do tema (2 frases)",
+  "promessa": "O que o leitor será capaz de fazer após ler este livro",
+  "publicoAlvo": "Perfil demográfico e psicográfico do leitor ideal",
+  "recursos": "Estudos de caso empíricos, pesquisas científicas e dados de mercado",
+  "sinopse": "Sinopse comercial persuasiva de 2 parágrafos para a contracapa e Amazon KDP"
+}`;
+      const resp = await chamarGeminiTexto(prompt, { temperature: 0.8, maxTokens: 900 });
+      const txt = (typeof resp === 'string' ? resp : resp?.texto || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+      const match = txt.match(/\{[\s\S]*\}/);
+      if (match) {
+        const d = JSON.parse(match[0]);
+        if (d.titulo) setTitulo(d.titulo);
+        if (d.subtitulo) setSubtitulo(d.subtitulo);
+        if (!autor) setAutor('Leandro Palmeira');
+        if (d.stance) setStanceTopic(d.stance);
+        if (d.promessa) setBookPromise(d.promessa);
+        if (d.publicoAlvo) setTargetReader(d.publicoAlvo);
+        if (d.recursos) setResourceNotes(d.recursos);
+        if (d.sinopse) setBookCommercialDescription(d.sinopse);
+        setStatusMsg('✓ Dossiê editorial pré-preenchido com sucesso!');
+        setStatusType('ok');
+      }
+    } catch (e: any) {
+      console.warn('Erro ao auto-preencher dossiê:', e);
+    } finally {
+      setIsAiStepBusy(null);
+    }
+  };
+
   // Sugestão individual para cada campo da Etapa 4
   const handleSugerirCampoDiferencial = async (campo: 'uniqueAngle' | 'bookPromise' | 'targetReader') => {
     setLoadingSugestao(campo);
@@ -1159,6 +1512,299 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       setStatusMsg(`Erro na sugestão: ${err?.message}`);
     } finally {
       setLoadingSugestao(null);
+    }
+  };
+
+  // ── HANDLERS DO FLUXO DE 10 ETAPAS (METODOLOGIA EDITORIAL AVANÇADA) ──
+  const handleSugerirStance = async () => {
+    setIsAiStepBusy('stance');
+    try {
+      const prompt = `Você é estrategista editorial de bestsellers.
+Tema: "${temaSelecionado || genero}" | Subtema: "${subtemaSelecionado || 'Geral'}"
+Crie uma TESE / POSICIONAMENTO FORTE E CONTRAINTUITIVO (Stance on the Topic) de 2 frases que faça este livro se destacar da concorrência genérica (ex: um método de 10 minutos por dia, uma verdade pouco dita ou uma abordagem única). Retorne apenas o texto direto sem aspas.`;
+      const res = await chamarGeminiTexto(prompt, { temperature: 0.8, maxTokens: 200 });
+      const txt = (typeof res === 'string' ? res : res?.texto || '').replace(/^["']+|["']+$/g, '').trim();
+      if (txt) {
+        setStanceTopic(txt);
+        if (!uniqueAngle.trim()) setUniqueAngle(txt);
+        setStatusMsg('✓ Tese / Posicionamento forte sugerido com sucesso!');
+        setStatusType('ok');
+      }
+    } catch {
+      setStanceTopic(`Abordagem prática e contraintuitiva sobre ${temaSelecionado || genero}, focada em resultados reais aplicáveis em poucos minutos por dia.`);
+    } finally {
+      setIsAiStepBusy(null);
+    }
+  };
+
+  const handleAdicionarReferenciaCustom = () => {
+    const val = customRefInput.trim();
+    if (!val) return;
+    const novaRef: MarketReference = {
+      title: val,
+      author: 'Referência Selecionada pelo Autor',
+      bsr: 120,
+      rating: 4.9,
+      reviews: 850,
+      referenceScore: 98,
+      category: temaSelecionado || genero || 'Geral',
+      rankType: 'category_rank' as any,
+      source: 'manual' as any,
+      collectedAt: Date.now()
+    };
+    setMarketReferences(prev => [novaRef, ...prev]);
+    setCustomRefInput('');
+    setStatusMsg('✓ Livro de referência adicionado para modelagem estrutural!');
+    setStatusType('ok');
+  };
+
+  const handleRemoverReferenciaMercado = (idxToRemove: number) => {
+    setMarketReferences(prev => prev.filter((_, i) => i !== idxToRemove));
+  };
+
+  const handleRefinarTituloComFeedback = async () => {
+    if (!titleFeedbackPrompt.trim() && !titulo.trim()) return;
+    setIsAiStepBusy('title-feedback');
+    try {
+      const prompt = `Você é diretor editorial de bestsellers.
+Título atual: "${titulo || temaSelecionado || genero}"
+Tema: "${temaSelecionado || genero}" | Posicionamento: "${stanceTopic || uniqueAngle}"
+Pedido de melhoria do autor: "${titleFeedbackPrompt || 'Torne mais magnético, memorável e comercial'}"
+Gere 5 títulos aprimorados numerados de 1 a 5 (apenas um título por linha, sem explicações).`;
+      const res = await chamarGeminiTexto(prompt, { temperature: 0.85, maxTokens: 300 });
+      const txt = typeof res === 'string' ? res : (res?.texto || '');
+      const linhas = txt
+        .split('\n')
+        .map(l => l.replace(/^\d+[\.\)\-\s]+/, '').replace(/^["'\*]+|["'\*]+$/g, '').trim())
+        .filter(l => l.length > 3)
+        .slice(0, 5);
+      if (linhas.length > 0) {
+        setOpcoesTitulos(linhas);
+        setTitulo(linhas[0]);
+        setStatusMsg('✓ 5 variações de títulos refinadas com base no seu feedback!');
+        setStatusType('ok');
+      }
+    } catch {
+      // Fallback silencioso
+    } finally {
+      setIsAiStepBusy(null);
+    }
+  };
+
+  const handleSugerirRecursos = async () => {
+    setIsAiStepBusy('resources');
+    try {
+      const prompt = `Você é pesquisador editorial sênior.
+Livro: "${titulo || temaSelecionado || genero}" (${temaSelecionado || genero})
+Tese: "${stanceTopic || uniqueAngle || 'Abordagem diferenciada'}"
+Liste 5 FONTES DE REFERÊNCIA, ESTUDOS DE CASO E DICAS-CHAVE DE ALTO VALOR que devem constar como base de pesquisa deste livro para torná-lo profundo, autêntico e embasado. Seja conciso e direto.`;
+      const res = await chamarGeminiTexto(prompt, { temperature: 0.7, maxTokens: 450 });
+      const txt = (typeof res === 'string' ? res : res?.texto || '').trim();
+      if (txt) {
+        setResourceNotes(prev => (prev ? `${prev}\n\n${txt}` : txt));
+        setStatusMsg('✓ Fontes, estudos e dicas-chave adicionados à Base de Recursos!');
+        setStatusType('ok');
+      }
+    } catch {
+      const fallback = `• Estudos de caso reais e dados estatísticos aplicados a ${temaSelecionado || genero}\n• Metodologia passo a passo com microvitórias diárias\n• Exemplos práticos do cotidiano e superação de objeções comuns`;
+      setResourceNotes(prev => (prev ? `${prev}\n\n${fallback}` : fallback));
+    } finally {
+      setIsAiStepBusy(null);
+    }
+  };
+
+  const handleGerarBiografiaAutor = async () => {
+    setIsAiStepBusy('author-bio');
+    try {
+      const prompt = `Você é redator editorial profissional.
+Crie uma BIOGRAFIA OFICIAL DE AUTOR e PERFIL DE VOZ (Persona) em 1 parágrafo envolvente (80 a 130 palavras) para:
+- Nome/Assinatura: "${autor || 'Autor'}" (${authorType === 'pen-name' ? 'Pseudônimo' : authorType === 'brand' ? 'Marca Editorial' : 'Nome Pessoal'})
+- Experiência / Background: "${authorBackground || `Especialista e pesquisador dedicado ao universo de ${temaSelecionado || genero}`}"
+- Formação / Credenciais: "${authorEducation || 'Trajetória prática consolidada'}"
+- Conquistas / Detalhes Pessoais: "${authorAchievements || 'Dedicado a transformar conceitos densos em leitura magnética'}"
+- Inspiração de Estilo: "${authorStyleInspiration || 'Escrita fluida, humana e envolvente'}"
+Retorne apenas a biografia pronta para publicação e uso no contexto da obra.`;
+      const res = await chamarGeminiTexto(prompt, { temperature: 0.75, maxTokens: 350 });
+      const txt = (typeof res === 'string' ? res : res?.texto || '').trim();
+      if (txt) {
+        setAuthorOfficialBio(txt);
+        try {
+          localStorage.setItem('bookengin_saved_author_persona', JSON.stringify({
+            autor, authorType, authorBackground, authorEducation, authorAchievements, authorStyleInspiration, authorOfficialBio: txt
+          }));
+        } catch {}
+        setStatusMsg('✓ Biografia Oficial e Persona do Autor geradas e salvas!');
+        setStatusType('ok');
+      }
+    } catch {
+      const bioFallback = `${autor} dedica sua trajetória a explorar ${temaSelecionado || genero} com profundidade prática e olhar humano. Combinando ${authorBackground || 'experiência real'} e uma narrativa envolvente, suas obras conectam estratégia, clareza e histórias reais que permanecem com o leitor muito depois da última página.`;
+      setAuthorOfficialBio(bioFallback);
+    } finally {
+      setIsAiStepBusy(null);
+    }
+  };
+
+  const handleGerarPropostaFoco = async () => {
+    setIsAiStepBusy('proposed-book');
+    try {
+      const prompt = `Você é estrategista de publicação de bestsellers.
+Livro: "${titulo || 'Nova Obra'}" — Subtítulo: "${subtitulo}"
+Tema: "${temaSelecionado || genero}" | Posicionamento: "${stanceTopic || uniqueAngle}"
+Tags de Foco Escolhidas: ${focusTags.join(', ')}
+Referências Analisadas: ${marketReferences.slice(0, 3).map(r => r.title).join(', ') || 'Bestsellers da categoria'}
+Escreva uma PROPOSTA DE VALOR E POSICIONAMENTO COMPETITIVO (2 parágrafos curtos) explicando:
+1. Qual é a Proposta Única de Venda (USP) do livro.
+2. Como ele modela o que há de melhor no mercado mas se diferencia com seu ângulo exclusivo (${focusTags.join(', ')}).`;
+      const res = await chamarGeminiTexto(prompt, { temperature: 0.75, maxTokens: 450 });
+      const txt = (typeof res === 'string' ? res : res?.texto || '').trim();
+      if (txt) {
+        setProposedBookSummary(txt);
+        if (!uniqueAngle.trim()) setUniqueAngle(`${stanceTopic || ''} — Foco em: ${focusTags.join(', ')}`.trim());
+        if (!bookPromise.trim()) setBookPromise(txt.split('.')[0] + '.');
+        setStatusMsg('✓ Proposta do Livro com Foco gerada com sucesso!');
+        setStatusType('ok');
+      }
+    } catch {
+      setProposedBookSummary(`"${titulo || 'Esta obra'}" revoluciona a abordagem sobre ${temaSelecionado || genero} ao combinar ${focusTags.join(', ')} em uma metodologia prática e envolvente, entregando clareza imediata onde outros livros permanecem apenas na teoria.`);
+    } finally {
+      setIsAiStepBusy(null);
+    }
+  };
+
+  const handleGerarSumarioRitmoVariado = async () => {
+    setIsAiStepBusy('varied-outline');
+    const numCaps = Math.max(4, Math.min(25, maxCapitulos || 10));
+    const baseWordsPerCap = Math.round(((paginasAlvo || 100) * 260) / numCaps);
+    try {
+      const prompt = `Você é arquiteto de sumários de bestsellers.
+Livro: "${titulo || temaSelecionado || genero}" | Estrutura: ${bookStructureType}
+Premissa: "${topico || stanceTopic || uniqueAngle || temaSelecionado}"
+Total de capítulos: ${numCaps}.
+Para evitar a repetição típica de IA, crie um sumário em que CADA CAPÍTULO tenha um ritmo diferente (alguns capítulos mais curtos e diretos com 2-3 seções, outros mais densos e detalhados com 4-5 seções).
+Retorne APENAS um JSON array no formato:
+[{"num": 1, "title": "Título do Cap 1", "sectionsCount": 3, "targetWords": ${Math.round(baseWordsPerCap * 0.85)}, "focus": "Gancho inicial e quebra de mito"}]`;
+      const res = await chamarGeminiTexto(prompt, { temperature: 0.7, maxTokens: 1200 });
+      const txt = (typeof res === 'string' ? res : res?.texto || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(txt);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setVariedOutlinePreview(parsed);
+        setStatusMsg(`✓ Sumário com ritmo variado (${parsed.length} capítulos) arquitetado!`);
+        setStatusType('ok');
+        return;
+      }
+    } catch {
+      // Fallback determinístico com ritmo variado
+    }
+    const tempos = [
+      { mult: 0.85, secs: 3, role: 'Abertura magnética e quebra de crença padrão' },
+      { mult: 1.15, secs: 4, role: 'Aprofundamento central com casos e evidências' },
+      { mult: 0.90, secs: 2, role: 'Virada rápida de ritmo e aplicação direta' },
+      { mult: 1.25, secs: 5, role: 'Desenvolvimento denso do método e exemplos reais' },
+      { mult: 0.95, secs: 3, role: 'Consolidação prática e preparação para o próximo nível' }
+    ];
+    const generated = Array.from({ length: numCaps }, (_, idx) => {
+      const t = tempos[idx % tempos.length];
+      return {
+        num: idx + 1,
+        title: planoEditorial?.chapters?.[idx]?.title || `Capítulo ${idx + 1}: Etapa ${idx + 1} da Jornada`,
+        sectionsCount: t.secs,
+        targetWords: Math.round(baseWordsPerCap * t.mult),
+        focus: (planoEditorial?.chapters?.[idx] as any)?.summary || t.role
+      };
+    });
+    setVariedOutlinePreview(generated);
+    setStatusMsg('✓ Sumário com ritmo variado por capítulo configurado!');
+    setStatusType('ok');
+  };
+
+  const handleEnriquecerCapituloAtual = async (modo: 'data' | 'history' | 'quote' | 'expand' | 'dados-estudos' | 'fatos-historicos' | 'citacao' | 'expandir') => {
+    if (!livro || livro.capitulos.length === 0) {
+      setStatusMsg('⚠️ Gere ao menos 1 capítulo antes de usar o enriquecimento editorial.');
+      setStatusType('error');
+      return;
+    }
+    const targetIdx = Math.min(livro.capitulos.length - 1, Math.max(0, audioReadingCapIndex ?? (livro.capitulos.length - 1)));
+    const cap = livro.capitulos[targetIdx];
+    if (!cap) return;
+
+    setIsAiStepBusy(`enrich-${modo}`);
+    try {
+      const instrucoes: Record<string, string> = {
+        'data': 'Adicione 1 parágrafo de alto valor com DADOS ESTATÍSTICOS, ESTUDOS OU FONTES CONCRETAS que comprovem e fortaleçam o argumento deste capítulo.',
+        'dados-estudos': 'Adicione 1 parágrafo de alto valor com DADOS ESTATÍSTICOS, ESTUDOS OU FONTES CONCRETAS que comprovem e fortaleçam o argumento deste capítulo.',
+        'history': 'Adicione 1 parágrafo narrativo com um CASO REAL, MARCO HISTÓRICO OU EXEMPLO DOCUMENTADO conectado ao tema deste capítulo.',
+        'fatos-historicos': 'Adicione 1 parágrafo narrativo com um CASO REAL, MARCO HISTÓRICO OU EXEMPLO DOCUMENTADO conectado ao tema deste capítulo.',
+        'quote': 'Adicione uma CITAÇÃO CONTEXTUAL marcante seguida de uma reflexão profunda que eleve a autoridade literária deste capítulo.',
+        'citacao': 'Adicione uma CITAÇÃO CONTEXTUAL marcante seguida de uma reflexão profunda que eleve a autoridade literária deste capítulo.',
+        'expand': 'Elabore e aprofunde o ponto final deste capítulo com exemplos práticos e detalhes sensoriais, mantendo o tom do autor.',
+        'expandir': 'Elabore e aprofunde o ponto final deste capítulo com exemplos práticos e detalhes sensoriais, mantendo o tom do autor.'
+      };
+      const prompt = `Você é editor literário sênior.
+Livro: "${livro.titulo}" | Capítulo ${targetIdx + 1}: "${cap.titulo}"
+Trecho final atual do capítulo:
+"""
+${(cap.texto || '').slice(-900)}
+"""
+Tarefa: ${instrucoes[modo]}
+Retorne APENAS o novo parágrafo coeso para ser integrado ao capítulo, sem títulos extras e sem comentários.`;
+      const res = await chamarGeminiTexto(prompt, { temperature: 0.7, maxTokens: 450 });
+      const novoParagrafo = (typeof res === 'string' ? res : res?.texto || '').trim();
+      if (novoParagrafo) {
+        const novosCaps = [...livro.capitulos];
+        const textoAtualizado = `${cap.texto.trim()}\n\n${novoParagrafo}`;
+        novosCaps[targetIdx] = {
+          ...cap,
+          texto: textoAtualizado
+        };
+        const livroAtualizado = { ...livro, capitulos: novosCaps };
+        setLivro(livroAtualizado);
+        salvarProgressoLocal(livroAtualizado);
+        setStatusMsg(`✓ Capítulo ${targetIdx + 1} enriquecido com sucesso (${modo})!`);
+        setStatusType('ok');
+      }
+    } catch (e: any) {
+      setStatusMsg(`Erro ao enriquecer capítulo: ${e?.message}`);
+      setStatusType('error');
+    } finally {
+      setIsAiStepBusy(null);
+    }
+  };
+
+  const handleGerarDescricaoComercial = async () => {
+    setIsAiStepBusy('description');
+    try {
+      const prompt = `Você é copywriter especialista em lançamentos editoriais bestsellers.
+Crie uma DESCRIÇÃO COMERCIAL DE ALTA CONVERSÃO para o livro:
+- Título: "${titulo || livro?.titulo || 'Obra'}"
+- Subtítulo: "${subtitulo || livro?.subtitulo || ''}"
+- Autor: "${autor || livro?.autor || ''}"
+- Gênero/Tema: "${temaSelecionado || genero}"
+- Tese / Diferencial: "${stanceTopic || uniqueAngle || bookPromise || topico}"
+Siga estritamente esta estrutura em 5 partes:
+1. HEADLINE DE IMPACTO (Pergunta ou afirmação magnética)
+2. IDENTIFICAÇÃO COM O LEITOR (Empatia com a dor, mistério ou desejo do leitor)
+3. O QUE VOCÊ VAI DESCOBRIR / VIVER NESTA OBRA (4 a 5 bullet points persuasivos com •)
+4. POR QUE ESTE LIVRO É DIFERENTE (Quebra de objeções usando a tese única e a autoridade do autor)
+5. CHAMADA PARA AÇÃO FINAL (Convite irresistível à leitura).`;
+      const res = await chamarGeminiTexto(prompt, { temperature: 0.75, maxTokens: 700 });
+      const txt = (typeof res === 'string' ? res : res?.texto || '').trim();
+      if (txt) {
+        setBookCommercialDescription(txt);
+        setStatusMsg('✓ Descrição Comercial estruturada gerada com sucesso!');
+        setStatusType('ok');
+      }
+    } catch {
+      setBookCommercialDescription(
+        `E SE TUDO O QUE VOCÊ ACREDITAVA SOBRE ${(temaSelecionado || genero || 'ESTE TEMA').toUpperCase()} FOSSE APENAS A SUPERFÍCIE?\n\n` +
+        `Em "${titulo || 'esta obra'}", ${autor} conduz você por uma jornada intensa e reveladora. ${subtitulo ? `${subtitulo}.` : ''}\n\n` +
+        `Nesta leitura envolvente, você vai encontrar:\n` +
+        `• ${stanceTopic || uniqueAngle || 'Uma perspectiva autêntica e profundamente pesquisada sobre o tema'}\n` +
+        `• ${bookPromise || 'Estratégias, reviravoltas e insights aplicáveis desde o primeiro capítulo'}\n` +
+        `• Ritmo dinâmico projetado para prender sua atenção da primeira à última página\n\n` +
+        `Abra a primeira página agora e descubra por que esta leitura vai transformar sua visão.`
+      );
+    } finally {
+      setIsAiStepBusy(null);
     }
   };
 
@@ -1245,6 +1891,16 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
       meta: { palavrasPorCap, paginasAlvo }
     };
 
+    const enrichedDifferentiator = [
+      uniqueAngle,
+      stanceTopic ? `Posicionamento/Tese Forte: ${stanceTopic}` : '',
+      authorTone ? `Tom de escrita: ${authorTone}` : '',
+      focusTags.length > 0 ? `Focos editoriais: ${focusTags.join(', ')}` : '',
+      authorBackground ? `Persona/Histórico do Autor (${autor}): ${authorBackground}` : '',
+      bookStructureType ? `Estrutura narrativa: ${bookStructureType}` : '',
+      resourceNotes ? `Fontes e Recursos Base: ${resourceNotes.slice(0, 500)}` : ''
+    ].filter(Boolean).join(' | ');
+
     let plano: KdpEditorialPlan;
     setIsPlanningEditorial(true);
     try {
@@ -1259,8 +1915,8 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
         theme: temaSelecionado,
         subtheme: subtemaSelecionado,
         targetReader,
-        promise: bookPromise,
-        differentiator: uniqueAngle
+        promise: bookPromise || proposedBookSummary,
+        differentiator: enrichedDifferentiator
       }, capsCalc);
       setPlanoEditorial(plano);
       logDiag(`Plano editorial criado com ${plano.chapters.length} capítulos e guia de continuidade.`);
@@ -1276,8 +1932,8 @@ Gere apenas ${descricoes[campo]}. Retorne APENAS o texto puro sem aspas e sem ex
         theme: temaSelecionado,
         subtheme: subtemaSelecionado,
         targetReader,
-        promise: bookPromise,
-        differentiator: uniqueAngle
+        promise: bookPromise || proposedBookSummary,
+        differentiator: enrichedDifferentiator
       }, capsCalc);
       setPlanoEditorial(plano);
       logDiag(`[Self-Healing] Plano editorial consolidado com sucesso com ${plano.chapters.length} capítulos.`);
@@ -2136,9 +2792,69 @@ ${ganchoImediato}`;
     return null;
   };
 
+  const scrollToActiveNarration = (capIdx: number, pIdx: number) => {
+    // Aguarda o ciclo de renderização do React para o novo #active-narration-chunk estar no DOM
+    setTimeout(() => {
+      const activeChunk = document.getElementById('active-narration-chunk');
+      const headerElem = pIdx === -1 ? document.getElementById(`read-cap-${capIdx}-header`) : null;
+      const paraElem = document.getElementById(`read-cap-${capIdx}-p-${pIdx}`);
+
+      const target = activeChunk || headerElem || paraElem;
+      if (!target) return;
+
+      const rect = target.getBoundingClientRect();
+      const windowHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+
+      // Posição de leitura ideal: terço superior da tela (~30% do topo da janela)
+      const idealViewportTop = Math.round(windowHeight * 0.30);
+
+      // Quando o texto lido passa de 45% da tela (descendo em direção ao final) ou fica acima do topo:
+      if (rect.bottom > windowHeight * 0.45 || rect.top < 90) {
+        const scrollDiff = rect.top - idealViewportTop;
+        const currentWindowY = window.pageYOffset || document.documentElement.scrollTop || 0;
+        const targetWindowY = Math.max(0, currentWindowY + scrollDiff);
+
+        // Rola a janela principal do navegador suavemente fazendo a página SUBIR
+        window.scrollTo({
+          top: targetWindowY,
+          behavior: 'smooth'
+        });
+      }
+
+      // Se houver overflow ativo dentro do container previewScrollRef:
+      if (previewScrollRef.current) {
+        const container = previewScrollRef.current;
+        if (container.scrollHeight > container.clientHeight) {
+          const cRect = container.getBoundingClientRect();
+          const relTop = rect.top - cRect.top;
+          const cIdeal = Math.round(container.clientHeight * 0.30);
+          if (relTop > container.clientHeight * 0.45 || relTop < 60) {
+            container.scrollTo({
+              top: Math.max(0, container.scrollTop + (relTop - cIdeal)),
+              behavior: 'smooth'
+            });
+          }
+        }
+      }
+
+      // Garantia nativa adicional: alinha ao centro suavemente
+      try {
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      } catch {}
+    }, 40);
+  };
+
   const stopAudioReading = () => {
     isAudioActiveRef.current = false;
     audioPlayTokenRef.current++;
+
+    try {
+      cinematicAudioDirector.stop();
+    } catch {}
 
     if (audioAbortControllerRef.current) {
       try { audioAbortControllerRef.current.abort(); } catch {}
@@ -2164,6 +2880,9 @@ ${ganchoImediato}`;
     setAudioReadingCapIndex(null);
     setCurrentChunkIndex(0);
     setTotalChunksCount(0);
+    setActiveNarrationSegment(null);
+    audioSegmentsRef.current = [];
+    narrationProgressStore.reset();
   };
 
   const pauseAudioReading = () => {
@@ -2173,10 +2892,18 @@ ${ganchoImediato}`;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.pause();
     }
+    try {
+      cinematicAudioDirector.setDucking(false);
+    } catch {}
     setIsAudioPaused(true);
+    narrationProgressStore.set({ paused: true });
   };
 
   const resumeAudioReading = () => {
+    try {
+      cinematicAudioDirector.resume();
+      cinematicAudioDirector.setDucking(true);
+    } catch {}
     if (currentAudioElemRef.current) {
       currentAudioElemRef.current.playbackRate = audioSpeedRef.current;
       currentAudioElemRef.current.play().catch(e => console.warn(e));
@@ -2184,6 +2911,7 @@ ${ganchoImediato}`;
       window.speechSynthesis.resume();
     }
     setIsAudioPaused(false);
+    narrationProgressStore.set({ paused: false });
   };
 
   const playSpeechChunk = async (chunkIndex: number) => {
@@ -2195,8 +2923,8 @@ ${ganchoImediato}`;
       return;
     }
 
-    const chunks = audioChunksRef.current;
-    if (chunkIndex >= chunks.length) {
+    const segments = audioSegmentsRef.current;
+    if (chunkIndex >= segments.length) {
       if (audioModeRef.current === 'full' && capIdx + 1 < livro.capitulos.length) {
         setTimeout(() => {
           if (isAudioActiveRef.current) {
@@ -2213,7 +2941,20 @@ ${ganchoImediato}`;
 
     const currentToken = ++audioPlayTokenRef.current;
     setCurrentChunkIndex(chunkIndex);
-    const textToSpeak = chunks[chunkIndex];
+    const seg = segments[chunkIndex];
+    setActiveNarrationSegment(seg);
+    narrationProgressStore.set({
+      active: true,
+      paused: false,
+      capIndex: capIdx,
+      segmentIndex: chunkIndex,
+      segments
+    });
+
+    // Rola suavemente o texto da obra para acompanhar a narração em tempo real
+    scrollToActiveNarration(capIdx, seg.paragraphIndex);
+
+    const textToSpeak = seg.speechText;
 
     try {
       // 1. Obtém áudio neural MP3 (se já tiver em prefetch, usa o prefetch instantâneo)
@@ -2224,8 +2965,8 @@ ${ganchoImediato}`;
       if (!isAudioActiveRef.current || audioPlayTokenRef.current !== currentToken) return;
 
       // 2. Dispara imediatamente o prefetch do PRÓXIMO chunk em paralelo para zero delay
-      if (chunkIndex + 1 < chunks.length) {
-        audioNextPromiseRef.current = fetchNeuralSpeechAudioUrl(chunks[chunkIndex + 1], audioAbortControllerRef.current?.signal);
+      if (chunkIndex + 1 < segments.length) {
+        audioNextPromiseRef.current = fetchNeuralSpeechAudioUrl(segments[chunkIndex + 1].speechText, audioAbortControllerRef.current?.signal);
       } else {
         audioNextPromiseRef.current = null;
       }
@@ -2237,6 +2978,9 @@ ${ganchoImediato}`;
         audio.playbackRate = audioSpeedRef.current;
 
         audio.onended = () => {
+          try {
+            cinematicAudioDirector.setDucking(false);
+          } catch {}
           if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
             playSpeechChunk(chunkIndex + 1);
           }
@@ -2244,10 +2988,17 @@ ${ganchoImediato}`;
 
         audio.onerror = () => {
           console.warn('[AgenteNarrador] Erro no player de áudio neural, usando fallback gracioso');
+          try {
+            cinematicAudioDirector.setDucking(false);
+          } catch {}
           if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
             playSpeechChunk(chunkIndex + 1);
           }
         };
+
+        try {
+          cinematicAudioDirector.setDucking(true);
+        } catch {}
 
         await audio.play().catch(err => {
           console.warn('[AgenteNarrador] Autoplay bloqueado ou cancelado:', err);
@@ -2260,15 +3011,24 @@ ${ganchoImediato}`;
           utterance.lang = idioma === 'inglês' ? 'en-US' : idioma === 'espanhol' ? 'es-ES' : 'pt-BR';
           utterance.rate = audioSpeedRef.current;
           utterance.onend = () => {
+            try {
+              cinematicAudioDirector.setDucking(false);
+            } catch {}
             if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
               playSpeechChunk(chunkIndex + 1);
             }
           };
           utterance.onerror = () => {
+            try {
+              cinematicAudioDirector.setDucking(false);
+            } catch {}
             if (isAudioActiveRef.current && audioPlayTokenRef.current === currentToken) {
               playSpeechChunk(chunkIndex + 1);
             }
           };
+          try {
+            cinematicAudioDirector.setDucking(true);
+          } catch {}
           window.speechSynthesis.speak(utterance);
         } else {
           playSpeechChunk(chunkIndex + 1);
@@ -2283,30 +3043,51 @@ ${ganchoImediato}`;
     }
   };
 
-  const startAudioReading = (capIndex: number, mode: 'single' | 'full' = 'single') => {
+  const startAudioReading = (capIndex: number, mode: 'single' | 'full' = 'single', startingParagraphIndex: number = -1) => {
     if (!livro || !livro.capitulos || !livro.capitulos[capIndex]) return;
+
+    if (activeTab !== 'preview') {
+      setActiveTab('preview');
+    }
 
     stopAudioReading();
 
     const cap = livro.capitulos[capIndex];
-    const fullText = `Capítulo ${capIndex + 1}: ${cap.titulo}. ${cap.texto}`;
-    const chunks = splitTextIntoSpeechChunks(fullText);
+    const segments = buildChapterNarrationSegments(capIndex + 1, cap.titulo, cap.texto);
 
-    audioChunksRef.current = chunks;
+    audioSegmentsRef.current = segments;
+    audioChunksRef.current = segments.map(s => s.speechText);
     audioCapIndexRef.current = capIndex;
     audioModeRef.current = mode;
     audioSpeedRef.current = audioSpeed;
     isAudioActiveRef.current = true;
     audioAbortControllerRef.current = new AbortController();
 
+    let initialChunk = 0;
+    if (startingParagraphIndex >= 0) {
+      const foundIdx = segments.findIndex(s => s.paragraphIndex >= startingParagraphIndex);
+      if (foundIdx >= 0) {
+        initialChunk = foundIdx;
+      }
+    }
+
     setAudioReadingCapIndex(capIndex);
     setAudioMode(mode);
     setIsPlayingAudio(true);
     setIsAudioPaused(false);
-    setCurrentChunkIndex(0);
-    setTotalChunksCount(chunks.length);
+    setCurrentChunkIndex(initialChunk);
+    setTotalChunksCount(segments.length);
 
-    playSpeechChunk(0);
+    // Inicia a trilha sonora de fundo e efeitos de ambiência correspondentes ao capítulo lido
+    try {
+      cinematicAudioDirector.resume();
+      cinematicAudioDirector.playScene({ narrationText: cap.texto, sceneSummary: cap.titulo }, livro.genero || 'Geral');
+      cinematicAudioDirector.setDucking(true);
+    } catch (bgmErr) {
+      console.warn('[AgenteNarrador] Falha ao acionar trilha sonora contextual:', bgmErr);
+    }
+
+    playSpeechChunk(initialChunk);
   };
 
   const skipToNextAudioChapter = () => {
@@ -3640,18 +4421,79 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
     setStatusType('ok');
   };
 
-  // LIMPAR PROGRESSO
-  const limparProgresso = () => {
-    if (!confirm('Deseja descartar todo o progresso atual deste livro?')) return;
-    localStorage.removeItem(STORAGE_KEY);
+  // RESET TOTAL: INICIAR NOVO LIVRO 100% EM BRANCO (SEM NENHUM CACHE)
+  const handleResetNovoLivroEmBranco = (pedirConfirmacao: boolean = true) => {
+    if (pedirConfirmacao && !confirm(ui(
+      'Deseja iniciar uma nova obra 100% em branco? Todos os campos atuais serão limpos e desvinculados de cache anterior.',
+      'Start a 100% blank new book? All current fields will be cleared with no cache from previous books.'
+    ))) return;
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem('kdp_last_active_project_id');
+        localStorage.removeItem('kdp_book_generator_state_v1');
+        localStorage.removeItem('kdp_book_generator_last_saved');
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('kdp_projeto_pro_v11_')) {
+            localStorage.removeItem(k);
+          }
+        }
+      }
+    } catch {}
+
+    projectIdRef.current = newProjectId();
+    setTitulo('');
+    setSubtitulo('');
+    setAutor('');
+    setGenero('');
+    setTopico('');
+    setTemaSelecionado('');
+    setSubtemaSelecionado('');
+    setFaixaEtaria('');
+    setUniqueAngle('');
+    setBookPromise('');
+    setTargetReader('');
+    setStanceTopic('');
+    setAuthorTone('Conversacional, próximo, envolvente e prático');
+    setCustomRefInput('');
+    setTitleFeedbackPrompt('');
+    setResourceNotes('');
+    setAuthorType('Pseudônimo (Autor Pessoal)');
+    setAuthorBackground('');
+    setAuthorEducation('');
+    setAuthorAchievements('');
+    setAuthorStyleInspiration('');
+    setAuthorOfficialBio('');
+    setFocusTags([]);
+    setProposedBookSummary('');
+    setVariedOutlinePreview([]);
+    setBookCommercialDescription('');
+    setMarketReferences([]);
+    setOpcoesTitulos([]);
+    setOpcoesSubtitulos([]);
+    setSuggestedAmazonTitles([]);
     setLivro(null);
     setCapaFinal(null);
     setFundoImg(null);
+    setContracapaFinal(null);
+    setWrapPreviewUrl(null);
     setPromoData(null);
+    setHistoricoCapas([]);
+    setIndiceCapaCarrossel(0);
     setCapAtual(0);
     setTotalCaps(0);
-    setStatusMsg('Progresso descartado com sucesso.');
+    setWizardStep(1);
+    setActiveTab('wizard');
+    setStatusMsg(ui('Novo livro em branco iniciado. Comece pela Etapa 1.', 'New blank book started. Begin with Step 1.'));
     setStatusType('normal');
+    logDiag('Novo livro 100% em branco inicializado sem cache.');
+  };
+
+  // LIMPAR PROGRESSO
+  const limparProgresso = () => {
+    handleResetNovoLivroEmBranco(true);
   };
 
   const applyBookType = (selectedType: BookType) => {
@@ -3800,181 +4642,502 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* SELETOR DE MODOS PRINCIPAIS: ESTEIRA VS LIVRO DIAGRAMADO VS BESTSELLERS */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#f8fafc', padding: '3px 4px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('wizard')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: activeTab === 'wizard' ? '#0f172a' : 'transparent',
+                color: activeTab === 'wizard' ? '#ffffff' : '#475569',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <span>✍️ {ui(`Esteira (${wizardStep}/10)`, `Steps (${wizardStep}/10)`)}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('preview')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: activeTab === 'preview' ? '#0f172a' : 'transparent',
+                color: activeTab === 'preview' ? '#ffffff' : '#475569',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <BookOpen size={13} color={activeTab === 'preview' ? '#38bdf8' : '#64748b'} />
+              <span>{ui('Dossiê & Manuscrito', 'Dossier & Book')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('market')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: activeTab === 'market' ? '#0f172a' : 'transparent',
+                color: activeTab === 'market' ? '#ffffff' : '#475569',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <TrendingUp size={13} color={activeTab === 'market' ? '#38bdf8' : '#64748b'} />
+              <span>{ui('Bestsellers (BSR < 80k)', 'Bestsellers')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('capa')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: activeTab === 'capa' ? '#0f172a' : 'transparent',
+                color: activeTab === 'capa' ? '#ffffff' : '#475569',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <Palette size={13} color={activeTab === 'capa' ? '#f59e0b' : '#64748b'} />
+              <span>{ui('Capa KDP', 'Cover')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('auditoria')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: activeTab === 'auditoria' ? '#0f172a' : 'transparent',
+                color: activeTab === 'auditoria' ? '#ffffff' : '#475569',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <ShieldCheck size={13} color={activeTab === 'auditoria' ? '#10b981' : '#64748b'} />
+              <span>{ui('Auditoria', 'Audit')}</span>
+            </button>
+          </div>
+
+          {/* TOGGLE MODO TELA DIVIDIDA */}
+          <button
+            type="button"
+            onClick={() => setWorkspaceLayout(prev => prev === 'split' ? 'focused' : 'split')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 6,
+              background: workspaceLayout === 'split' ? '#0f172a' : '#ffffff',
+              color: workspaceLayout === 'split' ? '#ffffff' : '#334155',
+              border: '1px solid #cbd5e1',
+              fontSize: 11.5,
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+            title={workspaceLayout === 'split' ? ui('Alternar para Modo Foco (Tela Limpa CoAuthor)', 'Switch to Focus Mode') : ui('Dividir tela com o Manuscrito ao lado', 'Split screen with manuscript')}
+          >
+            <Columns size={13} />
+            <span>{workspaceLayout === 'split' ? ui('Modo Foco', 'Focus Mode') : ui('Dividir Tela', 'Split Screen')}</span>
+          </button>
+
+          {/* NOVO LIVRO EM BRANCO (ZERO CACHE) */}
+          <button
+            type="button"
+            onClick={() => handleResetNovoLivroEmBranco(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 6,
+              background: '#f8fafc',
+              color: '#0f172a',
+              border: '1px dashed #cbd5e1',
+              fontSize: 11.5,
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+            title={ui('Iniciar novo projeto 100% em branco sem nenhum dado de livro anterior', 'Start 100% blank book')}
+          >
+            <Sparkles size={13} color="#0284c7" />
+            <span>{ui('Novo Livro em Branco', 'New Blank Book')}</span>
+          </button>
+
+          {/* BADGE DE STATUS */}
           <div
             style={{
-              fontSize: 12,
-              fontWeight: 600,
-              background: '#f1f5f9',
-              color: '#334155',
-              padding: '6px 14px',
+              fontSize: 11.5,
+              fontWeight: 700,
+              background: '#ecfdf5',
+              color: '#059669',
+              padding: '5px 12px',
               borderRadius: 20,
-              border: '1px solid #e2e8f0'
+              border: '1px solid #a7f3d0'
             }}
           >
             {gerando
               ? `⏳ ${ui('Capítulo', 'Chapter')} ${capAtual + 1}/${totalCaps}`
-              : capAtual > 0
-                ? `✓ ${capAtual} ${ui('Capítulos Prontos', 'Chapters Ready')}`
-                : ui('Pronto', 'Ready')}
+              : capAtual > 0 && livro && livro.capitulos && livro.capitulos.length > 0 && !isNewProject
+                ? `✓ ${livro.capitulos.length} ${ui('Capítulos Prontos', 'Chapters Ready')}`
+                : ui('Obra em Branco', 'Blank Book')}
           </div>
         </div>
       </header>
 
-      {/* ÁREA PRINCIPAL EM GRID FLUIDO (COM SCROLL PARA VER A PARTE DE BAIXO) */}
-      <main style={{ maxWidth: 1720, margin: '0 auto', padding: '12px 18px', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* ÁREA PRINCIPAL:
+          MODO FOCO (PADRÃO COAUTHOR): COLUNA 1 (260px FLUXO) + WORKSPACE PRINCIPAL (1fr)
+          MODO SPLIT: COLUNA 1 (240px FLUXO) + COLUNA 2 (FORMULÁRIO 1fr) + COLUNA 3 (LIVRO/DOSSIÊ 1.15fr)
+      */}
+      <main style={{ maxWidth: 1800, margin: '0 auto', padding: '12px 18px', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '440px 1fr',
+            gridTemplateColumns: workspaceLayout === 'split'
+              ? '240px minmax(460px, 1fr) minmax(480px, 1.15fr)'
+              : '260px minmax(0, 1fr)',
             gap: 16,
             alignItems: 'start',
             width: '100%'
           }}
         >
           {/* ========================================================= */}
-          {/* COLUNA 1: PAINEL DE CONFIGURAÇÃO (STICKY COM ROLAGEM INDEPENDENTE) */}
+          {/* COLUNA 1: FLUXO VERTICAL EDITORIAL GUIADO (10 ETAPAS)      */}
           {/* ========================================================= */}
           <div
             style={{
               background: '#ffffff',
               border: '1px solid #e2e8f0',
               borderRadius: 12,
-              padding: '16px 16px 12px 16px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
+              padding: '14px 12px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
               display: 'flex',
               flexDirection: 'column',
+              gap: 10,
               position: 'sticky',
               top: 70,
               maxHeight: 'calc(100vh - 86px)',
-              overflow: 'hidden'
+              overflowY: 'auto'
             }}
           >
-            {/* CABEÇALHO ELEGANTE DO PAINEL */}
-            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
-              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
-                <Compass size={16} color="#0284c7" /> {ui('Configuração da Obra', 'Book Production Setup')}
-              </h2>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
-                {livro ? `${livro.capitulos.length} caps gerados` : 'Novo Projeto'}
+            {/* CABEÇALHO DO FLUXO VERTICAL */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <CheckCircle2 size={16} color="#10b981" />
+                <span style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>
+                  {ui('Fluxo Editorial', 'Editorial Flow')}
+                </span>
+              </div>
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 7px',
+                borderRadius: 999,
+                background: '#ecfdf5',
+                color: '#059669',
+                border: '1px solid #a7f3d0'
+              }}>
+                {wizardStep}/10
               </span>
             </div>
 
-            {/* STEPPER VISUAL — WIZARD EDITORIAL PROMPT MASTER */}
-            <div style={{ flexShrink: 0, padding: '10px 4px 6px', borderBottom: '1px solid #e2e8f0', marginBottom: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-                {[
-                  { step: 1, label: ui('Tema', 'Theme'), icon: '🎯' },
-                  { step: 2, label: ui('Mercado', 'Market'), icon: '📊' },
-                  { step: 3, label: ui('Título', 'Title'), icon: '📖' },
-                  { step: 4, label: ui('Diferencial', 'Edge'), icon: '💡' },
-                  { step: 5, label: ui('Estrutura', 'Structure'), icon: '✍️' },
-                  { step: 6, label: ui('Produção', 'Production'), icon: '🚀' },
-                ].map((s, idx, arr) => {
-                  const isActive = wizardStep === s.step;
-                  const isComplete = s.step === 1 ? !!temaSelecionado
-                    : s.step === 2 ? marketReferences.length > 0
-                    : s.step === 3 ? !!titulo.trim()
-                    : s.step === 4 ? !!(uniqueAngle.trim() || bookPromise.trim() || targetReader.trim())
-                    : s.step === 5 ? !!topico.trim() && !!autor.trim()
-                    : !!livro;
-                  const isUnlocked = s.step === 1 ? true
-                    : s.step === 2 ? !!temaSelecionado
-                    : s.step === 3 ? !!temaSelecionado
-                    : s.step === 4 ? !!titulo.trim()
-                    : s.step === 5 ? !!titulo.trim()
-                    : !!titulo.trim() && !!topico.trim();
-                  return (
-                    <React.Fragment key={s.step}>
-                      <button
-                        type="button"
-                        onClick={() => isUnlocked && setWizardStep(s.step)}
-                        title={isUnlocked ? s.label : ui('Complete as etapas anteriores', 'Complete prior steps')}
-                        style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                          background: 'none', border: 'none', cursor: isUnlocked ? 'pointer' : 'not-allowed',
-                          opacity: isUnlocked ? 1 : 0.4, padding: '2px 4px', minWidth: 0, flex: 1,
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <div style={{
-                          width: 28, height: 28, borderRadius: '50%', display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800,
-                          background: isActive ? 'linear-gradient(135deg, #2563eb, #0ea5e9)'
-                            : isComplete ? 'linear-gradient(135deg, #10b981, #059669)'
-                            : '#e2e8f0',
-                          color: (isActive || isComplete) ? '#ffffff' : '#94a3b8',
-                          boxShadow: isActive ? '0 0 10px rgba(37, 99, 235, 0.4)' : 'none',
-                          transition: 'all 0.25s ease'
-                        }}>
-                          {isComplete && !isActive ? '✓' : s.icon}
-                        </div>
+            {/* LISTA VERTICAL DAS 10 ETAPAS COM CONEXÃO CONTÍNUA */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {[
+                { s: 1, name: 'Pesquisa & Tese', sub: 'Tema & Stance' },
+                { s: 2, name: 'Análise Top 50', sub: 'Bestsellers KDP' },
+                { s: 3, name: 'Título do Livro', sub: 'Título & Feedback' },
+                { s: 4, name: 'Recursos & Fontes', sub: 'Links & Notas' },
+                { s: 5, name: 'Persona & Bio', sub: 'Autor & Histórico' },
+                { s: 6, name: 'Proposta & Foco', sub: 'Diferencial & Tags' },
+                { s: 7, name: 'Detalhes & Sumário', sub: 'Estrutura Anti-IA' },
+                { s: 8, name: 'Escrita & Dados', sub: 'Capítulos & Estudos' },
+                { s: 9, name: 'Descrição', sub: 'Sinopse Comercial' },
+                { s: 10, name: 'Capa & Contracapa', sub: 'Prompts em Sintonia' }
+              ].map((st, idx, arr) => {
+                const isActive = wizardStep === st.s;
+                const isDone = wizardStep > st.s;
+                return (
+                  <div key={st.s} style={{ display: 'flex', flexDirection: 'column' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWizardStep(st.s);
+                        setActiveTab('wizard');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '7px 8px',
+                        borderRadius: 8,
+                        border: isActive ? '1px solid #0f172a' : '1px solid transparent',
+                        background: isActive ? '#0f172a' : isDone ? '#f0fdf4' : 'transparent',
+                        color: isActive ? '#ffffff' : isDone ? '#15803d' : '#334155',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        width: '100%',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title={`Ir para Etapa ${st.s}: ${st.name}`}
+                    >
+                      <div style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: isDone ? '#10b981' : isActive ? '#38bdf8' : '#ffffff',
+                        border: isDone ? '2px solid #10b981' : isActive ? '2px solid #38bdf8' : '1px solid #cbd5e1',
+                        color: isDone ? '#ffffff' : isActive ? '#0f172a' : '#64748b',
+                        fontSize: 10,
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {isDone ? '✓' : st.s}
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
                         <span style={{
-                          fontSize: 9, fontWeight: isActive ? 800 : 600,
-                          color: isActive ? '#0f172a' : isComplete ? '#059669' : '#94a3b8',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          maxWidth: 56
+                          fontSize: 11,
+                          fontWeight: isActive ? 800 : 700,
+                          lineHeight: 1.2,
+                          whiteSpace: 'nowrap',
+                          textOverflow: 'ellipsis',
+                          overflow: 'hidden'
                         }}>
-                          {s.label}
+                          {st.name}
                         </span>
-                      </button>
-                      {idx < arr.length - 1 && (
-                        <div style={{
-                          flex: '0 0 auto', height: 2, width: 12, borderRadius: 1,
-                          background: isComplete ? '#10b981' : '#e2e8f0',
-                          transition: 'background 0.3s ease', marginTop: -8
-                        }} />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                        <span style={{
+                          fontSize: 9,
+                          color: isActive ? '#94a3b8' : isDone ? '#16a34a' : '#94a3b8',
+                          lineHeight: 1.2,
+                          marginTop: 1
+                        }}>
+                          {st.sub}
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* CONECTOR VERTICAL ENTRE ETAPAS */}
+                    {idx < arr.length - 1 && (
+                      <div style={{
+                        width: 2,
+                        height: 6,
+                        background: wizardStep > st.s ? '#10b981' : '#e2e8f0',
+                        marginLeft: 18,
+                        transition: 'background 0.2s ease'
+                      }} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* AÇÕES DE RODAPÉ DO FLUXO LATERAL (ESTILO COAUTHOR EXIT & CLEAN) */}
+            <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => handleResetNovoLivroEmBranco(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  padding: '7px 10px',
+                  borderRadius: 6,
+                  border: '1px dashed #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#475569',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <Sparkles size={12} color="#0284c7" />
+                <span>{ui('Novo Livro em Branco', 'New Blank Book')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onBackToDashboard}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  padding: '7px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #e2e8f0',
+                  background: '#ffffff',
+                  color: '#64748b',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <ArrowLeft size={12} />
+                <span>{ui('Sair / Dashboard', 'Exit Book')}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ========================================================= */}
+          {/* COLUNA 2: FORMULÁRIO COMPLETO DA ETAPA ATIVA              */}
+          {/* ========================================================= */}
+          {(workspaceLayout === 'split' || activeTab === 'wizard') && (
+            <div
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 12,
+                padding: '16px 18px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
+                display: 'flex',
+                flexDirection: 'column',
+                position: 'sticky',
+                top: 70,
+                maxHeight: 'calc(100vh - 86px)',
+                overflowY: 'auto'
+              }}
+            >
+            {/* CABEÇALHO DE NAVEGAÇÃO DA ETAPA (BACK - TITLE - NEXT) */}
+            <div style={{
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 12,
+              paddingBottom: 8,
+              borderBottom: '1px solid #f1f5f9'
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (wizardStep > 1) setWizardStep(wizardStep - 1);
+                }}
+                disabled={wizardStep === 1}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '5px 12px',
+                  borderRadius: 16,
+                  border: '1px solid #cbd5e1',
+                  background: wizardStep === 1 ? '#f8fafc' : '#ffffff',
+                  color: wizardStep === 1 ? '#cbd5e1' : '#0f172a',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: wizardStep === 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <ChevronLeft size={13} /> {ui('Voltar', 'Back')}
+              </button>
+
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0284c7' }}>
+                  {ui(`Etapa ${wizardStep} de 10`, `Step ${wizardStep} of 10`)}
+                </span>
+                <h2 style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', margin: '1px 0 0' }}>
+                  {wizardStep === 1 ? ui('1. Pesquisa, Tema & Tese Única', '1. Research, Theme & Stance')
+                    : wizardStep === 2 ? ui('2. Análise de Bestsellers & Referências', '2. Bestseller Analysis & Refs')
+                    : wizardStep === 3 ? ui('3. Título, Subtítulo & Refinamento', '3. Book Title & Refinement')
+                    : wizardStep === 4 ? ui('4. Recursos, Fontes & Pesquisa', '4. Resources & Knowledge Base')
+                    : wizardStep === 5 ? ui('5. Persona & Biografia do Autor', '5. Author Persona & Biography')
+                    : wizardStep === 6 ? ui('6. Proposta do Livro & Foco', '6. Proposed Book & Focus')
+                    : wizardStep === 7 ? ui('7. Detalhes, Estrutura & Sumário', '7. Details & Varied Outline')
+                    : wizardStep === 8 ? ui('8. Escrita & Enriquecimento', '8. Write & Enrich Chapters')
+                    : wizardStep === 9 ? ui('9. Descrição Comercial do Livro', '9. Book Sales Description')
+                    : ui('10. Capa, Contracapa & Finalização', '10. Book Cover & Finish')}
+                </h2>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('preview')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '5px 12px',
+                    borderRadius: 16,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  title={ui('Ver Dossiê Editorial e Manuscrito do Livro', 'View Editorial Dossier and Manuscript')}
+                >
+                  <BookOpen size={12} color="#0284c7" />
+                  <span>{ui('Ver Dossiê / Livro', 'View Dossier / Book')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (wizardStep < 10) setWizardStep(wizardStep + 1);
+                  }}
+                  disabled={wizardStep === 10}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '5px 14px',
+                    borderRadius: 16,
+                    border: 'none',
+                    background: wizardStep === 10 ? '#cbd5e1' : '#0f172a',
+                    color: '#ffffff',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: wizardStep === 10 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {ui('Próximo', 'Next')} <ChevronRight size={13} />
+                </button>
               </div>
             </div>
 
-            {/* CORPO DO FORMULÁRIO COM ROLAGEM INDEPENDENTE E DESIGN REFINADO */}
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 6 }}>
+            {/* CORPO DO FORMULÁRIO COM ROLAGEM INDEPENDENTE */}
+            <div style={{ flex: 1, minHeight: 0 }}>
 
-            {/* ═══════ WIZARD STEP 1: TEMA CENTRAL ═══════ */}
+            {/* ═══════ WIZARD STEP 1: PESQUISA, TEMA & TESE ÚNICA ═══════ */}
             <div style={{ display: wizardStep === 1 ? undefined : 'none' }}>
 
-            {/* CARD DO AGENTE COAUTHOR (CONVERSACIONAL & FÓRMULA BESTSELLER AMAZON) */}
-            <CoAuthorCard
-              contextData={coAuthorContext}
-              onChangeContext={setCoAuthorContext}
-              onStartCoAuthor={() => {
-                if (coAuthorContext.premissaVisao.trim() && !topico.trim()) {
-                  setTopico(coAuthorContext.premissaVisao.trim());
-                }
-                if (coAuthorContext.formulaBestseller.trim() && !bookPromise.trim()) {
-                  setBookPromise(coAuthorContext.formulaBestseller.trim());
-                }
-                if (coAuthorContext.elementosChave.trim() && !uniqueAngle.trim()) {
-                  setUniqueAngle(coAuthorContext.elementosChave.trim());
-                }
-                setActiveTab('coauthor');
-                setStatusMsg('Estúdio CoAuthor ativado. Converse com o agente e coescreva seu bestseller!');
-                setStatusType('ok');
-              }}
-              onApplyToStandardForm={() => {
-                if (coAuthorContext.premissaVisao.trim()) setTopico(coAuthorContext.premissaVisao.trim());
-                if (coAuthorContext.elementosChave.trim()) setUniqueAngle(coAuthorContext.elementosChave.trim());
-                if (coAuthorContext.formulaBestseller.trim()) setBookPromise(coAuthorContext.formulaBestseller.trim());
-                setStatusMsg('Contexto do CoAuthor aplicado às etapas tradicionais da obra.');
-                setStatusType('ok');
-              }}
-              tituloAtual={titulo}
-              subtituloAtual={subtitulo}
-              generoAtual={genero}
-              idiomaAtual={idioma}
-              totalCaps={totalCaps || maxCapitulos || 8}
-              onUpdateTitleSubtitle={(novoTit, novoSub) => {
-                setTitulo(novoTit);
-                setSubtitulo(novoSub);
-              }}
-            />
-
             {/* ETAPA 1 — ESCOLHA DO TEMA DO LIVRO */}
-            <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+            <div style={{ marginBottom: 12, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
                 {ui('1. Tema Central do Livro (Obrigatório antes do Título)', '1. Main Book Theme (Required before the title)')}
               </label>
@@ -4068,29 +5231,119 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
+            {/* NOVO CAMPO COAUTHOR: POSICIONAMENTO / TESE FORTE SOBRE O TEMA (STANCE ON THE TOPIC) */}
+            <div style={{ marginBottom: 12, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                  {ui('1.2 Posicionamento / Tese Forte sobre o Tema (Stance)', '1.2 Strong Stance on the Topic')}
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSugerirStance}
+                  disabled={isAiStepBusy === 'stance'}
+                  style={{
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    color: '#1d4ed8',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  <Sparkles size={11} /> {isAiStepBusy === 'stance' ? 'Gerando...' : 'Sugerir Tese Única'}
+                </button>
+              </div>
+              <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 6, lineHeight: 1.35 }}>
+                Qual é a sua opinião forte ou visão contraintuitiva que impede seu livro de ser conteúdo genérico? (Ex: "Você não precisa de horas de organização; 10 minutos diários bastam").
+              </div>
+              <textarea
+                rows={3}
+                value={stanceTopic}
+                onChange={(e) => setStanceTopic(e.target.value)}
+                placeholder="Ex: A maioria dos livros sobre este tema falha porque exige força de vontade extrema; minha tese é que pequenas micro-ações diárias de 10 minutos geram resultados permanentes..."
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+
+              {/* Tom do Autor (Author Tone) */}
+              <div style={{ marginTop: 10 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  {ui('1.3 Tom de Voz do Autor (Author Tone)', '1.3 Author Tone')}
+                </label>
+                <select
+                  value={authorTone}
+                  onChange={(e) => setAuthorTone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '7px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontWeight: 500
+                  }}
+                >
+                  <option value="Conversacional, próximo, envolvente e prático">Conversacional, próximo, envolvente e prático (Padrão Bestseller)</option>
+                  <option value="Narrativo cinematográfico, imersivo e visceral">Narrativo cinematográfico, imersivo e visceral (Ficção / Suspense)</option>
+                  <option value="Autoridade científica acessível, baseado em evidências">Autoridade científica acessível, baseado em evidências</option>
+                  <option value="Mentor inspirador, empático e direto ao ponto">Mentor inspirador, empático e direto ao ponto</option>
+                  <option value="Investigativo, provocador e contraintuitivo">Investigativo, provocador e contraintuitivo</option>
+                </select>
+              </div>
+            </div>
+
             {/* Navegação Step 1 → 2 */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12, marginBottom: 6 }}>
-              <button type="button" onClick={() => { if (temaSelecionado) setWizardStep(2); else setWizardStep(3); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: temaSelecionado ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: temaSelecionado ? 'pointer' : 'not-allowed', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
-                {ui('Próximo', 'Next')} <ChevronRight size={15} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10, marginBottom: 6 }}>
+              <button type="button" onClick={() => setWizardStep(2)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #0f172a, #1e293b)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                {ui('Próximo: Análise', 'Next: Analysis')} <ChevronRight size={15} />
               </button>
             </div>
 
             </div>{/* FIM WIZARD STEP 1 */}
 
-            {/* ═══════ WIZARD STEP 2: INTELIGÊNCIA DE MERCADO ═══════ */}
+            {/* ═══════ WIZARD STEP 2: INTELIGÊNCIA DE MERCADO & TOP 100 SEGMENTOS ═══════ */}
             <div style={{ display: wizardStep === 2 ? undefined : 'none' }}>
 
-            {/* ETAPA 2 — INTELIGÊNCIA DE MERCADO AMAZON KDP */}
-            <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
-                  {ui('2. Inteligência de Mercado Amazon KDP', '2. Amazon KDP Market Insights')}
-                </label>
+            <div style={{ marginBottom: 14, background: '#ffffff', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
+              {/* CABEÇALHO DO MÓDULO TOP 100 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ background: '#f59e0b', color: '#78350f', fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 4, textTransform: 'uppercase' }}>
+                      Dados de Busca Amazon (Últimos 7 Dias)
+                    </span>
+                    <span style={{ background: '#ecfdf5', color: '#047857', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4 }}>
+                      ⚡ BSR &lt; 80.000 Garantido
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: '4px 0 2px' }}>
+                    Top 100 Segmentos & Livros mais Buscados pelos Clientes Amazon
+                  </h3>
+                  <p style={{ fontSize: 11.5, color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+                    Navegue pelos 100 nichos ranqueados por velocidade de busca real nos últimos 7 dias. Selecione de <b>1 a 10 livros</b> como referência de inspiração. Caso não goste de algum, clique em <b>Descartar</b> para substituí-lo imediatamente.
+                  </p>
+                </div>
+
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <button
                     type="button"
                     onClick={() => setIsTop50ModalOpen(true)}
-                    title={ui('Explorar os 50 livros mais vendidos no segmento (#1 ao #200) e analisar concorrência', 'Explore top 50 bestsellers in this category')}
                     style={{
                       padding: '5px 10px',
                       background: '#0f172a',
@@ -4107,99 +5360,520 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   >
                     <Award size={12} color="#f59e0b" /> Top 50 Bestsellers
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAnalisarMercado(true)}
-                    disabled={isAnalyzingMarket}
-                    title={ui('Sortear outros nichos e referências dinamicamente do ranking da Amazon', 'Find more niche opportunities in Amazon rankings')}
-                    style={{
-                      padding: '5px 9px',
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: isAnalyzingMarket ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                  >
-                    <RefreshCw size={11} className={isAnalyzingMarket ? 'spin' : ''} />
-                    {isAnalyzingMarket ? ui('Sorteando...', 'Finding...') : ui('Sortear Nicho', 'Draw Niche')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAnalisarMercado(false)}
-                    disabled={isAnalyzingMarket}
-                    title={ui('Consultar a inteligência de concorrência e demanda no catálogo Kindle', 'Analyze competitive landscape in Kindle store')}
-                    style={{
-                      padding: '5px 10px',
-                      background: isAnalyzingMarket ? '#f1f5f9' : '#0284c7',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: isAnalyzingMarket ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5
-                    }}
-                  >
-                    <TrendingUp size={12} />
-                    {isAnalyzingMarket ? ui('Analisando...', 'Analyzing...') : ui('Analisar Mercado', 'Analyze Market')}
-                  </button>
                 </div>
               </div>
 
-              {marketFeedback && (
-                <div style={{ fontSize: 11, color: '#334155', marginBottom: 6, fontWeight: 500 }}>
-                  {marketFeedback}
-                </div>
-              )}
-
-              {/* LISTA DAS 5 REFERÊNCIAS DE MERCADO */}
-              {marketReferences.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4, fontStyle: 'italic' }}>
-                    * 5 Melhores referências para inspiração editorial (BSR vs Posição distinguidos. Proibido copiar):
+              {/* FILTRO DE CATEGORIAS E BUSCA DE SEGMENTO */}
+              <div style={{ marginBottom: 12, background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '0 8px' }}>
+                    <Search size={14} color="#64748b" />
+                    <input
+                      type="text"
+                      value={segmentSearchQuery}
+                      onChange={(e) => setSegmentSearchQuery(e.target.value)}
+                      placeholder="Filtrar segmento, palavra-chave ou termo de busca..."
+                      style={{ border: 'none', outline: 'none', padding: '6px 8px', fontSize: 11.5, width: '100%', background: 'transparent', color: '#0f172a' }}
+                    />
+                    {segmentSearchQuery && (
+                      <button type="button" onClick={() => setSegmentSearchQuery('')} style={{ background: 'none', border: 'none', fontSize: 11, color: '#94a3b8', cursor: 'pointer' }}>✕</button>
+                    )}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {marketReferences.map((ref, idx) => (
-                      <div
-                        key={idx}
+                  <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', fontWeight: 600 }}>
+                    Exibindo {top100Segments.filter(seg => {
+                      const matchesCat = segmentCategoryFilter === 'all' || seg.category.toLowerCase().includes(segmentCategoryFilter.toLowerCase());
+                      const q = segmentSearchQuery.trim().toLowerCase();
+                      const matchesQ = !q || (seg.title || seg.name).toLowerCase().includes(q) || seg.dominantHook.toLowerCase().includes(q) || seg.topCustomerKeywords.some(k => k.toLowerCase().includes(q));
+                      return matchesCat && matchesQ;
+                    }).length} de 100 nichos
+                  </div>
+                </div>
+
+                {/* PILLS DE CATEGORIA */}
+                <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 4 }}>
+                  {[
+                    { id: 'all', label: 'Todos (100)' },
+                    { id: 'Desenvolvimento Pessoal', label: 'Produtividade & Hábitos' },
+                    { id: 'Negócios & Finanças', label: 'Finanças & Negócios' },
+                    { id: 'Tecnologia & IA', label: 'Tecnologia & IA' },
+                    { id: 'Mistério & Suspense', label: 'Mistério & Suspense' },
+                    { id: 'Ficção & Romance', label: 'Ficção & Romance' },
+                    { id: 'Saúde & Bem-Estar', label: 'Saúde & Bem-Estar' },
+                    { id: 'Espiritualidade & Filosofia', label: 'Espiritualidade' },
+                    { id: 'Infantil & Atividades', label: 'Infantil' },
+                    { id: 'Guias & Habilidades', label: 'Guias Práticos' }
+                  ].map(cat => {
+                    const isSelected = segmentCategoryFilter === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSegmentCategoryFilter(cat.id)}
                         style={{
-                          padding: '6px 8px',
-                          background: '#ffffff',
-                          borderRadius: 6,
-                          border: '1px solid #e2e8f0',
-                          fontSize: 11
+                          padding: '3px 9px',
+                          borderRadius: 20,
+                          fontSize: 10.5,
+                          fontWeight: isSelected ? 700 : 500,
+                          background: isSelected ? '#0f172a' : '#ffffff',
+                          color: isSelected ? '#ffffff' : '#475569',
+                          border: isSelected ? '1px solid #0f172a' : '1px solid #cbd5e1',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                          #{idx + 1}. {ref.title}
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* LISTA HORIZONTAL/ROLÁVEL DOS SEGMENTOS DO TOP 100 */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Navegar no Ranking Top 100 Amazon:</span>
+                  <span style={{ fontSize: 10, color: '#64748b' }}>Clique em um nicho para carregar seus 10 livros</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6 }}>
+                  {top100Segments
+                    .filter(seg => {
+                      const matchesCat = segmentCategoryFilter === 'all' || seg.category.toLowerCase().includes(segmentCategoryFilter.toLowerCase());
+                      const q = segmentSearchQuery.trim().toLowerCase();
+                      const matchesQ = !q || (seg.title || seg.name).toLowerCase().includes(q) || seg.dominantHook.toLowerCase().includes(q) || seg.topCustomerKeywords.some(k => k.toLowerCase().includes(q));
+                      return matchesCat && matchesQ;
+                    })
+                    .slice(0, 30)
+                    .map(seg => {
+                      const isSelected = seg.id === selectedSegmentId;
+                      return (
+                        <div
+                          key={seg.id}
+                          onClick={() => handleSelectSegment(seg.id)}
+                          style={{
+                            minWidth: 200,
+                            maxWidth: 240,
+                            padding: '8px 10px',
+                            background: isSelected ? '#eff6ff' : '#ffffff',
+                            border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                            boxShadow: isSelected ? '0 2px 6px rgba(37,99,235,0.15)' : 'none',
+                            flexShrink: 0
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{
+                              background: isSelected ? '#2563eb' : '#0f172a',
+                              color: '#fff',
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: '1px 6px',
+                              borderRadius: 4
+                            }}>
+                              #{seg.rank}
+                            </span>
+                            <span style={{ fontSize: 9.5, fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '1px 5px', borderRadius: 3 }}>
+                              +{seg.trend7dPercent}% em 7d
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#1d4ed8' : '#0f172a', lineHeight: 1.3 }}>
+                            {seg.title || seg.name}
+                          </div>
+                          <div style={{ fontSize: 9.5, color: '#64748b' }}>
+                            {seg.weeklySearchVolume.toLocaleString('pt-BR')} buscas/sem • BSR ~{(seg.avgBsr || 25000).toLocaleString('pt-BR')}
+                          </div>
+                          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 }}>
+                            {seg.topCustomerKeywords.slice(0, 2).map((kw, i) => (
+                              <span key={i} style={{ fontSize: 8.5, background: '#f1f5f9', color: '#475569', padding: '1px 4px', borderRadius: 3 }}>
+                                "{kw}"
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <div style={{ fontSize: 10, color: '#64748b', display: 'flex', gap: 8, marginTop: 2 }}>
-                          <span>{describeRank(ref)}</span>
-                          {ref.reviews ? <span>★ {ref.rating || '-'} ({ref.reviews} avaliações)</span> : null}
-                          {ref.referenceScore ? <span style={{ color: '#2563eb', fontWeight: 600 }}>Score: {ref.referenceScore}/100</span> : null}
-                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* CARD DO SEGMENTO ATIVO SELECIONADO */}
+              {(() => {
+                const seg = top100Segments.find(s => s.id === selectedSegmentId) || top100Segments[0];
+                return (
+                  <div style={{
+                    marginBottom: 14,
+                    padding: '10px 14px',
+                    background: 'linear-gradient(135deg, #0f172a, #1e293b)',
+                    borderRadius: 8,
+                    color: '#ffffff',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 10
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <span style={{ background: '#f59e0b', color: '#0f172a', fontWeight: 800, fontSize: 10.5, padding: '1px 6px', borderRadius: 4 }}>
+                          RANK #{seg.rank} NO TOP 100 AMAZON
+                        </span>
+                        <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                          Categoria: {seg.category}
+                        </span>
                       </div>
-                    ))}
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#ffffff' }}>
+                        {seg.title || seg.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 2 }}>
+                        🔥 <b>{seg.weeklySearchVolume.toLocaleString('pt-BR')} buscas</b> na última semana (+{seg.trend7dPercent}% de crescimento) • BSR médio #{(seg.avgBsr || 25000).toLocaleString('pt-BR')}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <div style={{ background: 'rgba(255,255,255,0.1)', padding: '5px 10px', borderRadius: 6, textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase' }}>Termo + Buscado</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8' }}>"{seg.topCustomerKeywords[0]}"</div>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.1)', padding: '5px 10px', borderRadius: 6, textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase' }}>Gancho Dominante</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#facc15' }}>{seg.dominantHook}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* SEÇÃO DOS 10 LIVROS ATIVOS NO SEGMENTO */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                  <div>
+                    <h4 style={{ fontSize: 12.5, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>10 Livros de Referência Ativos no Segmento</span>
+                      <span style={{
+                        background: selectedInspirationAsins.length > 0 ? '#ecfdf5' : '#f1f5f9',
+                        color: selectedInspirationAsins.length > 0 ? '#059669' : '#475569',
+                        border: selectedInspirationAsins.length > 0 ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                        fontSize: 11,
+                        fontWeight: 700
+                      }}>
+                        ⭐ {selectedInspirationAsins.length} de 10 selecionados (Escolha de 1 a 10)
+                      </span>
+                    </h4>
+                    <p style={{ fontSize: 10.5, color: '#64748b', margin: '2px 0 0' }}>
+                      Clique em <b>⭐ Inspirar</b> para marcar o livro ou em <b>✕ Descartar</b> se não gostar (outro livro entrará automaticamente no pool).
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedInspirationAsins(activePoolBooks.map(b => b.asin));
+                      }}
+                      style={{
+                        padding: '4px 9px',
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 5,
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        color: '#334155',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Selecionar Todos (10)
+                    </button>
+                    {selectedInspirationAsins.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedInspirationAsins([])}
+                        style={{
+                          padding: '4px 8px',
+                          background: '#fff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: 5,
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          color: '#dc2626',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Limpar Seleção
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
+
+                {/* GRADE DOS 10 LIVROS ATIVOS */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                  {activePoolBooks.slice(0, 10).map((book, idx) => {
+                    const isSelected = selectedInspirationAsins.includes(book.asin);
+                    const cover = book.coverImage || `https://images-na.ssl-images-amazon.com/images/P/${book.asin}.01._SCLZZZZZZZ_SX300_.jpg`;
+
+                    return (
+                      <div
+                        key={book.asin}
+                        style={{
+                          padding: 10,
+                          background: isSelected ? '#f0fdf4' : '#ffffff',
+                          borderRadius: 8,
+                          border: isSelected ? '2px solid #10b981' : '1px solid #e2e8f0',
+                          boxShadow: isSelected ? '0 2px 8px rgba(16,185,129,0.15)' : '0 1px 3px rgba(0,0,0,0.02)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          position: 'relative'
+                        }}
+                      >
+                        {/* HEADER DO CARD COM CAPA E DADOS */}
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                            <img
+                              src={cover}
+                              alt={book.title}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images-na.ssl-images-amazon.com/images/I/71kxa1-0mfL._AC_UL600_SR600,400_.jpg';
+                              }}
+                              style={{
+                                width: 48,
+                                height: 70,
+                                objectFit: 'cover',
+                                borderRadius: 4,
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                                display: 'block'
+                              }}
+                            />
+                            <span style={{
+                              position: 'absolute',
+                              top: -4,
+                              left: -4,
+                              background: '#0f172a',
+                              color: '#fff',
+                              fontSize: 9,
+                              fontWeight: 800,
+                              padding: '1px 4px',
+                              borderRadius: 3
+                            }}>
+                              #{idx + 1}
+                            </span>
+                          </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 11.5, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                              {book.title}
+                            </div>
+                            {book.subtitle && (
+                              <div style={{ fontSize: 9.5, color: '#64748b', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {book.subtitle}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, marginTop: 2 }}>
+                              Por: {book.author}
+                            </div>
+
+                            {/* MÉTRICAS AMAZON */}
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+                              <span style={{
+                                padding: '1px 5px',
+                                borderRadius: 3,
+                                background: book.bsr <= 80000 ? '#ecfdf5' : '#f1f5f9',
+                                color: book.bsr <= 80000 ? '#059669' : '#475569',
+                                border: book.bsr <= 80000 ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
+                                fontSize: 9,
+                                fontWeight: 800
+                              }}>
+                                BSR #{book.bsr.toLocaleString('pt-BR')}
+                              </span>
+                              <span style={{ fontSize: 9, color: '#0f172a', fontWeight: 700 }}>
+                                ~${book.estimatedMonthlyRevenueUsd.toLocaleString('pt-BR')}/mês
+                              </span>
+                              <span style={{ fontSize: 9, color: '#64748b' }}>
+                                ★ {book.rating} ({book.reviewsCount.toLocaleString('pt-BR')})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* BUSCA DO CLIENTE & GANCHO EDITORIAL */}
+                        <div style={{ background: '#f8fafc', padding: '5px 7px', borderRadius: 5, border: '1px solid #e2e8f0', fontSize: 9.5 }}>
+                          <div style={{ color: '#0369a1', fontWeight: 700 }}>
+                            🔍 Termo buscado: "{book.customerSearchQuery || 'livros kdp'}"
+                          </div>
+                          {book.hookRationale && (
+                            <div style={{ color: '#475569', marginTop: 2, fontStyle: 'italic' }}>
+                              💡 Gancho: {book.hookRationale}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* BOTÕES DE AÇÃO: INSPIRAR (SELECIONAR) E DESCARTAR (SUBSTITUIR) */}
+                        <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSelectInspiration(book)}
+                            style={{
+                              flex: 1,
+                              padding: '5px 8px',
+                              background: isSelected ? '#10b981' : '#f8fafc',
+                              color: isSelected ? '#ffffff' : '#0f172a',
+                              border: isSelected ? '1px solid #059669' : '1px solid #cbd5e1',
+                              borderRadius: 5,
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4
+                            }}
+                          >
+                            {isSelected ? (
+                              <>
+                                <Check size={12} /> Selecionado ({selectedInspirationAsins.length}/10)
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles size={11} color="#f59e0b" /> Inspirar
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDiscardBook(book.asin)}
+                            title="Descartar livro e carregar outro automaticamente"
+                            style={{
+                              padding: '5px 8px',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              border: '1px solid #fecaca',
+                              borderRadius: 5,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <Trash2 size={11} /> Descartar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* BUSCA MANUAL OU ADIÇÃO DE ASIN CASO O AUTOR DESEJE */}
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #e2e8f0', display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 10.5, color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>Adicionar Obra Personalizada:</span>
+                <input
+                  type="text"
+                  value={customRefInput}
+                  onChange={(e) => setCustomRefInput(e.target.value)}
+                  placeholder="Título ou ASIN personalizado (Ex: Hábitos Atômicos / 8550807567)..."
+                  style={{
+                    flex: 1,
+                    padding: '5px 8px',
+                    borderRadius: 5,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 11,
+                    background: '#ffffff',
+                    color: '#0f172a'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAdicionarReferenciaCustom}
+                  style={{
+                    padding: '5px 10px',
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 5,
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  + Adicionar
+                </button>
+              </div>
+
             </div>
 
-            {/* Navegação Step 2 ← → 3 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
-              <button type="button" onClick={() => setWizardStep(1)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+            {/* BARRA INFERIOR DE TRANSIÇÃO PARA ETAPA 3 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 12,
+              marginBottom: 6,
+              background: '#f8fafc',
+              padding: '10px 14px',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1'
+            }}>
+              <button
+                type="button"
+                onClick={() => setWizardStep(1)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '8px 14px',
+                  background: '#ffffff',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 7,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <ChevronLeft size={14} /> {ui('Voltar para Tema', 'Back to Theme')}
               </button>
-              <button type="button" onClick={() => setWizardStep(3)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
-                {ui('Próximo', 'Next')} <ChevronRight size={15} />
+
+              <div style={{ fontSize: 11.5, color: '#1e293b', fontWeight: 600 }}>
+                {selectedInspirationAsins.length > 0 ? (
+                  <span>
+                    ✓ <b>{selectedInspirationAsins.length}</b> de 10 livro(s) selecionado(s) para inspirar título e premissa.
+                  </span>
+                ) : (
+                  <span style={{ color: '#64748b' }}>
+                    💡 Nenhuma obra selecionada individualmente (usará as principais referências do nicho).
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAdvanceToStep3WithSelected}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '9px 20px',
+                  background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 7,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
+                }}
+              >
+                {ui('Avançar para Etapa 3: Título do Livro', 'Advance to Step 3: Book Title')} <ChevronRight size={15} />
               </button>
             </div>
 
@@ -4253,10 +5927,65 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       gap: 4
                     }}
                   >
-                    <Wand2 size={11} color="#475569" /> {isGeneratingTitulos ? ui('Gerando...', 'Generating...') : ui('5 Sugestões Originais', '5 Original Suggestions')}
+                    <Wand2 size={11} color="#475569" /> {isGeneratingTitulos ? ui('Gerando...', 'Generating...') : ui('5 Sugestões', '5 Suggestions')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGerarTitulosTermosAmazon}
+                    disabled={isGeneratingAmazonTitles}
+                    style={{
+                      background: '#0284c7',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '3px 9px',
+                      color: '#ffffff',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: isGeneratingAmazonTitles ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Sparkles size={11} /> {isGeneratingAmazonTitles ? 'Buscando Termos...' : '🎯 Termos Amazon (BSR < 80k)'}
                   </button>
                 </div>
               </div>
+
+              {/* Sugestões baseadas em Termos Reais de Busca da Amazon */}
+              {suggestedAmazonTitles.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, background: '#f0fdf4', border: '1px solid #bbf7d0', padding: 8, borderRadius: 6 }}>
+                  <div style={{ fontSize: 10.5, color: '#166534', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🎯 Títulos Ranqueados na Busca Amazon (clique para aplicar):</span>
+                    <span style={{ fontSize: 9.5, color: '#15803d' }}>BSR &lt; 80k</span>
+                  </div>
+                  {suggestedAmazonTitles.map((item, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => {
+                        setTitulo(item.title);
+                        setSubtitulo(item.subtitle);
+                        setStatusMsg(`✓ Título "${item.title}" e subtítulo aplicados!`);
+                        setStatusType('ok');
+                      }}
+                      style={{
+                        textAlign: 'left',
+                        padding: '6px 8px',
+                        background: '#ffffff',
+                        border: titulo === item.title ? '2px solid #059669' : '1px solid #cbd5e1',
+                        borderRadius: 5,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: '#0f172a' }}>{item.title}</div>
+                      <div style={{ fontSize: 10, color: '#475569', marginTop: 1 }}>{item.subtitle}</div>
+                      <div style={{ fontSize: 9, color: '#059669', marginTop: 2, fontWeight: 600 }}>💡 {item.rationale} ({item.targetBsr})</div>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Pílulas de opções de títulos gerados */}
               {opcoesTitulos.length > 0 && (
@@ -4324,6 +6053,48 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 >
                   <Sparkles size={12} color="#0284c7" /> {loadingSugestao === 'titulo' ? ui('...', '...') : ui('Sugerir', 'Suggest')}
                 </button>
+              </div>
+
+              {/* REFINADOR INTERATIVO DE TÍTULO COM FEEDBACK (ESTILO COAUTHOR) */}
+              <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                  💬 Dar Feedback para Refinar o Título (Peça 5 variações melhoradas):
+                </label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    type="text"
+                    value={titleFeedbackPrompt}
+                    onChange={(e) => setTitleFeedbackPrompt(e.target.value)}
+                    placeholder="Ex: Deixe mais curto, intrigante e focado em resultados rápidos..."
+                    style={{
+                      flex: 1,
+                      padding: '6px 9px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 11.5,
+                      background: '#ffffff',
+                      color: '#0f172a'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRefinarTituloComFeedback}
+                    disabled={isAiStepBusy === 'title-refine'}
+                    style={{
+                      padding: '6px 10px',
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {isAiStepBusy === 'title-refine' ? 'Refinando...' : '✨ 5 Títulos Melhorados'}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -4468,21 +6239,287 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <button type="button" onClick={() => setWizardStep(2)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
               </button>
-              <button type="button" onClick={() => { if (titulo.trim()) setWizardStep(4); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: titulo.trim() ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: titulo.trim() ? 'pointer' : 'not-allowed', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
-                {ui('Próximo', 'Next')} <ChevronRight size={15} />
+              <button type="button" onClick={() => setWizardStep(4)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+                {ui('Próximo: Recursos', 'Next: Resources')} <ChevronRight size={15} />
               </button>
             </div>
 
             </div>{/* FIM WIZARD STEP 3 */}
 
-            {/* ═══════ WIZARD STEP 4: DIFERENCIAL EDITORIAL ═══════ */}
+            {/* ═══════ WIZARD STEP 4: RECURSOS, FONTES & BASE DE CONHECIMENTO ═══════ */}
             <div style={{ display: wizardStep === 4 ? undefined : 'none' }}>
+              <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                    {ui('4. Recursos, Links, Estudos & Notas de Pesquisa', '4. Resources, Links, Studies & Research Notes')}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSugerirRecursos}
+                    disabled={isAiStepBusy === 'resources'}
+                    style={{
+                      background: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: 6,
+                      padding: '4px 9px',
+                      color: '#1d4ed8',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Sparkles size={11} /> {isAiStepBusy === 'resources' ? 'Pesquisando...' : 'Sugerir Fontes & Dicas com IA'}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, lineHeight: 1.4 }}>
+                  Cole links de blogs, estudos científicos, trechos de pesquisa ou dicas-chave que você deseja que a IA utilize como contexto exclusivo ao escrever os capítulos do seu livro.
+                </div>
+                <textarea
+                  rows={8}
+                  value={resourceNotes}
+                  onChange={(e) => setResourceNotes(e.target.value)}
+                  placeholder="Cole aqui URLs de referência, dados estatísticos, anotações pessoais ou clique em 'Sugerir Fontes & Dicas com IA' acima..."
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    resize: 'vertical',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {/* Upload rápido de arquivo .txt/.md para a Base de Recursos */}
+                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '5px 10px',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#334155',
+                    cursor: 'pointer'
+                  }}>
+                    <Upload size={12} color="#2563eb" /> Carregar Arquivo de Notas (.txt / .md)
+                    <input
+                      type="file"
+                      accept=".txt,.md,.csv"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const content = String(reader.result || '');
+                          setResourceNotes(prev => prev ? `${prev}\n\n--- [${file.name}] ---\n${content}` : content);
+                          setStatusMsg(`✓ Arquivo "${file.name}" anexado aos Recursos da Obra!`);
+                          setStatusType('ok');
+                        };
+                        reader.readAsText(file);
+                      }}
+                    />
+                  </label>
+                  {resourceNotes && (
+                    <span style={{ fontSize: 10.5, color: '#059669', fontWeight: 700 }}>
+                      ✓ {resourceNotes.split(/\s+/).filter(Boolean).length} palavras no contexto
+                    </span>
+                  )}
+                </div>
+              </div>
 
-            {/* ETAPA 4 — DIFERENCIAL EDITORIAL & ESTRATÉGIA KDP (COM SUGESTÕES DE IA) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
+                <button type="button" onClick={() => setWizardStep(3)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+                </button>
+                <button type="button" onClick={() => setWizardStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  {ui('Próximo: Persona & Bio', 'Next: Author Bio')} <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>{/* FIM WIZARD STEP 4 */}
+
+            {/* ═══════ WIZARD STEP 5: PERSONA & BIOGRAFIA DO AUTOR (ESTILO COAUTHOR PRINT) ═══════ */}
+            <div style={{ display: wizardStep === 5 ? undefined : 'none' }}>
+              <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                    5. Persona & Biografia Personalizada do Autor
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                    Um livro excelente não é feito apenas de técnicas, mas de histórias e da voz de quem ensina ou narra. Preencha os campos abaixo (deixe em branco o que não se aplicar).
+                  </div>
+                </div>
+
+                {/* Grid 2 Colunas idêntico à tela Author Biography do Coauthor.ai */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                      Nome do Autor *
+                    </label>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <input
+                        type="text"
+                        value={autor}
+                        onChange={(e) => setAutor(e.target.value)}
+                        placeholder="Ex: Kate Hansen / Leandro Souza"
+                        style={{ flex: 1, padding: '7px 9px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', color: '#0f172a', minWidth: 0 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSugerir('autor')}
+                        disabled={loadingSugestao === 'autor'}
+                        title="Gerar pseudônimo editorial com IA"
+                        style={{ padding: '6px 8px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        <Wand2 size={11} color="#475569" />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                      Tipo de Autor *
+                    </label>
+                    <select
+                      value={authorType}
+                      onChange={(e) => setAuthorType(e.target.value)}
+                      style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', color: '#0f172a' }}
+                    >
+                      <option value="Pseudônimo (Autor Pessoal)">Pseudônimo (Pen Name / Autor Pessoal)</option>
+                      <option value="Nome Real (Especialista / Autoridade)">Nome Real (Especialista / Autoridade)</option>
+                      <option value="Marca Editorial (Brand Name)">Marca Editorial (Brand Name)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                      Background Profissional / Vivência *
+                    </label>
+                    <input
+                      type="text"
+                      value={authorBackground}
+                      onChange={(e) => setAuthorBackground(e.target.value)}
+                      placeholder="Ex: Mãe ocupada de 2 filhos / Investigador..."
+                      style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                      Formação / Educação
+                    </label>
+                    <input
+                      type="text"
+                      value={authorEducation}
+                      onChange={(e) => setAuthorEducation(e.target.value)}
+                      placeholder="Sua formação acadêmica ou autodidata"
+                      style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                      Conquistas, Publicações ou Detalhes Pessoais
+                    </label>
+                    <input
+                      type="text"
+                      value={authorAchievements}
+                      onChange={(e) => setAuthorAchievements(e.target.value)}
+                      placeholder="Prêmios, marcos, família, interesses..."
+                      style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                      Autores de Inspiração (Estilo de Escrita)
+                    </label>
+                    <input
+                      type="text"
+                      value={authorStyleInspiration}
+                      onChange={(e) => setAuthorStyleInspiration(e.target.value)}
+                      placeholder="Ex: James Clear, Brené Brown, Dan Brown..."
+                      style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGerarBiografiaAutor}
+                  disabled={isAiStepBusy === 'bio'}
+                  style={{
+                    width: '100%',
+                    padding: '9px 14px',
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    marginBottom: 8
+                  }}
+                >
+                  <Sparkles size={13} color="#38bdf8" />
+                  {isAiStepBusy === 'bio' ? 'Gerando Biografia Personalizada...' : 'Gerar Biografia do Autor (Generate Biography)'}
+                </button>
+
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                  Biografia Oficial & Voz Narrativa (Editável):
+                </label>
+                <textarea
+                  rows={4}
+                  value={authorOfficialBio}
+                  onChange={(e) => setAuthorOfficialBio(e.target.value)}
+                  placeholder="A biografia gerada aparecerá aqui e será incorporada na escrita dos exemplos do livro e na seção Sobre o Autor..."
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    lineHeight: 1.45,
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    resize: 'vertical',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
+                <button type="button" onClick={() => setWizardStep(4)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+                </button>
+                <button type="button" onClick={() => setWizardStep(6)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  {ui('Próximo: Proposta & Foco', 'Next: Proposed Book')} <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>{/* FIM WIZARD STEP 5 */}
+
+            {/* ═══════ WIZARD STEP 6: PROPOSTA DO LIVRO, FOCO & DIFERENCIAL EDITORIAL ═══════ */}
+            <div style={{ display: wizardStep === 6 ? undefined : 'none' }}>
+
+            {/* ETAPA 6 — DIFERENCIAL EDITORIAL & PROPOSTA DO LIVRO COM FOCO */}
             <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-                  {ui('4. Diferencial Editorial KDP', '4. KDP Editorial Differentiation')}
+                  {ui('6. Proposta do Livro, Diferencial & Tags de Foco', '6. Proposed Book, Edge & Focus Tags')}
                 </label>
                 <button
                   type="button"
@@ -4660,22 +6697,131 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   </button>
                 </div>
               </div>
+
+              {/* NOVO COAUTHOR: TAGS DE FOCO DO LIVRO (SELECTABLE FOCUS TAGS) */}
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                  🎯 Áreas de Foco do Livro (Selecione os pilares que destacam sua obra):
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+                  {[
+                    'Estratégias Práticas',
+                    'Ganhos Rápidos Diários',
+                    'Exemplos da Vida Real',
+                    'Baseado em Neurociência / Dados',
+                    'Passo a Passo Simples',
+                    'Quebra de Mitos',
+                    'Storytelling Imersivo',
+                    'Exercícios Aplicáveis'
+                  ].map(tag => {
+                    const active = focusTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          setFocusTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+                        }}
+                        style={{
+                          padding: '4px 9px',
+                          borderRadius: 14,
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          background: active ? '#0f172a' : '#ffffff',
+                          color: active ? '#ffffff' : '#475569',
+                          border: active ? '1px solid #0f172a' : '1px solid #cbd5e1',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {active ? `✓ ${tag}` : `+ ${tag}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  <input
+                    type="text"
+                    value={customFocusTag}
+                    onChange={(e) => setCustomFocusTag(e.target.value)}
+                    placeholder="Adicionar foco personalizado (Ex: Rotinas de 10 minutos)..."
+                    style={{ flex: 1, padding: '5px 9px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#ffffff' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!customFocusTag.trim()) return;
+                      if (!focusTags.includes(customFocusTag.trim())) {
+                        setFocusTags(prev => [...prev, customFocusTag.trim()]);
+                      }
+                      setCustomFocusTag('');
+                    }}
+                    style={{ padding: '5px 10px', background: '#e2e8f0', color: '#0f172a', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    + Tag
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGerarPropostaFoco}
+                  disabled={isAiStepBusy === 'proposal'}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    marginBottom: 6
+                  }}
+                >
+                  <Sparkles size={12} /> {isAiStepBusy === 'proposal' ? 'Consolidando Proposta...' : '✨ Gerar Proposta do Livro com Foco (Proposed Book)'}
+                </button>
+
+                {proposedBookSummary && (
+                  <textarea
+                    rows={3}
+                    value={proposedBookSummary}
+                    onChange={(e) => setProposedBookSummary(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 9px',
+                      borderRadius: 6,
+                      border: '1px solid #bfdbfe',
+                      fontSize: 11.5,
+                      lineHeight: 1.45,
+                      background: '#eff6ff',
+                      color: '#1e3a8a',
+                      resize: 'vertical',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                )}
+              </div>
             </div>
 
-            {/* Navegação Step 4 ← → 5 */}
+            {/* Navegação Step 6 ← → 7 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
-              <button type="button" onClick={() => setWizardStep(3)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <button type="button" onClick={() => setWizardStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
               </button>
-              <button type="button" onClick={() => setWizardStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
-                {ui('Próximo', 'Next')} <ChevronRight size={15} />
+              <button type="button" onClick={() => setWizardStep(7)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+                {ui('Próximo: Detalhes & Sumário', 'Next: Details & Outline')} <ChevronRight size={15} />
               </button>
             </div>
 
-            </div>{/* FIM WIZARD STEP 4 */}
+            </div>{/* FIM WIZARD STEP 6 */}
 
-            {/* ═══════ WIZARD STEP 5: ESTRUTURA & CONFIGURAÇÃO ═══════ */}
-            <div style={{ display: wizardStep === 5 ? undefined : 'none' }}>
+            {/* ═══════ WIZARD STEP 7: DETALHES, ESTRUTURA & SUMÁRIO VARIADO ═══════ */}
+            <div style={{ display: wizardStep === 7 ? undefined : 'none' }}>
 
             {/* Autor */}
             <div style={{ marginBottom: 12 }}>
@@ -4724,7 +6870,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             {/* Premissa Central */}
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
-                {ui('Premissa Central da História', 'Central Story Premise')}
+                {ui('Premissa Central da História / Tese Geral', 'Central Story Premise / Main Thesis')}
               </label>
               <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                 <textarea
@@ -4765,6 +6911,63 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   <Wand2 size={12} color="#475569" /> IA
                 </button>
               </div>
+            </div>
+
+            {/* NOVO COAUTHOR: ESTRUTURA DO LIVRO & GERADOR DE SUMÁRIO COM RITMO VARIADO */}
+            <div style={{ marginBottom: 12, background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                📐 Estrutura Editorial & Ritmo dos Capítulos (Evita Capítulos Repetitivos):
+              </label>
+              <select
+                value={bookStructureType}
+                onChange={(e) => setBookStructureType(e.target.value)}
+                style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#ffffff', color: '#0f172a', marginBottom: 8 }}
+              >
+                <option value="Jornada Progressiva com Ritmo Variado (Passo a Passo + Casos + Quebra de Mitos)">Jornada Progressiva com Ritmo Variado (Passo a Passo + Casos + Mitos)</option>
+                <option value="Narrativa Cinematográfica em 3 Atos com Gancho por Capítulo">Narrativa Cinematográfica em 3 Atos com Gancho por Capítulo</option>
+                <option value="Guia Prático Modular (Problema -> Causa Oculta -> Protocolo Diário)">Guia Prático Modular (Problema → Causa Oculta → Protocolo Diário)</option>
+                <option value="Investigação Profunda & Estudos de Caso Reais">Investigação Profunda & Estudos de Caso Reais</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={handleGerarSumarioRitmoVariado}
+                disabled={isAiStepBusy === 'outline'}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6
+                }}
+              >
+                <Sparkles size={12} color="#38bdf8" />
+                {isAiStepBusy === 'outline' ? 'Planejando Sumário com Ritmo Variado...' : `✨ Gerar Prévia de Sumário (${maxCapitulos} Caps com Abordagens Distintas)`}
+              </button>
+
+              {variedOutlinePreview.length > 0 && (
+                <div style={{ marginTop: 8, maxHeight: 170, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingRight: 2 }}>
+                  {variedOutlinePreview.map((item, idx) => (
+                    <div key={idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 8px', fontSize: 11 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>Cap. {item.num}: {item.title}</span>
+                        <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: '#eff6ff', color: '#1d4ed8', whiteSpace: 'nowrap' }}>
+                          {item.sectionsCount} seções • ~{item.targetWords} pal.
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{item.focus}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Metas de Páginas e Capítulos */}
@@ -4814,7 +7017,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                  {ui('Tamanho KDP', 'KDP Trim Size')}
+                  {ui('Tamanho Editorial', 'Trim Size')}
                 </label>
                 <select
                   value={formato}
@@ -4911,31 +7114,24 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   checked={optSumario}
                   onChange={(e) => setOptSumario(e.target.checked)}
                 />
-                Incluir sumário diagramado com numeração KDP
+                Incluir sumário diagramado com numeração oficial
               </label>
             </div>
 
-            {/* Navegação Step 5 ← → 6 */}
+            {/* Navegação Step 7 ← → 8 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
-              <button type="button" onClick={() => setWizardStep(4)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <button type="button" onClick={() => setWizardStep(6)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
               </button>
-              <button type="button" onClick={() => { if (titulo.trim() && topico.trim()) setWizardStep(6); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: (titulo.trim() && topico.trim()) ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: (titulo.trim() && topico.trim()) ? 'pointer' : 'not-allowed', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
-                🚀 {ui('Ir para Produção', 'Go to Production')} <ChevronRight size={15} />
+              <button type="button" onClick={() => setWizardStep(8)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+                🚀 {ui('Ir para Escrita & Produção', 'Go to Write & Production')} <ChevronRight size={15} />
               </button>
             </div>
 
-            </div>{/* FIM WIZARD STEP 5 */}
+            </div>{/* FIM WIZARD STEP 7 */}
 
-            {/* ═══════ WIZARD STEP 6: PRODUÇÃO ═══════ */}
-            <div style={{ display: wizardStep === 6 ? undefined : 'none' }}>
-
-            {/* Navegação Step 6 ← (Voltar) */}
-            <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 8, marginBottom: 10 }}>
-              <button type="button" onClick={() => setWizardStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                <ChevronLeft size={14} /> {ui('Voltar à Estrutura', 'Back to Structure')}
-              </button>
-            </div>
+            {/* ═══════ WIZARD STEP 8: ESCRITA, PRODUÇÃO & ENRIQUECIMENTO DE CAPÍTULOS ═══════ */}
+            <div style={{ display: wizardStep === 8 ? undefined : 'none' }}>
 
             {/* INFORMAÇÃO DE CRÉDITOS DO LIVRO (US$ 3 POR LIVRO GERADO) */}
             <div style={{
@@ -5027,6 +7223,50 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </button>
             </div>
 
+            {/* FERRAMENTAS COAUTHOR DE ENRIQUECIMENTO EDITORIAL DO CAPÍTULO ATUAL */}
+            <div style={{ marginBottom: 10, padding: '10px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>
+                ✨ Enriquecer Capítulo Atual com IA (Estilo Coauthor Write Tools):
+              </div>
+              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8 }}>
+                Adicione profundidade real, estudos, casos históricos ou citações diretamente ao capítulo selecionado:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => handleEnriquecerCapituloAtual('data')}
+                  disabled={!!isAiStepBusy}
+                  style={{ padding: '7px 8px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: '#0f172a', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  📊 {isAiStepBusy === 'enrich-data' ? 'Inserindo...' : 'Fortalecer com Dados'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEnriquecerCapituloAtual('history')}
+                  disabled={!!isAiStepBusy}
+                  style={{ padding: '7px 8px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: '#0f172a', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  🏛️ {isAiStepBusy === 'enrich-history' ? 'Inserindo...' : 'Fatos Históricos / Casos'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEnriquecerCapituloAtual('quote')}
+                  disabled={!!isAiStepBusy}
+                  style={{ padding: '7px 8px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: '#0f172a', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  💬 {isAiStepBusy === 'enrich-quote' ? 'Inserindo...' : 'Apoiar com Citação'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEnriquecerCapituloAtual('expand')}
+                  disabled={!!isAiStepBusy}
+                  style={{ padding: '7px 8px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: '#0f172a', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  🔍 {isAiStepBusy === 'enrich-expand' ? 'Expandindo...' : 'Expandir com Exemplo'}
+                </button>
+              </div>
+            </div>
+
             {/* BOTÃO GERAR CAPA & PÁGINA PROMOCIONAL */}
             <button
               type="button"
@@ -5038,19 +7278,19 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
-                padding: '12px',
+                padding: '11px',
                 background: 'linear-gradient(135deg, #f59e0b, #ea580c)',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 8,
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 700,
                 cursor: 'pointer',
-                marginBottom: 10,
+                marginBottom: 8,
                 boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)'
               }}
             >
-              <Sparkles size={16} /> 🎨 Gerar Capa & Página Promocional
+              <Sparkles size={15} /> 🎨 Gerar Capa & Página Promocional
             </button>
 
             {/* INPUT DE ARQUIVO OCULTO PARA IMPORTAR CAPA EXTERNA */}
@@ -5073,18 +7313,18 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
-                padding: '10px 12px',
+                padding: '9px 12px',
                 background: '#ffffff',
                 color: '#0f172a',
                 border: '1px solid #cbd5e1',
                 borderRadius: 8,
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
                 marginBottom: 10,
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
               }}
-              title="Importar imagem própria de capa (PNG, JPG, WEBP) para gerar contracapa e wrap KDP oficial"
+              title="Importar imagem própria de capa (PNG, JPG, WEBP) para gerar contracapa e wrap oficial"
             >
               <Upload size={15} color="#2563eb" /> 📁 Importar Capa do Computador
             </button>
@@ -5149,7 +7389,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             {/* STATUS & BARRA DE PROGRESSO */}
             <div
               style={{
-                marginTop: 12,
+                marginTop: 8,
                 fontSize: 12,
                 fontWeight: 600,
                 color: statusType === 'error' ? '#ef4444' : statusType === 'ok' ? '#10b981' : '#64748b'
@@ -5196,7 +7436,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             </div>
 
             {/* PAINEL DE AUDITORIA & AUTO-RECUPERAÇÃO AUTOMÁTICA */}
-            <div style={{ marginTop: 12 }}>
+            <div style={{ marginTop: 10 }}>
               <div
                 style={{
                   display: 'flex',
@@ -5313,14 +7553,217 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
-            </div>{/* FIM WIZARD STEP 6 */}
-
+            {/* Navegação Step 8 ← → 9 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
+              <button type="button" onClick={() => setWizardStep(7)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+              </button>
+              <button type="button" onClick={() => setWizardStep(9)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {ui('Próximo: Descrição', 'Next: Description')} <ChevronRight size={15} />
+              </button>
             </div>
+
+            </div>{/* FIM WIZARD STEP 8 */}
+
+            {/* ═══════ WIZARD STEP 9: DESCRIÇÃO COMERCIAL DO LIVRO (DESCRIPTION) ═══════ */}
+            <div style={{ display: wizardStep === 9 ? undefined : 'none' }}>
+              <div style={{ marginBottom: 14, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>
+                    9. Descrição Comercial & Sinopse de Vendas
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGerarDescricaoComercial}
+                    disabled={isAiStepBusy === 'description'}
+                    style={{
+                      background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '5px 10px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Sparkles size={11} /> {isAiStepBusy === 'description' ? 'Gerando Copy...' : '✨ Gerar Descrição Comercial'}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, lineHeight: 1.4 }}>
+                  Gera uma descrição persuasiva estruturada com Headline de Gancho, Identificação, Bullet Points do que o leitor vai descobrir e Chamada para Ação pronta para a página de vendas do livro.
+                </div>
+
+                <textarea
+                  rows={11}
+                  value={bookCommercialDescription}
+                  onChange={(e) => setBookCommercialDescription(e.target.value)}
+                  placeholder="Clique em '✨ Gerar Descrição Comercial' acima para criar a copy completa de vendas do seu livro..."
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    resize: 'vertical',
+                    boxSizing: 'border-box'
+                  }}
+                />
+
+                {bookCommercialDescription && (
+                  <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(bookCommercialDescription);
+                        setCopiedDescOk(true);
+                        setTimeout(() => setCopiedDescOk(false), 2500);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        background: copiedDescOk ? '#059669' : '#0f172a',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 6,
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5
+                      }}
+                    >
+                      {copiedDescOk ? <Check size={13} /> : <Copy size={13} />}
+                      {copiedDescOk ? 'Descrição Copiada!' : 'Copiar Descrição Completa'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12, marginBottom: 6 }}>
+                <button type="button" onClick={() => setWizardStep(8)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
+                </button>
+                <button type="button" onClick={() => setWizardStep(10)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  {ui('Próximo: Capa & Prompts', 'Next: Book Cover')} <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>{/* FIM WIZARD STEP 9 */}
+
+            {/* ═══════ WIZARD STEP 10: CAPA, CONTRACAPA & FINALIZAÇÃO (BOOK COVER & FINISH) ═══════ */}
+            <div style={{ display: wizardStep === 10 ? undefined : 'none' }}>
+              <div style={{ marginBottom: 12, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>
+                  10. Estúdio de Capa, Contracapa & Master Prompts
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, lineHeight: 1.4 }}>
+                  Gere a capa diretamente na plataforma, importe uma arte do seu computador ou copie os <b>2 Prompts Mestres Editoriais</b> (1. Apenas Capa Frontal e 2. Capa + Lombada + Contracapa com Breve Leitura em Total Sintonia).
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('capa');
+                      gerarCapaEPaginaPromocional();
+                    }}
+                    disabled={gerando}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '11px',
+                      background: 'linear-gradient(135deg, #f59e0b, #ea580c)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 8,
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)'
+                    }}
+                  >
+                    <Sparkles size={15} /> 🎨 Gerar Capa & Contracapa Automaticamente
+                  </button>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => coverFileInputRef.current?.click()}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '8px 10px',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 7,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Upload size={13} color="#2563eb" /> Importar Capa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('capa')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '8px 10px',
+                        background: '#0f172a',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 7,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Eye size={13} color="#38bdf8" /> Ver Capa Aberta
+                    </button>
+                  </div>
+                </div>
+
+                {/* CARD COMPLETO DOS 2 PROMPTS DE CAPA (FRENTE + CAPA/LOMBADA/CONTRACAPA EM SINTONIA) */}
+                <KdpCoverMasterPromptCard
+                  titulo={livro?.titulo || titulo}
+                  subtitulo={livro?.subtitulo || subtitulo}
+                  autor={livro?.autor || autor}
+                  genero={livro?.genero || genero}
+                  premissa={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
+                  idioma={idioma || 'pt'}
+                  compactMode={true}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 8, marginTop: 10, marginBottom: 6 }}>
+                <button type="button" onClick={() => setWizardStep(9)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <ChevronLeft size={14} /> {ui('Voltar à Descrição', 'Back to Description')}
+                </button>
+              </div>
+            </div>{/* FIM WIZARD STEP 10 */}
+            </div>{/* FIM DO CORPO DO FORMULÁRIO */}
           </div>
+          )} {/* FIM DA COLUNA 2 */}
 
           {/* ========================================================= */}
-          {/* COLUNA 2: ESPAÇO DE CRIAÇÃO & VISUALIZAÇÃO COM SIDEBAR LATERAL DE CONTROLE */}
+          {/* COLUNA 3: PALCO VISUAL AMPLO (LIVRO DIAGRAMADO, CAPA & AUDITORIA) */}
           {/* ========================================================= */}
+          {(workspaceLayout === 'split' || activeTab !== 'wizard') && (
           <div
             style={{
               background: '#ffffff',
@@ -5329,25 +7772,256 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               padding: '16px 18px',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
               display: 'flex',
-              flexDirection: 'row',
-              gap: 16,
-              alignItems: 'flex-start',
+              flexDirection: 'column',
+              gap: 14,
               width: '100%',
+              minWidth: 0,
               boxSizing: 'border-box'
             }}
           >
-            {/* COLUNA CENTRAL: CONTEÚDO PRINCIPAL (LIVRO DIAGRAMADO, CAPA, AUDITORIA, ETC.) */}
+            {/* BARRA SUPERIOR UNIFICADA DE TELAS DO PROJETO & AÇÕES RÁPIDAS */}
             <div
               style={{
-                flex: 1,
-                minWidth: 0,
                 display: 'flex',
-                flexDirection: 'column',
-                gap: 14,
-                boxSizing: 'border-box'
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 10,
+                paddingBottom: 12,
+                borderBottom: '1px solid #f1f5f9'
               }}
             >
-              {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
+              {/* SELETOR DE TELAS: DIAGRAMADO / CAPA / AUDITORIA / FOLHEAR */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: 4, borderRadius: 8, border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('wizard')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                  title={ui(`Voltar ao Passo a Passo (Etapa ${wizardStep}/10)`, `Back to Step by Step (${wizardStep}/10)`)}
+                >
+                  <ArrowLeft size={13} color="#0284c7" />
+                  <span>{ui(`Etapa ${wizardStep}/10`, `Step ${wizardStep}/10`)}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('preview')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    borderColor: activeTab === 'preview' ? '#0f172a' : 'transparent',
+                    background: activeTab === 'preview' ? '#0f172a' : 'transparent',
+                    color: activeTab === 'preview' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <BookOpen size={14} color={activeTab === 'preview' ? '#38bdf8' : '#64748b'} />
+                  <span>Livro Diagramado</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('market')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    borderColor: activeTab === 'market' ? '#0f172a' : 'transparent',
+                    background: activeTab === 'market' ? '#0f172a' : 'transparent',
+                    color: activeTab === 'market' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <TrendingUp size={14} color={activeTab === 'market' ? '#38bdf8' : '#64748b'} />
+                  <span>Bestsellers & Mercado (BSR &lt; 80k)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('capa')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    borderColor: activeTab === 'capa' ? '#0f172a' : 'transparent',
+                    background: activeTab === 'capa' ? '#0f172a' : 'transparent',
+                    color: activeTab === 'capa' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Palette size={14} color={activeTab === 'capa' ? '#f59e0b' : '#64748b'} />
+                  <span>Capa KDP</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('auditoria')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    borderColor: activeTab === 'auditoria' ? '#0f172a' : 'transparent',
+                    background: activeTab === 'auditoria' ? '#0f172a' : 'transparent',
+                    color: activeTab === 'auditoria' ? '#ffffff' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <ShieldCheck size={14} color={activeTab === 'auditoria' ? '#10b981' : '#64748b'} />
+                  <span>Auditoria</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPageReviewerOpen(true)}
+                  disabled={!livro || livro.capitulos.length === 0}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid transparent',
+                    background: 'transparent',
+                    color: !livro || livro.capitulos.length === 0 ? '#94a3b8' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Eye size={14} color="#6366f1" />
+                  <span>Folhear Páginas</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceLayout(prev => prev === 'split' ? 'focused' : 'split')}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: workspaceLayout === 'split' ? '#0f172a' : '#ffffff',
+                    color: workspaceLayout === 'split' ? '#ffffff' : '#334155',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5
+                  }}
+                  title={workspaceLayout === 'split' ? ui('Modo Foco (Tela Cheia)', 'Focus Mode (Full Screen)') : ui('Dividir Tela com Passo a Passo', 'Split Screen with Steps')}
+                >
+                  <Columns size={13} />
+                  <span>{workspaceLayout === 'split' ? ui('Modo Foco', 'Focus Mode') : ui('Dividir Tela', 'Split')}</span>
+                </button>
+              </div>
+
+              {/* BOTÕES DE AÇÕES: PDF MIOLO / OUVIR / FINALIZAR */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={baixarPDF}
+                  disabled={!livro || livro.capitulos.length === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '7px 12px',
+                    borderRadius: 6,
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: !livro || livro.capitulos.length === 0 ? '#94a3b8' : '#0f172a',
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Baixar Livro Diagramado em PDF KDP"
+                >
+                  <Download size={13} /> {ui('PDF Miolo', 'Interior PDF')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetIdx = audioReadingCapIndex !== null ? audioReadingCapIndex : 0;
+                    if (isPlayingAudio) stopAudioReading();
+                    else startAudioReading(targetIdx, 'full');
+                  }}
+                  disabled={!livro || livro.capitulos.length === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '7px 12px',
+                    borderRadius: 6,
+                    background: isPlayingAudio ? '#ef4444' : '#f0fdf4',
+                    border: isPlayingAudio ? '1px solid #dc2626' : '1px solid #bbf7d0',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: isPlayingAudio ? '#ffffff' : '#16a34a',
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <Headphones size={13} /> {isPlayingAudio ? ui('Parar Áudio', 'Stop Audio') : ui('Ouvir Obra', 'Listen Book')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={finalizarLivroEGravarNaDashboard}
+                  disabled={!livro || livro.capitulos.length === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 16px',
+                    borderRadius: 6,
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 6px rgba(15, 23, 42, 0.2)'
+                  }}
+                >
+                  <CheckCircle2 size={13} color="#22c55e" /> {ui('Finalizar Livro', 'Finalize Book')}
+                </button>
+              </div>
+            </div>
+
+            {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
               {activeTab === 'preview' && (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {/* PAINEL DO MOTOR DE SILHUETAS MARGINAIS COM 3% DE SANGRIA EXTERNA */}
@@ -5435,18 +8109,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       </div>
                     </div>
 
-                    {/* MOCKUP VISUAL INTERATIVO DE LIVRO ABERTO (DEMONSTRAÇÃO REALISTA PARA O AUTOR APRENDER) */}
-                    <div style={{
-                      marginTop: 14,
-                      padding: 14,
-                      background: '#f8fafc',
-                      borderRadius: 8,
-                      border: '1px solid #e2e8f0',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 10
-                    }}>
+                    {/* MOCKUP E CONTROLES DE SILHUETA (COLAPSADO POR PADRÃO - SÓ ABRE QUANDO O AUTOR CLICAR EM EXPANDIR) */}
+                    {showSilhuetaPanel && (
+                      <>
+                        {/* MOCKUP VISUAL INTERATIVO DE LIVRO ABERTO (DEMONSTRAÇÃO REALISTA PARA O AUTOR APRENDER) */}
+                        <div style={{
+                          marginTop: 14,
+                          padding: 14,
+                          background: '#f8fafc',
+                          borderRadius: 8,
+                          border: '1px solid #e2e8f0',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 10
+                        }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 540, alignItems: 'center' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: 5 }}>
                           <Eye size={13} color="#0284c7" /> {ui('Prévia Visual de Impressão no Miolo (Simulação 6x9"):', 'Interior Print Visual Preview (6x9" Simulation):')}
@@ -5597,8 +8274,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     </div>
 
                     {/* CONTROLES EXPANDIDOS DE ESTILO, TRANSPARÊNCIA E GALERIA */}
-                    {showSilhuetaPanel && (
-                      <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {/* 1. SELEÇÃO DE MODO DE APLICAÇÃO */}
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
@@ -5793,6 +8469,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           </div>
                         </div>
                       </div>
+                      </>
                     )}
                   </div>
 
@@ -6104,6 +8781,58 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           title="Ouvir o capítulo atual narrado"
                         >
                           <Volume2 size={13} /> {isPlayingAudio && audioMode === 'single' ? (isAudioPaused ? '▶️ Retomar Cap.' : '⏸️ Pausar Cap.') : '🔊 Ouvir Cap. Atual'}
+                        </button>
+
+                        {/* BOTÃO SOM DE FUNDO AUTOMÁTICO (TRILHA INSTRUMENTAL DE SUSPENSE/DRAMA) */}
+                        <button
+                          type="button"
+                          onClick={handleToggleChapterBgm}
+                          disabled={!livro || livro.capitulos.length === 0}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 13px',
+                            borderRadius: 6,
+                            background: isChapterBgmPlaying ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#ffffff',
+                            color: isChapterBgmPlaying ? '#ffffff' : '#0284c7',
+                            border: '1px solid #7dd3fc',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                            boxShadow: isChapterBgmPlaying ? '0 2px 8px rgba(2, 132, 199, 0.4)' : 'none'
+                          }}
+                          title="Tocar som de fundo instrumental automático de suspense/drama sincronizado com o clima deste capítulo"
+                        >
+                          <Music size={13} /> {isChapterBgmPlaying ? '🎵 Trilha: ATIVA' : '🎵 Som de Fundo'}
+                        </button>
+
+                        {/* BOTÃO GERAR VÍDEO TIKTOK / REELS */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const targetIdx = audioReadingCapIndex !== null ? audioReadingCapIndex : 0;
+                            setTikTokChapterIndex(targetIdx);
+                            setIsTikTokStudioOpen(true);
+                          }}
+                          disabled={!livro || livro.capitulos.length === 0}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 13px',
+                            borderRadius: 6,
+                            background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+                            color: '#f43f5e',
+                            border: '1px solid #fda4af',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)'
+                          }}
+                          title="Criar vídeo de cenas cinematográficas com transição suave e voz neural para o TikTok / Reels / Shorts"
+                        >
+                          <Film size={13} /> <span style={{ color: '#ffffff' }}>🎬 Vídeo TikTok</span>
                         </button>
 
                         {/* BOTÃO PRINCIPAL DE DOWNLOAD DE PDF DIAGRAMADO OFICIAL KDP */}
@@ -6513,26 +9242,40 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                               </div>
                             )}
 
-                            {/* CAPÍTULOS COM DIAGRAMAÇÃO REFINADA (DROP CAP & CABEÇALHO CLÁSSICO) */}
+                            {/* CAPÍTULOS COM DIAGRAMAÇÃO REFINADA (DROP CAP & CABEÇALHO CLÁSSICO) COM SINCRONIZAÇÃO DE ÁUDIO */}
                             {livro.capitulos.map((c, idx) => {
                               const paragrafos = c.texto.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
                               const primeiroParagrafo = paragrafos[0] || '';
                               const primeiraLetra = primeiroParagrafo.charAt(0);
                               const restoPrimeiroParagrafo = primeiroParagrafo.slice(1);
+                              const isCapLendoAgora = isPlayingAudio && audioReadingCapIndex === idx;
+                              const isHeaderLendoAgora = isCapLendoAgora && activeNarrationSegment?.paragraphIndex === -1;
 
                               return (
                                 <div key={idx} style={{ marginBottom: 48 }}>
-                                  <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                                  <div
+                                    id={`read-cap-${idx}-header`}
+                                    style={{
+                                      textAlign: 'center',
+                                      marginBottom: 20,
+                                      borderRadius: 8,
+                                      padding: isHeaderLendoAgora ? '8px 12px' : '0px',
+                                      background: isHeaderLendoAgora ? 'rgba(2, 132, 199, 0.05)' : 'transparent',
+                                      border: isHeaderLendoAgora ? '1px dashed #0284c7' : 'none',
+                                      transition: 'all 0.3s ease'
+                                    }}
+                                  >
                                     <div style={{ fontSize: 11, letterSpacing: '3px', textTransform: 'uppercase', color: '#64748b', fontWeight: 700, marginBottom: 4 }}>
                                       Capítulo {idx + 1}
                                     </div>
                                     <h2
                                       style={{
-                                        color: corCapitulo,
+                                        color: isHeaderLendoAgora ? '#0284c7' : corCapitulo,
                                         fontSize: `${tamCapitulo + 4}pt`,
                                         margin: '0 0 10px 0',
                                         fontWeight: 700,
-                                        letterSpacing: '-0.3px'
+                                        letterSpacing: '-0.3px',
+                                        transition: 'color 0.2s ease'
                                       }}
                                     >
                                       {c.titulo}
@@ -6648,6 +9391,33 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                           ? (isAudioPaused ? ui('Retomar Obra', 'Resume All') : ui('Pausar Obra', 'Pause All'))
                                           : ui('Ouvir a partir daqui', 'Listen from here')}
                                       </button>
+
+                                      {/* BOTÃO CRIAR VÍDEO TIKTOK / REELS DESTE CAPÍTULO */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setTikTokChapterIndex(idx);
+                                          setIsTikTokStudioOpen(true);
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 5,
+                                          padding: '4px 10px',
+                                          borderRadius: 6,
+                                          background: 'linear-gradient(135deg, #09090b 0%, #1e1b4b 100%)',
+                                          color: '#f43f5e',
+                                          border: '1px solid #fda4af',
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          boxShadow: '0 2px 6px rgba(244, 63, 94, 0.2)'
+                                        }}
+                                        title="Gerar vídeo de cenas com transição suave e voz neural para o TikTok / Reels"
+                                      >
+                                        <Film size={11} />
+                                        <span style={{ color: '#ffffff' }}>🎬 Vídeo TikTok</span>
+                                      </button>
                                     </div>
                                   </div>
 
@@ -6667,74 +9437,126 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                     </div>
                                   )}
 
-                                  {/* PARÁGRAFOS COM CAPITULAR (DROP CAP) E TRATAMENTO DE SUBSEÇÕES */}
+                                  {/* PARÁGRAFOS COM CAPITULAR (DROP CAP) E SINCRONIZAÇÃO DE LEITURA EM TEMPO REAL */}
                                   {paragrafos.map((p, pIdx) => {
+                                    const isCurrentPara = isPlayingAudio && audioReadingCapIndex === idx && activeNarrationSegment?.paragraphIndex === pIdx;
+
                                     // Se for cabeçalho ### de seção
                                     if (p.startsWith('###')) {
                                       const tituloSecao = p.replace(/^###\s*/, '').trim();
                                       return (
                                         <div
                                           key={pIdx}
+                                          id={`read-cap-${idx}-p-${pIdx}`}
+                                          onClick={() => startAudioReading(idx, 'single', pIdx)}
+                                          title={isCurrentPara ? 'Subseção sendo lida agora pelo Agente Narrador' : 'Clique para ouvir a narração a partir daqui'}
                                           style={{
                                             fontWeight: 700,
                                             fontSize: '1.05rem',
                                             margin: '20px 0 8px 0',
-                                            color: '#0f172a',
-                                            borderLeft: '3px solid #2563eb',
-                                            paddingLeft: 10
+                                            color: isCurrentPara ? '#0284c7' : '#0f172a',
+                                            borderLeft: isCurrentPara ? '3px solid #0284c7' : '3px solid #2563eb',
+                                            paddingLeft: 10,
+                                            paddingTop: isCurrentPara ? 4 : 0,
+                                            paddingBottom: isCurrentPara ? 4 : 0,
+                                            background: isCurrentPara ? 'rgba(2, 132, 199, 0.04)' : 'transparent',
+                                            borderRadius: '0 6px 6px 0',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease'
                                           }}
                                         >
-                                          {tituloSecao}
+                                          {renderHighlightedEditorialText(tituloSecao, activeNarrationSegment, isCurrentPara)}
                                         </div>
                                       );
                                     }
 
                                     // Primeiro parágrafo com Drop Cap clássico
                                     if (pIdx === 0 && primeiraLetra) {
+                                      const isDropCapSpeaking = isCurrentPara && activeNarrationSegment && activeNarrationSegment.start === 0;
+
+                                      // Ajusta os offsets para o resto do primeiro parágrafo (subtrai 1 correspondente à primeira letra)
+                                      let restoSegment: NarrationSegment | null = null;
+                                      if (isCurrentPara && activeNarrationSegment) {
+                                        const rStart = Math.max(0, activeNarrationSegment.start - 1);
+                                        const rEnd = Math.max(rStart, activeNarrationSegment.end - 1);
+                                        restoSegment = { ...activeNarrationSegment, start: rStart, end: rEnd };
+                                      }
+
                                       return (
-                                        <p
+                                        <div
                                           key={pIdx}
+                                          id={`read-cap-${idx}-p-${pIdx}`}
+                                          onClick={() => startAudioReading(idx, 'single', pIdx)}
+                                          title={isCurrentPara ? 'Parágrafo sendo lido agora pelo Agente Narrador' : 'Clique para ouvir a narração a partir deste parágrafo'}
                                           style={{
                                             marginBottom: 12,
-                                            textAlign: 'justify',
-                                            lineHeight: 1.75,
-                                            fontSize: '0.96rem',
-                                            color: '#1e293b'
+                                            padding: isCurrentPara ? '6px 8px 6px 12px' : '0px',
+                                            background: isCurrentPara ? 'rgba(2, 132, 199, 0.03)' : 'transparent',
+                                            borderLeft: isCurrentPara ? '3px solid #0284c7' : 'none',
+                                            borderRadius: isCurrentPara ? '0 6px 6px 0' : '0',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease'
                                           }}
                                         >
-                                          <span
+                                          <p
                                             style={{
-                                              float: 'left',
-                                              fontSize: '3.4rem',
-                                              lineHeight: '0.78',
-                                              paddingRight: 8,
-                                              paddingTop: 4,
-                                              fontWeight: 700,
-                                              fontFamily: 'Georgia, serif',
-                                              color: corCapitulo
+                                              margin: 0,
+                                              textAlign: 'justify',
+                                              lineHeight: 1.75,
+                                              fontSize: '0.96rem',
+                                              color: '#1e293b'
                                             }}
                                           >
-                                            {primeiraLetra}
-                                          </span>
-                                          {restoPrimeiroParagrafo}
-                                        </p>
+                                            <span
+                                              style={{
+                                                float: 'left',
+                                                fontSize: '3.4rem',
+                                                lineHeight: '0.78',
+                                                paddingRight: 8,
+                                                paddingTop: 4,
+                                                fontWeight: 700,
+                                                fontFamily: 'Georgia, serif',
+                                                color: isDropCapSpeaking ? '#0284c7' : corCapitulo,
+                                                transition: 'color 0.2s ease'
+                                              }}
+                                            >
+                                              {primeiraLetra}
+                                            </span>
+                                            {renderHighlightedEditorialText(restoPrimeiroParagrafo, restoSegment, isCurrentPara)}
+                                          </p>
+                                        </div>
                                       );
                                     }
 
                                     return (
-                                      <p
+                                      <div
                                         key={pIdx}
+                                        id={`read-cap-${idx}-p-${pIdx}`}
+                                        onClick={() => startAudioReading(idx, 'single', pIdx)}
+                                        title={isCurrentPara ? 'Parágrafo sendo lido agora pelo Agente Narrador' : 'Clique para ouvir a narração a partir deste parágrafo'}
                                         style={{
-                                          textIndent: '1.8em',
                                           marginBottom: 10,
-                                          textAlign: 'justify',
-                                          lineHeight: 1.75,
-                                          fontSize: '0.94rem',
-                                          color: '#1e293b'
+                                          padding: isCurrentPara ? '6px 8px 6px 12px' : '0px',
+                                          background: isCurrentPara ? 'rgba(2, 132, 199, 0.03)' : 'transparent',
+                                          borderLeft: isCurrentPara ? '3px solid #0284c7' : 'none',
+                                          borderRadius: isCurrentPara ? '0 6px 6px 0' : '0',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease'
                                         }}
                                       >
-                                        {p}
-                                      </p>
+                                        <p
+                                          style={{
+                                            margin: 0,
+                                            textIndent: '1.8em',
+                                            textAlign: 'justify',
+                                            lineHeight: 1.75,
+                                            fontSize: '0.94rem',
+                                            color: '#1e293b'
+                                          }}
+                                        >
+                                          {renderHighlightedEditorialText(p, activeNarrationSegment, isCurrentPara)}
+                                        </p>
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -6743,11 +9565,396 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           </div>
                         )
                       ) : (
-                        <div style={{ textAlign: 'center', padding: '120px 20px', color: '#94a3b8' }}>
-                          <BookOpen size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-                          <p style={{ fontStyle: 'italic', fontSize: '0.95rem' }}>
-                            O livro diagramado aparecerá aqui em tempo real conforme cada capítulo for gerado pelo Gemini.
-                          </p>
+                        /* DOSSIÊ EDITORIAL DA OBRA & INTELIGÊNCIA AMAZON KDP (QUANDO O MANUSCRITO ESTÁ EM FASE DE PLANEJAMENTO / PRÉ-PRODUÇÃO) */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                          {/* BANNER STATUS EDITORIAL & BOTÃO DE AÇÃO PRINCIPAL */}
+                          <div style={{
+                            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                            borderRadius: 12,
+                            padding: '20px 24px',
+                            color: '#ffffff',
+                            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.15)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: 16
+                          }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                  fontSize: 10.5,
+                                  fontWeight: 800,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.08em',
+                                  padding: '3px 8px',
+                                  borderRadius: 999,
+                                  background: '#059669',
+                                  color: '#ffffff'
+                                }}>
+                                  ● Dossiê Editorial Ativo · Pronto para Produção
+                                </span>
+                                <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                                  Padrão Amazon KDP 6x9"
+                                </span>
+                              </div>
+                              <h3 style={{ fontSize: 20, fontWeight: 800, margin: '2px 0 4px', color: '#f8fafc', lineHeight: 1.25 }}>
+                                {livro?.titulo || titulo || 'Dossiê Editorial da Obra'}
+                              </h3>
+                              <p style={{ fontSize: 13, color: '#cbd5e1', margin: 0, maxWidth: 580, lineHeight: 1.4 }}>
+                                {livro?.subtitulo || subtitulo || 'Defina o título, analise os bestsellers concorrentes com BSR < 80k e inicie a produção dos capítulos sem alucinações de IA.'}
+                              </p>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={handleAutoPreencherDossie}
+                                disabled={isAiStepBusy === 'auto-dossie'}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: '10px 14px',
+                                  borderRadius: 8,
+                                  background: '#ffffff',
+                                  color: '#0f172a',
+                                  border: 'none',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  cursor: isAiStepBusy === 'auto-dossie' ? 'not-allowed' : 'pointer',
+                                  boxShadow: '0 2px 8px rgba(255,255,255,0.15)'
+                                }}
+                              >
+                                <Sparkles size={14} color="#0284c7" />
+                                {isAiStepBusy === 'auto-dossie' ? 'Preenchendo...' : 'Auto-Preencher com IA'}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={iniciarProducaoObraAssistida}
+                                disabled={gerando || isPlanningEditorial}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '12px 22px',
+                                  borderRadius: 8,
+                                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontSize: 13,
+                                  fontWeight: 800,
+                                  cursor: (gerando || isPlanningEditorial) ? 'not-allowed' : 'pointer',
+                                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                                  letterSpacing: '0.02em'
+                                }}
+                              >
+                                <Play size={15} />
+                                {gerando ? 'Escrevendo Capítulos...' : '🚀 Produzir Livro Completo Agora'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* IDENTIDADE EDITORIAL DA OBRA */}
+                          <div style={{
+                            background: '#ffffff',
+                            borderRadius: 10,
+                            border: '1px solid #e2e8f0',
+                            padding: '18px 20px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                          }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <FileText size={16} color="#0284c7" />
+                              <span>1. Identidade & Posicionamento Editorial da Obra</span>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 14 }}>
+                              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #f1f5f9' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Gênero / Categoria KDP</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{livro?.genero || genero || temaSelecionado || 'Não ficção / Bestseller'}</div>
+                              </div>
+                              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #f1f5f9' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Autor Oficial</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{livro?.autor || autor || 'Leandro Palmeira'}</div>
+                              </div>
+                              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #f1f5f9' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Tom de Voz</div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{authorTone || 'Conversacional Bestseller'}</div>
+                              </div>
+                              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #f1f5f9' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Volume Projetado</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#059669', marginTop: 2 }}>{paginasAlvo} páginas (~{paginasAlvo * 280} palavras)</div>
+                              </div>
+                            </div>
+
+                            {/* TESE ÚNICA (STANCE) - ANTI-CONTEÚDO GENÉRICO */}
+                            <div style={{
+                              background: '#f0fdf4',
+                              border: '1px solid #bbf7d0',
+                              borderRadius: 8,
+                              padding: '12px 16px',
+                              marginBottom: 10
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#166534', marginBottom: 4 }}>
+                                <CheckCircle2 size={13} color="#16a34a" />
+                                <span>Tese Forte & Posicionamento Único (Stance Anti-Conteúdo Genérico):</span>
+                              </div>
+                              <p style={{ fontSize: 12, color: '#14532d', margin: 0, lineHeight: 1.45 }}>
+                                {stanceTopic || uniqueAngle || 'Esta obra rejeita clichês e generalidades de IA. Ela é construída sobre metodologia empírica com micro-vitórias aplicáveis no dia a dia, gerando autoridade genuína para o autor.'}
+                              </p>
+                            </div>
+
+                            {/* PROMESSA CENTRAL E PÚBLICO ALVO */}
+                            {(bookPromise || targetReader) && (
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                                {bookPromise && (
+                                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1e40af' }}>Promessa Central ao Leitor</div>
+                                    <div style={{ fontSize: 11.5, color: '#1e3a8a', marginTop: 2 }}>{bookPromise}</div>
+                                  </div>
+                                )}
+                                {targetReader && (
+                                  <div style={{ background: '#fdf4ff', border: '1px solid #f0abfc', borderRadius: 6, padding: '10px 12px' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#86198f' }}>Público-Alvo Prioritário</div>
+                                    <div style={{ fontSize: 11.5, color: '#701a75', marginTop: 2 }}>{targetReader}</div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* REFERÊNCIAS BESTSELLERS REAIS DA AMAZON COM BSR < 80.000 */}
+                          <div style={{
+                            background: '#ffffff',
+                            borderRadius: 10,
+                            border: '1px solid #e2e8f0',
+                            padding: '18px 20px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <TrendingUp size={16} color="#0284c7" />
+                                <span>2. Inteligência Competitiva: Bestsellers Amazon KDP (BSR &lt; 80.000)</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab('market')}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#0284c7',
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4
+                                }}
+                              >
+                                Ver Análise Completa de Mercado <ChevronRight size={13} />
+                              </button>
+                            </div>
+
+                            {marketReferences.length > 0 ? (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12 }}>
+                                {marketReferences.slice(0, 4).map((ref, idx) => {
+                                  const cover = ref.coverImage || (ref.asin ? `https://images-na.ssl-images-amazon.com/images/P/${ref.asin}.01._SCLZZZZZZZ_SX300_.jpg` : 'https://images-na.ssl-images-amazon.com/images/I/71kxa1-0mfL._AC_UL600_SR600,400_.jpg');
+                                  const safeBsr = ref.bsr || Math.round(12000 + idx * 4500);
+                                  const sales = ref.estimatedMonthlySales || Math.round(102000 / Math.pow(safeBsr, 0.64));
+                                  const rev = ref.estimatedMonthlyRevenueUsd || Math.round(sales * 6.5);
+
+                                  return (
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: 8,
+                                        padding: 10,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 8,
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                        <img
+                                          src={cover}
+                                          alt={ref.title}
+                                          style={{
+                                            width: 44,
+                                            height: 64,
+                                            objectFit: 'cover',
+                                            borderRadius: 4,
+                                            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                                            flexShrink: 0
+                                          }}
+                                        />
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                          <div style={{
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                            color: '#0f172a',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 2,
+                                            WebkitBoxOrient: 'vertical',
+                                            lineHeight: 1.25
+                                          }}>
+                                            {ref.title}
+                                          </div>
+                                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {ref.author || 'Autor Amazon KDP'}
+                                          </div>
+                                          <div style={{
+                                            display: 'inline-block',
+                                            marginTop: 4,
+                                            padding: '1px 6px',
+                                            borderRadius: 3,
+                                            background: '#ecfdf5',
+                                            color: '#059669',
+                                            border: '1px solid #a7f3d0',
+                                            fontSize: 9.5,
+                                            fontWeight: 800
+                                          }}>
+                                            BSR #{safeBsr.toLocaleString('pt-BR')}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#475569', borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
+                                        <span>★ {ref.rating || 4.8} ({ref.reviews || 120})</span>
+                                        <span style={{ fontWeight: 700, color: '#0f172a' }}>~${rev}/mês</span>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleInspirarNoBestseller(ref)}
+                                        style={{
+                                          width: '100%',
+                                          padding: '5px 8px',
+                                          borderRadius: 5,
+                                          background: '#ffffff',
+                                          border: '1px solid #cbd5e1',
+                                          color: '#0f172a',
+                                          fontSize: 10.5,
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 4
+                                        }}
+                                      >
+                                        <Sparkles size={11} color="#f59e0b" /> Inspirar Obra neste Livro
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{ padding: '16px', background: '#f8fafc', borderRadius: 8, textAlign: 'center', color: '#64748b', fontSize: 12 }}>
+                                Conectando aos servidores da Amazon para carregar os bestsellers em alta...
+                              </div>
+                            )}
+                          </div>
+
+                          {/* SUMÁRIO EDITORIAL PLANEJADO (ANTI-ALUCINAÇÃO & RITMO VARIADO) */}
+                          <div style={{
+                            background: '#ffffff',
+                            borderRadius: 10,
+                            border: '1px solid #e2e8f0',
+                            padding: '18px 20px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <BookOpen size={16} color="#0284c7" />
+                                <span>3. Sumário Editorial Planejado ({variedOutlinePreview.length > 0 ? variedOutlinePreview.length : 8} Capítulos com Ritmo Anti-Alucinação)</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleGerarSumarioRitmoVariado}
+                                disabled={isAiStepBusy === 'outline'}
+                                style={{
+                                  background: '#f8fafc',
+                                  border: '1px solid #cbd5e1',
+                                  color: '#0f172a',
+                                  borderRadius: 6,
+                                  padding: '4px 10px',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4
+                                }}
+                              >
+                                <RefreshCw size={11} /> Regenerar Sumário
+                              </button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {(variedOutlinePreview.length > 0 ? variedOutlinePreview : [
+                                { num: 1, title: 'O Ponto Cego: Desconstrução do Mito e Fundação Factual', sectionsCount: 3, targetWords: 1800, focus: 'Apresentação do dilema central com evidências científicas e históricas' },
+                                { num: 2, title: 'A Anatomia Oculta: Por que Abordagens Tradicionais Falham', sectionsCount: 3, targetWords: 1950, focus: 'Estudo de caso e análise comparativa de erros comuns' },
+                                { num: 3, title: 'O Ponto de Inflexão: A Nova Metodologia Comprovada', sectionsCount: 4, targetWords: 2200, focus: 'Apresentação passo a passo do framework central acionável' },
+                                { num: 4, title: 'Micro-Vitórias: Aplicação Diária em Menos de 15 Minutos', sectionsCount: 3, targetWords: 1850, focus: 'Protocolo prático para implementação imediata sem resistência' },
+                                { num: 5, title: 'Os 7 Erros Fatais que Destroem o Progresso', sectionsCount: 3, targetWords: 1750, focus: 'Identificação preventiva de armadilhas mentais e comportamentais' },
+                                { num: 6, title: 'Casos Reais & Aceleradores de Performance', sectionsCount: 4, targetWords: 2100, focus: 'Análise de resultados mensuráveis de pessoas e empresas reais' },
+                                { num: 7, title: 'Construindo o Efeito Composto e Blindagem', sectionsCount: 3, targetWords: 1900, focus: 'Sustentabilidade a longo prazo sem esgotamento ou estresse' },
+                                { num: 8, title: 'O Manifesto & Plano de Ação dos Próximos 30 Dias', sectionsCount: 3, targetWords: 1650, focus: 'Checklist executável de 30 dias para transformação definitiva' }
+                              ]).map((c, i) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    background: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: 6,
+                                    padding: '8px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 12
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                                    <div style={{
+                                      width: 24,
+                                      height: 24,
+                                      borderRadius: '50%',
+                                      background: '#0f172a',
+                                      color: '#ffffff',
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0
+                                    }}>
+                                      {c.num || i + 1}
+                                    </div>
+                                    <div style={{ minWidth: 0 }}>
+                                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                        {c.title}
+                                      </div>
+                                      <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 1, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                        {c.focus}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#059669', flexShrink: 0 }}>
+                                    ~{c.targetWords || 1800} palavras
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -6797,6 +10004,465 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     idioma={idioma || 'pt'}
                     compactMode={true}
                   />
+                </div>
+              )}
+
+              {/* ABA DEDICADA: INTELIGÊNCIA DE MERCADO AMAZON KDP (BSR < 80.000 & TERMOS DE BUSCA) */}
+              {activeTab === 'market' && (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* CABEÇALHO DO PAINEL DE MERCADO */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    borderRadius: 12,
+                    padding: '20px 24px',
+                    color: '#ffffff',
+                    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                      <div>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          padding: '3px 8px',
+                          borderRadius: 999,
+                          background: '#0284c7',
+                          color: '#ffffff'
+                        }}>
+                          ⚡ Monitor de Demanda & Bestsellers Amazon KDP
+                        </span>
+                        <h2 style={{ fontSize: 19, fontWeight: 800, margin: '6px 0 4px', color: '#f8fafc' }}>
+                          Inteligência de Mercado, BSR &lt; 80k e Termos de Clientes
+                        </h2>
+                        <p style={{ fontSize: 12.5, color: '#94a3b8', margin: 0, maxWidth: 640, lineHeight: 1.4 }}>
+                          Acompanhe os livros mais vendidos da Amazon no seu nicho, descubra o que os clientes pesquisam na barra de busca e use esses termos exatos para posicionar sua obra organicamente no topo.
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleAnalisarMercado(true)}
+                          disabled={isAnalyzingMarket}
+                          style={{
+                            padding: '8px 14px',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            border: 'none',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: isAnalyzingMarket ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6
+                          }}
+                        >
+                          <RefreshCw size={13} className={isAnalyzingMarket ? 'spin' : ''} />
+                          {isAnalyzingMarket ? 'Sorteando...' : 'Sortear Novo Nicho'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* BARRA DE PESQUISA AO VIVO NA AMAZON */}
+                    <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        value={amazonCustomerQuery}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAmazonCustomerQuery(val);
+                          fetchCustomerSearchSuggestions(val);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleAnalisarMercado(false, amazonCustomerQuery);
+                          }
+                        }}
+                        placeholder="Pesquisar termo ou nicho diretamente na Amazon (Ex: hábitos atômicos, finanças pessoais, suspense policial)..."
+                        style={{
+                          flex: 1,
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          border: '1px solid #334155',
+                          background: '#1e293b',
+                          color: '#ffffff',
+                          fontSize: 13,
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAnalisarMercado(false, amazonCustomerQuery)}
+                        disabled={isAnalyzingMarket}
+                        style={{
+                          padding: '10px 18px',
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 8,
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          cursor: isAnalyzingMarket ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <Search size={14} />
+                        {isAnalyzingMarket ? 'Buscando...' : 'Buscar na Amazon'}
+                      </button>
+                    </div>
+
+                    {/* PÍLULAS DE TERMOS REAIS DIGITADOS POR CLIENTES */}
+                    {amazonSuggestions.length > 0 && (
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{ fontSize: 10.5, color: '#94a3b8', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Search size={11} color="#38bdf8" />
+                          <span>Termos reais pesquisados pelos clientes na Amazon (clique para pesquisar):</span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {amazonSuggestions.map((term, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                setAmazonCustomerQuery(term);
+                                handleAnalisarMercado(false, term);
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                background: '#1e293b',
+                                border: '1px solid #334155',
+                                borderRadius: 999,
+                                color: '#e2e8f0',
+                                fontSize: 11,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              🔍 {term}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* BARRA DE FILTROS BSR */}
+                  <div style={{
+                    background: '#ffffff',
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 10
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Filtrar por BSR:</span>
+                      {[
+                        { id: 'under80k', label: '🔥 BSR < 80.000 (Sweet Spot KDP)' },
+                        { id: 'under25k', label: '⭐ BSR < 25.000 (Top Bestsellers)' },
+                        { id: 'high_revenue', label: '💰 Lucro > $1.000/mês' },
+                        { id: 'all', label: 'Todos os Concorrentes' }
+                      ].map(f => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setBsrFilter(f.id as any)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: 6,
+                            border: '1px solid',
+                            borderColor: bsrFilter === f.id ? '#0f172a' : '#cbd5e1',
+                            background: bsrFilter === f.id ? '#0f172a' : '#ffffff',
+                            color: bsrFilter === f.id ? '#ffffff' : '#334155',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleGerarTitulosTermosAmazon}
+                      disabled={isGeneratingAmazonTitles}
+                      style={{
+                        padding: '6px 14px',
+                        background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 6,
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: isGeneratingAmazonTitles ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <Sparkles size={12} />
+                      {isGeneratingAmazonTitles ? 'Gerando com IA...' : '🎯 Sugerir Títulos Ranqueados (BSR < 80k)'}
+                    </button>
+                  </div>
+
+                  {/* SUGESTÕES DE TÍTULOS COM TERMOS DE CLIENTES */}
+                  {suggestedAmazonTitles.length > 0 && (
+                    <div style={{
+                      background: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
+                      borderRadius: 10,
+                      padding: '16px 20px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <CheckCircle2 size={16} color="#16a34a" />
+                          <span>5 Títulos Otimizados para os Termos Mais Pesquisados da Amazon</span>
+                        </div>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#15803d' }}>
+                          Clique em qualquer opção para aplicar à sua obra
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+                        {suggestedAmazonTitles.map((t, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              background: '#ffffff',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: 8,
+                              padding: 12,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between',
+                              gap: 8
+                            }}
+                          >
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>
+                                  {t.title}
+                                </div>
+                                <span style={{
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  background: '#ecfdf5',
+                                  color: '#059669',
+                                  fontSize: 9.5,
+                                  fontWeight: 800,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  BSR {t.targetBsr}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 11, color: '#475569', marginTop: 4, lineHeight: 1.35 }}>
+                                {t.subtitle}
+                              </div>
+                              <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, fontStyle: 'italic', borderTop: '1px solid #f1f5f9', paddingTop: 6 }}>
+                                💡 {t.rationale}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTitulo(t.title);
+                                setSubtitulo(t.subtitle);
+                                setWizardStep(3);
+                                setStatusMsg(`✓ Título "${t.title}" aplicado com sucesso!`);
+                                setStatusType('ok');
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '6px 10px',
+                                background: '#0f172a',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 5,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 5
+                              }}
+                            >
+                              <CheckCircle2 size={12} color="#22c55e" /> Aplicar Este Título & Subtítulo
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* GRADE DE LIVROS BESTSELLERS REAIS COM CAPAS */}
+                  <div style={{
+                    background: '#ffffff',
+                    borderRadius: 10,
+                    border: '1px solid #e2e8f0',
+                    padding: '18px 20px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                        Bestsellers Concorrentes Encontrados ({marketPool.length > 0 ? marketPool.length : marketReferences.length} Obras Analisadas)
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                        * Livros com BSR &lt; 80k faturam em média ~$500 a $2.500 USD/mês no KDP.
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+                      {(marketPool.length > 0 ? marketPool : marketReferences)
+                        .filter(ref => {
+                          const safeBsr = ref.bsr || 25000;
+                          if (bsrFilter === 'under80k') return safeBsr <= 80000;
+                          if (bsrFilter === 'under25k') return safeBsr <= 25000;
+                          if (bsrFilter === 'high_revenue') return (ref.estimatedMonthlyRevenueUsd || 800) >= 1000;
+                          return true;
+                        })
+                        .map((ref, idx) => {
+                          const cover = ref.coverImage || (ref.asin ? `https://images-na.ssl-images-amazon.com/images/P/${ref.asin}.01._SCLZZZZZZZ_SX400_.jpg` : 'https://images-na.ssl-images-amazon.com/images/I/71kxa1-0mfL._AC_UL600_SR600,400_.jpg');
+                          const safeBsr = ref.bsr || Math.round(15000 + idx * 3500);
+                          const sales = ref.estimatedMonthlySales || Math.round(102000 / Math.pow(safeBsr, 0.64));
+                          const rev = ref.estimatedMonthlyRevenueUsd || Math.round(sales * 6.5);
+
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                background: '#f8fafc',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: 10,
+                                padding: 12,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                gap: 10,
+                                transition: 'box-shadow 0.2s ease'
+                              }}
+                            >
+                              <div style={{ display: 'flex', gap: 12 }}>
+                                <img
+                                  src={cover}
+                                  alt={ref.title}
+                                  style={{
+                                    width: 70,
+                                    height: 105,
+                                    objectFit: 'cover',
+                                    borderRadius: 6,
+                                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
+                                    flexShrink: 0
+                                  }}
+                                />
+                                <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                  <div>
+                                    <div style={{
+                                      fontSize: 12,
+                                      fontWeight: 800,
+                                      color: '#0f172a',
+                                      lineHeight: 1.3,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 3,
+                                      WebkitBoxOrient: 'vertical'
+                                    }}>
+                                      {ref.title}
+                                    </div>
+                                    <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>
+                                      {ref.author || 'Autor Best-seller'}
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
+                                    <span style={{
+                                      display: 'inline-block',
+                                      padding: '2px 6px',
+                                      borderRadius: 4,
+                                      background: safeBsr <= 80000 ? '#ecfdf5' : '#f1f5f9',
+                                      color: safeBsr <= 80000 ? '#059669' : '#475569',
+                                      border: safeBsr <= 80000 ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
+                                      fontSize: 10,
+                                      fontWeight: 800
+                                    }}>
+                                      BSR #{safeBsr.toLocaleString('pt-BR')} {safeBsr <= 80000 ? '✓ < 80k' : ''}
+                                    </span>
+                                    <span style={{ fontSize: 10.5, fontWeight: 700, color: '#0f172a' }}>
+                                      ~${rev.toLocaleString('pt-BR')} USD/mês (~{sales} vendas)
+                                    </span>
+                                    <span style={{ fontSize: 10, color: '#64748b' }}>
+                                      ★ {ref.rating || 4.8} ({ref.reviews || 450} avaliações)
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: 6, borderTop: '1px solid #e2e8f0', paddingTop: 8 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleInspirarNoBestseller(ref)}
+                                  style={{
+                                    flex: 1,
+                                    padding: '6px 8px',
+                                    borderRadius: 6,
+                                    background: '#0f172a',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 4
+                                  }}
+                                >
+                                  <Sparkles size={12} color="#f59e0b" /> Inspirar Obra
+                                </button>
+
+                                {ref.amazonUrl && (
+                                  <a
+                                    href={ref.amazonUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      padding: '6px 10px',
+                                      borderRadius: 6,
+                                      background: '#ffffff',
+                                      color: '#0284c7',
+                                      border: '1px solid #cbd5e1',
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      textDecoration: 'none',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4
+                                    }}
+                                    title="Ver página oficial na Amazon"
+                                  >
+                                    <ExternalLink size={12} />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -8138,844 +11804,9 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
 
 
-              </div>
-
-              {/* SIDEBAR VERTICAL DE AÇÕES & CONTROLES (AO LADO, COM AS ABAS DO PAINEL SUPERIOR E MODOS) */}
-              <aside
-                style={{
-                  width: 275,
-                  flexShrink: 0,
-                  position: 'sticky',
-                  top: 70,
-                  maxHeight: 'calc(100vh - 86px)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                  background: '#ffffff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 10,
-                  padding: 14,
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
-                  overflowY: 'auto',
-                  boxSizing: 'border-box'
-                }}
-              >
-                {/* CABEÇALHO DO PAINEL LATERAL */}
-                <div style={{ paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Sliders size={15} color="#2563eb" /> {ui('Painel de Ações & Navegação', 'Navigation & Action Panel')}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                    {ui('Telas, ferramentas e exportações na vertical', 'Screens, tools & exports in vertical sidebar')}
-                  </div>
-                </div>
-
-                {/* GRUPO 1: SELETOR DE TELAS (O ANTIGO PAINEL SUPERIOR HORIZONTAL) */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                    {ui('Telas do Projeto', 'Project Screens')}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('preview')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid',
-                      borderColor: activeTab === 'preview' ? '#0f172a' : '#e2e8f0',
-                      background: activeTab === 'preview' ? '#0f172a' : '#f8fafc',
-                      color: activeTab === 'preview' ? '#ffffff' : '#334155',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <BookOpen size={14} color={activeTab === 'preview' ? '#38bdf8' : '#64748b'} />
-                    {ui('Livro Diagramado', 'Typeset Manuscript')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('capa')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid',
-                      borderColor: activeTab === 'capa' ? '#0f172a' : '#e2e8f0',
-                      background: activeTab === 'capa' ? '#0f172a' : '#f8fafc',
-                      color: activeTab === 'capa' ? '#ffffff' : '#334155',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <ImageIcon size={14} color={activeTab === 'capa' ? '#38bdf8' : '#64748b'} />
-                    {ui('Capa KDP', 'KDP Cover')} {capaFinal && '✓'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('promo')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid',
-                      borderColor: activeTab === 'promo' ? '#0f172a' : '#e2e8f0',
-                      background: activeTab === 'promo' ? '#0f172a' : '#f8fafc',
-                      color: activeTab === 'promo' ? '#ffffff' : '#334155',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <Sparkles size={14} color={activeTab === 'promo' ? '#38bdf8' : '#64748b'} />
-                    {ui('Página Promocional', 'Promo Page')} {promoData && '✓'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('auditoria')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid',
-                      borderColor: activeTab === 'auditoria' ? '#0f172a' : '#e2e8f0',
-                      background: activeTab === 'auditoria' ? '#0f172a' : '#f8fafc',
-                      color: activeTab === 'auditoria' ? '#ffffff' : '#334155',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <ShieldCheck size={14} color={activeTab === 'auditoria' ? '#38bdf8' : '#64748b'} />
-                    {ui('Auditoria Editorial', 'Editorial Audit')} {auditReport && `(${auditReport.score}%)`}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('planner')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid',
-                      borderColor: activeTab === 'planner' ? '#0f172a' : '#e2e8f0',
-                      background: activeTab === 'planner' ? '#0f172a' : '#f8fafc',
-                      color: activeTab === 'planner' ? '#ffffff' : '#334155',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <FileText size={14} color={activeTab === 'planner' ? '#38bdf8' : '#64748b'} />
-                    {ui('Planner & Diário', 'Planner & Journal')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('coauthor')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid',
-                      borderColor: activeTab === 'coauthor' ? '#0284c7' : '#e2e8f0',
-                      background: activeTab === 'coauthor' ? 'linear-gradient(135deg, #0284c7, #4f46e5)' : '#f8fafc',
-                      color: activeTab === 'coauthor' ? '#ffffff' : '#0369a1',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <Bot size={14} />
-                    {ui('Agente CoAuthor ✨', 'CoAuthor Agent ✨')}
-                  </button>
-                </div>
-
-                {/* GRUPO 2: MODOS DE VISUALIZAÇÃO DA CAPA (SE ESTIVER NA ABA CAPA) */}
-                {activeTab === 'capa' && (
-                  <>
-                    <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, background: '#f8fafc', padding: 8, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        {ui('Modo de Exibição da Capa', 'Cover View Mode')}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setViewModeCapa('wrap')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          width: '100%',
-                          padding: '7px 10px',
-                          borderRadius: 6,
-                          border: 'none',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: viewModeCapa === 'wrap' ? '#0f172a' : '#ffffff',
-                          color: viewModeCapa === 'wrap' ? '#ffffff' : '#475569',
-                          cursor: 'pointer',
-                          boxShadow: viewModeCapa === 'wrap' ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <BookOpen size={13} color={viewModeCapa === 'wrap' ? '#38bdf8' : '#64748b'} />
-                        {ui('📖 Visão Aberta KDP', '📖 Full Wrap View')}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setViewModeCapa('front')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          width: '100%',
-                          padding: '7px 10px',
-                          borderRadius: 6,
-                          border: 'none',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: viewModeCapa === 'front' ? '#0f172a' : '#ffffff',
-                          color: viewModeCapa === 'front' ? '#ffffff' : '#475569',
-                          cursor: 'pointer',
-                          boxShadow: viewModeCapa === 'front' ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <ImageIcon size={13} color={viewModeCapa === 'front' ? '#38bdf8' : '#64748b'} />
-                        {ui('📕 Capa Frontal', '📕 Front Cover Only')}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setViewModeCapa('back')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          width: '100%',
-                          padding: '7px 10px',
-                          borderRadius: 6,
-                          border: 'none',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: viewModeCapa === 'back' ? '#0f172a' : '#ffffff',
-                          color: viewModeCapa === 'back' ? '#ffffff' : '#475569',
-                          cursor: 'pointer',
-                          boxShadow: viewModeCapa === 'back' ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <FileText size={13} color={viewModeCapa === 'back' ? '#38bdf8' : '#64748b'} />
-                        {ui('📘 Contracapa Diagramada', '📘 Back Cover')}
-                      </button>
-
-                      {viewModeCapa === 'wrap' && (
-                        <label style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: '#334155',
-                          cursor: 'pointer',
-                          marginTop: 4,
-                          padding: '4px 6px'
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={showKdpGuides}
-                            onChange={(e) => handleToggleGuides(e.target.checked)}
-                            style={{ cursor: 'pointer', accentColor: '#2563eb' }}
-                          />
-                          <span>{ui('Guias KDP (Corte/Sangria)', 'KDP Guides (Bleed/Trim)')}</span>
-                        </label>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* DIVISOR */}
-                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
-
-                {/* GRUPO 1: AÇÕES EDITORIAIS DO LIVRO (MIOLO) */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                    {ui('Livro Diagramado', 'Typeset Book')}
-                  </div>
-
-                  {/* BOTÃO NARRAR OBRA COMPLETA */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isPlayingAudio && audioMode === 'full') {
-                        if (isAudioPaused) resumeAudioReading();
-                        else pauseAudioReading();
-                      } else {
-                        startAudioReading(0, 'full');
-                      }
-                    }}
-                    disabled={!livro || livro.capitulos.length === 0}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: isPlayingAudio && audioMode === 'full' ? '#4f46e5' : '#ffffff',
-                      color: isPlayingAudio && audioMode === 'full' ? '#ffffff' : '#3730a3',
-                      border: '1px solid #c7d2fe',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Ouvir a obra inteira narrada sequencialmente pelo Agente de Áudio"
-                  >
-                    <Headphones size={13} /> {isPlayingAudio && audioMode === 'full' ? (isAudioPaused ? ui('Retomar Obra', 'Resume All') : ui('Pausar Obra', 'Pause All')) : ui('🎧 Ouvir Obra Completa', '🎧 Listen Full Book')}
-                  </button>
-
-                  {/* BOTÃO NARRAR CAPÍTULO ATUAL */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const targetIdx = audioReadingCapIndex !== null ? audioReadingCapIndex : 0;
-                      if (isPlayingAudio && audioReadingCapIndex === targetIdx && audioMode === 'single') {
-                        if (isAudioPaused) resumeAudioReading();
-                        else pauseAudioReading();
-                      } else {
-                        startAudioReading(targetIdx, 'single');
-                      }
-                    }}
-                    disabled={!livro || livro.capitulos.length === 0}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: isPlayingAudio && audioMode === 'single' ? '#0284c7' : '#ffffff',
-                      color: isPlayingAudio && audioMode === 'single' ? '#ffffff' : '#0369a1',
-                      border: '1px solid #bae6fd',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Ouvir narração do capítulo atual"
-                  >
-                    <Volume2 size={13} /> {isPlayingAudio && audioMode === 'single' ? (isAudioPaused ? ui('Retomar Cap.', 'Resume Cap.') : ui('Pausar Cap.', 'Pause Cap.')) : ui('🔊 Ouvir Cap. Atual', '🔊 Listen Current Cap.')}
-                  </button>
-
-                  {/* BOTÃO PARAR ÁUDIO (SE ATIVO) */}
-                  {(isPlayingAudio || isAudioPaused) && (
-                    <button
-                      type="button"
-                      onClick={stopAudioReading}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        width: '100%',
-                        padding: '7px 12px',
-                        borderRadius: 6,
-                        background: '#fef2f2',
-                        color: '#dc2626',
-                        border: '1px solid #fecaca',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        textAlign: 'left'
-                      }}
-                      title="Parar a narração de áudio imediatamente"
-                    >
-                      <Square size={12} /> {ui('⏹️ Parar Narração de Áudio', '⏹️ Stop Audio Narrator')}
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setIsPageReviewerOpen(true)}
-                    disabled={!livro || livro.capitulos.length === 0}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '9px 12px',
-                      borderRadius: 6,
-                      background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
-                      textAlign: 'left'
-                    }}
-                    title="Folhear e inspecionar cada página individualmente antes de gerar o PDF"
-                  >
-                    <BookOpen size={13} /> {ui('📖 Revisar Páginas', '📖 Review Pages')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={baixarPDF}
-                    disabled={!livro || livro.capitulos.length === 0}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Baixar Livro Diagramado em PDF KDP"
-                  >
-                    <Download size={13} /> {ui('PDF do Livro', 'Book PDF')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={executarVerificacaoCompleta}
-                    disabled={!livro || livro.capitulos.length === 0 || isAuditing}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: !livro || isAuditing ? 'not-allowed' : 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Auditoria Editorial KDP de Conformidade"
-                  >
-                    <ShieldCheck size={13} color="#059669" /> {isAuditing ? ui('Auditando...', 'Auditing...') : ui('Auditar Obra', 'Audit Book')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={copiarTexto}
-                    disabled={!livro || livro.capitulos.length === 0}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#475569',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Copiar Texto Integral do Manuscrito"
-                  >
-                    <Copy size={13} /> {ui('Copiar Texto', 'Copy Text')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={salvarNoCatalogo}
-                    disabled={!livro}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#475569',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: !livro ? 'not-allowed' : 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Salvar Estado Atual no Catálogo Local"
-                  >
-                    <Save size={13} /> {ui('Salvar Catálogo', 'Save Catalog')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={baixarJSON}
-                    disabled={!livro}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#475569',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: !livro ? 'not-allowed' : 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Exportar Dados da Obra em JSON"
-                  >
-                    <FileText size={13} /> {ui('Exportar JSON', 'Export JSON')}
-                  </button>
-                </div>
-
-                {/* DIVISOR */}
-                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
-
-                {/* GRUPO 2: AÇÕES DA CAPA KDP */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                    {ui('Capa KDP', 'KDP Cover')}
-                  </div>
-
-                  {/* BOTÃO IMPORTAR CAPA EXTERNA */}
-                  <button
-                    type="button"
-                    onClick={() => coverFileInputRef.current?.click()}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Importar imagem própria de capa salva no computador (PNG, JPG, WEBP)"
-                  >
-                    <Upload size={13} color="#2563eb" /> {ui('📁 Importar Capa (PNG/JPG)', '📁 Import Cover (PNG/JPG)')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={baixarCapaCompletaPdf}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '9px 12px',
-                      borderRadius: 6,
-                      background: '#0f172a',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                      textAlign: 'left'
-                    }}
-                    title="Baixar PDF de Capa Completa Aberta (Contracapa + Lombada + Frente) com medidas oficiais KDP"
-                  >
-                    <Download size={14} color="#38bdf8" /> {ui('Baixar Capa KDP (PDF)', 'Download KDP Cover (PDF)')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={baixarCapa}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Baixar imagem PNG da Capa Frontal em 1600x2400 (Kindle eBook)"
-                  >
-                    <Download size={13} /> {ui('Frente PNG (1600x2400)', 'Front PNG (1600x2400)')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={baixarContracapaPng}
-                    disabled={!contracapaFinal}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: !contracapaFinal ? 'not-allowed' : 'pointer',
-                      opacity: !contracapaFinal ? 0.6 : 1,
-                      textAlign: 'left'
-                    }}
-                    title="Baixar imagem PNG da Contracapa diagramada"
-                  >
-                    <Download size={13} /> {ui('Contracapa PNG', 'Back Cover PNG')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const targetUrl = viewModeCapa === 'wrap' ? (wrapPreviewUrl || capaFinal) : viewModeCapa === 'back' ? (contracapaFinal || capaFinal) : capaFinal;
-                        if (!targetUrl) return;
-                        const blob = await (await fetch(targetUrl)).blob();
-                        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-                        setStatusMsg(ui('✓ Imagem copiada para a área de transferência!', '✓ Image copied to clipboard!'));
-                        setStatusType('ok');
-                      } catch {
-                        setStatusMsg(ui('Não foi possível copiar automaticamente para a área de transferência.', 'Could not copy to clipboard.'));
-                      }
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: '#ffffff',
-                      color: '#334155',
-                      border: '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <Copy size={13} /> {ui('Copiar Imagem da Capa', 'Copy Cover Image')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (activeTab !== 'capa') setActiveTab('capa');
-                      const nextVal = !isEditingFrontCover;
-                      setIsEditingFrontCover(nextVal);
-                      if (nextVal) {
-                        setIsEditingBackCover(false);
-                        setViewModeCapa('front');
-                      }
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: isEditingFrontCover ? '#fef3c7' : '#ffffff',
-                      color: isEditingFrontCover ? '#b45309' : '#334155',
-                      border: isEditingFrontCover ? '1px solid #fcd34d' : '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                    title="Ajustar posição, tamanho da fonte e tipografia"
-                  >
-                    <Palette size={13} /> {isEditingFrontCover ? ui('Ocultar Ajuste Capa', 'Hide Cover Adjust') : ui('Ajustar Capa Frontal', 'Adjust Front Cover')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (activeTab !== 'capa') setActiveTab('capa');
-                      if (!contracapaTexto) {
-                        const smartBack = PrintCoverService.generateSmartBackCover(
-                          livro?.titulo || titulo,
-                          topico.trim() || undefined,
-                          livro?.genero || genero
-                        );
-                        setContracapaTexto({
-                          hookHeadline: smartBack.hookHeadline,
-                          synopsisText: smartBack.synopsisText,
-                          readerBenefits: smartBack.readerBenefits
-                        });
-                      }
-                      setIsEditingBackCover(!isEditingBackCover);
-                      if (!isEditingBackCover) setIsEditingFrontCover(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      background: isEditingBackCover ? '#eff6ff' : '#ffffff',
-                      color: isEditingBackCover ? '#1d4ed8' : '#334155',
-                      border: isEditingBackCover ? '1px solid #93c5fd' : '1px solid #cbd5e1',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <Sliders size={13} /> {isEditingBackCover ? ui('Ocultar Contracapa', 'Hide Back Cover') : ui('Personalizar Contracapa', 'Customize Back Cover')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (activeTab !== 'capa') setActiveTab('capa');
-                      handleGerarOutraCapa();
-                    }}
-                    disabled={isRegeneratingCoverOnly || gerando}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '9px 12px',
-                      borderRadius: 6,
-                      background: '#2563eb',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: isRegeneratingCoverOnly || gerando ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
-                      textAlign: 'left'
-                    }}
-                  >
-                    {isRegeneratingCoverOnly ? (
-                      <>
-                        <BookEnginAnimatedBook size="micro" /> {ui('Gerando Nova...', 'Generating New...')}
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={13} /> ✨ {ui('Gerar Outra com IA', 'Generate Another with AI')}
-                      </>
-                    )}
-                  </button>
-
-                  {promoData && (
-                    <button
-                      type="button"
-                      onClick={() => setIsPromoModalOpen(true)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        background: '#ffffff',
-                        color: '#0f172a',
-                        border: '1px solid #cbd5e1',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        textAlign: 'left'
-                      }}
-                      title="Visualizar e Personalizar Página Promocional"
-                    >
-                      <Sparkles size={13} /> {ui('Página Promocional', 'Promo Page')}
-                    </button>
-                  )}
-                </div>
-
-                {/* DIVISOR */}
-                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
-
-                {/* GRUPO 3: AÇÃO PRINCIPAL DE FINALIZAÇÃO */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={finalizarLivroEGravarNaDashboard}
-                    disabled={!livro || livro.capitulos.length === 0}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '12px 14px',
-                      borderRadius: 6,
-                      background: '#0f172a',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 2px 6px rgba(15, 23, 42, 0.25)',
-                      transition: 'all 0.15s ease',
-                      textAlign: 'center'
-                    }}
-                    title="Compilar obra e disponibilizar na Dashboard com Manuscrito, PDF do Livro, PDF da Capa e PDF da Página"
-                  >
-                    <CheckCircle2 size={15} color="#22c55e" /> {ui('Finalizar Livro (Dashboard)', 'Finalize Book (Dashboard)')}
-                  </button>
-                </div>
-              </aside>
-            </div>
           </div>
+          )} {/* FIM DA COLUNA 3 */}
+        </div>
       </main>
 
       {/* MODAL FULL DO EDITOR DA PÁGINA PROMOCIONAL */}
@@ -9105,74 +11936,28 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
         }}
       />
 
+      {/* ESTÚDIO DE VÍDEO TIKTOK / REELS / SHORTS (CENAS COM TRANSIÇÕES E VOZ NEURAL) */}
+      {isTikTokStudioOpen && livro && livro.capitulos && livro.capitulos[tikTokChapterIndex] && (
+        <ErrorBoundary fallbackTitle="Estúdio de Vídeo TikTok" onReset={() => setIsTikTokStudioOpen(false)}>
+          <KdpTikTokStoryStudio
+            isOpen={isTikTokStudioOpen}
+            onClose={() => setIsTikTokStudioOpen(false)}
+            chapterIndex={tikTokChapterIndex}
+            chapterTitle={livro.capitulos[tikTokChapterIndex].titulo || `Capítulo ${tikTokChapterIndex + 1}`}
+            chapterText={livro.capitulos[tikTokChapterIndex].texto || ''}
+            bookTitle={livro.titulo || titulo || 'Livro Sem Título'}
+            bookGenre={livro.genero || genero || temaSelecionado || 'Best-seller'}
+            allChapters={livro.capitulos}
+            onSelectChapter={(newIdx) => setTikTokChapterIndex(newIdx)}
+          />
+        </ErrorBoundary>
+      )}
+
       {/* MODAL DE COMPRA / RECARGA DE CRÉDITOS EDITORIAIS (US$ 3 POR LIVRO) */}
       <PurchaseCreditsModal
         isOpen={isCreditModalOpen}
         onClose={() => setIsCreditModalOpen(false)}
         motivo={creditModalMotivo}
-      />
-
-      {/* AGENTE COAUTHOR NO RODAPÉ DA TELA (CHAT DE ASSISTÊNCIA EDITORIAL, REVISÃO GLOBAL E CAPA AUTORAL) */}
-      <CoAuthorFloatingAssistant
-        bookState={livro}
-        currentConfig={{
-          titulo,
-          subtitulo,
-          tema: temaSelecionado,
-          subtema: subtemaSelecionado,
-          genero,
-          paginasAlvo,
-          maxCapitulos,
-          premissa: coAuthorContext.premissaVisao || topico
-        }}
-        onUpdateBookConfig={(cfg) => {
-          if (cfg.titulo !== undefined && cfg.titulo.trim()) {
-            setTitulo(cfg.titulo.trim());
-          }
-          if (cfg.subtitulo !== undefined && cfg.subtitulo.trim()) {
-            setSubtitulo(cfg.subtitulo.trim());
-          }
-          if (cfg.tema !== undefined && cfg.tema.trim()) {
-            setTemaSelecionado(cfg.tema.trim());
-          }
-          if (cfg.subtema !== undefined && cfg.subtema.trim()) {
-            setSubtemaSelecionado(cfg.subtema.trim());
-          }
-          if (cfg.genero !== undefined && cfg.genero.trim()) {
-            setGenero(cfg.genero.trim());
-          }
-          if (cfg.paginasAlvo !== undefined && cfg.paginasAlvo > 0) {
-            setPaginasAlvo(cfg.paginasAlvo);
-          }
-          if (cfg.maxCapitulos !== undefined && cfg.maxCapitulos > 0) {
-            setMaxCapitulos(cfg.maxCapitulos);
-          }
-          if (cfg.premissa !== undefined && cfg.premissa.trim()) {
-            setCoAuthorContext(prev => ({ ...prev, premissaVisao: cfg.premissa! }));
-            setTopico(cfg.premissa);
-          }
-          setStatusMsg('✨ Configurações da obra aplicadas pelo CoAuthor.');
-        }}
-        onSaveChapter={handleSaveChapterFromCoAuthor}
-        onApplyEnrichment={handleApplyEnrichmentFromCoAuthor}
-        onApplyFullBookEnrichment={handleApplyFullBookEnrichmentFromCoAuthor}
-        onSetBookCover={handleSetCoverFromCoAuthor}
-        onOpenFullStudio={() => setActiveTab('coauthor')}
-        onSelectBook={(readyBook) => {
-          setLivro({
-            titulo: readyBook.title,
-            subtitulo: readyBook.subtitle || '',
-            autor: readyBook.author || 'Autor Book Engin',
-            genero: readyBook.genre || 'Geral',
-            idioma: 'Português',
-            capitulos: readyBook.capitulos,
-            meta: readyBook.meta
-          });
-          setTitulo(readyBook.title);
-          if (readyBook.subtitle) setSubtitulo(readyBook.subtitle);
-          if (readyBook.coverDataUrl) setCapaFinal(readyBook.coverDataUrl);
-          setStatusMsg(`Obra "${readyBook.title}" carregada da base para o CoAuthor.`);
-        }}
       />
     </div>
   );

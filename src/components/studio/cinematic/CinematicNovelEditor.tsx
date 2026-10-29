@@ -17,6 +17,8 @@ import {
   generateFrameVisualWithReplicate,
   generateCoverVisualWithReplicate
 } from '../../../services/cinematic-frame-generator';
+import { CinematicSceneAudioBar } from './CinematicSceneAudioBar';
+import { cinematicAudioDirector } from '../../../services/cinematic-audio-director';
 
 interface CinematicNovelEditorProps {
   project: CinematicNovelProjectData;
@@ -71,6 +73,20 @@ export const CinematicNovelEditor: React.FC<CinematicNovelEditorProps> = ({
       });
     }
   }, []);
+  // Garante que todo som de fundo seja pausado ao sair da tela
+  useEffect(() => {
+    return () => {
+      cinematicAudioDirector.stop();
+      cinematicAudioDirector.stopReading();
+    };
+  }, []);
+
+  const handleBack = () => {
+    cinematicAudioDirector.stop();
+    cinematicAudioDirector.stopReading();
+    onBackToDashboard();
+  };
+
   useEffect(() => {
     if (currentPage) {
       setNarrationDraft(currentPage.narrationText || '');
@@ -513,7 +529,7 @@ CATEGORIAS RECOMENDADAS:
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <button
-            onClick={onBackToDashboard}
+            onClick={handleBack}
             style={{
               background: 'rgba(255, 255, 255, 0.08)',
               border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -928,6 +944,13 @@ CATEGORIAS RECOMENDADAS:
                   <Plus size={15} /> Nova Página
                 </button>
               </div>
+
+              {/* BARRA DE ÁUDIO CINEMATOGRÁFICO AUTOMÁTICO (SOM DE FUNDO & AUDIOLIVRO) */}
+              <CinematicSceneAudioBar
+                currentPage={currentPage}
+                projectGenre={project.genre}
+                projectEmotionalTone={project.emotionalTone}
+              />
 
               {/* MODAL / VISUALIZADOR HD CANVAS */}
               {showCanvasHd && (

@@ -620,7 +620,7 @@ export function createAudiobookApi(options = {}) {
 
         try {
           const synthRes = await service.engines.synthesize(sampleText, language, voiceGender, {
-            allowDegraded: !voiceId,
+            allowDegraded: true,
             voiceId: voiceId || undefined
           });
           if (synthRes && synthRes.audio) {

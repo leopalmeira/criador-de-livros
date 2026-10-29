@@ -1,77 +1,104 @@
-# 📚 BookEngin • Plataforma Editorial com IA & Estúdio de E-books de Cursos
+# 📚 BookEngin • Plataforma Editorial com IA, Bestseller Engine & Inteligência Amazon
 
-> **A plataforma definitiva para pesquisa de mercado, escrita com inteligência artificial, geração de ilustrações realistas, narração por voz e publicação digital profissional.**
+> **A plataforma definitiva para pesquisa de mercado em tempo real, inteligência de buscas na Amazon (últimos 7 dias), esteira editorial guiada de 10 etapas, escrita anti-alucinação, capas em sintonia visual, estúdio de audiobooks e publicação profissional no Amazon KDP.**
 
 [![Status em Produção](https://img.shields.io/badge/Produção-Online-10b981?style=for-the-badge&logo=render)](https://book-intel-kdp.onrender.com/)
 [![React 18](https://img.shields.io/badge/Frontend-React%2018%20%7C%20TypeScript-3b82f6?style=for-the-badge&logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Build-Vite%208-646cff?style=for-the-badge&logo=vite)](https://vitejs.dev/)
-[![AI Models](https://img.shields.io/badge/IA-Gemini%20%7C%20Replicate%20%7C%20Claude%20%7C%20OpenAI-ec4899?style=for-the-badge&logo=openai)](https://replicate.com/)
-[![Testes Automatizados](https://img.shields.io/badge/Testes-32%20Aprovados%20%28Vitest%29-10b981?style=for-the-badge&logo=vitest)](https://vitest.dev/)
+[![AI Models](https://img.shields.io/badge/IA-Gemini%202.0%20%7C%20Replicate%20%7C%20Claude%20%7C%20OpenAI-ec4899?style=for-the-badge&logo=openai)](https://replicate.com/)
+[![Amazon BSR](https://img.shields.io/badge/Amazon%20KDP-BSR%20%3C%2080.000-f59e0b?style=for-the-badge&logo=amazon)](https://amazon.com.br)
+[![Testes Automatizados](https://img.shields.io/badge/Testes-Vitest%20Aprovados-10b981?style=for-the-badge&logo=vitest)](https://vitest.dev/)
 
 ---
 
 ## 🌟 Visão Geral do Produto
 
-O **BookEngin** é uma solução completa de engenharia editorial que transforma ideias brutas e demandas reais de mercado em **e-books didáticos de alto padrão, romances cinematográficos ilustrados e livros prontos para o Amazon KDP**.
+O **BookEngin** é uma solução completa de engenharia editorial e inteligência de mercado projetada para autores independentes, editoras digitais e criadores de infoprodutos. Ele substitui ferramentas fragmentadas por uma **esteira editorial guiada de 10 etapas verticais**, integrando pesquisas de clientes na Amazon, seleção dinâmica de referências, escrita densa sem clichês de IA e diagramação oficial para impressão e e-book.
 
 A plataforma opera simultaneamente como:
-1. **SaaS Web Completo:** com autenticação segura, persistência em PostgreSQL, cache local IndexedDB (offline-first) e dashboard financeiro.
-2. **Estúdio de Cursos Profissionais:** criador de apostilas e e-books didáticos ilustrados passo a passo, com áudio de voz feminina e link de leitura para clientes.
-3. **Estúdio de Romance Cinematográfico:** motor de narrativa fotográfica 35mm com roteiro visual e consistência de personagens.
-4. **Extensão Chromium (Manifest V3):** inteligência de mercado integrada às 22 lojas globais da Amazon com estimativa de BSR, vendas e royalties.
+1. **Esteira Editorial Bestseller (10 Etapas):** fluxo guiado da concepção da tese única até o PDF pronto com capa e contracapa em sintonia visual total.
+2. **Top 100 Segmentos & Buscas dos Clientes Amazon (7 Dias):** monitoramento em tempo real de termos digitados por compradores na barra de busca, volume semanal, velocidade de crescimento e seleção dinâmica de 1 a 10 livros de referência com substituição instantânea.
+3. **Estúdio de Audiobooks & Narração Sincronizada:** engine vocal neural com leitura em tempo real por parágrafos, controle de ritmo e player de áudio integrado.
+4. **Estúdio de E-books de Cursos Didáticos:** estruturação pedagógica passo a passo com comparativos de "Antes e Depois" e leitor digital compartilhável sem necessidade de login.
+5. **Estúdio de Romance Cinematográfico:** motor de narrativa fotográfica 35mm f/1.4 com bíblia de personagens e consistência visual rigorosa.
+6. **Extensão Chromium (Manifest V3):** inteligência de mercado integrada às 22 lojas globais da Amazon com estimativas precisas de BSR, vendas mensais e royalties líquidos.
 
 ---
 
 ## 🚀 Principais Módulos & Recursos
 
-### 1. 🎓 Estúdio de E-books de Cursos Profissionais (Novo)
-O módulo mais avançado para criadores de conteúdo, instrutores e infoprodutores que desejam lançar materiais didáticos impecáveis.
+### 1. 🔍 Top 100 Segmentos Amazon & Inteligência de Buscas (Últimos 7 Dias)
+O motor de validação de mercado mais avançado para autores que desejam ranquear entre os mais vendidos (BSR < 80.000):
 
-* **Catálogo de +2.000 Temas Profissionais:** Navegue por 24 nichos técnicos (Beleza & Estética, Culinária & Confeitaria, Marcenaria, Marketing, Saúde, Programação, etc.) com níveis iniciante a avançado.
-* **Pesquisa de Mercado Hotmart & Amazon:** Validação automática da demanda do público, público-alvo, dores reais e análise de concorrentes de mercado.
-* **Engenharia Pedagógica Inteligente:** Estruturação automática em módulos didáticos, aulas sequenciais, introdução densa, explicações aprofundadas e 4 passos operacionais por aula.
-* **Tipografia Otimizada (+10% Maior):** Fontes 10% maiores (11pt no corpo) com entrelinhamento generoso para máxima legibilidade em telas e impressão.
-* **Diagramação em PDF Blindada:** Sistema de paginação dinâmica (`splitTextToSize` e `ensureSpace`) que impede corte de textos em margens, caixas adaptativas de dicas e avisos de segurança.
-* **Capa Editorial Real com Título em Alto Contraste:** Título oficial em 26pt bold, subtítulo e autor/instrutor, com bloqueio rígido de selos e medalhas falsas.
+* **Catálogo dos 100 Segmentos Mais Buscados:** Ranking numerado (#1 a #100) calibrado com dados reais de comportamento de compra dos últimos 7 dias na Amazon Brasil e global.
+* **Métricas Reais de Demanda:**
+  * Volume de buscas semanais dos compradores (ex: `248.900 buscas/semana`);
+  * Velocidade e tendência de crescimento em 7 dias (ex: `+46% em 7 dias`);
+  * BSR médio do segmento garantido em faixa competitiva lucrativa (`BSR < 80.000`);
+  * Termos de pesquisa exatos digitados na barra da Amazon (`"habitos atomicos"`, `"investimentos para iniciantes"`, etc.);
+  * Gancho psicológico dominante identificado pela IA.
+* **Pool de 10 Livros Ativos por Segmento:**
+  * Exibe exatamente **10 livros candidatos** simultaneamente para o autor analisar;
+  * Cada cartão contém capa oficial em alta resolução da CDN da Amazon, título, subtítulo, autor, BSR, estimativa de vendas/mês, faturamento mensal, nota de avaliação e número de reviews;
+  * **Substituição Dinâmica Instantânea:** ao clicar em `✕ Descartar`, o livro é removido e o sistema puxa **automaticamente o próximo livro do pool**, mantendo sempre 10 opções ativas na tela;
+  * **Curadoria Livre de 1 a 10 Livros de Inspiração:** o autor pode marcar entre 1 e 10 obras clicando em `⭐ Inspirar` com feedback visual imediato (`X de 10 selecionados`).
+* **Endpoints REST Dedicados:**
+  * `GET /api/amazon/top100-segments` — listagem completa dos 100 nichos com filtros de categoria e busca textual;
+  * `GET /api/amazon/segment-books?segmentId=...&excluded=...&limit=10` — pool dinâmico com exclusão de descartados.
+
+---
+
+### 2. ⚡ Esteira Editorial Vertical Guiada (10 Etapas Anti-IA)
+Layout limpo em duas colunas (barra lateral de navegação vertical de 260px + espaço de trabalho amplo com foco na obra), estruturado nos padrões da indústria:
+
+```
+[Etapa 01] Pesquisa, Tema Central & Tese Única (Stance Forte)
+[Etapa 02] Análise do Top 100 Amazon & Curadoria de Referências
+[Etapa 03] Título, Subtítulo Comercial & Teste de Similaridade
+[Etapa 04] Recursos, Fontes & Base de Conhecimento (Links e Notas)
+[Etapa 05] Persona, Voz & Biografia do Autor (Pseudônimo / Pessoal)
+[Etapa 06] Proposta de Valor, Diferencial Competitivo & Tags USP
+[Etapa 07] Estrutura & Sumário com Ritmo Variado (Sem Capítulos Robóticos)
+[Etapa 08] Escrita de Alta Densidade com Estudos de Caso e Dados Reais
+[Etapa 09] Descrição Comercial Persuasiva & Sinopse de Conversão KDP
+[Etapa 10] Capa, Lombada Paramétrica & Contracapa em Sintonia Total
+```
+
+* **Anti-Alucinação & Originalidade:** o sistema analisa livros concorrentes exclusivamente para extrair padrões estruturais e lacunas de mercado. Nenhuma linha é plagiada.
+* **Sumário com Ritmo Variado:** quebra a fórmula previsível de IA generativa tradicional (onde todo capítulo tem introdução, 3 tópicos e conclusão) alternando capítulos densos, estudos de caso, micro-exercícios de 15 minutos e checklists executáveis.
+* **Acabamento Gráfico de Miolo (Silhueta & Marca d'Água P&B):** suporte opcional a ilustrações monocromáticas sutis ao fundo das páginas para livros impressos de luxo.
+
+---
+
+### 3. 🎙️ Estúdio de Audiobooks & Vídeo Stories TikTok
+* **Audiobook Studio Integrado:**
+  * Motor de síntese vocal com vozes femininas e masculinas moduladas;
+  * Sincronização em tempo real com destaque do parágrafo em leitura;
+  * Reprodução contínua da obra inteira ou audição por capítulo individual;
+  * Player flutuante com controle de volume, pausa e avanço.
+* **KdpTikTokStoryStudio:**
+  * Gerador de roteiros visuais verticais (9:16) para divulgação no TikTok, Instagram Reels e YouTube Shorts;
+  * Prompts cinematográficos sincronizados com a narrativa do livro para atrair compradores orgânicos.
+
+---
+
+### 4. 🎨 Capa, Lombada & Contracapa em Sintonia Editorial
+* **Master Prompt de 1600+ Palavras:**
+  * Instrução hiperdetalhada gerada sob medida para Midjourney, Ideogram, DALL-E 3 ou FLUX;
+  * Sintonia perfeita entre a paleta de cores da frente, tipografia da lombada e texto de quarta capa;
+  * Eliminação de elementos proibidos no KDP (selos falsos de "Bestseller", códigos de barras alucinados, logotipos espúrios).
+* **Cálculo Físico de Lombada:**
+  * Fórmula de precisão paramétrica: $\text{Lombada} = (\text{Páginas} \times \text{Espessura do Papel}) + \text{Sangria de } 0.125"$.
+
+---
+
+### 5. 🎓 Estúdio de E-books de Cursos Didáticos
+* **Catálogo de +2.000 Temas Profissionais:** 24 nichos técnicos com níveis do iniciante ao avançado.
 * **Comparativo de "Antes e Depois" com Selos Coloridos:**
-  * **Primeira Foto (Antes):** Selo sobreposto no canto superior esquerdo com **fundo vermelho** (`ANTES`).
-  * **Segunda Foto (Depois):** Selo sobreposto no canto superior esquerdo com **fundo verde** (`DEPOIS`).
-  * Suporte a upload local do computador ou geração automática com Inteligência Artificial (Replicate API).
-* **Narração Didática com Voz Feminina:**
-  * Síntese vocal integrada em português (`pt-BR`) com entonação suave e pedagógica.
-  * O aluno ou cliente pode ouvir a narração de qualquer aula com um clique.
-* **Leitor Digital Interativo com Link Público:**
-  * Geração instantânea de link compartilhável (`https://book-intel-kdp.onrender.com/?viewCourse=<ID>`).
-  * **Acesso Livre sem Login:** Permite enviar o link via WhatsApp, Instagram ou E-mail para alunos e clientes abrirem o e-book digital completo no celular ou computador sem precisar de cadastro prévio.
-  * Inclui leitor responsivo, áudio integrado, cards de antes/depois e download do PDF em um clique.
-
----
-
-### 2. 🎬 Estúdio de Romance Cinematográfico Realista
-Para autores de ficção e histórias visuais:
-* **Estilo Visual 35mm Fotográfico Realista:** Prompts parametrizados para estética cinematográfica anamórfica f/1.4, iluminação volumétrica e realismo fotográfico humano sem traços de desenho animado.
-* **Bíblia da Narrativa (Story Bible):** Manutenção estrita da coerência física dos personagens (etnia, cabelo, vestimenta, idade) ao longo de todos os quadros.
-* **Editor Multi-Painel:** Cada página é composta por quadros fotográficos, narração poética e diálogos formatados.
-
----
-
-### 3. 📖 Motor Editorial Master KDP & Formatação
-Para autores independentes publicando na Amazon:
-* **10 Estilos de Capas de Best-Sellers:** Capas tipográficas, minimalistas, ilustradas e técnicas baseadas nos livros mais vendidos do mundo, com renderização de mockup 3D.
-* **Cálculo de Lombada Paramétrica:** Cálculo exato em milímetros e polegadas baseado na gramatura do papel (`páginas × espessura + sangria de 0.125"`).
-* **Exportação do Pacote KDP Completo (.ZIP):**
-  * `ebook/` (arquivo `.epub` 3 validado com sumário interativo);
-  * `paperback/` (`interior.pdf` com margem interna/Gutter correta e `cover-full-wrap.pdf` pronto para impressão);
-  * `metadata/` (`metadata.json`, descrição comercial persuasiva em HTML, palavras-chave KDP e categorias BISAC);
-  * `validation/` (relatório de auditoria e conformidade).
-* **Gerador em Lote (Batch Generator):** Criação e estruturação automática de 1 a 20 livros simultâneos com auditoria de coerência em paralelo.
-
----
-
-### 4. 🔍 Inteligência de Mercado & Extensão de BSR (22 Lojas da Amazon)
-* **Cobertura em Todas as Lojas Oficiais:** Brasil, Estados Unidos, Reino Unido, Alemanha, França, Espanha, Itália, Japão, Canadá, Austrália, México, Índia, Holanda, Polônia, Suécia, Bélgica, Emirados Árabes, Arábia Saudita, Singapura, Egito, Turquia e África do Sul.
-* **Estimate Box TOTVS:** Injeção não invasiva de cards com estimativa de vendas diárias/mensais e faturamento líquido de royalties (70% e 35%).
-* **Análise de Densidade de Nicho:** Avaliação da barreira de entrada, concorrência no Top 10 e exportação de dados para CSV.
+  * Foto 1 (Antes): Selo sobreposto vermelho (`ANTES`);
+  * Foto 2 (Depois): Selo sobreposto verde (`DEPOIS`).
+* **Leitor Digital Interativo Público:**
+  * Link público compartilhável (`/?viewCourse=<ID>`) que permite leitura completa em qualquer celular ou desktop sem exigir login do aluno.
 
 ---
 
@@ -79,63 +106,69 @@ Para autores independentes publicando na Amazon:
 
 ```mermaid
 graph TD
-    User([Usuário / Autor / Aluno]) --> Frontend[Interface Web React 18 + Vite]
+    User([Autor / Editor / Leitor]) --> WebApp[Frontend React 18 + Vite]
     
-    subgraph "Camada de Apresentação"
-        Frontend --> Dashboard[BookIntel Dashboard]
-        Frontend --> CourseStudio[Estúdio de E-books de Cursos]
-        Frontend --> DigitalReader[Leitor Digital Público sem Login]
-        Frontend --> CinematicStudio[Editor de Romance Cinematográfico]
-        Frontend --> KdpGenerator[Gerador KDP Pro]
+    subgraph "Interface & Módulos do Studio"
+        WebApp --> NavVertical[Sidebar Vertical 10 Etapas]
+        WebApp --> Step1[1. Pesquisa & Tese Única]
+        WebApp --> Step2[2. Top 100 Amazon & 10 Livros Ativos]
+        WebApp --> Step3[3. Título & Subtítulo]
+        WebApp --> Step8[8. Escrita Anti-IA]
+        WebApp --> Step10[10. Capa & Contracapa em Sintonia]
+        WebApp --> AudiobookMod[Audiobook Studio]
+        WebApp --> CourseMod[E-books de Cursos]
     end
 
-    subgraph "Serviços e Inteligência"
-        CourseStudio --> Pedagogical[CoursePedagogicalService]
-        CourseStudio --> VisualDirector[CourseVisualDirector]
-        CourseStudio --> Narration[CourseNarrationService - Voz Feminina]
-        CourseStudio --> PdfExporter[CoursePdfExporter - PDF Blindado]
-        DigitalReader --> Narration
-        DigitalReader --> PdfExporter
+    subgraph "Serviços Backend & Inteligência"
+        Step2 --> AmazonTop100[AmazonTop100Service - Dados 7d]
+        Step2 --> AmazonLive[AmazonLiveService & BSR Engine]
+        Step3 --> SimEngine[Similarity & Originality Engine]
+        Step8 --> KdpEngine[KDP AI Engine - Gemini / Claude]
+        Step10 --> CoverGen[KdpCoverMasterPromptGenerator]
+        AudiobookMod --> AudioSync[NarrationSync & WebSpeech]
     end
 
-    subgraph "Provedores de IA & Mídia"
-        Pedagogical --> LLMs[Google Gemini / Anthropic Claude / OpenAI]
-        VisualDirector --> Replicate[Replicate API - FLUX Schnell & Pro]
-        Narration --> WebSpeech[Web Speech API Neural pt-BR]
+    subgraph "APIs do Servidor Local / Produção"
+        AmazonTop100 --> ApiTop100["/api/amazon/top100-segments"]
+        AmazonTop100 --> ApiBooks["/api/amazon/segment-books"]
+        KdpEngine --> ApiAi["/api/ai/generate"]
     end
 
-    subgraph "Armazenamento & Persistência"
-        Frontend --> LocalDB[(IndexedDB Offline Cache)]
-        Frontend --> PostgresDB[(PostgreSQL - Render)]
+    subgraph "Persistência & Cache"
+        WebApp --> LocalDB[(IndexedDB - Dexie Cache Offline)]
+        WebApp --> RemoteDB[(PostgreSQL - Produção no Render)]
     end
 ```
 
 ---
 
-## 📊 Fluxo de Criação do E-book de Curso (Passo a Passo)
+## 🔄 Fluxo de Seleção e Inspiração (Top 100 Amazon)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Autor as Autor / Instrutor
-    participant Studio as BookEngin Studio
-    participant IA as Motor de Inteligência Artificial
-    participant Replicate as Replicate API
-    participant Aluno as Cliente / Aluno Final
+    actor Autor as Autor KDP
+    participant UI as Painel da Etapa 2
+    participant Service as AmazonTop100Service
+    participant Step3 as Etapa 3 (Título)
 
-    Autor->>Studio: Escolhe tema do catálogo (+2.000 temas) ou digita personalizado
-    Studio->>IA: Analisa demanda de mercado (Hotmart / Amazon)
-    IA-->>Studio: Retorna público-alvo, dores e proposta de valor
-    Studio->>IA: Gera grade pedagógica (Módulos, Aulas, 4 Passos e Exercícios)
-    IA-->>Studio: Conteúdo detalhado com letras 10% maiores
-    Autor->>Studio: Adiciona fotos de "Antes e Depois" (Upload ou Gera com IA)
-    Studio->>Replicate: Solicita imagem foto-realista sem texto alucinado
-    Replicate-->>Studio: Imagem gerada com perfeição
-    Studio->>Studio: Aplica selo vermelho (ANTES) e selo verde (DEPOIS)
-    Autor->>Studio: Gera PDF diagramado oficial e Link Compartilhável
-    Autor->>Aluno: Envia link do e-book via WhatsApp
-    Aluno->>Studio: Abre o link direto no celular (Sem login)
-    Aluno->>Aluno: Lê as aulas, ouve a narração feminina e baixa o PDF
+    Autor->>UI: Seleciona nicho no Top 100 (ex: "Hábitos e Disciplina")
+    UI->>Service: getActiveBookPool("habitos-disciplina", excluded, limit=10)
+    Service-->>UI: Retorna exatamente 10 livros candidatos com BSR < 80k
+    
+    loop Curadoria e Troca Dinâmica
+        alt Autor não gosta de um livro
+            Autor->>UI: Clica em "✕ Descartar"
+            UI->>Service: getActiveBookPool com ASIN adicionado aos excluídos
+            Service-->>UI: Repõe imediatamente o próximo livro no pool de 10
+        else Autor quer se inspirar na obra
+            Autor->>UI: Clica em "⭐ Inspirar" (seleciona de 1 a 10 obras)
+            UI->>UI: Atualiza contador visual (ex: "3 de 10 selecionados")
+        end
+    end
+
+    Autor->>UI: Clica em "Avançar para Etapa 3 (Título)"
+    UI->>Step3: Aplica referências selecionadas para direcionar título, subtítulo e diferencial
 ```
 
 ---
@@ -146,12 +179,13 @@ sequenceDiagram
 | :--- | :--- |
 | **Frontend** | React 18, TypeScript, Lucide React, HTML5 Audio, Canvas API, CSS3 Moderno |
 | **Build & Bundler** | Vite 8, Rolldown Runtime, Code Splitting Dinâmico |
-| **Geração de PDF** | jsPDF com algoritmo próprio de paginação adaptativa e caixas fluidas |
-| **Áudio & Voz** | Web Speech API (Síntese vocal pt-BR com modulação feminina) |
-| **Modelos de Linguagem** | Google Gemini 1.5/2.0, Claude 3.5 Sonnet, OpenAI GPT-4o, Ollama Local |
-| **Geração de Imagens** | Replicate API (Modelos FLUX Schnell e FLUX Pro) com prompts anti-alucinação |
-| **Banco de Dados** | PostgreSQL (em produção no Render) + Dexie / IndexedDB no navegador |
-| **Testes** | Vitest (32 testes unitários e de integração cobrindo fluxos críticos) |
+| **Serviço de Mercado** | `AmazonTop100Service`, APIs de busca Amazon dos últimos 7 dias, estimativas de BSR e Royalties |
+| **Geração de PDF** | jsPDF com algoritmo adaptativo anti-corte de páginas (`ensureSpace`) |
+| **Áudio & Narração** | Web Speech API pt-BR, Neural Cloud Provider, `NarrationSyncEngine` |
+| **Modelos de Linguagem** | Google Gemini 2.0 / 1.5, Anthropic Claude 3.5 Sonnet, OpenAI GPT-4o, Ollama Local |
+| **Geração de Capas & Imagens** | Replicate API (FLUX Schnell / FLUX Pro), Prompts Sintonia Editorial 1600+ palavras |
+| **Banco de Dados** | PostgreSQL (Render) + Dexie / IndexedDB no navegador (Offline-First) |
+| **Testes Automatizados** | Vitest (cobertura de testes unitários e de integração editorial) |
 
 ---
 
@@ -185,35 +219,22 @@ sequenceDiagram
    npm test
    ```
 
-5. **Gerar pacote de produção:**
+5. **Gerar pacote de produção e verificar tipos:**
    ```bash
+   npx tsc --noEmit
    npm run build
    ```
 
 ---
 
-## 🧪 Estrutura de Testes Automatizados
-
-A plataforma possui cobertura completa via Vitest:
-
-```bash
-✓ tests/course-ebook-feedback-fixes.test.ts (4 testes)  # PDF sem cortes, capa com título, antes/depois, áudio e link
-✓ tests/course-ebook-generator.test.ts (10 testes)      # Catálogo de temas, planejamento didático e fallback
-✓ tests/master-editorial-restructure.test.ts (18 testes)# Motor editorial KDP, capas 3D e validações técnicas
-```
-
----
-
 ## 🌐 Deploy em Produção (Render)
 
-A aplicação está configurada com build automatizado conectado ao branch `main` do GitHub.
-* **URL Oficial:** [https://book-intel-kdp.onrender.com/](https://book-intel-kdp.onrender.com/)
-* **Keep-Alive:** Sistema com ping integrado a cada 5 minutos para manter a aplicação ágil e ativa.
-* **Links Públicos:** Qualquer visitante pode acessar e-books compartilhados adicionando o parâmetro `?viewCourse=<ID>` à URL base.
+A aplicação está configurada para deploy contínuo integrado à branch `main` do repositório GitHub.
+* **Repositório Oficial:** [https://github.com/leopalmeira/criador-de-livros.git](https://github.com/leopalmeira/criador-de-livros.git)
+* **URL de Produção:** [https://book-intel-kdp.onrender.com/](https://book-intel-kdp.onrender.com/)
+* **Acesso Livre a E-books de Cursos:** `https://book-intel-kdp.onrender.com/?viewCourse=<ID>`
 
 ---
 
 ## ⚖️ Licença e Responsabilidade
-O **BookEngin** organiza, diagrama e gera arquivos em conformidade com as diretrizes do **Amazon Kindle Direct Publishing** e do mercado de infoprodutos digitais. A revisão final, escolha de preços e direitos comerciais sobre o material criado pertencem integralmente ao autor/usuário.
-
-Desenvolvido com foco em alta performance editorial e experiência didática de excelência.
+O **BookEngin** organiza, diagrama e gera arquivos em estrita conformidade com as diretrizes do **Amazon Kindle Direct Publishing** e do mercado editorial global. A revisão final, precificação e direitos comerciais sobre o material publicado pertencem integralmente ao autor.

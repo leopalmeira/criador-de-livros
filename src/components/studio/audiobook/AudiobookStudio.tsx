@@ -43,6 +43,10 @@ import {
 import { AudioTimeline } from './AudioTimeline';
 import { AudiobookCastPanel } from './AudiobookCastPanel';
 import {
+  cinematicAudioDirector,
+  analyzeSceneAcoustics
+} from '../../../services/cinematic-audio-director';
+import {
   analyzeChapterSoundDesign,
   SmartSoundDesignResult
 } from '../../../services/audiobook/smart-sound-design';
@@ -312,6 +316,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     setPlayMixedAudio(false);
     audioRef.current?.pause();
     setIsPlaying(false);
+    cinematicAudioDirector.stop();
   };
 
   // Diagnóstico de motores TTS no backend
@@ -1067,14 +1072,30 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     }
   };
 
-  // Controles do Player de Áudio
+  // Controles do Player de Áudio com Trilha de Fundo Automática
   const togglePlayPause = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
+      // Para a trilha de fundo quando o player pausa
+      cinematicAudioDirector.stop();
     } else {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+        // Inicia trilha de fundo automática baseada no texto do capítulo ativo
+        const chaps = activeChapters.length > 0 ? activeChapters : normalizedChapters;
+        const chapterIdx = activeChapterIndex > 0 ? activeChapterIndex - 1 : 0;
+        const chText = chaps[chapterIdx]?.text || '';
+        if (chText) {
+          cinematicAudioDirector.setVolumeFactor(0.65);
+          cinematicAudioDirector.playScene(
+            { narrationText: chText.slice(0, 500), sceneSummary: chText.slice(0, 200) },
+            activeBookTitle || 'Ficção'
+          );
+          cinematicAudioDirector.setDucking(true);
+        }
+      }).catch(() => setIsPlaying(false));
     }
   };
 
@@ -1107,7 +1128,7 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     }
   };
 
-  // Pular para o capítulo específico dentro do audiobook
+  // Pular para o capítulo específico dentro do audiobook com trilha de fundo
   const jumpToChapter = (chapter: any) => {
     if (!audioRef.current) return;
     const start = playMixedAudio && completeMixedAudio
@@ -1118,6 +1139,20 @@ export const AudiobookStudio: React.FC<AudiobookStudioProps> = ({
     audioRef.current.currentTime = playMixedAudio && !completeMixedAudio && chapterHasMix ? 0 : start;
     setCurrentTime(start);
     setActiveChapterIndex(chapter.index);
+
+    // Atualiza a trilha de fundo para o novo capítulo
+    const chaps = activeChapters.length > 0 ? activeChapters : normalizedChapters;
+    const chIdx = chapter.kind === 'chapter' ? chapter.index - 1 : 0;
+    const chText = chaps[chIdx]?.text || '';
+    if (chText) {
+      cinematicAudioDirector.setVolumeFactor(0.65);
+      cinematicAudioDirector.playScene(
+        { narrationText: chText.slice(0, 500), sceneSummary: chText.slice(0, 200) },
+        activeBookTitle || 'Ficção'
+      );
+      cinematicAudioDirector.setDucking(true);
+    }
+
     if (!isPlaying) {
       audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
     }

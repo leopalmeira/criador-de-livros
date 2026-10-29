@@ -8,8 +8,14 @@ import {
   ChevronDown, ChevronUp, Save, X, Lightbulb, UserCheck,
   ArrowLeft, Download, Maximize2, Minimize2, CheckSquare, Search,
   FileCheck, ExternalLink, Bookmark, HelpCircle, Volume2, VolumeX,
-  Lock, Mic, CheckCircle
+  Lock, Mic, CheckCircle, TrendingUp, DollarSign, Filter, Star, SlidersHorizontal
 } from 'lucide-react';
+import {
+  KdpMarketResearchService,
+  type MarketBenchmarkBook,
+  type MarketAnalysisResult,
+  calculateEstimatesFromBsr
+} from '../../../services/kdp-market-research';
 import { chamarGeminiTexto } from '../../../services/kdp-ai-engine';
 import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrity-engine';
 import {
@@ -470,6 +476,57 @@ export const CoAuthorWorkspace: React.FC<CoAuthorWorkspaceProps> = ({
   const [suggestedTitlesAmazon, setSuggestedTitlesAmazon] = useState<Array<{ title: string; rationale: string }>>([]);
   const [suggestedSubtitlesAmazon, setSuggestedSubtitlesAmazon] = useState<Array<{ subtitle: string; rationale: string }>>([]);
   const [isLoadingAmazonSuggestions, setIsLoadingAmazonSuggestions] = useState<boolean>(false);
+
+  // Estados da Pesquisa de Mercado Amazon KDP (Passo 1: Tema, BSR, Reviews e Capas)
+  const [marketThemeInput, setMarketThemeInput] = useState<string>(() => contextData.premissaVisao || 'Foco Profundo & Rotina Inabalável');
+  const [marketMinBsr, setMarketMinBsr] = useState<number>(1);
+  const [marketMaxBsr, setMarketMaxBsr] = useState<number>(80000);
+  const [marketMinReviews, setMarketMinReviews] = useState<number>(20);
+  const [marketPreset, setMarketPreset] = useState<'80k' | '20k-30k' | 'elite' | 'custom'>('80k');
+  const [marketData, setMarketData] = useState<MarketAnalysisResult | null>(null);
+  const [isSearchingMarket, setIsSearchingMarket] = useState<boolean>(false);
+
+  const executeMarketAnalysis = async (
+    themeParam?: string,
+    minBsrParam?: number,
+    maxBsrParam?: number,
+    minReviewsParam?: number
+  ) => {
+    const t = themeParam !== undefined ? themeParam : marketThemeInput;
+    const minB = minBsrParam !== undefined ? minBsrParam : marketMinBsr;
+    const maxB = maxBsrParam !== undefined ? maxBsrParam : marketMaxBsr;
+    const minR = minReviewsParam !== undefined ? minReviewsParam : marketMinReviews;
+
+    setIsSearchingMarket(true);
+    setAiLoadingStatus('Analisando livros na Amazon, BSR e faturamento estimado em USD...');
+
+    try {
+      const result = await KdpMarketResearchService.analyzeNiche({
+        theme: t,
+        minBsr: minB,
+        maxBsr: maxB,
+        minReviews: minR
+      });
+      setMarketData(result);
+      if (result.suggestedTitles && result.suggestedTitles.length > 0) {
+        setSuggestedTitlesAmazon(result.suggestedTitles);
+      }
+      if (result.suggestedSubtitles && result.suggestedSubtitles.length > 0) {
+        setSuggestedSubtitlesAmazon(result.suggestedSubtitles);
+      }
+    } catch (err) {
+      console.error('Erro na análise de mercado KDP:', err);
+    } finally {
+      setIsSearchingMarket(false);
+      setAiLoadingStatus('');
+    }
+  };
+
+  useEffect(() => {
+    if (editorialStage === 1 && !marketData && !isSearchingMarket) {
+      executeMarketAnalysis('Foco Profundo & Rotina Inabalável', 1, 80000, 20);
+    }
+  }, [editorialStage]);
 
   // Quantidade de Capítulos customizável antes e durante a produção da obra
   const [customTotalCaps, setCustomTotalCaps] = useState<number>(() => {
@@ -2720,7 +2777,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
           </div>
         </div>
 
-        {/* NAVEGAÇÃO: SEÇÃO 1 - COAUTHOR (CRIAÇÃO & ESCRITA) */}
+        {/* NAVEGAÇÃO: FLUXO EDITORIAL KDP (6 PASSOS SEQUENCIAIS) */}
         <div style={{ marginBottom: 16 }}>
           <div
             style={{
@@ -2729,79 +2786,37 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               color: '#38bdf8',
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
-              marginBottom: 6,
+              marginBottom: 8,
               padding: '0 6px',
               display: 'flex',
               alignItems: 'center',
-              gap: 6
+              justifyContent: 'space-between'
             }}
           >
-            <span>✍️ COAUTHOR IA • CRIAÇÃO</span>
+            <span>📚 ESTEIRA EDITORIAL KDP</span>
+            <span style={{ fontSize: 9.5, color: '#94a3b8', background: 'rgba(255,255,255,0.08)', padding: '1px 6px', borderRadius: 4 }}>
+              Passo {editorialStage}/6
+            </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {/* 1. ARQUITETURA & CAPA */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFlowStep(null);
-                setInternalTab('arquitetura');
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 12px',
-                borderRadius: 8,
-                border: internalTab === 'arquitetura' ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid transparent',
-                background: internalTab === 'arquitetura' ? 'rgba(2, 132, 199, 0.18)' : 'transparent',
-                color: internalTab === 'arquitetura' ? '#ffffff' : '#cbd5e1',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  background: internalTab === 'arquitetura' ? '#0284c7' : 'rgba(255, 255, 255, 0.06)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: internalTab === 'arquitetura' ? '#ffffff' : '#94a3b8',
-                  flexShrink: 0
-                }}
-              >
-                <Sliders size={15} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: internalTab === 'arquitetura' ? 800 : 600 }}>
-                  Arquitetura & Capa
-                </div>
-                <div style={{ fontSize: 10.5, color: '#64748b' }}>
-                  Tema, títulos, ideias e capa
-                </div>
-              </div>
-            </button>
-
-            {/* 2. REDAÇÃO & CHAT */}
+            {/* ETAPA 1: TEMA & MERCADO (BSR & $ USD) */}
             <button
               type="button"
               onClick={() => {
                 setActiveFlowStep(null);
                 setInternalTab('chat');
+                setEditorialStage(1);
               }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                padding: '9px 12px',
+                padding: '8px 10px',
                 borderRadius: 8,
-                border: internalTab === 'chat' ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid transparent',
-                background: internalTab === 'chat' ? 'rgba(2, 132, 199, 0.18)' : 'transparent',
-                color: internalTab === 'chat' ? '#ffffff' : '#cbd5e1',
+                border: internalTab === 'chat' && editorialStage === 1 ? '1px solid #38bdf8' : '1px solid transparent',
+                background: internalTab === 'chat' && editorialStage === 1 ? 'rgba(2, 132, 199, 0.22)' : 'transparent',
+                color: internalTab === 'chat' && editorialStage === 1 ? '#ffffff' : '#cbd5e1',
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: 'all 0.15s ease'
@@ -2809,32 +2824,279 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             >
               <div
                 style={{
-                  width: 28,
-                  height: 28,
+                  width: 26,
+                  height: 26,
                   borderRadius: 6,
-                  background: internalTab === 'chat' ? '#0284c7' : 'rgba(255, 255, 255, 0.06)',
+                  background: internalTab === 'chat' && editorialStage === 1 ? '#0284c7' : (editorialStage > 1 ? '#059669' : 'rgba(255, 255, 255, 0.08)'),
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: internalTab === 'chat' ? '#ffffff' : '#94a3b8',
+                  color: '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 800,
                   flexShrink: 0
                 }}
               >
-                <MessageSquare size={15} />
+                {editorialStage > 1 ? '✓' : '1'}
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: internalTab === 'chat' ? 800 : 600 }}>
-                  Redação & Chat
+                <div style={{ fontSize: 12.5, fontWeight: internalTab === 'chat' && editorialStage === 1 ? 800 : 600 }}>
+                  Tema & Mercado KDP
                 </div>
-                <div style={{ fontSize: 10.5, color: '#64748b' }}>
-                  Diálogo por voz e escrita
+                <div style={{ fontSize: 10, color: '#64748b' }}>
+                  Filtro BSR & Faturamento USD
+                </div>
+              </div>
+            </button>
+
+            {/* ETAPA 2: TÍTULO COMERCIAL */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('chat');
+                setEditorialStage(2);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: internalTab === 'chat' && editorialStage === 2 ? '1px solid #38bdf8' : '1px solid transparent',
+                background: internalTab === 'chat' && editorialStage === 2 ? 'rgba(2, 132, 199, 0.22)' : 'transparent',
+                color: internalTab === 'chat' && editorialStage === 2 ? '#ffffff' : '#cbd5e1',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                  background: internalTab === 'chat' && editorialStage === 2 ? '#0284c7' : (editorialStage > 2 ? '#059669' : 'rgba(255, 255, 255, 0.08)'),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  flexShrink: 0
+                }}
+              >
+                {editorialStage > 2 ? '✓' : '2'}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: internalTab === 'chat' && editorialStage === 2 ? 800 : 600 }}>
+                  Título Comercial
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
+                  {flowTitulo && flowTitulo !== 'Nova Obra KDP' ? flowTitulo.slice(0, 22) + '...' : 'Gatilho de Bestseller'}
+                </div>
+              </div>
+            </button>
+
+            {/* ETAPA 3: SUBTÍTULO KDP */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('chat');
+                setEditorialStage(3);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: internalTab === 'chat' && editorialStage === 3 ? '1px solid #38bdf8' : '1px solid transparent',
+                background: internalTab === 'chat' && editorialStage === 3 ? 'rgba(2, 132, 199, 0.22)' : 'transparent',
+                color: internalTab === 'chat' && editorialStage === 3 ? '#ffffff' : '#cbd5e1',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                  background: internalTab === 'chat' && editorialStage === 3 ? '#0284c7' : (editorialStage > 3 ? '#059669' : 'rgba(255, 255, 255, 0.08)'),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  flexShrink: 0
+                }}
+              >
+                {editorialStage > 3 ? '✓' : '3'}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: internalTab === 'chat' && editorialStage === 3 ? 800 : 600 }}>
+                  Subtítulo de Conversão
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
+                  Promessa e quebra de objeção
+                </div>
+              </div>
+            </button>
+
+            {/* ETAPA 4: SUMÁRIO & CAPÍTULOS */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('chat');
+                setEditorialStage(4);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: internalTab === 'chat' && editorialStage === 4 ? '1px solid #38bdf8' : '1px solid transparent',
+                background: internalTab === 'chat' && editorialStage === 4 ? 'rgba(2, 132, 199, 0.22)' : 'transparent',
+                color: internalTab === 'chat' && editorialStage === 4 ? '#ffffff' : '#cbd5e1',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                  background: internalTab === 'chat' && editorialStage === 4 ? '#0284c7' : (editorialStage > 4 ? '#059669' : 'rgba(255, 255, 255, 0.08)'),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  flexShrink: 0
+                }}
+              >
+                {editorialStage > 4 ? '✓' : '4'}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: internalTab === 'chat' && editorialStage === 4 ? 800 : 600 }}>
+                  Sumário & Arquitetura
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
+                  {customTotalCaps} capítulos planejados
+                </div>
+              </div>
+            </button>
+
+            {/* ETAPA 5: REDAÇÃO & CHAT IA */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('chat');
+                setEditorialStage(5);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: internalTab === 'chat' && editorialStage === 5 ? '1px solid #38bdf8' : '1px solid transparent',
+                background: internalTab === 'chat' && editorialStage === 5 ? 'rgba(2, 132, 199, 0.22)' : 'transparent',
+                color: internalTab === 'chat' && editorialStage === 5 ? '#ffffff' : '#cbd5e1',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                  background: internalTab === 'chat' && editorialStage === 5 ? '#0284c7' : (editorialStage > 5 ? '#059669' : 'rgba(255, 255, 255, 0.08)'),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  flexShrink: 0
+                }}
+              >
+                {editorialStage > 5 ? '✓' : '5'}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: internalTab === 'chat' && editorialStage === 5 ? 800 : 600 }}>
+                  Redação & Chat IA
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
+                  {capsConcluidos} de {totalCaps} capítulos
+                </div>
+              </div>
+            </button>
+
+            {/* ETAPA 6: CAPA & CONCLUSÃO KDP */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFlowStep(null);
+                setInternalTab('chat');
+                setEditorialStage(6);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: internalTab === 'chat' && editorialStage === 6 ? '1px solid #10b981' : '1px solid transparent',
+                background: internalTab === 'chat' && editorialStage === 6 ? 'rgba(16, 185, 129, 0.22)' : 'transparent',
+                color: internalTab === 'chat' && editorialStage === 6 ? '#ffffff' : '#cbd5e1',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                  background: internalTab === 'chat' && editorialStage === 6 ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  flexShrink: 0
+                }}
+              >
+                6
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: internalTab === 'chat' && editorialStage === 6 ? 800 : 600 }}>
+                  Capa & Conclusão KDP
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
+                  Arte 3D & Publicação
                 </div>
               </div>
             </button>
           </div>
         </div>
 
-        {/* NAVEGAÇÃO: SEÇÃO 2 - AGENTE EDITORIAL (PRODUÇÃO & AUDITORIA KDP) */}
+        {/* NAVEGAÇÃO: FERRAMENTAS & AUDITORIA */}
         <div style={{ marginBottom: 16 }}>
           <div
             style={{
@@ -2843,18 +3105,15 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
               color: '#10b981',
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
-              marginBottom: 6,
-              padding: '0 6px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
+              marginBottom: 8,
+              padding: '0 6px'
             }}
           >
-            <span>🛡️ AGENTE EDITORIAL • KDP</span>
+            <span>🛡️ FERRAMENTAS & AUDITORIA</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {/* 3. LIVRO DIAGRAMADO */}
+            {/* LIVRO DIAGRAMADO */}
             <button
               type="button"
               onClick={() => {
@@ -2865,7 +3124,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                padding: '9px 12px',
+                padding: '8px 10px',
                 borderRadius: 8,
                 border: internalTab === 'diagramado' ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid transparent',
                 background: internalTab === 'diagramado' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
@@ -2877,8 +3136,8 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             >
               <div
                 style={{
-                  width: 28,
-                  height: 28,
+                  width: 26,
+                  height: 26,
                   borderRadius: 6,
                   background: internalTab === 'diagramado' ? '#059669' : 'rgba(255, 255, 255, 0.06)',
                   display: 'flex',
@@ -2888,19 +3147,19 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                   flexShrink: 0
                 }}
               >
-                <BookOpen size={15} />
+                <BookOpen size={14} />
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: internalTab === 'diagramado' ? 800 : 600 }}>
+                <div style={{ fontSize: 12.5, fontWeight: internalTab === 'diagramado' ? 800 : 600 }}>
                   Livro Diagramado
                 </div>
-                <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
                   Visualização real & leitura
                 </div>
               </div>
             </button>
 
-            {/* 4. REVISÃO EDITORIAL */}
+            {/* REVISÃO EDITORIAL */}
             <button
               type="button"
               onClick={() => {
@@ -2911,7 +3170,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                padding: '9px 12px',
+                padding: '8px 10px',
                 borderRadius: 8,
                 border: internalTab === 'revisao' ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid transparent',
                 background: internalTab === 'revisao' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
@@ -2923,8 +3182,8 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
             >
               <div
                 style={{
-                  width: 28,
-                  height: 28,
+                  width: 26,
+                  height: 26,
                   borderRadius: 6,
                   background: internalTab === 'revisao' ? '#059669' : 'rgba(255, 255, 255, 0.06)',
                   display: 'flex',
@@ -2934,11 +3193,11 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                   flexShrink: 0
                 }}
               >
-                <ClipboardCheck size={15} />
+                <ClipboardCheck size={14} />
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 13, fontWeight: internalTab === 'revisao' ? 800 : 600 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: internalTab === 'revisao' ? 800 : 600 }}>
                     Revisão Editorial
                   </span>
                   {capsConcluidos > 0 && (
@@ -2947,7 +3206,7 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
                   Auditoria ortográfica & KDP
                 </div>
               </div>
@@ -3795,73 +4054,803 @@ O que achou deste capítulo? Deseja fazer algum ajuste ou prosseguir para o pró
                 gap: 20
               }}
             >
-              {/* CARD ATIVO INTERATIVO DA ETAPA ATUAL DA ESTEIRA */}
+              {/* CARD ATIVO INTERATIVO: PASSO 1 - TEMA, MERCADO AMAZON KDP & FILTRO DE BSR */}
               {editorialStage === 1 && (
                 <div
                   style={{
                     background: '#ffffff',
                     border: '1.5px solid #0284c7',
-                    borderRadius: 12,
-                    padding: 20,
-                    boxShadow: '0 4px 16px rgba(2, 132, 199, 0.08)'
+                    borderRadius: 14,
+                    padding: 24,
+                    boxShadow: '0 4px 20px rgba(2, 132, 199, 0.09)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 20
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 8, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
-                      <Lightbulb size={20} />
+                  {/* CABEÇALHO DO PASSO 1 */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 10,
+                          background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ffffff',
+                          boxShadow: '0 3px 8px rgba(2, 132, 199, 0.3)'
+                        }}
+                      >
+                        <TrendingUp size={22} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <h4 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+                            Passo 1: Tema & Análise de Mercado Amazon KDP
+                          </h4>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 800,
+                              background: '#ecfdf5',
+                              color: '#059669',
+                              border: '1px solid #a7f3d0',
+                              padding: '2px 8px',
+                              borderRadius: 12
+                            }}
+                          >
+                            💵 $ USD em Tempo Real
+                          </span>
+                        </div>
+                        <p style={{ margin: '3px 0 0', fontSize: 13, color: '#64748b' }}>
+                          Escolha o nicho, filtre a faixa de BSR e veja as capas reais e estimativas de faturamento em dólares.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                        Passo 1: Escolha o Tema ou Nicho da sua Obra
-                      </h4>
-                      <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
-                        Selecione um nicho de alta conversão da Amazon KDP abaixo ou dite sua ideia por voz no microfone:
-                      </p>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '6px 12px', borderRadius: 8 }}>
+                      <DollarSign size={15} color="#0284c7" />
+                      <span>Benchmark KDP: <strong>BSR &lt; 80k ≈ $500 USD/mês</strong> | <strong>20k a 30k ≈ $1.200 a $1.800 USD/mês</strong></span>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, marginTop: 14 }}>
-                    {TEMAS_AMAZON_KDP.map((tema) => (
+                  {/* BARRA DE CONFIGURAÇÃO DE BUSCA: TEMA + PRESETS DE BSR + REVIEWS */}
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 12,
+                      padding: 16,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14
+                    }}
+                  >
+                    {/* CAMPO DE TEMA / NICHO */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        🎯 Tema ou Nicho de Livro para Pesquisar na Amazon:
+                      </label>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 260, position: 'relative' }}>
+                          <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: 12, top: 11 }} />
+                          <input
+                            type="text"
+                            value={marketThemeInput}
+                            onChange={(e) => setMarketThemeInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                executeMarketAnalysis(marketThemeInput, marketMinBsr, marketMaxBsr, marketMinReviews);
+                              }
+                            }}
+                            placeholder="Ex: Foco Profundo, Inteligência Artificial, Finanças Pessoais, Rotina Matinal..."
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px 9px 36px',
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 13,
+                              color: '#0f172a',
+                              outline: 'none',
+                              background: '#ffffff'
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => executeMarketAnalysis(marketThemeInput, marketMinBsr, marketMaxBsr, marketMinReviews)}
+                          disabled={isSearchingMarket}
+                          style={{
+                            padding: '9px 18px',
+                            borderRadius: 8,
+                            border: 'none',
+                            background: isSearchingMarket ? '#0369a1' : 'linear-gradient(135deg, #0284c7, #0369a1)',
+                            color: '#ffffff',
+                            fontSize: 13,
+                            fontWeight: 800,
+                            cursor: isSearchingMarket ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+                          }}
+                        >
+                          <RotateCw size={14} className={isSearchingMarket ? 'animate-spin' : ''} />
+                          <span>{isSearchingMarket ? 'Pesquisando...' : '🔍 Buscar Livros na Amazon'}</span>
+                        </button>
+                      </div>
+
+                      {/* CHIPS DE NICHOS RÁPIDOS */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                        <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Sugestões rápidas:</span>
+                        {[
+                          { label: '🧠 Foco & Hábitos', theme: 'Hábitos e Foco Profundo' },
+                          { label: '💰 Finanças & Investimentos', theme: 'Finanças Pessoais e Liberdade Financeira' },
+                          { label: '🤖 Inteligência Artificial', theme: 'Inteligência Artificial Prática' },
+                          { label: '🧘 Saúde Mental & Ansiedade', theme: 'Ansiedade e Controle Emocional' },
+                          { label: '🚀 Negócios & Vendas', theme: 'Vendas e Negociação' }
+                        ].map((chip, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setMarketThemeInput(chip.theme);
+                              executeMarketAnalysis(chip.theme, marketMinBsr, marketMaxBsr, marketMinReviews);
+                            }}
+                            style={{
+                              padding: '3px 9px',
+                              borderRadius: 6,
+                              border: marketThemeInput === chip.theme ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                              background: marketThemeInput === chip.theme ? '#e0f2fe' : '#ffffff',
+                              color: marketThemeInput === chip.theme ? '#0284c7' : '#475569',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {chip.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* SELETOR DE FAIXA DE BSR E REVIEWS */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, paddingTop: 6, borderTop: '1px solid #e2e8f0' }}>
+                      {/* PRESETS DE BSR */}
+                      <div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                          <SlidersHorizontal size={13} color="#0284c7" />
+                          <span>Seletor de Faixa de BSR (Best Sellers Rank):</span>
+                        </label>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMarketPreset('80k');
+                              setMarketMinBsr(1);
+                              setMarketMaxBsr(80000);
+                              executeMarketAnalysis(marketThemeInput, 1, 80000, marketMinReviews);
+                            }}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: 6,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: marketPreset === '80k' ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                              background: marketPreset === '80k' ? '#e0f2fe' : '#ffffff',
+                              color: marketPreset === '80k' ? '#0369a1' : '#475569'
+                            }}
+                            title="Livros com BSR abaixo de 80.000 (Média de $500 USD/mês)"
+                          >
+                            🚀 BSR &lt; 80k (~$500 USD/mês)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMarketPreset('20k-30k');
+                              setMarketMinBsr(20000);
+                              setMarketMaxBsr(30000);
+                              executeMarketAnalysis(marketThemeInput, 20000, 30000, marketMinReviews);
+                            }}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: 6,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: marketPreset === '20k-30k' ? '1.5px solid #10b981' : '1px solid #cbd5e1',
+                              background: marketPreset === '20k-30k' ? '#ecfdf5' : '#ffffff',
+                              color: marketPreset === '20k-30k' ? '#047857' : '#475569'
+                            }}
+                            title="Faixa de 20.000 a 30.000 BSR (Média de $1.200 a $1.800 USD/mês)"
+                          >
+                            🔥 20k a 30k (~$1.400 USD/mês)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMarketPreset('elite');
+                              setMarketMinBsr(1);
+                              setMarketMaxBsr(20000);
+                              executeMarketAnalysis(marketThemeInput, 1, 20000, marketMinReviews);
+                            }}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: 6,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: marketPreset === 'elite' ? '1.5px solid #8b5cf6' : '1px solid #cbd5e1',
+                              background: marketPreset === 'elite' ? '#f5f3ff' : '#ffffff',
+                              color: marketPreset === 'elite' ? '#6d28d9' : '#475569'
+                            }}
+                            title="Top Bestsellers Absolutos da Amazon (BSR abaixo de 20.000)"
+                          >
+                            ⭐ Top &lt; 20k BSR
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMarketPreset('custom')}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: 6,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: marketPreset === 'custom' ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                              background: marketPreset === 'custom' ? '#f0f9ff' : '#ffffff',
+                              color: marketPreset === 'custom' ? '#0284c7' : '#475569'
+                            }}
+                          >
+                            ⚙️ Personalizado
+                          </button>
+                        </div>
+
+                        {/* INPUTS DE BSR MÍNIMO E MÁXIMO */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 10, color: '#64748b' }}>BSR Mínimo:</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={marketMinBsr}
+                              onChange={(e) => {
+                                setMarketMinBsr(Number(e.target.value) || 1);
+                                setMarketPreset('custom');
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '5px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #cbd5e1',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: '#0f172a'
+                              }}
+                            />
+                          </div>
+                          <span style={{ color: '#94a3b8', marginTop: 14 }}>até</span>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 10, color: '#64748b' }}>BSR Máximo:</span>
+                            <input
+                              type="number"
+                              min={100}
+                              value={marketMaxBsr}
+                              onChange={(e) => {
+                                setMarketMaxBsr(Number(e.target.value) || 80000);
+                                setMarketPreset('custom');
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '5px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #cbd5e1',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: '#0f172a'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* FILTRO DE REVIEWS POSITIVOS */}
+                      <div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                          <Star size={13} color="#f59e0b" />
+                          <span>Filtro de Avaliações Positivas (Mínimo 20):</span>
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 12px' }}>
+                          <span style={{ fontSize: 12, color: '#475569' }}>Mínimo de Reviews:</span>
+                          <input
+                            type="number"
+                            min={20}
+                            value={marketMinReviews}
+                            onChange={(e) => setMarketMinReviews(Math.max(20, Number(e.target.value) || 20))}
+                            style={{
+                              width: 70,
+                              padding: '4px 6px',
+                              borderRadius: 4,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: '#0f172a',
+                              textAlign: 'center'
+                            }}
+                          />
+                          <span style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                            ✓ Exclusivo livros com &ge; 20 avaliações positivas (4.0+)
+                          </span>
+                        </div>
+                        <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
+                          Garante que o nicho analisado tem demanda real comprovada e aprovação do público leitor.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BANNER DE KPIS ESTIMADOS EM DÓLARES (USD) */}
+                  {marketData && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: 12
+                      }}
+                    >
                       <div
-                        key={tema.id}
-                        onClick={() => handleSelectTema(tema.descricao, tema.perfil)}
                         style={{
-                          padding: 14,
+                          background: 'linear-gradient(135deg, #065f46, #047857)',
+                          color: '#ffffff',
+                          padding: '14px 16px',
                           borderRadius: 10,
-                          border: '1px solid #cbd5e1',
+                          boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)'
+                        }}
+                      >
+                        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.9 }}>
+                          💰 Faturamento Estimado Médio
+                        </div>
+                        <div style={{ fontSize: 24, fontWeight: 900, marginTop: 4 }}>
+                          ${marketData.metrics.averageRevenueUsd.toLocaleString()} USD<span style={{ fontSize: 13, fontWeight: 600 }}>/mês</span>
+                        </div>
+                        <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
+                          ≈ R$ {(marketData.metrics.averageRevenueUsd * 5.6).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês na cotação atual
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          padding: '14px 16px',
+                          borderRadius: 10
+                        }}
+                      >
+                        <div style={{ fontSize: 11, textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>
+                          📦 Vendas Estimadas do Nicho
+                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', marginTop: 4 }}>
+                          ~{marketData.metrics.averageMonthlySales.toLocaleString()} livros<span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>/mês</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 600, marginTop: 2 }}>
+                          Média de {Math.round(marketData.metrics.averageMonthlySales / 30)} exemplares vendidos por dia
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          padding: '14px 16px',
+                          borderRadius: 10
+                        }}
+                      >
+                        <div style={{ fontSize: 11, textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>
+                          🏆 BSR Médio dos Concorrentes
+                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: '#0284c7', marginTop: 4 }}>
+                          #{marketData.metrics.averageBsr.toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                          Faixa filtrada: #{marketData.metrics.bsrRange.min.toLocaleString()} a #{marketData.metrics.bsrRange.max.toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          padding: '14px 16px',
+                          borderRadius: 10
+                        }}
+                      >
+                        <div style={{ fontSize: 11, textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>
+                          ⭐ Avaliação Média do Público
+                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: '#d97706', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span>{marketData.metrics.averageRating.toFixed(1)}</span>
+                          <span style={{ fontSize: 16 }}>★</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, marginTop: 2 }}>
+                          {marketData.books.length} livros auditados com &ge; 20 reviews
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SHOWCASE DOS LIVROS BENCHMARK COM CAPAS REAIS */}
+                  {marketData && marketData.books && marketData.books.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <BookOpen size={16} color="#0284c7" />
+                          <span>Livros Benchmark Encontrados na Amazon ({marketData.books.length} livros na faixa de BSR):</span>
+                        </div>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>
+                          Capas reais, faturamento estimado e volume de reviews
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                          gap: 14
+                        }}
+                      >
+                        {marketData.books.map((book) => (
+                          <div
+                            key={book.id}
+                            style={{
+                              background: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: 10,
+                              overflow: 'hidden',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                              transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 6px 16px rgba(2, 132, 199, 0.15)';
+                              e.currentTarget.style.borderColor = '#0284c7';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.transform = 'none';
+                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.04)';
+                              e.currentTarget.style.borderColor = '#e2e8f0';
+                            }}
+                          >
+                            {/* IMAGEM DA CAPA */}
+                            <div
+                              style={{
+                                width: '100%',
+                                height: 210,
+                                background: '#0f172a',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                position: 'relative',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              {book.coverUrl ? (
+                                <img
+                                  src={book.coverUrl}
+                                  alt={book.title}
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover'
+                                  }}
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : null}
+
+                              {/* BADGE DE FATURAMENTO USD NA CAPA */}
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: 8,
+                                  right: 8,
+                                  background: 'rgba(6, 95, 70, 0.95)',
+                                  color: '#ffffff',
+                                  padding: '3px 8px',
+                                  borderRadius: 6,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  backdropFilter: 'blur(4px)',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                                }}
+                              >
+                                ~${book.estimatedMonthlyRevenueUsd} USD/mês
+                              </div>
+
+                              {/* BADGE DE BSR */}
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  bottom: 8,
+                                  left: 8,
+                                  background: 'rgba(15, 23, 42, 0.9)',
+                                  color: '#38bdf8',
+                                  padding: '3px 7px',
+                                  borderRadius: 5,
+                                  fontSize: 10,
+                                  fontWeight: 800
+                                }}
+                              >
+                                #{book.bsr.toLocaleString()} BSR
+                              </div>
+                            </div>
+
+                            {/* DETALHES DO LIVRO */}
+                            <div style={{ padding: 12, display: 'flex', flexDirection: 'column', flex: 1, gap: 4 }}>
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 800,
+                                  color: '#0f172a',
+                                  lineHeight: 1.3,
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden'
+                                }}
+                                title={book.title}
+                              >
+                                {book.title}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>
+                                por {book.author}
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, fontSize: 11 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#d97706', fontWeight: 700 }}>
+                                  <span>{book.rating.toFixed(1)}</span>
+                                  <span>★</span>
+                                  <span style={{ color: '#64748b', fontWeight: 500 }}>({book.reviewsCount.toLocaleString()})</span>
+                                </div>
+                                <div style={{ color: '#059669', fontWeight: 700 }}>
+                                  ~{book.estimatedMonthlySales} vendas/mês
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectTema(book.title, 'autoajuda');
+                                  handleSelectTitulo(book.title);
+                                }}
+                                style={{
+                                  marginTop: 8,
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #bae6fd',
+                                  background: '#f0f9ff',
+                                  color: '#0284c7',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 4
+                                }}
+                              >
+                                <span>Modelar Este Livro</span>
+                                <ArrowRight size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SUGESTÕES DE TÍTULOS E SUBTÍTULOS DERIVADOS DOS LIVROS ENCONTRADOS */}
+                  {marketData && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+                      {/* 1. TÍTULOS PARECIDOS / INSPIRADOS */}
+                      <div
+                        style={{
                           background: '#f8fafc',
-                          cursor: 'pointer',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 10,
+                          padding: 16,
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: 6,
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = '#0284c7';
-                          e.currentTarget.style.background = '#f0f9ff';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = '#cbd5e1';
-                          e.currentTarget.style.background = '#f8fafc';
+                          gap: 10
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: 6 }}>
-                            {tema.badge}
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Award size={16} color="#0284c7" />
+                            <span>5 Títulos Magnéticos Inspirados no Mercado:</span>
+                          </div>
+                          <span style={{ fontSize: 10.5, color: '#059669', fontWeight: 700, background: '#ecfdf5', padding: '1px 6px', borderRadius: 4 }}>
+                            Padrão Bestseller
                           </span>
-                          <span style={{ fontSize: 10.5, color: '#64748b', fontWeight: 600 }}>{tema.nicho}</span>
                         </div>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
-                          {tema.titulo}
-                        </div>
-                        <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.45 }}>
-                          {tema.descricao}
-                        </div>
-                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: '#0284c7', fontSize: 12, fontWeight: 700 }}>
-                          <span>Escolher este tema</span> <ArrowRight size={13} />
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {(marketData.suggestedTitles && marketData.suggestedTitles.length > 0 ? marketData.suggestedTitles : suggestedTitlesAmazon).map((sug, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                background: '#ffffff',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: 8,
+                                padding: 10,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 10
+                              }}
+                            >
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                                  {idx + 1}. {sug.title}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#059669', marginTop: 2, fontStyle: 'italic' }}>
+                                  💡 {sug.rationale}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectTema(marketThemeInput, 'autoajuda');
+                                  handleSelectTitulo(sug.title);
+                                }}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 6,
+                                  background: '#0284c7',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontSize: 11.5,
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  flexShrink: 0
+                                }}
+                              >
+                                Escolher Título →
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
+
+                      {/* 2. SUBTÍTULOS DE CONVERSÃO PRÓXIMOS */}
+                      <div
+                        style={{
+                          background: '#f8fafc',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 10,
+                          padding: 16,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Lightbulb size={16} color="#059669" />
+                            <span>5 Subtítulos de Alta Conversão Sugeridos:</span>
+                          </div>
+                          <span style={{ fontSize: 10.5, color: '#0284c7', fontWeight: 700, background: '#e0f2fe', padding: '1px 6px', borderRadius: 4 }}>
+                            Promessa Clara
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {(marketData.suggestedSubtitles && marketData.suggestedSubtitles.length > 0 ? marketData.suggestedSubtitles : suggestedSubtitlesAmazon).map((sug, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                background: '#ffffff',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: 8,
+                                padding: 10,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 10
+                              }}
+                            >
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', lineHeight: 1.35 }}>
+                                  {idx + 1}. {sug.subtitle}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontStyle: 'italic' }}>
+                                  🎯 {sug.rationale}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectSubtitulo(sug.subtitle);
+                                }}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 6,
+                                  background: '#059669',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontSize: 11.5,
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  flexShrink: 0
+                                }}
+                              >
+                                Usar Subtítulo
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SELEÇÃO POR NICHOS PRONTOS CLÁSSICOS (COMPLEMENTAR) */}
+                  <div style={{ paddingTop: 14, borderTop: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 10 }}>
+                      Ou selecione diretamente um dos 4 nichos recomendados de alta demanda KDP:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                      {TEMAS_AMAZON_KDP.map((tema) => (
+                        <div
+                          key={tema.id}
+                          onClick={() => {
+                            setMarketThemeInput(tema.descricao);
+                            handleSelectTema(tema.descricao, tema.perfil);
+                          }}
+                          style={{
+                            padding: 12,
+                            borderRadius: 8,
+                            border: '1px solid #cbd5e1',
+                            background: '#f8fafc',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.borderColor = '#0284c7';
+                            e.currentTarget.style.background = '#f0f9ff';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.borderColor = '#cbd5e1';
+                            e.currentTarget.style.background = '#f8fafc';
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: 10.5, fontWeight: 800, color: '#0284c7', background: '#e0f2fe', padding: '1px 6px', borderRadius: 4 }}>
+                              {tema.badge}
+                            </span>
+                            <span style={{ fontSize: 10, color: '#64748b' }}>{tema.nicho}</span>
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                            {tema.titulo}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: '#64748b', lineHeight: 1.35 }}>
+                            {tema.descricao}
+                          </div>
+                          <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, color: '#0284c7', fontSize: 11.5, fontWeight: 700 }}>
+                            <span>Avançar com este nicho</span> <ArrowRight size={12} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

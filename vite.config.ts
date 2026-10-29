@@ -312,6 +312,29 @@ function kdpAiBackendPlugin() {
             return;
           }
 
+          if (pathname === '/top100-segments' || pathname === '/top100-segments/') {
+            const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments');
+            const category = reqUrl.searchParams.get('category') || undefined;
+            const query = reqUrl.searchParams.get('query') || undefined;
+            const segments = AmazonTop100Service.getTop100Segments({ category, query });
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, count: segments.length, segments }));
+            return;
+          }
+
+          if (pathname === '/segment-books' || pathname === '/segment-books/') {
+            const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments');
+            const segmentId = reqUrl.searchParams.get('segmentId') || 'habitos-disciplina';
+            const excluded = (reqUrl.searchParams.get('excluded') || '').split(',').filter(Boolean);
+            const targetCount = parseInt(reqUrl.searchParams.get('limit') || '10', 10);
+            const pool = AmazonTop100Service.getActiveBookPool(segmentId, excluded, targetCount);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, segmentId, ...pool }));
+            return;
+          }
+
           next();
         } catch (err: any) {
           res.statusCode = 500;
@@ -337,6 +360,53 @@ function kdpAiBackendPlugin() {
         }
       });
 
+      // Middleware de Síntese de Voz Neural (/api/tts/synthesize)
+      server.middlewares.use('/api/tts/synthesize', async (req: any, res: any) => {
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.end();
+          return;
+        }
+        let body = '';
+        req.on('data', (chunk: any) => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const payload = JSON.parse(body || '{}');
+            const text = String(payload.text || '').trim();
+            const lang = String(payload.lang || 'pt-BR');
+            const voiceId = String(payload.voiceId || '');
+            const voiceGender = String(payload.voiceGender || (voiceId.includes('Antonio') || voiceId.includes('Fabio') || voiceId.includes('Donato') ? 'male' : 'female'));
+            if (!text) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Texto não fornecido' }));
+              return;
+            }
+            // @ts-ignore
+            const { getDefaultAudiobookService } = await import('./server/audiobook/service.js');
+            const service = getDefaultAudiobookService();
+            const result = await service.engines.synthesize(text, lang, voiceGender, {
+              allowDegraded: true,
+              voiceId: voiceId || undefined
+            });
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Content-Length', result.audio.length);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.end(result.audio);
+          } catch (err: any) {
+            if (!res.headersSent) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: err.message }));
+            }
+          }
+        });
+      });
+
       // Middleware de Replicate FLUX e LLaMA 3 (/api/replicate)
       server.middlewares.use('/api/replicate', async (req: any, res: any, next: any) => {
         try {
@@ -345,6 +415,22 @@ function kdpAiBackendPlugin() {
           const reqUrl = new URL(req.originalUrl || req.url, 'http://localhost');
           const handled = await handleReplicateApi(req, res, reqUrl);
           if (!handled) next();
+        } catch (err: any) {
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message }));
+          }
+        }
+      });
+
+      // Middleware dos 4 Agentes Autônomos de Produção de Vídeo (/api/video-agents)
+      server.middlewares.use('/api/video-agents', async (req: any, res: any, next: any) => {
+        try {
+          // @ts-ignore
+          const { handleVideoAgentsApi } = await import('./server/agents/video-production-agents.js');
+          const reqUrl = new URL(req.originalUrl || req.url, 'http://localhost');
+          await handleVideoAgentsApi(req, res, reqUrl.pathname);
         } catch (err: any) {
           if (!res.headersSent) {
             res.statusCode = 500;

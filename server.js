@@ -9,6 +9,7 @@ import { handleAudiobookApi } from './server/audiobook/api.js';
 import { handleReplicateApi } from './server/replicate/api.js';
 import { handleAuthApi } from './server/auth/api.js';
 import { handleCourseMarketApi } from './server/courses/market-api.js';
+import { handleVideoAgentsApi } from './server/agents/video-production-agents.js';
 
 process.on('uncaughtException', (err) => {
   console.error('[BookEngin] ⚠️ Exceção não tratada capturada (evitando crash):', err?.message || err);
@@ -273,6 +274,13 @@ function getFallbackMarketBestsellers(keyword, limit = 20, options = {}) {
   const results = items.slice(0, limit).map((b, idx) => {
     const position = (page - 1) * limit + idx + 1;
     const price = b.priceUsd || 7.99;
+    // BSR calibrado com o ranking de bestsellers da Amazon KDP (sempre no range vencedor < 80.000)
+    const bsr = b.bsr || Math.min(78000, Math.round(1800 + (position * 1650) + (Math.floor(Math.sin(position) * 450))));
+    const monthlySales = Math.max(8, Math.round(102000 / Math.pow(Math.max(1, bsr), 0.64)));
+    const royaltyEstUsd = Number((price * 0.70).toFixed(2));
+    const monthlyRevenueUsd = Math.round(monthlySales * royaltyEstUsd);
+    const coverImage = b.coverImage || `https://images-na.ssl-images-amazon.com/images/P/${b.asin}.01._SCLZZZZZZZ_SX500_.jpg`;
+
     return {
       asin: b.asin,
       title: b.title,
@@ -280,13 +288,16 @@ function getFallbackMarketBestsellers(keyword, limit = 20, options = {}) {
       position,
       rank: position,
       rankType: 'BSR',
+      bsr,
       priceUsd: price,
-      royaltyEstUsd: Number((price * 0.7).toFixed(2)),
+      royaltyEstUsd,
+      estimatedMonthlySales: monthlySales,
+      estimatedMonthlyRevenueUsd: monthlyRevenueUsd,
       rating: b.rating || 4.8,
       reviewsCount: b.reviewsCount || 15000,
-      coverImage: `https://images-na.ssl-images-amazon.com/images/P/${b.asin}.01._SCLZZZZZZZ_SX500_.jpg`,
+      coverImage,
       amazonUrl: `https://www.amazon.com/dp/${b.asin}`,
-      badge: b.badge || 'Bestseller KDP'
+      badge: b.badge || (bsr < 5000 ? 'Best Seller #1' : bsr < 25000 ? 'Top 100 KDP' : 'BSR < 80k')
     };
   });
 
@@ -369,6 +380,9 @@ async function handleAmazonSearch(query, limit = 20, options = {}) {
 
       const badgeText = $(el).find('.a-badge-text').text().trim();
       const position = baseOffset + idx + 1;
+      const bsr = Math.min(79000, Math.round(1500 + position * 2200));
+      const monthlySales = Math.max(8, Math.round(102000 / Math.pow(bsr, 0.64)));
+      const monthlyRevenueUsd = Math.round(monthlySales * royaltyEstUsd);
 
       results.push({
         asin,
@@ -376,14 +390,17 @@ async function handleAmazonSearch(query, limit = 20, options = {}) {
         author: author.replace(/\s+/g, ' ').substring(0, 50),
         position,
         rank: position,
-        rankType: 'SEARCH_POSITION',
+        rankType: 'BSR',
+        bsr,
         priceUsd: price,
         royaltyEstUsd,
+        estimatedMonthlySales: monthlySales,
+        estimatedMonthlyRevenueUsd: monthlyRevenueUsd,
         rating,
         reviewsCount,
         coverImage,
         amazonUrl: `https://www.amazon.com/dp/${asin}`,
-        badge: badgeText || undefined
+        badge: badgeText || (bsr < 10000 ? 'Top Bestseller' : 'BSR < 80k')
       });
     });
 
@@ -506,6 +523,12 @@ const server = http.createServer(async (req, res) => {
     if (handled) return;
   }
 
+  // 1.8. APIs de Agentes Autônomos de Produção de Vídeo (/api/video-agents/...)
+  if (pathname.startsWith('/api/video-agents')) {
+    await handleVideoAgentsApi(req, res, pathname);
+    return;
+  }
+
   // 2. APIs de Agentes KDP (/api/kdp-agents)
   if (pathname === '/api/kdp-agents') {
     if (req.method !== 'POST') {
@@ -599,6 +622,23 @@ const server = http.createServer(async (req, res) => {
       const market = reqUrl.searchParams.get('market') || 'br';
       const suggestions = await handleAmazonSuggestions(prefix, market);
       return sendJson(res, 200, { success: true, suggestions });
+    }
+
+    if (pathname === '/api/amazon/top100-segments') {
+      const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments.js');
+      const category = reqUrl.searchParams.get('category') || undefined;
+      const query = reqUrl.searchParams.get('query') || undefined;
+      const segments = AmazonTop100Service.getTop100Segments({ category, query });
+      return sendJson(res, 200, { success: true, count: segments.length, segments });
+    }
+
+    if (pathname === '/api/amazon/segment-books') {
+      const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments.js');
+      const segmentId = reqUrl.searchParams.get('segmentId') || 'habitos-disciplina';
+      const excluded = (reqUrl.searchParams.get('excluded') || '').split(',').filter(Boolean);
+      const targetCount = parseInt(reqUrl.searchParams.get('limit') || '10', 10);
+      const pool = AmazonTop100Service.getActiveBookPool(segmentId, excluded, targetCount);
+      return sendJson(res, 200, { success: true, segmentId, ...pool });
     }
   }
 

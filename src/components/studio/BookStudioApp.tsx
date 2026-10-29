@@ -14,6 +14,7 @@ import { AdminPanelTab } from '../../dashboard/components/AdminPanelTab';
 import { BookIntelDashboard } from './BookIntelDashboard';
 import { SegmentSelectorModal } from './SegmentSelectorModal';
 import { KdpBookGeneratorPro } from './generator/KdpBookGeneratorPro';
+import { CoAuthorBookStudio } from './coauthor/CoAuthorBookStudio';
 import { LoginPage } from './auth/LoginPage';
 import { BatchBookGeneratorModal } from './batch/BatchBookGeneratorModal';
 import { AuthorAiGuideDrawer } from './ai-guide/AuthorAiGuideDrawer';
@@ -185,13 +186,20 @@ export const BookStudioApp: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHash);
   }, [setMode]);
 
+  const isCreatingNewRef = useRef(false);
+
   // Restaura automaticamente o projeto ativo salvo se estiver no modo kdp-generator
+  // SOMENTE se o usuário não tiver clicado para criar uma nova obra em branco
   useEffect(() => {
+    if (isCreatingNewRef.current) {
+      isCreatingNewRef.current = false;
+      return;
+    }
     if (mode === 'kdp-generator' && !activeProject && typeof localStorage !== 'undefined') {
       const lastId = localStorage.getItem('kdp_last_active_project_id');
       if (lastId) {
         db.getBookProject(lastId).then(proj => {
-          if (proj) setActiveProject(proj);
+          if (proj && !isCreatingNewRef.current) setActiveProject(proj);
         }).catch(() => {});
       }
     }
@@ -483,8 +491,20 @@ export const BookStudioApp: React.FC = () => {
 
   const [newSessionId, setNewSessionId] = useState<string>(() => `sess_${Date.now()}`);
 
-  // Iniciar criação de novo projeto
+  // Iniciar criação de novo projeto 100% em branco (sem cache de obras antigas)
   const handleCreateNewProject = () => {
+    isCreatingNewRef.current = true;
+    try {
+      localStorage.removeItem('kdp_last_active_project_id');
+      localStorage.removeItem('kdp_book_generator_state_v1');
+      localStorage.removeItem('kdp_book_generator_last_saved');
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('kdp_projeto_pro_v11_')) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {}
     setActiveProject(null);
     setNewSessionId(`sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
     setMode('kdp-generator');
@@ -771,7 +791,7 @@ export const BookStudioApp: React.FC = () => {
   }
 
   // ============================================================
-  // TELA 2: GERADOR DE LIVROS KDP PRO (GEMINI 3.8 / IMAGEN 3)
+  // TELA 2: GERADOR DE LIVROS KDP PRO (BOOKENGIN EDITORIAL SUITE)
   // ============================================================
   if (mode === 'kdp-generator') {
     return (

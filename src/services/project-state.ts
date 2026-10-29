@@ -28,6 +28,12 @@ export interface MarketReference {
   source: string;
   collectedAt: number;
   referenceScore?: number;
+  coverImage?: string;
+  coverUrl?: string;
+  amazonUrl?: string;
+  estimatedMonthlySales?: number;
+  estimatedMonthlyRevenueUsd?: number;
+  customerSearchKeywords?: string[];
 }
 
 export interface OutlineEntry {

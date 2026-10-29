@@ -17,10 +17,10 @@ export const MODELOS_OPENROUTER = [
 ];
 
 export const MODELOS_GEMINI = [
-  "gemini-3.5-flash-lite", // Modelo Lite mais econômico da Google (custo ~60% menor, sem overhead de reasoning)
-  "gemini-flash-latest",   // Fallback Flash balanceado de alta velocidade
-  "gemini-3.8-flash",      // Fallback Flash avançado (com thinkingBudget: 0 configurado para poupar tokens)
-  "gemini-3.5-flash"       // Fallback de contingência
+  "gemini-3.5-flash",      // Modelo Flash ultrarrápido com thinkingBudget: 0 (~1.2s de resposta)
+  "gemini-3.5-flash-lite", // Modelo Lite econômico da Google
+  "gemini-flash-latest",   // Fallback Flash balanceado
+  "gemini-3.8-flash"       // Fallback Flash avançado
 ];
 
 export const MODELOS_IMAGEM_GEMINI = [
@@ -272,7 +272,7 @@ export async function chamarGeminiTexto(
 
       for (const key of keys) {
         try {
-          const isThinkingModel = modelo.includes('3.8') || modelo.includes('pro');
+          const isThinkingModel = (modelo === 'gemini-3.5-flash') || modelo.includes('3.8') || modelo.includes('pro');
           const generationConfig: Record<string, any> = {
             temperature,
             topP: 0.95,
@@ -429,13 +429,13 @@ export async function chamarImagen(
   prompt: string,
   aspectRatio: '2:3' | '16:9' | '1:1' | '3:4' = '2:3'
 ): Promise<string> {
-  // Higienização rigorosa anti-texto, anti-letras e anti-selos:
-  // Proíbe estritamente a IA de desenhar palavras como "FINANCAS", textos deformados ou letras no fundo
+  // Higienização rigorosa anti-texto, anti-letras, anti-selos e ANTI-ALUCINAÇÃO ANATÔMICA:
+  // Proíbe estritamente a IA de desenhar braços nas costas, membros extras ou corpos distorcidos
   const cleanPrompt = prompt
     .replace(/\b(best[- ]?sellers?|bestselling)\b/gi, 'editorial')
     .replace(/\b(finan[cç]as?|gest[aã]o|patrim[oô]nio|riqueza|dinheiro)\b/gi, 'wealth asset concept')
     .replace(/\b(t[ií]tulo|autor|subt[ií]tulo)\b/gi, '')
-    .trim() + ', pure visual photography or illustration background, ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO LETTERING, NO FAKE WORDS, NO "FINANCAS", NO "FINANCES", NO NUMBERS, NO BOOK COVERS, NO FAKE LABELS, NO CIRCULAR SEALS, NO STAMPS, NO BADGES, NO MEDALS, NO RIBBONS, NO EMBLEMS, NO STICKERS, NO AWARDS, NO LOGOS, clean uncluttered visual art only';
+    .trim() + ', pure visual cinematic photography or illustration, PERFECT HUMAN ANATOMY, EXACTLY TWO ARMS POSITIONED NATURALLY, ABSOLUTELY NO EXTRA ARMS, NO THIRD ARM, NO ARMS COMING FROM BACK, NO MUTATED LIMBS, NO FUSED LIMBS, NO DISJOINTED SPINES, ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO TYPOGRAPHY, NO LETTERING, NO FAKE WORDS, NO "FINANCAS", NO "FINANCES", NO NUMBERS, NO BOOK COVERS, NO FAKE LABELS, NO CIRCULAR SEALS, NO STAMPS, NO BADGES, NO MEDALS, clean uncluttered visual art only';
 
   // 1. Motor REPLICATE (FLUX.1 Schnell) Exclusivo para Geração de Imagens
   try {

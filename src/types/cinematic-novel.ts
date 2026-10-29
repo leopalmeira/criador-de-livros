@@ -143,6 +143,12 @@ export interface CinematicPagePlan {
   layoutType: 'single_hero' | 'multi_panel';
   panels?: CinematicPanel[];
   
+  // DIREÇÃO DE ÁUDIO CINEMATOGRÁFICO CONTEXTUAL (AUTOMÁTICO)
+  mood?: string;
+  ambientSound?: string;
+  acousticMood?: string;
+  acousticAmbient?: string;
+  
   // STATUS E CONTROLE
   isApproved: boolean;
   validationStatus: 'planejado' | 'gerando' | 'gerado' | 'aprovado' | 'necessita_revisao';

@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Copy, Check, Sparkles, BookOpen, Layers, Palette, Type, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Copy, Check, Sparkles, BookOpen, Layers, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import {
   gerarMasterPromptCapa600a1200Palavras,
-  CoverMasterPromptInput,
   CoverMasterPromptOutput
 } from '../../../services/kdp-cover-master-prompt-generator';
 
@@ -16,6 +15,8 @@ interface KdpCoverMasterPromptCardProps {
   compactMode?: boolean;
 }
 
+type PromptTabMode = 'front-only' | 'full-wrap-back';
+
 export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> = ({
   titulo,
   subtitulo,
@@ -25,8 +26,11 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
   idioma = 'pt',
   compactMode = false
 }) => {
+  const [activeMode, setActiveMode] = useState<PromptTabMode>('full-wrap-back');
   const [copiedFull, setCopiedFull] = useState<boolean>(false);
   const [copiedAiOnly, setCopiedAiOnly] = useState<boolean>(false);
+  const [copiedBackOnly, setCopiedBackOnly] = useState<boolean>(false);
+  const [copiedBlurb, setCopiedBlurb] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(!compactMode);
 
   const masterData: CoverMasterPromptOutput = useMemo(() => {
@@ -40,40 +44,34 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
     });
   }, [titulo, subtitulo, autor, genero, premissa, idioma]);
 
-  const handleCopyFull = async () => {
+  const copyTextToClipboard = async (text: string, setter: (v: boolean) => void) => {
     try {
-      await navigator.clipboard.writeText(masterData.promptCompleto);
-      setCopiedFull(true);
-      setTimeout(() => setCopiedFull(false), 2500);
+      await navigator.clipboard.writeText(text);
+      setter(true);
+      setTimeout(() => setter(false), 2500);
     } catch {
-      // Fallback
       const ta = document.createElement('textarea');
-      ta.value = masterData.promptCompleto;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      setCopiedFull(true);
-      setTimeout(() => setCopiedFull(false), 2500);
+      setter(true);
+      setTimeout(() => setter(false), 2500);
     }
   };
 
-  const handleCopyAiOnly = async () => {
-    try {
-      await navigator.clipboard.writeText(masterData.promptParaMotorIa);
-      setCopiedAiOnly(true);
-      setTimeout(() => setCopiedAiOnly(false), 2500);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = masterData.promptParaMotorIa;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopiedAiOnly(true);
-      setTimeout(() => setCopiedAiOnly(false), 2500);
-    }
-  };
+  const currentFullPrompt = activeMode === 'front-only'
+    ? masterData.promptCompleto
+    : masterData.promptCapaEContracapaCompleto;
+
+  const currentAiPrompt = activeMode === 'front-only'
+    ? masterData.promptParaMotorIa
+    : masterData.promptCapaEContracapaMotorIa;
+
+  const currentWordCount = activeMode === 'front-only'
+    ? masterData.wordCount
+    : masterData.wordCountCapaEContracapa;
 
   return (
     <div
@@ -112,7 +110,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: '#f8fafc', letterSpacing: '-0.01em' }}>
-                Master Prompt de Capa KDP (600 a 1200 Palavras)
+                Master Prompt de Capa & Contracapa em Sintonia Editorial
               </h3>
               <span
                 style={{
@@ -125,7 +123,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                   fontWeight: 700
                 }}
               >
-                {masterData.wordCount} palavras reais
+                {currentWordCount} palavras reais
               </span>
               <span
                 style={{
@@ -142,7 +140,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               </span>
             </div>
             <p style={{ margin: '3px 0 0 0', fontSize: 11, color: '#94a3b8' }}>
-              O gênero literário dita soberanamente a estética, paleta e tipografia da capa (padrão comercial Amazon KDP).
+              Direção de arte completa para Apenas Capa Frontal ou Capa + Lombada + Contracapa com Breve Leitura em 100% de sintonia visual.
             </p>
           </div>
         </div>
@@ -151,7 +149,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <button
             type="button"
-            onClick={handleCopyFull}
+            onClick={() => copyTextToClipboard(currentFullPrompt, setCopiedFull)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -167,15 +165,21 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               transition: 'all 0.18s ease',
               boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)'
             }}
-            title="Copiar o Master Prompt completo com diretrizes e motor IA (600-1200 palavras)"
+            title="Copiar o Dossiê Completo da aba selecionada"
           >
             {copiedFull ? <Check size={14} /> : <Copy size={14} />}
-            <span>{copiedFull ? '✓ Master Prompt Copiado!' : `Copiar Prompt Completo (${masterData.wordCount} palavras)`}</span>
+            <span>
+              {copiedFull
+                ? '✓ Prompt Completo Copiado!'
+                : activeMode === 'front-only'
+                  ? `Copiar Dossiê SÓ CAPA (${masterData.wordCount} pal.)`
+                  : `Copiar Dossiê CAPA + CONTRACAPA (${masterData.wordCountCapaEContracapa} pal.)`}
+            </span>
           </button>
 
           <button
             type="button"
-            onClick={handleCopyAiOnly}
+            onClick={() => copyTextToClipboard(currentAiPrompt, setCopiedAiOnly)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -190,10 +194,16 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            title="Copiar bloco otimizado pronto para colar no FLUX / Midjourney / Replicate"
+            title="Copiar prompt direto otimizado para geradores de imagem IA (FLUX / Midjourney / Ideogram)"
           >
             {copiedAiOnly ? <Check size={13} /> : <Copy size={13} />}
-            <span>{copiedAiOnly ? '✓ Copiado!' : 'Copiar p/ Motor IA'}</span>
+            <span>
+              {copiedAiOnly
+                ? '✓ Copiado!'
+                : activeMode === 'front-only'
+                  ? 'Copiar Prompt IA (Só Capa)'
+                  : 'Copiar Prompt IA (Capa + Contracapa)'}
+            </span>
           </button>
 
           {compactMode && (
@@ -220,9 +230,158 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
         </div>
       </div>
 
+      {/* SELETOR DE MODO: 1. APENAS CAPA FRONTAL vs 2. CAPA + LOMBADA + CONTRACAPA COM BREVE LEITURA */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: 8,
+          marginTop: 10,
+          marginBottom: isExpanded ? 12 : 0,
+          background: '#040711',
+          padding: 6,
+          borderRadius: 10,
+          border: '1px solid #1e293b'
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveMode('front-only')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 14px',
+            borderRadius: 8,
+            border: activeMode === 'front-only' ? '1px solid #38bdf8' : '1px solid transparent',
+            background: activeMode === 'front-only'
+              ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.28), rgba(37, 99, 235, 0.22))'
+              : 'transparent',
+            color: activeMode === 'front-only' ? '#ffffff' : '#94a3b8',
+            fontSize: 12,
+            fontWeight: 800,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <BookOpen size={15} color={activeMode === 'front-only' ? '#38bdf8' : '#64748b'} />
+          <span>1. Prompt — Apenas Capa Frontal (2:3)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMode('full-wrap-back')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 14px',
+            borderRadius: 8,
+            border: activeMode === 'full-wrap-back' ? '1px solid #10b981' : '1px solid transparent',
+            background: activeMode === 'full-wrap-back'
+              ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(2, 132, 199, 0.22))'
+              : 'transparent',
+            color: activeMode === 'full-wrap-back' ? '#ffffff' : '#94a3b8',
+            fontSize: 12,
+            fontWeight: 800,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Layers size={15} color={activeMode === 'full-wrap-back' ? '#34d399' : '#64748b'} />
+          <span>2. Prompt — Capa + Lombada + Contracapa (Com Breve Leitura em Sintonia)</span>
+        </button>
+      </div>
+
       {/* CONTEÚDO EXPANDIDO */}
       {isExpanded && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+          {/* SE ESTIVER NO MODO CAPA + CONTRACAPA: EXIBE CARD DA BREVE LEITURA NA CONTRACAPA */}
+          {activeMode === 'full-wrap-back' && (
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.9) 100%)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                borderRadius: 10,
+                padding: '14px 16px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <FileText size={15} color="#34d399" />
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#ecfdf5', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Breve Leitura da Contracapa (Em Total Sintonia com a Capa)
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => copyTextToClipboard(masterData.sinopseContracapaSugerida, setCopiedBlurb)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      background: copiedBlurb ? '#059669' : 'rgba(16, 185, 129, 0.2)',
+                      color: '#ecfdf5',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {copiedBlurb ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copiedBlurb ? '✓ Sinopse Copiada!' : 'Copiar Texto da Contracapa'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => copyTextToClipboard(masterData.promptContracapaIsoladaMotorIa, setCopiedBackOnly)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      background: copiedBackOnly ? '#059669' : '#1e293b',
+                      color: '#e2e8f0',
+                      border: '1px solid #334155',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    title="Copiar prompt caso deseje gerar somente a arte vertical da contracapa em total sintonia com a capa"
+                  >
+                    {copiedBackOnly ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copiedBackOnly ? '✓ Prompt Contracapa Copiado!' : 'Copiar Prompt IA (Só Contracapa 2:3)'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#040711',
+                  border: '1px solid #1e293b',
+                  borderRadius: 8,
+                  padding: '12px 14px',
+                  fontSize: 12,
+                  lineHeight: 1.55,
+                  color: '#e2e8f0',
+                  whiteSpace: 'pre-wrap'
+                }}
+              >
+                <div style={{ color: '#fbbf24', fontWeight: 800, marginBottom: 6 }}>
+                  {masterData.ganchoTopoContracapa}
+                </div>
+                <div>{masterData.sinopseContracapaSugerida.replace(masterData.ganchoTopoContracapa, '').trim()}</div>
+              </div>
+            </div>
+          )}
+
           {/* CARDS COM DIRETRIZES DE ESTÉTICA DO GÊNERO */}
           <div
             style={{
@@ -237,7 +396,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           >
             <div>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, letterSpacing: '0.05em' }}>
-                Estilo Visual do Gênero
+                Estilo Visual em Sintonia (Capa & Contracapa)
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8', marginTop: 2 }}>
                 {masterData.estiloRecomendado}
@@ -246,7 +405,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
 
             <div>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, letterSpacing: '0.05em' }}>
-                Tipografia do Título Sugerida
+                Tipografia do Título & Lombada
               </div>
               <div style={{ fontSize: 11.5, color: '#f8fafc', marginTop: 2 }}>
                 {masterData.fonteTituloSugerida}
@@ -255,19 +414,19 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
 
             <div>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, letterSpacing: '0.05em' }}>
-                Hierarquia Tipográfica KDP
+                Arquitetura Editorial 300 DPI
               </div>
               <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 2, lineHeight: 1.35 }}>
-                • <b>Título:</b> Grande no topo (y: 12-26%)<br />
-                • <b>Subtítulo:</b> Médio acima do autor<br />
-                • <b>Autor:</b> Na base com chancela
+                • <b>Capa Frontal:</b> Título no topo + Subtítulo + Autor<br />
+                • <b>Lombada:</b> Título vertical + Autor centralizado<br />
+                • <b>Contracapa:</b> Gancho + Breve Leitura + Área ISBN
               </div>
             </div>
           </div>
 
           {/* PALETA CROMÁTICA DO GÊNERO */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Paleta Cromática Calibrada:</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Paleta Cromática Contínua:</span>
             {masterData.paletaCoresSugerida.map((cor, idx) => {
               const hexMatch = cor.match(/#([0-9a-f]{6})/i);
               const hex = hexMatch ? `#${hexMatch[1]}` : '#334155';
@@ -302,11 +461,11 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
             })}
           </div>
 
-          {/* ÁREA DE VISUALIZAÇÃO DO MASTER PROMPT (600 A 1200 PALAVRAS COM SCROLL ELEGANTE) */}
+          {/* ÁREA DE VISUALIZAÇÃO DO MASTER PROMPT */}
           <div style={{ position: 'relative' }}>
             <div
               style={{
-                maxHeight: 280,
+                maxHeight: 300,
                 overflowY: 'auto',
                 background: '#020617',
                 border: '1px solid #1e293b',
@@ -319,7 +478,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                 whiteSpace: 'pre-wrap'
               }}
             >
-              {masterData.promptCompleto}
+              {currentFullPrompt}
             </div>
 
             <div
@@ -329,15 +488,17 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                 alignItems: 'center',
                 marginTop: 8,
                 fontSize: 11,
-                color: '#64748b'
+                color: '#64748b',
+                flexWrap: 'wrap',
+                gap: 8
               }}
             >
               <span>
-                💡 <b>Dica Editorial:</b> Copie o prompt completo para documentação ou o prompt para IA para gerar em ferramentas como Midjourney v6 ou FLUX.
+                💡 <b>Dica Editorial:</b> Alterne entre as abas acima para copiar o prompt de <b>Apenas Capa Frontal</b> ou o de <b>Capa + Lombada + Contracapa com a Breve Leitura inclusa</b>.
               </span>
               <button
                 type="button"
-                onClick={handleCopyFull}
+                onClick={() => copyTextToClipboard(currentFullPrompt, setCopiedFull)}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -350,7 +511,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                   gap: 4
                 }}
               >
-                <Copy size={11} /> Copiar Novamente
+                <Copy size={11} /> Copiar Prompt Desta Aba
               </button>
             </div>
           </div>
