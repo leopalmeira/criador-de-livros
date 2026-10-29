@@ -60,3 +60,4 @@ describe('AmazonTop100Service — Ranking dos Top 100 Segmentos & Pool Dinâmico
     expect(updatedPool.activeBooks.some(b => b.asin === bookToDiscard.asin)).toBe(false);
   });
 });
+

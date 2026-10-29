@@ -640,6 +640,33 @@ const server = http.createServer(async (req, res) => {
       const pool = AmazonTop100Service.getActiveBookPool(segmentId, excluded, targetCount);
       return sendJson(res, 200, { success: true, segmentId, ...pool });
     }
+
+    if (pathname === '/api/amazon/suggest-titles' || pathname === '/api/kdp/suggest-titles') {
+      const { KdpTitleSuggestionEngine } = await import('./src/services/kdp-title-suggestion-engine.js');
+      const theme = reqUrl.searchParams.get('theme') || 'Desenvolvimento Pessoal';
+      const subtheme = reqUrl.searchParams.get('subtheme') || undefined;
+      const bookTitle = reqUrl.searchParams.get('bookTitle') || undefined;
+
+      let suggestions = [];
+      if (bookTitle) {
+        const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook({ title: bookTitle }, theme);
+        suggestions = [{
+          id: `inspired_${Date.now()}`,
+          ...inspired,
+          theme,
+          category: theme,
+          kind: 'ficcao',
+          inspiredByBook: bookTitle,
+          targetBsrEstimate: 4500,
+          hookType: 'curiosidade',
+          keywords: [theme, bookTitle]
+        }];
+      } else {
+        suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme(theme, subtheme);
+      }
+
+      return sendJson(res, 200, { success: true, theme, count: suggestions.length, suggestions });
+    }
   }
 
   // 4. APIs de Capa (/api/covers/...)

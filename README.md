@@ -48,7 +48,18 @@ O motor de validação de mercado mais avançado para autores que desejam ranque
 
 ---
 
-### 2. ⚡ Esteira Editorial Vertical Guiada (10 Etapas Anti-IA)
+### 2. 🎯 Motor de Sugestão Contextualizada de Títulos & Subtítulos (BSR < 80.000)
+Gera automaticamente títulos e subtítulos de altíssimo apelo comercial calibrados com precisão por nicho e pelos bestsellers concorrentes:
+* **Adequação Total de Gênero:** Diferenciação estrita entre Ficção/Thriller (*A Esposa Perfeita*, *O Segredo do Chalé 7*), Hábitos (*Micro-Hábitos de Aço*, *Disciplina sem Esforço*), Finanças (*A Máquina de Liberdade Financeira*) e Romance (*Contrato com o Inimigo*), eliminando qualquer fórmula genérica pré-fabricada.
+* **Desconstrução Estrutural de Bestsellers Concorrentes:** Ao selecionar ou inspirar uma obra em um concorrente (ex: *Garota Exemplar*), o motor desestrutura a premissa e gera títulos de suspense autênticos com ganchos de alta retenção no Kindle Unlimited.
+* **1-Clique para Aplicar & Avançar:** Cada recomendação e cada livro de referência oferece botões dedicados de `[Usar Título]` e `[Avançar para Próxima Etapa →]`, integrando a seleção de ideias diretamente ao fluxo vertical da esteira editorial.
+* **Endpoints REST:**
+  * `GET /api/kdp/suggest-titles?theme=...&subtheme=...` — sugestões completas com gancho psicológico, estimativa de BSR e justificativa comercial;
+  * `GET /api/amazon/suggest-titles?theme=...&bookTitle=...` — desconstrução e títulos inspirados em obra de referência.
+
+---
+
+### 3. ⚡ Esteira Editorial Vertical Guiada (10 Etapas Anti-IA)
 Layout limpo em duas colunas (barra lateral de navegação vertical de 260px + espaço de trabalho amplo com foco na obra), estruturado nos padrões da indústria:
 
 ```
@@ -229,10 +240,39 @@ sequenceDiagram
 
 ## 🌐 Deploy em Produção (Render)
 
-A aplicação está configurada para deploy contínuo integrado à branch `main` do repositório GitHub.
+A aplicação está configurada para deploy contínuo integrado à branch `main` do repositório GitHub através do arquivo `render.yaml` e servidor Node.js otimizado (`server.js`).
+
 * **Repositório Oficial:** [https://github.com/leopalmeira/criador-de-livros.git](https://github.com/leopalmeira/criador-de-livros.git)
 * **URL de Produção:** [https://book-intel-kdp.onrender.com/](https://book-intel-kdp.onrender.com/)
-* **Acesso Livre a E-books de Cursos:** `https://book-intel-kdp.onrender.com/?viewCourse=<ID>`
+
+### 📋 Passo a Passo para Subir no Render (Dashboard):
+
+1. **Acesse o Render:**
+   * Entre em [dashboard.render.com](https://dashboard.render.com).
+2. **Criar Novo Web Service:**
+   * No painel principal (conforme exibido na tela inicial), clique em **`Deploy a Web Service`** (ou no botão superior **`+ New`** > **`Web Service`**).
+3. **Conectar ao Repositório GitHub:**
+   * Selecione **Build and deploy from a Git repository** e clique em **Next**.
+   * Escolha o repositório **`leopalmeira/criador-de-livros`** (se não aparecer, clique em *Configure account* para conceder permissão).
+4. **Configurações do Serviço:**
+   * **Name:** `book-intel-kdp` (ou o nome desejado)
+   * **Region:** `Oregon (US West)` ou `Frankfurt (EU)`
+   * **Branch:** `main`
+   * **Root Directory:** *(deixe em branco)*
+   * **Runtime:** `Node`
+   * **Build Command:** `npm install && npm run build`
+   * **Start Command:** `npm start`
+   * **Instance Type:** `Free`
+5. **Variáveis de Ambiente (Environment Variables):**
+   * Clique em **Advanced** > **Add Environment Variable**:
+     * `NODE_VERSION` = `22.14.0`
+     * `NODE_OPTIONS` = `--max-old-space-size=420`
+     * `VITE_CONFIG_NATIVE_IGNORE_WARNING` = `true`
+     * `PORT` = `3000` *(o Render injeta a porta automaticamente)*
+6. **Criar e Iniciar Deploy:**
+   * Clique em **`Deploy Web Service`**.
+   * O Render executará o build de produção Vite e iniciará o servidor Node.js com suporte total a rotas, APIs e WebSockets.
+   * Assim que o deploy finalizar (status **Live** em verde), acesse a URL gerada pelo Render!
 
 ---
 

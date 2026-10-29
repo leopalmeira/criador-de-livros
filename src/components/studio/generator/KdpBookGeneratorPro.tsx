@@ -69,6 +69,10 @@ import {
   type AmazonSegmentBook
 } from '../../../services/amazon-top100-segments';
 import {
+  KdpTitleSuggestionEngine,
+  type TitleSuggestion
+} from '../../../services/kdp-title-suggestion-engine';
+import {
   buildCoverArtPrompt,
   getCoverTypographyTheme,
   type CoverTitleLayout,
@@ -561,6 +565,11 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [selectedInspirationAsins, setSelectedInspirationAsins] = useState<string[]>([]);
   const [segmentCategoryFilter, setSegmentCategoryFilter] = useState<string>('all');
   const [segmentSearchQuery, setSegmentSearchQuery] = useState<string>('');
+
+  // Sugestões Contextualizadas de Título & Subtítulo por Segmento KDP
+  const [suggestedTitlesList, setSuggestedTitlesList] = useState<TitleSuggestion[]>(() =>
+    KdpTitleSuggestionEngine.getSuggestionsForTheme('Desenvolvimento Pessoal', 'Hábitos e disciplina', [])
+  );
 
   // Estados do Fluxo Vertical de 10 Etapas (Metodologia Editorial Completa)
   const [stanceTopic, setStanceTopic] = useState('');
@@ -1271,6 +1280,13 @@ Responda APENAS com o JSON puro, sem markdown e sem introduções.`;
     }
   }, []);
 
+  // Sincroniza sugestões de títulos contextuais sempre que o nicho ou referências mudarem
+  useEffect(() => {
+    const currentGenre = temaSelecionado || genero || 'Desenvolvimento Pessoal';
+    const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme(currentGenre, subtemaSelecionado, marketReferences);
+    setSuggestedTitlesList(suggestions);
+  }, [temaSelecionado, genero, subtemaSelecionado, marketReferences.length]);
+
   // Busca sugestões em tempo real que clientes digitam na barra de busca da Amazon
   const fetchCustomerSearchSuggestions = async (prefix: string) => {
     if (!prefix || prefix.trim().length < 2) {
@@ -1336,17 +1352,42 @@ Regras Absolutas:
     }
   };
 
-  // Inspirar a Obra diretamente em um Bestseller Real da Amazon
-  const handleInspirarNoBestseller = (ref: MarketReference) => {
+  // Inspirar a Obra diretamente em um Bestseller Real da Amazon com Título & Subtítulo Contextualizados
+  const handleInspirarNoBestseller = (ref: MarketReference, advanceToNext: boolean = false) => {
     if (!ref.title) return;
-    const cleanTitle = ref.title.split(/[:\-\–]/)[0].trim();
-    const inspiredTitle = `O Novo Código de ${cleanTitle}`;
-    setTitulo(inspiredTitle);
-    setSubtitulo(`Como alcançar resultados superiores com o método definitivo`);
-    setUniqueAngle(`Metodologia aprimorada baseada nos pontos fortes de "${ref.title}", eliminando a lentidão e focando em aplicação direta.`);
-    setStanceTopic(`Diferente das abordagens teóricas convencionais de "${ref.title}", esta obra fornece um passo a passo 100% acionável para resultados mensuráveis.`);
-    setStatusMsg(`✓ Obra inspirada no bestseller "${ref.title}" (BSR #${ref.bsr || 15000})!`);
+    const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook(ref, temaSelecionado || genero);
+    setTitulo(inspired.title);
+    setSubtitulo(inspired.subtitle);
+    setUniqueAngle(inspired.uniqueAngle);
+    setStanceTopic(inspired.stance);
+    setStatusMsg(`✓ Obra inspirada no bestseller "${ref.title}" (BSR #${ref.bsr || 15000})! Título: "${inspired.title}"`);
     setStatusType('ok');
+
+    // Atualiza a lista de sugestões colocando o livro em destaque
+    const fresh = KdpTitleSuggestionEngine.getSuggestionsForTheme(temaSelecionado || genero, subtemaSelecionado, [ref, ...marketReferences]);
+    setSuggestedTitlesList(fresh);
+
+    if (advanceToNext) {
+      if (wizardStep === 1) setWizardStep(2);
+      else if (wizardStep === 2) setWizardStep(3);
+      else if (wizardStep === 3) setWizardStep(4);
+    }
+  };
+
+  // Selecionar um dos títulos sugeridos para o segmento
+  const handleSelectSuggestedTitle = (sug: TitleSuggestion, advanceToNext: boolean = false) => {
+    setTitulo(sug.title);
+    setSubtitulo(sug.subtitle);
+    if (sug.uniqueAngle) setUniqueAngle(sug.uniqueAngle);
+    if (sug.stance) setStanceTopic(sug.stance);
+    setStatusMsg(`✓ Título comercial definido: "${sug.title}"!`);
+    setStatusType('ok');
+
+    if (advanceToNext) {
+      if (wizardStep === 1) setWizardStep(2);
+      else if (wizardStep === 2) setWizardStep(3);
+      else if (wizardStep === 3) setWizardStep(4);
+    }
   };
 
   // Top 100 Amazon: Troca de segmento e recarregamento dos 10 livros
@@ -1354,7 +1395,43 @@ Regras Absolutas:
     setSelectedSegmentId(segmentId);
     const pool = AmazonTop100Service.getActiveBookPool(segmentId, excludedAsins, 10);
     setActivePoolBooks(pool.activeBooks);
-    setMarketFeedback(`Segmento selecionado. 10 livros com BSR < 80.000 carregados.`);
+
+    const seg = AmazonTop100Service.getSegment(segmentId);
+    const segName = seg?.title || seg?.name || 'Desenvolvimento Pessoal';
+    setGenero(segName);
+
+    const mappedRefs: MarketReference[] = pool.activeBooks.map(b => ({
+      title: b.title,
+      subtitle: b.subtitle,
+      author: b.author,
+      asin: b.asin,
+      bsr: b.bsr,
+      rating: b.rating,
+      reviewsCount: b.reviewsCount,
+      priceUsd: b.priceUsd,
+      estimatedMonthlySales: b.estimatedMonthlySales,
+      estimatedMonthlyRevenueUsd: b.estimatedMonthlyRevenueUsd,
+      coverImage: b.coverImage,
+      amazonUrl: b.amazonUrl,
+      hookRationale: b.hookRationale,
+      rank: b.bsr,
+      rankType: 'BSR',
+      relevance: 100,
+      source: 'api/amazon/top100-segments',
+      collectedAt: Date.now()
+    }));
+
+    const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme(segName, seg?.dominantHook, mappedRefs);
+    setSuggestedTitlesList(suggestions);
+
+    if (suggestions.length > 0 && (!titulo.trim() || titulo.startsWith('O Novo Código de') || titulo.startsWith('O Guia Definitivo de'))) {
+      setTitulo(suggestions[0].title);
+      setSubtitulo(suggestions[0].subtitle);
+      setUniqueAngle(suggestions[0].uniqueAngle);
+      setStanceTopic(suggestions[0].stance);
+    }
+
+    setMarketFeedback(`Segmento selecionado. 10 livros carregados e sugestões de títulos geradas.`);
   };
 
   // Descartar livro e repor imediatamente outro livro no pool de 10
@@ -1408,12 +1485,13 @@ Regras Absolutas:
     }));
     setMarketReferences(mapped);
 
-    if (finalBooks.length > 0 && !titulo.trim()) {
+    if (finalBooks.length > 0 && (!titulo.trim() || titulo.startsWith('O Novo Código de'))) {
       const topRef = finalBooks[0];
-      const cleanTitle = topRef.title.split(/[:\-\–]/)[0].trim();
-      setTitulo(`O Novo Código de ${cleanTitle}`);
-      setSubtitulo(topRef.subtitle || `Como alcançar resultados superiores com o método definitivo`);
-      setUniqueAngle(`Metodologia inspirada em "${topRef.title}", com aplicação direta e passo a passo.`);
+      const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook(topRef, temaSelecionado || genero);
+      setTitulo(inspired.title);
+      setSubtitulo(inspired.subtitle);
+      setUniqueAngle(inspired.uniqueAngle);
+      setStanceTopic(inspired.stance);
     }
 
     setWizardStep(3);
@@ -4554,13 +4632,25 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
     applyBookType(selectedType);
     setTemaSelecionado(theme.label);
-    setSubtemaSelecionado(theme.subthemes[0] || '');
+    const firstSub = theme.subthemes[0] || '';
+    setSubtemaSelecionado(firstSub);
     setCreationSelectorValue(`theme:${theme.id}`);
     setGenero(theme.label);
     if (theme.childrenBook) setFaixaEtaria('6-8');
 
+    // Gera imediatamente as sugestões de Título & Subtítulo para o segmento escolhido
+    const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme(theme.label, firstSub, marketReferences);
+    setSuggestedTitlesList(suggestions);
+
+    if (suggestions.length > 0 && (!titulo.trim() || titulo.startsWith('O Novo Código de') || titulo.startsWith('O Guia Definitivo de'))) {
+      setTitulo(suggestions[0].title);
+      setSubtitulo(suggestions[0].subtitle);
+      setUniqueAngle(suggestions[0].uniqueAngle);
+      setStanceTopic(suggestions[0].stance);
+    }
+
     // Dispara a consulta dos bestsellers bem avaliados daquele tema imediatamente
-    const marketQuery = theme.subthemes[0] || theme.marketQuery || theme.label;
+    const marketQuery = firstSub || theme.marketQuery || theme.label;
     handleAnalisarMercado(false, marketQuery);
   };
 
@@ -5230,6 +5320,95 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               )}
             </div>
+
+            {/* SUGESTÕES DINÂMICAS DE TÍTULOS COMERCIAIS PARA O TEMA SELECIONADO */}
+            {suggestedTitlesList.length > 0 && (
+              <div style={{ marginTop: 10, marginBottom: 12, padding: '10px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Sparkles size={13} color="#16a34a" /> Títulos & Subtítulos Recomendados ({temaSelecionado || genero})
+                  </span>
+                  <span style={{ fontSize: 9.5, color: '#15803d', background: '#dcfce7', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>
+                    BSR &lt; 80.000
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+                  {suggestedTitlesList.slice(0, 4).map((sug, i) => {
+                    const isCur = titulo === sug.title;
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          background: isCur ? '#ffffff' : '#f8fafc',
+                          border: isCur ? '2px solid #10b981' : '1px solid #cbd5e1',
+                          borderRadius: 6,
+                          padding: '8px 10px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: 6
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#0369a1', background: '#e0f2fe', padding: '1px 5px', borderRadius: 3 }}>
+                              {sug.hookType}
+                            </span>
+                            <span style={{ fontSize: 9, color: '#059669', fontWeight: 700 }}>
+                              ~BSR #{sug.targetBsrEstimate.toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', lineHeight: 1.25 }}>
+                            {sug.title}
+                          </div>
+                          <div style={{ fontSize: 10, color: '#475569', marginTop: 2, lineHeight: 1.3 }}>
+                            {sug.subtitle}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectSuggestedTitle(sug, false)}
+                            style={{
+                              flex: 1,
+                              padding: '4px 6px',
+                              background: isCur ? '#10b981' : '#ffffff',
+                              color: isCur ? '#ffffff' : '#0f172a',
+                              border: isCur ? '1px solid #059669' : '1px solid #cbd5e1',
+                              borderRadius: 4,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isCur ? '✓ Selecionado' : 'Usar Título'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectSuggestedTitle(sug, true)}
+                            style={{
+                              padding: '4px 8px',
+                              background: '#0f172a',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: 4,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 2
+                            }}
+                          >
+                            Avançar →
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* NOVO CAMPO COAUTHOR: POSICIONAMENTO / TESE FORTE SOBRE O TEMA (STANCE ON THE TOPIC) */}
             <div style={{ marginBottom: 12, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
@@ -9727,8 +9906,129 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             )}
                           </div>
 
-                          {/* REFERÊNCIAS BESTSELLERS REAIS DA AMAZON COM BSR < 80.000 */}
-                          <div style={{
+                          {/* SUGESTÕES DE TÍTULO E SUBTÍTULO POR SEGMENTO */}
+                          {suggestedTitlesList.length > 0 && (
+                            <div style={{
+                              background: '#ffffff',
+                              borderRadius: 10,
+                              border: '1px solid #bbf7d0',
+                              padding: '16px 20px',
+                              boxShadow: '0 1px 4px rgba(16,185,129,0.08)',
+                              marginBottom: 16
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                                <div>
+                                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <Sparkles size={16} color="#16a34a" />
+                                    <span>Sugestões Comerciais de Título & Subtítulo para "{temaSelecionado || genero}"</span>
+                                    <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '1px 7px', borderRadius: 10, fontWeight: 700 }}>
+                                      Calibrado por Bestsellers
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                    Títulos de alta atratividade para a loja Amazon KDP. Clique para aplicar à obra ou avançar imediatamente para a próxima etapa.
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                                {suggestedTitlesList.slice(0, 3).map((sug, idx) => {
+                                  const isCurrent = titulo === sug.title;
+                                  return (
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        background: isCurrent ? '#f0fdf4' : '#f8fafc',
+                                        border: isCurrent ? '2px solid #10b981' : '1px solid #e2e8f0',
+                                        borderRadius: 8,
+                                        padding: 12,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between',
+                                        gap: 8,
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                    >
+                                      <div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                          <span style={{
+                                            fontSize: 9.5,
+                                            fontWeight: 800,
+                                            textTransform: 'uppercase',
+                                            color: '#0369a1',
+                                            background: '#e0f2fe',
+                                            padding: '1px 6px',
+                                            borderRadius: 3
+                                          }}>
+                                            Hook: {sug.hookType}
+                                          </span>
+                                          <span style={{ fontSize: 9.5, fontWeight: 700, color: '#059669' }}>
+                                            BSR Est. #{sug.targetBsrEstimate.toLocaleString('pt-BR')}
+                                          </span>
+                                        </div>
+                                        <div style={{ fontSize: 12.5, fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>
+                                          {sug.title}
+                                        </div>
+                                        <div style={{ fontSize: 10.5, color: '#475569', marginTop: 3, lineHeight: 1.35 }}>
+                                          {sug.subtitle}
+                                        </div>
+                                        <div style={{ fontSize: 9.5, color: '#64748b', marginTop: 4, fontStyle: 'italic', borderTop: '1px dashed #e2e8f0', paddingTop: 4 }}>
+                                          💡 {sug.rationale}
+                                        </div>
+                                      </div>
+
+                                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSelectSuggestedTitle(sug, false)}
+                                          style={{
+                                            flex: 1,
+                                            padding: '5px 8px',
+                                            borderRadius: 5,
+                                            background: isCurrent ? '#10b981' : '#ffffff',
+                                            color: isCurrent ? '#ffffff' : '#0f172a',
+                                            border: isCurrent ? '1px solid #059669' : '1px solid #cbd5e1',
+                                            fontSize: 10.5,
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: 4
+                                          }}
+                                        >
+                                          {isCurrent ? <><Check size={12} /> Título Ativo</> : <><Sparkles size={11} color="#f59e0b" /> Usar este Título</>}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSelectSuggestedTitle(sug, true)}
+                                          style={{
+                                            padding: '5px 10px',
+                                            borderRadius: 5,
+                                            background: '#0f172a',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            fontSize: 10.5,
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 3,
+                                            whiteSpace: 'nowrap'
+                                          }}
+                                        >
+                                          Avançar Etapa →
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* REFERÊNCIAS BESTSELLERS REAIS DA AMAZON COM BSR < 80.000 */}
+                          <div style={{
                             background: '#ffffff',
                             borderRadius: 10,
                             border: '1px solid #e2e8f0',
@@ -9832,27 +10132,69 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                         <span style={{ fontWeight: 700, color: '#0f172a' }}>~${rev}/mês</span>
                                       </div>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => handleInspirarNoBestseller(ref)}
-                                        style={{
-                                          width: '100%',
-                                          padding: '5px 8px',
-                                          borderRadius: 5,
-                                          background: '#ffffff',
-                                          border: '1px solid #cbd5e1',
-                                          color: '#0f172a',
-                                          fontSize: 10.5,
-                                          fontWeight: 700,
-                                          cursor: 'pointer',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          gap: 4
-                                        }}
-                                      >
-                                        <Sparkles size={11} color="#f59e0b" /> Inspirar Obra neste Livro
-                                      </button>
+                                      {(() => {
+                                        const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook(ref, temaSelecionado || genero);
+                                        return (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            <div style={{ background: '#ffffff', border: '1px dashed #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: 10 }}>
+                                              <div style={{ color: '#0369a1', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <Sparkles size={10} color="#f59e0b" /> Título Inspirado:
+                                              </div>
+                                              <div style={{ fontWeight: 800, color: '#0f172a', marginTop: 2, fontSize: 11, lineHeight: 1.25 }}>
+                                                "{inspired.title}"
+                                              </div>
+                                              <div style={{ color: '#64748b', fontSize: 9.5, marginTop: 1, fontStyle: 'italic', lineHeight: 1.25 }}>
+                                                {inspired.subtitle}
+                                              </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: 5 }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleInspirarNoBestseller(ref, false)}
+                                                style={{
+                                                  flex: 1,
+                                                  padding: '5px 6px',
+                                                  borderRadius: 5,
+                                                  background: '#ffffff',
+                                                  border: '1px solid #cbd5e1',
+                                                  color: '#0f172a',
+                                                  fontSize: 10,
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  gap: 3
+                                                }}
+                                              >
+                                                <Sparkles size={10} color="#f59e0b" /> Usar Título
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleInspirarNoBestseller(ref, true)}
+                                                style={{
+                                                  padding: '5px 8px',
+                                                  borderRadius: 5,
+                                                  background: '#0f172a',
+                                                  border: 'none',
+                                                  color: '#ffffff',
+                                                  fontSize: 10,
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  gap: 3,
+                                                  whiteSpace: 'nowrap'
+                                                }}
+                                              >
+                                                Avançar →
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   );
                                 })}
@@ -9954,6 +10296,56 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                 </div>
                               ))}
                             </div>
+                          </div>
+
+                          {/* BARRA INFERIOR DE AVANÇO EDITORIAL NO DOSSIÊ */}
+                          <div style={{
+                            marginTop: 16,
+                            padding: '14px 18px',
+                            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                            borderRadius: 10,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: 12,
+                            boxShadow: '0 4px 12px rgba(15,23,42,0.12)'
+                          }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span>🚀 Próximo Passo do Fluxo Editorial</span>
+                                <span style={{ fontSize: 10, background: '#0284c7', color: '#ffffff', padding: '1px 7px', borderRadius: 10, fontWeight: 700 }}>
+                                  Etapa {wizardStep < 10 ? wizardStep + 1 : 10} de 10
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                {titulo ? `Obra ativa: "${titulo}"` : 'Selecione um título ou bestseller acima para avançar.'}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (wizardStep < 10) setWizardStep(wizardStep + 1);
+                                else setWizardStep(2);
+                              }}
+                              style={{
+                                padding: '9px 18px',
+                                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 7,
+                                fontSize: 12.5,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                boxShadow: '0 2px 8px rgba(37,99,235,0.3)'
+                              }}
+                            >
+                              <span>Avançar para Próxima Etapa ({wizardStep < 10 ? `Etapa ${wizardStep + 1}` : 'Etapa 2'})</span>
+                              <ChevronRight size={15} />
+                            </button>
                           </div>
                         </div>
                       )}

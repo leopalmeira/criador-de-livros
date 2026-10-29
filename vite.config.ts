@@ -335,6 +335,36 @@ function kdpAiBackendPlugin() {
             return;
           }
 
+          if (pathname === '/suggest-titles' || pathname === '/suggest-titles/') {
+            const { KdpTitleSuggestionEngine } = await import('./src/services/kdp-title-suggestion-engine');
+            const theme = reqUrl.searchParams.get('theme') || 'Desenvolvimento Pessoal';
+            const subtheme = reqUrl.searchParams.get('subtheme') || undefined;
+            const bookTitle = reqUrl.searchParams.get('bookTitle') || undefined;
+
+            let suggestions = [];
+            if (bookTitle) {
+              const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook({ title: bookTitle }, theme);
+              suggestions = [{
+                id: `inspired_${Date.now()}`,
+                ...inspired,
+                theme,
+                category: theme,
+                kind: 'ficcao',
+                inspiredByBook: bookTitle,
+                targetBsrEstimate: 4500,
+                hookType: 'curiosidade',
+                keywords: [theme, bookTitle]
+              }];
+            } else {
+              suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme(theme, subtheme);
+            }
+
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, theme, count: suggestions.length, suggestions }));
+            return;
+          }
+
           next();
         } catch (err: any) {
           res.statusCode = 500;
