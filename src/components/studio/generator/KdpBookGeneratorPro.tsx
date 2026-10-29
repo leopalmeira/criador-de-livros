@@ -3330,6 +3330,104 @@ ${ganchoImediato}`;
     }
   };
 
+  // ─── DECOMPOSIÇÃO DE CAPA ABERTA COMPLETA (WRAP) EM FRENTE E VERSO ───
+  const decomporWrapEmFrenteEVerso = (wrapDataUrl: string): Promise<{ frontUrl: string; backUrl: string }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const w = img.width;
+        const h = img.height;
+
+        // Painel Direito: Capa Frontal (metade direita, ~48% a 50% da largura)
+        const frontCanvas = document.createElement('canvas');
+        const frontW = Math.round(w * 0.48);
+        frontCanvas.width = frontW;
+        frontCanvas.height = h;
+        const frontCtx = frontCanvas.getContext('2d');
+        if (frontCtx) {
+          frontCtx.drawImage(img, w - frontW, 0, frontW, h, 0, 0, frontW, h);
+        }
+        const frontUrl = frontCanvas.toDataURL('image/png');
+
+        // Painel Esquerdo: Contracapa (metade esquerda, ~48% a 50% da largura)
+        const backCanvas = document.createElement('canvas');
+        const backW = Math.round(w * 0.48);
+        backCanvas.width = backW;
+        backCanvas.height = h;
+        const backCtx = backCanvas.getContext('2d');
+        if (backCtx) {
+          backCtx.drawImage(img, 0, 0, backW, h, 0, 0, backW, h);
+        }
+        const backUrl = backCanvas.toDataURL('image/png');
+
+        resolve({ frontUrl, backUrl });
+      };
+      img.onerror = () => resolve({ frontUrl: wrapDataUrl, backUrl: wrapDataUrl });
+      img.src = wrapDataUrl;
+    });
+  };
+
+  // ─── PROCESSADOR INTELIGENTE DE IMPORTAÇÃO DE CAPA ───
+  // Reconhece automaticamente se a imagem é Capa Aberta Completa (Capa com Contracapa) ou Apenas Capa Frontal
+  const processarImportacaoImagemCapa = async (dataUrl: string, forceAsWrap: boolean = false) => {
+    return new Promise<void>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = async () => {
+        // Se a largura for significativamente maior que a altura (> 1.15x), é uma Capa Aberta Completa (Capa com Contracapa / Wrap)
+        const isSpread = forceAsWrap || (img.width > img.height * 1.15);
+
+        if (isSpread) {
+          // Imagem panorâmica aberta: exibe o wrap diretamente sem desenhar contracapa azul marinho artificial
+          setWrapPreviewUrl(dataUrl);
+          setViewModeCapa('wrap');
+          setActiveTab('capa');
+
+          // Decompõe a frente e a contracapa para que o miolo e o livro tenham as artes correspondentes
+          const { frontUrl, backUrl } = await decomporWrapEmFrenteEVerso(dataUrl);
+          setCapaFinal(frontUrl);
+          setFundoImg(frontUrl);
+          setContracapaFinal(backUrl);
+
+          if (livro) {
+            salvarProgressoLocal(livro, frontUrl, frontUrl, promoData || undefined);
+          }
+
+          setStatusMsg(ui('✓ Capa com Contracapa (Capa Aberta Completa) importada com sucesso!', '✓ Full Wraparound Cover imported successfully!'));
+          setStatusType('ok');
+        } else {
+          // Imagem vertical: é uma capa frontal individual
+          setCapaFinal(dataUrl);
+          setFundoImg(dataUrl);
+          setViewModeCapa('front');
+          setActiveTab('capa');
+
+          const obTitle = livro?.titulo || titulo.trim() || 'Obra Editorial';
+          const obAuthor = livro?.autor || autor.trim() || 'Autor';
+          const obGenre = livro?.genero || genero.trim() || 'Geral';
+          const obSynopsis = bookPromise || uniqueAngle || topico || subtitulo;
+
+          await gerarContracapaEWrap(dataUrl, obTitle, obAuthor, obGenre, obSynopsis);
+
+          if (livro) {
+            salvarProgressoLocal(livro, dataUrl, dataUrl);
+          }
+
+          setStatusMsg(ui('✓ Capa Frontal importada com sucesso! Gerando contracapa e wrap KDP...', '✓ Front cover imported successfully! Generating back cover and KDP wrap...'));
+          setStatusType('ok');
+        }
+        resolve();
+      };
+      img.onerror = () => {
+        setCapaFinal(dataUrl);
+        setActiveTab('capa');
+        resolve();
+      };
+      img.src = dataUrl;
+    });
+  };
+
   // ─── IMPORTAÇÃO DE CAPA PRÓPRIA (PNG, JPG, WEBP) ───
   const handleImportarCapa = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -3344,26 +3442,7 @@ ${ganchoImediato}`;
     reader.onload = async (ev) => {
       const dataUrl = ev.target?.result as string;
       if (!dataUrl) return;
-
-      setCapaFinal(dataUrl);
-      setFundoImg(dataUrl);
-      setActiveTab('capa');
-      setStatusMsg(ui('✓ Capa importada com sucesso! Gerando contracapa e wrap KDP...', '✓ Cover imported successfully! Generating back cover and KDP wrap...'));
-      setStatusType('ok');
-
-      const obTitle = livro?.titulo || titulo.trim() || 'Obra Editorial';
-      const obAuthor = livro?.autor || autor.trim() || 'Autor';
-      const obGenre = livro?.genero || genero.trim() || 'Geral';
-      const obSynopsis = bookPromise || uniqueAngle || topico || subtitulo;
-
-      await gerarContracapaEWrap(dataUrl, obTitle, obAuthor, obGenre, obSynopsis);
-
-      if (livro) {
-        salvarProgressoLocal(livro, dataUrl, dataUrl);
-      }
-
-      setStatusMsg(ui('✓ Capa personalizada importada e integrada com sucesso!', '✓ Custom cover imported and integrated successfully!'));
-      setStatusType('ok');
+      await processarImportacaoImagemCapa(dataUrl, false);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -3435,16 +3514,7 @@ ${ganchoImediato}`;
     reader.onload = async (ev) => {
       const dataUrl = ev.target?.result as string;
       if (!dataUrl) return;
-
-      setWrapPreviewUrl(dataUrl);
-      setActiveTab('capa');
-      setViewModeCapa('wrap');
-      setStatusMsg(ui('✓ Capa aberta completa (Wrap) importada com sucesso!', '✓ Full wrap cover imported successfully!'));
-      setStatusType('ok');
-
-      if (livro) {
-        salvarProgressoLocal(livro, capaFinal || dataUrl, fundoImg || undefined, promoData || undefined);
-      }
+      await processarImportacaoImagemCapa(dataUrl, true);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -3808,6 +3878,7 @@ ${ganchoImediato}`;
         pageCount: numPags,
         trimSize: (formato as any) || '6x9',
         paperType: 'bw-white',
+        wrapSpreadDataUrl: wrapPreviewUrl || undefined,
         frontCoverDataUrl: capaFinal,
         backCoverDataUrl: contracapaFinal || undefined,
         frontIsAlreadyDiagrammed: true,

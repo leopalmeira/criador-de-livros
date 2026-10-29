@@ -496,7 +496,7 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
         `- **PAINEL ESQUERDO — CONTRACAPA (QUARTA CAPA)**:`,
         `  • **Continuidade Cenográfica**: ${composicaoContracapa}`,
         `  • **Diagramação da Leitura de Contracapa**: No topo, o gancho "${leituraContracapa.ganchoTopo}" em caixa-alta com cor de destaque da paleta; no centro, o texto da breve leitura alinhado com margens generosas de 12,7 mm sobre área de sombra suave e uniforme para leitura cristalina; logo abaixo, o fecho autoral de ${autor}.`,
-        `  • **Zona Reservada de Código de Barras / ISBN**: Retângulo limpo em branco fosco (50,8 x 30,5 mm / 2,0 x 1,2 pol) posicionado no canto inferior direito da contracapa, totalmente livre de texto ou elementos críticos.`,
+        `  • **Arte Contínua na Contracapa**: Ilustração rica e contínua em toda a extensão da contracapa, sem corte de caixa branca nem retângulo artificial de código de barras. A Amazon KDP realiza a estampagem na impressão gráfica oficial.`,
         `- **PAINEL CENTRAL — LOMBADA (SPINE)**:`,
         `  • **Ponte Visual**: Transição ininterrupta da textura e da iluminação entre a capa frontal e a contracapa.`,
         `  • **Tipografia da Lombada**: Título "${titulo}" e autor "${autor}" centralizados verticalmente na mesma família tipográfica da capa, respeitando margem de segurança de 1,6 mm (0.0625 pol) das linhas de vinco.`,
@@ -541,7 +541,7 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
       tituloEstilo: fonteTituloSugerida,
       subtituloPosicao: 'Acima do Autor na Capa (quadrante inferior, alto contraste)',
       autorPosicao: 'Base da Capa e Lombada (chancela autoral)',
-      contracapaPosicao: 'Contracapa: Gancho no topo + Breve Leitura central + Área de Código de Barras no canto inferior direito'
+      contracapaPosicao: 'Contracapa: Gancho no topo + Breve Leitura central + Arte 100% contínua sem caixa branca de código de barras'
     }
   };
 }

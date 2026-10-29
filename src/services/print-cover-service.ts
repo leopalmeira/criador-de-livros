@@ -176,6 +176,7 @@ export class PrintCoverService {
     pageCount: number;
     paperType?: PaperType;
     trimSize?: TrimSize;
+    wrapSpreadDataUrl?: string;
     frontArtDataUrl?: string;
     frontCoverDataUrl?: string;
     backCoverDataUrl?: string;
@@ -221,6 +222,30 @@ export class PrintCoverService {
       format: [totalWidthMm, totalHeightMm],
       compress: true
     });
+
+    // Se foi fornecida a Capa Aberta Completa (Full Wrap Spread: Contracapa + Lombada + Frente):
+    if (params.wrapSpreadDataUrl && params.wrapSpreadDataUrl.startsWith('data:image')) {
+      try {
+        const isPng = params.wrapSpreadDataUrl.includes('image/png');
+        doc.addImage(
+          params.wrapSpreadDataUrl,
+          isPng ? 'PNG' : 'JPEG',
+          0,
+          0,
+          totalWidthMm,
+          totalHeightMm,
+          undefined,
+          'FAST'
+        );
+        const arrayBuffer = doc.output('arraybuffer');
+        return {
+          pdfBytes: new Uint8Array(arrayBuffer),
+          validation
+        };
+      } catch (err) {
+        console.warn('[PrintCoverService] Falha ao estampar wrapSpreadDataUrl completo:', err);
+      }
+    }
 
     // 1. Fundo Geral da Capa (Slate Escuro 900)
     doc.setFillColor(15, 23, 42);
