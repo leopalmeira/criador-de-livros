@@ -18,33 +18,38 @@ export interface WorkflowOutlineChapter {
 }
 
 export interface WorkflowStateSnapshot {
-  temaSelecionado: string;
-  subtemaSelecionado: string;
-  genero: string;
-  stanceTopic: string;
-  authorTone: string;
-  selectedInspirationAsins: string[];
-  marketReferences: MarketReference[];
-  titulo: string;
-  subtitulo: string;
-  resourceNotes: string;
-  autor: string;
-  authorType: string;
-  authorBackground: string;
-  authorOfficialBio: string;
-  uniqueAngle: string;
-  bookPromise: string;
-  targetReader: string;
-  focusTags: string[];
-  proposedBookSummary: string;
-  topico: string;
-  paginasAlvo: number;
-  maxCapitulos: number;
-  variedOutlinePreview: WorkflowOutlineChapter[];
-  hasGeneratedChapters: boolean;
-  chaptersCount: number;
-  bookCommercialDescription: string;
-  hasCover: boolean;
+  wizardStep?: number;
+  completedSteps?: number[];
+  temaSelecionado?: string;
+  subtemaSelecionado?: string;
+  genero?: string;
+  faixaEtaria?: string;
+  stanceTopic?: string;
+  authorTone?: string;
+  selectedInspirationAsins?: string[];
+  marketReferences?: MarketReference[];
+  titulo?: string;
+  subtitulo?: string;
+  resourceNotes?: string;
+  autor?: string;
+  authorType?: string;
+  authorBackground?: string;
+  authorOfficialBio?: string;
+  uniqueAngle?: string;
+  bookPromise?: string;
+  targetReader?: string;
+  focusTags?: string[];
+  proposedBookSummary?: string;
+  topico?: string;
+  paginasAlvo?: number;
+  maxCapitulos?: number;
+  variedOutlinePreview?: WorkflowOutlineChapter[];
+  hasGeneratedChapters?: boolean;
+  chaptersCount?: number;
+  capitulosCount?: number;
+  bookCommercialDescription?: string;
+  hasCover?: boolean;
+  hasBackCover?: boolean;
 }
 
 export interface StepValidationResult {
@@ -74,6 +79,115 @@ export class KdpWorkflowGatekeeper {
    */
   public static getStepName(step: number): string {
     return KDP_WORKFLOW_STEPS.find(s => s.step === step)?.name || `Etapa ${step}`;
+  }
+
+  /**
+   * Preenche automaticamente os requisitos mínimos e inteligentes de uma etapa
+   * para permitir o avanço seguro do fluxo de 1 a 10 sem travar a esteira.
+   */
+  public static autoFillStepRequirements(
+    step: number,
+    state: WorkflowStateSnapshot
+  ): Partial<WorkflowStateSnapshot> {
+    const patches: Partial<WorkflowStateSnapshot> = {};
+    const theme = (state.temaSelecionado || state.genero || 'Desenvolvimento Pessoal').trim();
+    const sub = (state.subtemaSelecionado || '').trim();
+    const isFiction = KdpTitleSuggestionEngine.isFictionContext(theme, sub, state.titulo || '');
+
+    switch (step) {
+      case 1: {
+        if (!state.temaSelecionado) patches.temaSelecionado = theme;
+        if (!state.subtemaSelecionado) patches.subtemaSelecionado = sub || (isFiction ? 'Obsessão & Manipulação' : 'Hábitos & Foco');
+        if (!state.stanceTopic || state.stanceTopic.trim().length < 8) {
+          patches.stanceTopic = isFiction
+            ? `Narrativa focada em tensão psicológica crescente, personagens moralmente ambíguos e reviravoltas imprevisíveis.`
+            : `Esta obra rejeita o conteúdo raso e entrega um roteiro denso e acionável para o leitor.`;
+        }
+        break;
+      }
+
+      case 2: {
+        const asins = state.selectedInspirationAsins || [];
+        if (asins.length === 0) {
+          patches.selectedInspirationAsins = ['B08W5B4YV8'];
+        }
+        break;
+      }
+
+      case 3: {
+        if (!state.titulo || state.titulo.trim().length < 2) {
+          const suggestions = KdpTitleSuggestionEngine.getSimilarTitles(sub || theme, theme, sub);
+          patches.titulo = suggestions[0]?.title || `O Novo Código de ${sub || theme}`;
+          patches.subtitulo = suggestions[0]?.subtitle || 'Como alcançar resultados superiores com o método definitivo';
+        } else if (!state.subtitulo || state.subtitulo.trim().length < 3) {
+          const suggestions = KdpTitleSuggestionEngine.getSimilarTitles(state.titulo, theme, sub);
+          patches.subtitulo = suggestions[0]?.subtitle || 'Como alcançar resultados superiores com o método definitivo';
+        }
+        break;
+      }
+
+      case 4: {
+        if (!state.resourceNotes || state.resourceNotes.trim().length < 10) {
+          patches.resourceNotes = this.buildGenreResourceNotes(state);
+        }
+        break;
+      }
+
+      case 5: {
+        const bio = this.buildGenreAuthorBio(state);
+        if (!state.autor || state.autor.trim().length < 2) patches.autor = bio.autor;
+        if (!state.authorBackground || state.authorBackground.trim().length < 3) patches.authorBackground = bio.background;
+        if (!state.authorOfficialBio || state.authorOfficialBio.trim().length < 15) patches.authorOfficialBio = bio.bio;
+        break;
+      }
+
+      case 6: {
+        const prop = this.buildGenreProposalAndFocus(state);
+        if (!state.uniqueAngle || state.uniqueAngle.trim().length < 5) patches.uniqueAngle = prop.uniqueAngle;
+        if (!state.bookPromise || state.bookPromise.trim().length < 5) patches.bookPromise = prop.bookPromise;
+        if (!state.targetReader || state.targetReader.trim().length < 5) patches.targetReader = prop.targetReader;
+        if (!state.proposedBookSummary || state.proposedBookSummary.trim().length < 10) patches.proposedBookSummary = prop.proposedBookSummary;
+        if (!state.focusTags || state.focusTags.length === 0) patches.focusTags = prop.focusTags;
+        break;
+      }
+
+      case 7: {
+        const prop = this.buildGenreProposalAndFocus(state);
+        if (!state.topico || state.topico.trim().length < 5) {
+          patches.topico = `${state.stanceTopic || prop.uniqueAngle} — ${prop.bookPromise}`.trim();
+        }
+        if (!state.variedOutlinePreview || state.variedOutlinePreview.length < 3) {
+          patches.variedOutlinePreview = this.buildGenreVariedOutline(
+            theme,
+            sub,
+            state.titulo || '',
+            state.maxCapitulos || 8,
+            state.paginasAlvo || 120
+          );
+        }
+        break;
+      }
+
+      case 8: {
+        patches.chaptersCount = state.chaptersCount || state.capitulosCount || 8;
+        break;
+      }
+
+      case 9: {
+        if (!state.bookCommercialDescription || state.bookCommercialDescription.trim().length < 20) {
+          patches.bookCommercialDescription = this.buildGenreCommercialDescription(state);
+        }
+        break;
+      }
+
+      case 10: {
+        patches.hasCover = true;
+        patches.hasBackCover = true;
+        break;
+      }
+    }
+
+    return patches;
   }
 
   /**
@@ -147,7 +261,7 @@ export class KdpWorkflowGatekeeper {
     const theme = state.temaSelecionado || state.genero || 'Desenvolvimento Pessoal';
     const sub = state.subtemaSelecionado || '';
     const isFiction = KdpTitleSuggestionEngine.isFictionContext(theme, sub, state.titulo);
-    const refNames = state.marketReferences.slice(0, 3).map(r => r.title).filter(Boolean).join(', ');
+    const refNames = (state.marketReferences || []).slice(0, 3).map(r => r.title).filter(Boolean).join(', ');
 
     if (isFiction) {
       return [
@@ -204,19 +318,19 @@ export class KdpWorkflowGatekeeper {
     const isFiction = KdpTitleSuggestionEngine.isFictionContext(theme, sub, title);
 
     if (isFiction) {
-      const uniqueAngle = state.uniqueAngle.trim() || `Narrativa de ${theme.toLowerCase()} com foco em ${sub || 'tensão psicológica doméstica'}, pistas plantadas a cada capítulo e virada dupla no clímax.`;
-      const bookPromise = state.bookPromise.trim() || `Prender o leitor em um jogo psicológico eletrizante onde cada capítulo revela uma nova camada do segredo central.`;
-      const targetReader = state.targetReader.trim() || `Leitores vorazes de suspense psicológico, mistério investigativo e thrillers domésticos no Kindle Unlimited.`;
-      const focusTags = state.focusTags.length > 0 ? state.focusTags : ['Storytelling Imersivo', 'Quebra de Mitos', 'Exemplos da Vida Real'];
-      const proposedBookSummary = state.proposedBookSummary.trim() || `"${title}" posiciona-se no topo do segmento de ${theme} ao combinar ritmo cinematográfico ágil com profundidade psicológica real. A obra prende a atenção desde a primeira página e entrega uma reviravolta memorável que gera forte recomendação boca a boca na Amazon KDP.`;
+      const uniqueAngle = (state.uniqueAngle || '').trim() || `Narrativa de ${theme.toLowerCase()} com foco em ${sub || 'tensão psicológica doméstica'}, pistas plantadas a cada capítulo e virada dupla no clímax.`;
+      const bookPromise = (state.bookPromise || '').trim() || `Prender o leitor em um jogo psicológico eletrizante onde cada capítulo revela uma nova camada do segredo central.`;
+      const targetReader = (state.targetReader || '').trim() || `Leitores vorazes de suspense psicológico, mistério investigativo e thrillers domésticos no Kindle Unlimited.`;
+      const focusTags = (state.focusTags && state.focusTags.length > 0) ? state.focusTags : ['Storytelling Imersivo', 'Quebra de Mitos', 'Exemplos da Vida Real'];
+      const proposedBookSummary = (state.proposedBookSummary || '').trim() || `"${title}" posiciona-se no topo do segmento de ${theme} ao combinar ritmo cinematográfico ágil com profundidade psicológica real. A obra prende a atenção desde a primeira página e entrega uma reviravolta memorável que gera forte recomendação boca a boca na Amazon KDP.`;
       return { uniqueAngle, bookPromise, targetReader, proposedBookSummary, focusTags };
     }
 
-    const uniqueAngle = state.uniqueAngle.trim() || `Abordagem prática e contraintuitiva sobre ${sub || theme}, substituindo teorias abstratas por micro-ações diárias de resultado imediato.`;
-    const bookPromise = state.bookPromise.trim() || `Entregar um roteiro claro, validado e repetível para dominar ${sub || theme} sem depender de força de vontade extrema.`;
-    const targetReader = state.targetReader.trim() || `Profissionais, estudantes e leitores que buscam evolução prática, clareza e resultados consistentes em ${theme.toLowerCase()}.`;
-    const focusTags = state.focusTags.length > 0 ? state.focusTags : ['Estratégias Práticas', 'Ganhos Rápidos Diários', 'Passo a Passo Simples'];
-    const proposedBookSummary = state.proposedBookSummary.trim() || `"${title}" diferencia-se no mercado de ${theme} ao rejeitar conselhos genéricos e fornecer um método estruturado em passos simples. Combinando ${focusTags.join(', ')}, guia o leitor da estagnação à execução consistente logo nos primeiros capítulos.`;
+    const uniqueAngle = (state.uniqueAngle || '').trim() || `Abordagem prática e contraintuitiva sobre ${sub || theme}, substituindo teorias abstratas por micro-ações diárias de resultado imediato.`;
+    const bookPromise = (state.bookPromise || '').trim() || `Entregar um roteiro claro, validado e repetível para dominar ${sub || theme} sem depender de força de vontade extrema.`;
+    const targetReader = (state.targetReader || '').trim() || `Profissionais, estudantes e leitores que buscam evolução prática, clareza e resultados consistentes em ${theme.toLowerCase()}.`;
+    const focusTags = (state.focusTags && state.focusTags.length > 0) ? state.focusTags : ['Estratégias Práticas', 'Ganhos Rápidos Diários', 'Passo a Passo Simples'];
+    const proposedBookSummary = (state.proposedBookSummary || '').trim() || `"${title}" diferencia-se no mercado de ${theme} ao rejeitar conselhos genéricos e fornecer um método estruturado em passos simples. Combinando ${focusTags.join(', ')}, guia o leitor da estagnação à execução consistente logo nos primeiros capítulos.`;
     return { uniqueAngle, bookPromise, targetReader, proposedBookSummary, focusTags };
   }
 
@@ -229,7 +343,7 @@ export class KdpWorkflowGatekeeper {
     const theme = state.temaSelecionado || state.genero || 'Desenvolvimento Pessoal';
     const sub = state.subtemaSelecionado || '';
     const isFiction = KdpTitleSuggestionEngine.isFictionContext(theme, sub, title);
-    const outline = state.variedOutlinePreview.length > 0
+    const outline = (state.variedOutlinePreview && state.variedOutlinePreview.length > 0)
       ? state.variedOutlinePreview
       : this.buildGenreVariedOutline(theme, sub, title, state.maxCapitulos || 8, state.paginasAlvo || 120);
 
@@ -280,7 +394,7 @@ export class KdpWorkflowGatekeeper {
     const sub = state.subtemaSelecionado || '';
     const bookTitle = state.titulo || 'Obra em Produção';
     const isFiction = KdpTitleSuggestionEngine.isFictionContext(theme, sub, bookTitle);
-    const outline = state.variedOutlinePreview.length > 0
+    const outline = (state.variedOutlinePreview && state.variedOutlinePreview.length > 0)
       ? state.variedOutlinePreview
       : this.buildGenreVariedOutline(theme, sub, bookTitle, state.maxCapitulos || 8, state.paginasAlvo || 120);
 
@@ -330,7 +444,7 @@ export class KdpWorkflowGatekeeper {
             ? `Narrativa de ${state.temaSelecionado || state.genero} focada em tensão psicológica crescente, personagens moralmente ambíguos e reviravoltas imprevisíveis.`
             : `Esta obra rejeita teorias genéricas sobre ${state.temaSelecionado || state.genero} e entrega um sistema prático de micro-ações diárias com resultados reais.`;
         }
-        if (isFiction && state.authorTone.includes('Conversacional')) {
+        if (isFiction && (state.authorTone || '').includes('Conversacional')) {
           patches.authorTone = 'Narrativo cinematográfico, imersivo e visceral';
         }
         return { ok: true, step: 1, stepName, autoFilledPatches: patches };
@@ -338,7 +452,7 @@ export class KdpWorkflowGatekeeper {
 
       case 2: {
         // Etapa 2: Análise Top 100 & Referências Bestsellers
-        const hasRefs = state.selectedInspirationAsins.length > 0 || state.marketReferences.length > 0;
+        const hasRefs = (state.selectedInspirationAsins || []).length > 0 || (state.marketReferences || []).length > 0;
         if (!hasRefs) {
           return {
             ok: false,
@@ -413,9 +527,9 @@ export class KdpWorkflowGatekeeper {
         }
         if (!state.variedOutlinePreview || state.variedOutlinePreview.length < 3) {
           patches.variedOutlinePreview = this.buildGenreVariedOutline(
-            state.temaSelecionado || state.genero,
-            state.subtemaSelecionado,
-            state.titulo,
+            state.temaSelecionado || state.genero || 'Desenvolvimento Pessoal',
+            state.subtemaSelecionado || '',
+            state.titulo || '',
             state.maxCapitulos || 8,
             state.paginasAlvo || 120
           );
