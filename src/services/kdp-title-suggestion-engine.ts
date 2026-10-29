@@ -1,7 +1,7 @@
 // ============================================================================
 // KDP TITLE & SUBTITLE SUGGESTION ENGINE (MOTOR EDITORIAL CONTEXTUALIZADO)
 // Gera sugestões de títulos e subtítulos comerciais originais de alta conversão
-// calibrados por nicho KDP, ganchos psicológicos e livros de referência da Amazon.
+// calibrados por nicho KDP, ganchos psicológicos, títulos similares e livros concorrentes.
 // ============================================================================
 
 import type { MarketReference } from './project-state';
@@ -30,135 +30,162 @@ export interface TitleFormula {
   stance: string;
 }
 
-// Fórmulas especializadas por categoria KDP
+// Fórmulas especializadas de Ficção / Thriller / Mistério / Suspense
 const FICTION_THRILLER_FORMULAS: TitleFormula[] = [
   {
-    titleFn: (base: string) => `A Garota Que Sabia Demais`,
-    subFn: (theme: string) => `Um thriller psicológico implacável onde toda verdade é uma armadilha perigosa`,
+    titleFn: () => `A Garota Que Sabia Demais`,
+    subFn: () => `Um thriller psicológico implacável onde toda verdade é uma armadilha e ninguém é inocente`,
     hook: 'curiosidade',
-    rationale: 'Gancho de suspense clássico de alta retenção no Kindle Unlimited.',
-    stance: 'História com narrador não confiável e reviravoltas que desconstroem expectativas.'
+    rationale: 'Gancho de suspense clássico de altíssima retenção de páginas no Kindle Unlimited.',
+    stance: 'Narrador não confiável com segredos revelados progressivamente até a virada final.'
   },
   {
-    titleFn: (base: string) => `O Segredo do Chalé 7`,
-    subFn: (theme: string) => `Eles prometeram nunca mais tocar no assunto. Até o corpo ser descoberto.`,
+    titleFn: () => `O Segredo do Chalé 7`,
+    subFn: () => `Eles prometeram nunca mais tocar no assunto. Até o primeiro corpo ser descoberto.`,
     hook: 'reviravolta',
-    rationale: 'Fórmula de "crime em local fechado" com pacto entre amigos que desmorona.',
-    stance: 'Suspense claustrofóbico focado no esfacelamento moral dos personagens sob pressão.'
+    rationale: 'Fórmula de mistério claustrofóbico em local fechado com quebra de pacto moral.',
+    stance: 'Tensão psicológica crescente sobre a paranoia e o colapso das aparências burguesas.'
   },
   {
-    titleFn: (base: string) => `A Vizinha Perfeita`,
-    subFn: (theme: string) => `Ela conhecia a rotina de todos no condomínio. E tinha um plano mortal para cada um.`,
+    titleFn: () => `A Esposa Perfeita`,
+    subFn: () => `Ela conhecia os passos de todos ao redor. Mas alguém sabia exatamente quem ela era no passado.`,
     hook: 'curiosidade',
     rationale: 'Bestseller trope no estilo Freida McFadden e Gillian Flynn com ambientação doméstica.',
-    stance: 'Desconstrução da fachada de normalidade suburbana com tensão psicológica crescente.'
+    stance: 'Desconstrução da vida suburbana perfeita para expor jogos mentais de vingança.'
   },
   {
-    titleFn: (base: string) => `Antes Que Ela Desapareça`,
-    subFn: (theme: string) => `Um mistério eletrizante onde ninguém é o que parece e o relógio está correndo`,
+    titleFn: () => `Antes Que Ela Desapareça`,
+    subFn: () => `Um mistério eletrizante onde o relógio está correndo e a única testemunha é a principal suspeita`,
     hook: 'reviravolta',
-    rationale: 'Urgência temporal combinada com rede de mentiras cruzadas.',
-    stance: 'Ritmo acelerado com cortes rápidos de cena e revelações nos finais de capítulo.'
+    rationale: 'Urgência temporal implacável com múltiplos pontos de vista e finais eletrizantes.',
+    stance: 'Ritmo cinematográfico acelerado com revelações em cada final de capítulo.'
   },
   {
-    titleFn: (base: string) => `A Última Mentira de Família`,
-    subFn: (theme: string) => `Toda família tem segredos. Mas alguns são projetados para destruir quem os descobre.`,
+    titleFn: () => `O Preço da Obsessão`,
+    subFn: () => `Um jogo psicológico perigoso onde o limite entre admiração e loucura deixa de existir`,
+    hook: 'curiosidade',
+    rationale: 'Forte apelo para fãs de suspense psicológico sombrio e relacionamentos tóxicos.',
+    stance: 'Explora o voyeurismo e a decadência mental sob obsessão compulsiva.'
+  },
+  {
+    titleFn: () => `A Vizinha do Lado`,
+    subFn: () => `Você pensa que conhece as pessoas com quem convive. Até as cortinas se abrirem.`,
     hook: 'emocional',
-    rationale: 'Drama familiar com suspense investigativo de forte conexão com o leitor.',
-    stance: 'Conflitos geracionais e traumas do passado que voltam para cobrar o preço.'
+    rationale: 'Suspense paranoico de vizinhança com apelo direto à curiosidade humana.',
+    stance: 'O perigo mora ao lado: a fragilidade da sensação de segurança dentro da própria casa.'
   }
 ];
 
+// Fórmulas de Desenvolvimento Pessoal / Hábitos / Produtividade
 const SELF_HELP_HABITS_FORMULAS: TitleFormula[] = [
   {
-    titleFn: (base: string) => `O Efeito Micro-Vitória`,
-    subFn: (theme: string) => `Como ações simples de 10 minutos diários vencem a procrastinação e constroem resultados extraordinários`,
+    titleFn: () => `Micro-Hábitos de Aço`,
+    subFn: () => `O método diário de 1% para reprogramar sua rotina, vencer a procrastinação e blindar sua disciplina`,
     hook: 'promessa-forte',
-    rationale: 'Promessa contra-intuitiva de baixo atrito para público cansado de rotinas exaustivas.',
-    stance: 'Rejeita fórmulas radicais de motivação e foca no efeito composto de sistemas imperceptíveis.'
+    rationale: 'Promessa contra-intuitiva de baixo atrito para leitores cansados de rotinas radicais.',
+    stance: 'Rejeita motivação efêmera e foca no efeito cumulativo de sistemas imperceptíveis de 10 minutos.'
   },
   {
-    titleFn: (base: string) => `Disciplina sem Esforço`,
-    subFn: (theme: string) => `O método neurocientífico para reprogramar seus hábitos sem depender de força de vontade`,
+    titleFn: () => `Disciplina sem Esforço`,
+    subFn: () => `O método neurocientífico para criar hábitos duradouros sem depender de força de vontade`,
     hook: 'autoridade',
-    rationale: 'Aborda a dor central do leitor (falta de força de vontade) com respaldo científico.',
-    stance: 'A força de vontade é um recurso biológico finito; o ambiente deve fazer o trabalho duro.'
+    rationale: 'Aborda a dor crônica da inconsistência com respaldo científico comprovado.',
+    stance: 'A força de vontade é finita; estruture seu ambiente para executar no piloto automático.'
   },
   {
-    titleFn: (base: string) => `Foco Inabalável`,
-    subFn: (theme: string) => `Como blindar sua mente contra distrações digitais e executar o dobro na metade do tempo`,
+    titleFn: () => `Foco Inabalável`,
+    subFn: () => `Como blindar sua mente contra distrações digitais e executar o dobro na metade do tempo`,
     hook: 'promessa-forte',
-    rationale: 'Alta demanda por soluções contra sobrecarga de telas e notificações.',
-    stance: 'Monopólio da atenção profunda como o ativo mais valioso e raro do século XXI.'
+    rationale: 'Alta demanda por soluções contra sobrecarga de telas, notificações e ansiedade.',
+    stance: 'A atenção profunda é a habilidade mais rara e valiosa do mercado contemporâneo.'
   },
   {
-    titleFn: (base: string) => `O Algoritmo da Consistência`,
-    subFn: (theme: string) => `Um passo a passo descomplicado para começar, manter o ritmo e nunca mais desistir pela metade`,
+    titleFn: () => `O Algoritmo da Consistência`,
+    subFn: () => `Um passo a passo descomplicado para começar, manter o ritmo e nunca mais abandonar projetos pela metade`,
     hook: 'promessa-forte',
-    rationale: 'Fórmula direta de conclusão de projetos que atrai quem começa e para.',
-    stance: 'Consistência não é talento; é um checklist repetível com gatilhos automáticos.'
+    rationale: 'Fórmula direta de conclusão de metas que atrai quem começa e para.',
+    stance: 'Consistência não é dom ou vocação; é um checklist repetível com gatilhos automáticos.'
   }
 ];
 
+// Fórmulas de Finanças / Negócios / Investimentos
 const FINANCE_BUSINESS_FORMULAS: TitleFormula[] = [
   {
-    titleFn: (base: string) => `A Máquina de Renda Passiva`,
-    subFn: (theme: string) => `O guia prático para construir patrimônio e fluxo de dividendos começando com pouco dinheiro`,
+    titleFn: () => `A Máquina de Liberdade Financeira`,
+    subFn: () => `O mapa definitivo para construir patrimônio previsível e fluxo de dividendos começando do zero`,
     hook: 'promessa-forte',
-    rationale: 'Gancho financeiro atemporal com apelo de independência financeira.',
-    stance: 'Investimento desmistificado para pessoas comuns sem jargões de Wall Street.'
+    rationale: 'Gancho financeiro com forte apelo de independência e segurança patrimonial.',
+    stance: 'Investimento desmistificado para pessoas comuns sem especulações arriscadas.'
   },
   {
-    titleFn: (base: string) => `O Código do Lucro Previsível`,
-    subFn: (theme: string) => `Estratégias validadas de vendas, precificação e escala para pequenos negócios e autônomos`,
+    titleFn: () => `O Código do Lucro Previsível`,
+    subFn: () => `Estratégias validadas de precificação, posicionamento e vendas para pequenas empresas e autônomos`,
     hook: 'autoridade',
-    rationale: 'Atrai empreendedores em busca de caixa saudável e clientes constantes.',
+    rationale: 'Atrai empreendedores em busca de faturamento estável e clientes recorrentes.',
     stance: 'Faturamento é vaidade, lucro é sanidade e fluxo de caixa é sobrevivência real.'
   },
   {
-    titleFn: (base: string) => `Liberdade Financeira em 30 Passos`,
-    subFn: (theme: string) => `Como eliminar dívidas, blindar seu orçamento e fazer seu dinheiro trabalhar por você`,
+    titleFn: () => `Patrimônio Blindado`,
+    subFn: () => `Como cortar desperdícios invisíveis, eliminar dívidas e multiplicar renda de forma sustentável`,
     hook: 'promessa-forte',
-    rationale: 'Estrutura sequencial em etapas que reduz ansiedade e gera ação imediata.',
-    stance: 'Educação financeira comportamental focada em cortar desperdícios invisíveis.'
+    rationale: 'Estrutura sequencial em etapas que reduz o estresse financeiro.',
+    stance: 'Educação financeira comportamental com foco em preservação e efeito composto.'
   }
 ];
 
+// Fórmulas de Saúde / Bem-Estar / Longevidade
 const HEALTH_WELLNESS_FORMULAS: TitleFormula[] = [
   {
-    titleFn: (base: string) => `O Relógio Metabólico`,
-    subFn: (theme: string) => `Como regular sua insulina, recuperar a energia vital e conquistar longevidade real`,
+    titleFn: () => `O Relógio Metabólico`,
+    subFn: () => `Como equilibrar seus hormônios, restaurar a energia vital e queimar gordura com ciência`,
     hook: 'autoridade',
-    rationale: 'Fórmula alinhada com bestsellers de saúde preventiva e biohacking.',
-    stance: 'A saúde duradoura começa na estabilização dos picos glicêmicos e no sono de qualidade.'
+    rationale: 'Alinhado com as principais tendências de biohacking e saúde preventiva na Amazon.',
+    stance: 'Saúde real começa na regulação do ritmo circadiano e na estabilização da glicose.'
   },
   {
-    titleFn: (base: string) => `Mente Calma em Tempos Caóticos`,
-    subFn: (theme: string) => `Protocolos práticos de regulação do sistema nervoso para aliviar a ansiedade e o cansaço crônico`,
+    titleFn: () => `Mente Calma em Tempos Caóticos`,
+    subFn: () => `Protocolos práticos de regulação do sistema nervoso para aliviar a ansiedade e o cansaço crônico`,
     hook: 'emocional',
-    rationale: 'Forte apelo para leitores sofrendo com estresse do trabalho e insônia.',
-    stance: 'O corpo fala através de sintomas; tratar a causa raiz supera mascarar o cansaço.'
+    rationale: 'Forte apelo para quem sofre com estresse no trabalho, esgotamento e insônia.',
+    stance: 'O corpo reage a gatilhos inconscientes; tratar a causa raiz supera mascarar os sintomas.'
   }
 ];
 
+// Fórmulas de Romance / Ficção Romântica
 const ROMANCE_FORMULAS: TitleFormula[] = [
   {
-    titleFn: (base: string) => `Contrato com o Inimigo`,
-    subFn: (theme: string) => `Um romance enemies-to-lovers com namoro falso que saiu perigosamente do controle`,
+    titleFn: () => `Contrato com o Inimigo`,
+    subFn: () => `Um romance enemies-to-lovers com namoro falso que saiu perigosamente do controle`,
     hook: 'curiosidade',
-    rationale: 'A fórmula mais lucrativa do romance KDP (Fake Dating + Inimigos que se apaixonam).',
-    stance: 'Convivência forçada onde a rivalidade profissional se transforma em paixão incontrolável.'
+    rationale: 'O tropo mais lucrativo e buscado do romance KDP no Kindle Unlimited.',
+    stance: 'Convivência forçada onde a antipatia inicial se transforma em paixão irresistível.'
   },
   {
-    titleFn: (base: string) => `Onde Nossos Caminhos Cruzam`,
-    subFn: (theme: string) => `Um romance doce e apaixonante sobre segundas chances em uma pequena cidade à beira-mar`,
+    titleFn: () => `Onde Nossos Caminhos Cruzam`,
+    subFn: () => `Uma história envolvente sobre segundas chances, recomeços e amores que curam feridas antigas`,
     hook: 'emocional',
-    rationale: 'Comédia romântica aconchegante (Small Town Romance) de altíssima fidelização.',
-    stance: 'Cura de corações partidos através de recomeços despretensiosos e conexões sinceras.'
+    rationale: 'Comédia dramática romântica (Small Town Romance) de altíssima fidelização de leitores.',
+    stance: 'A vulnerabilidade como ponte para conexões humanas autênticas e transformadoras.'
   }
 ];
 
+function cleanTitleWords(raw: string): string[] {
+  return raw
+    .replace(/[:\-\–\(\)\[\]\.,!]/g, ' ')
+    .split(/\s+/)
+    .map(w => w.trim())
+    .filter(w => w.length > 2 && !/^(o|a|os|as|um|uma|uns|umas|de|do|da|dos|das|em|no|na|nos|nas|por|para|com|como|sem|que|seu|sua|seus|suas|meu|minha)$/i.test(w));
+}
+
 export class KdpTitleSuggestionEngine {
+  /**
+   * Retorna se um contexto representa ficção/suspense/mistério/romance.
+   */
+  public static isFictionContext(theme: string = '', subtheme: string = '', text: string = ''): boolean {
+    const combined = `${theme} ${subtheme} ${text}`.toLowerCase();
+    return /thriller|mistério|misterio|suspense|crime|policial|ficção|ficcao|romance|terror|horror|obsessão|obsessao|psicopata|assassin|morte|fantasia/i.test(combined);
+  }
+
   /**
    * Identifica o gênero/tipo e retorna sugestões inteligentes imediatas para o segmento.
    */
@@ -168,10 +195,10 @@ export class KdpTitleSuggestionEngine {
     referenceBooks: (MarketReference | { title: string; subtitle?: string; bsr?: number; [k: string]: any })[] = []
   ): TitleSuggestion[] {
     const norm = `${theme} ${subtheme || ''}`.toLowerCase();
-    const isFiction = /thriller|mistério|misterio|suspense|crime|policial|ficção|ficcao|romance|fantasia|terror|horror/i.test(norm);
-    const isRomance = /romance|namoro|amor|comédia romântica|paixão/i.test(norm);
-    const isFinance = /finança|financa|invest|dinheiro|negócio|negocio|marketing|vendas|empresa/i.test(norm);
-    const isHealth = /saúde|saude|nutrição|nutricao|sono|corpo|mente|ansiedade|longevidade|glicose/i.test(norm);
+    const isFiction = this.isFictionContext(theme, subtheme || '');
+    const isRomance = /romance|namoro|amor|paixão/i.test(norm);
+    const isFinance = /finança|financa|invest|dinheiro|negócio|negocio|empresa|vendas/i.test(norm);
+    const isHealth = /saúde|saude|nutrição|nutricao|sono|corpo|mente|ansiedade|longevidade/i.test(norm);
 
     let formulas: TitleFormula[] = SELF_HELP_HABITS_FORMULAS;
     let kind: 'ficcao' | 'nao-ficcao' = 'nao-ficcao';
@@ -201,17 +228,17 @@ export class KdpTitleSuggestionEngine {
         rationale: f.rationale,
         hookType: f.hook,
         targetBsrEstimate: Math.round(1800 + i * 1200),
-        uniqueAngle: `Metodologia autoral focada em ${subtheme || theme}, eliminando clichês e com aplicação direta.`,
+        uniqueAngle: `Abordagem focada em ${subtheme || theme}, eliminando clichês e com aplicação direta.`,
         stance: f.stance,
         keywords: [theme, subtheme || '', 'bestseller kdp', 'amazon kindle']
       };
     });
 
-    // Se houver livros de referência fornecidos, gera títulos inspirados neles
+    // Se houver livros de referência fornecidos, inclui títulos inspirados de forma proporcional
     if (referenceBooks.length > 0) {
-      referenceBooks.slice(0, 3).forEach((book, idx) => {
+      referenceBooks.slice(0, 2).forEach((book, idx) => {
         const inspired = this.generateInspiredFromBook(book, theme);
-        suggestions.unshift({
+        suggestions.splice(idx + 1, 0, {
           id: `inspired_${idx}_${Date.now()}`,
           title: inspired.title,
           subtitle: inspired.subtitle,
@@ -219,7 +246,7 @@ export class KdpTitleSuggestionEngine {
           category: theme,
           kind,
           inspiredByBook: book.title,
-          rationale: `Inspirado no bestseller "${book.title}" (BSR #${book.bsr || 12000}) adaptado para originalidade total.`,
+          rationale: `Inspirado nos ganchos de "${book.title}" (BSR #${book.bsr || 12000}) adaptado para originalidade total.`,
           hookType: 'curiosidade',
           targetBsrEstimate: book.bsr || 4500,
           uniqueAngle: inspired.uniqueAngle,
@@ -233,19 +260,150 @@ export class KdpTitleSuggestionEngine {
   }
 
   /**
+   * Gera variações e títulos similares a partir de uma ideia livre digitada pelo usuário.
+   */
+  public static getSimilarTitles(
+    userIdea: string,
+    theme: string = '',
+    subtheme: string = ''
+  ): TitleSuggestion[] {
+    const raw = (userIdea || '').trim();
+    const effectiveTheme = theme || 'Desenvolvimento Pessoal';
+    const isFiction = this.isFictionContext(effectiveTheme, subtheme, raw);
+    const words = cleanTitleWords(raw.length > 0 ? raw : `${subtheme || effectiveTheme}`);
+    const mainWord = words[0] || (isFiction ? 'Segredo' : 'Foco');
+    const secondWord = words[1] || (isFiction ? 'Sombra' : 'Hábito');
+
+    if (isFiction) {
+      return [
+        {
+          id: `sim_fic_1_${Date.now()}`,
+          title: `O Segredo de ${mainWord}`,
+          subtitle: `Um thriller psicológico tenso onde algumas promessas deveriam permanecer enterradas no passado`,
+          theme: effectiveTheme,
+          category: effectiveTheme,
+          kind: 'ficcao',
+          rationale: `Variação de mistério investigativo construída a partir da ideia "${raw || mainWord}".`,
+          hookType: 'curiosidade',
+          targetBsrEstimate: 3200,
+          uniqueAngle: `Tensão psicológica progressiva focada em desvendar o que realmente aconteceu.`,
+          stance: `Narrativa claustrofóbica com revelações de tirar o fôlego a cada final de capítulo.`
+        },
+        {
+          id: `sim_fic_2_${Date.now()}`,
+          title: `A Última ${mainWord}`,
+          subtitle: `Ela pensou que ninguém havia testemunhado. Mas o perigo já estava dentro de sua própria casa.`,
+          theme: effectiveTheme,
+          category: effectiveTheme,
+          kind: 'ficcao',
+          rationale: `Fórmula de suspense doméstico com alta retenção de leitores na Amazon KDP.`,
+          hookType: 'reviravolta',
+          targetBsrEstimate: 2800,
+          uniqueAngle: `Conflito direto entre o instinto de sobrevivência e uma rede de mentiras cruzadas.`,
+          stance: `Personagens moralmente complexos onde ninguém é puramente vítima ou vilão.`
+        },
+        {
+          id: `sim_fic_3_${Date.now()}`,
+          title: `O Preço de ${mainWord}`,
+          subtitle: `Quando a obsessão pela verdade ultrapassa os limites e cobra um tributo que ninguém pode pagar`,
+          theme: effectiveTheme,
+          category: effectiveTheme,
+          kind: 'ficcao',
+          rationale: `Gancho psicológico focado nas consequências extremas de escolhas obsessivas.`,
+          hookType: 'emocional',
+          targetBsrEstimate: 3600,
+          uniqueAngle: `Mergulho psicológico na mente do protagonista e na fragilidade da moralidade sob pressão.`,
+          stance: `A verdade tem um custo alto; encará-la exige destruir a própria ilusão de inocência.`
+        },
+        {
+          id: `sim_fic_4_${Date.now()}`,
+          title: `${mainWord} Mortal`,
+          subtitle: `Um jogo de gato e rato implacável onde toda verdade revelada é uma armadilha perigosa`,
+          theme: effectiveTheme,
+          category: effectiveTheme,
+          kind: 'ficcao',
+          rationale: `Variação eletrizante de alta tensão baseada em "${raw || mainWord}".`,
+          hookType: 'curiosidade',
+          targetBsrEstimate: 4100,
+          uniqueAngle: `Ritmo acelerado com linha temporal não linear que surpreende o leitor.`,
+          stance: `Quebra sistemática de clichês do gênero com desfecho imprevisível.`
+        }
+      ];
+    }
+
+    // Não-Ficção (Hábitos, Produtividade, Finanças, etc.)
+    return [
+      {
+        id: `sim_nf_1_${Date.now()}`,
+        title: `O Método ${mainWord}`,
+        subtitle: `O passo a passo comprovado para dominar sua rotina, eliminar atritos e conquistar resultados sólidos`,
+        theme: effectiveTheme,
+        category: effectiveTheme,
+        kind: 'nao-ficcao',
+        rationale: `Fórmula de autoridade e processo claro derivado da ideia "${raw || mainWord}".`,
+        hookType: 'autoridade',
+        targetBsrEstimate: 2400,
+        uniqueAngle: `Framework estruturado em pequenos passos acionáveis de menos de 15 minutos diários.`,
+        stance: `Sistemas organizados superam força de vontade bruta em qualquer área da vida.`
+      },
+      {
+        id: `sim_nf_2_${Date.now()}`,
+        title: `O Poder de ${mainWord}`,
+        subtitle: `Como pequenas mudanças intencionais transformam seus resultados e blindam sua consistência`,
+        theme: effectiveTheme,
+        category: effectiveTheme,
+        kind: 'nao-ficcao',
+        rationale: `Fórmula clássica de alta conversão para não-ficção comercial na Amazon KDP.`,
+        hookType: 'promessa-forte',
+        targetBsrEstimate: 1900,
+        uniqueAngle: `Foco no efeito composto e na eliminação de desperdícios mentais invisíveis.`,
+        stance: `Resultados extraordinários vêm da repetição disciplinada de princípios simples.`
+      },
+      {
+        id: `sim_nf_3_${Date.now()}`,
+        title: `${mainWord} Sem Segredos`,
+        subtitle: `O guia definitivo e sem enrolação para aplicar na prática tudo o que realmente funciona`,
+        theme: effectiveTheme,
+        category: effectiveTheme,
+        kind: 'nao-ficcao',
+        rationale: `Gancho de clareza e desmistificação que atrai leitores frustrados com teorias vazias.`,
+        hookType: 'promessa-forte',
+        targetBsrEstimate: 3500,
+        uniqueAngle: `Elimina jargões acadêmicos e entrega um checklist direto e executável.`,
+        stance: `Pragmatismo radical: se não puder ser aplicado hoje, não entra nesta obra.`
+      },
+      {
+        id: `sim_nf_4_${Date.now()}`,
+        title: `O Algoritmo de ${mainWord}`,
+        subtitle: `Como reprogramar seus comportamentos diários e blindar sua disciplina contra qualquer recaída`,
+        theme: effectiveTheme,
+        category: effectiveTheme,
+        kind: 'nao-ficcao',
+        rationale: `Gancho moderno de otimização comportamental e consistência sustentável.`,
+        hookType: 'autoridade',
+        targetBsrEstimate: 2900,
+        uniqueAngle: `Gatilhos automáticos projetados para reduzir o esforço cognitivo de começar.`,
+        stance: `Consistência é arquitetura comportamental, não sacrifício ou tortura mental.`
+      }
+    ];
+  }
+
+  /**
    * Gera um título e subtítulo originais inspirados diretamente em um livro de referência concorrente.
-   * Evita a fórmula genérica "O Novo Código de..." e respeita o gênero da obra.
+   * NUNCA produz fórmulas genéricas como "O Novo Código de..." ou concatenações quebradas ("O Efeito O").
    */
   public static generateInspiredFromBook(
     book: Partial<MarketReference> | { title: string; subtitle?: string; bsr?: number; [k: string]: any },
     themeContext?: string
   ): { title: string; subtitle: string; uniqueAngle: string; stance: string; rationale: string } {
     const rawTitle = (book.title || '').trim();
-    const cleanTitle = rawTitle.split(/[:\-\–]/)[0].trim();
-    const context = `${themeContext || ''} ${cleanTitle}`.toLowerCase();
+    const cleanWords = cleanTitleWords(rawTitle);
+    const mainWord = cleanWords[0] || 'Segredo';
+    const context = `${themeContext || ''} ${rawTitle}`.toLowerCase();
+    const isFiction = this.isFictionContext(themeContext || '', '', rawTitle);
 
-    // 1. FICÇÃO / SUSPENSE / THRILLER (ex: Garota Exemplar, A Mulher na Janela, Não Conte a Ninguém)
-    if (/garota|mulher|janela|ninguém|ninguem|assistente|segredo|morte|crime|silêncio|silencio|mentira|caso|psicopata|faca|noite|casa/i.test(context)) {
+    // 1. FICÇÃO / SUSPENSE / THRILLER / ROMANCE
+    if (isFiction) {
       const fictionOptions = [
         {
           title: `A Esposa Perfeita`,
@@ -270,65 +428,59 @@ export class KdpTitleSuggestionEngine {
           subtitle: `Um jogo de gato e rato em alta velocidade onde a única testemunha viva é a principal suspeita`,
           uniqueAngle: `Corrida contra o tempo com ponto de vista alternado entre investigadora e acusada.`,
           stance: `Rejeita maniqueísmos: a linha entre vítima e manipuladora é deliberadamente tênue.`
+        },
+        {
+          title: `O Pacto das Sombras`,
+          subtitle: `Eles juraram guardar o segredo até a morte. Mas o passado sempre encontra uma forma de cobrar o preço.`,
+          uniqueAngle: `Tensão crescente de suspense psicológico com reviravolta dupla no clímax.`,
+          stance: `A desintegração moral de personagens encurralados pela própria culpa.`
         }
       ];
 
-      // Sorteia ou pega baseado no tamanho do título
-      const picked = fictionOptions[Math.abs(cleanTitle.length) % fictionOptions.length];
+      const picked = fictionOptions[Math.abs(rawTitle.length) % fictionOptions.length];
       return {
         ...picked,
-        rationale: `Fórmula de suspense e thriller inspirada no ritmo e tensão de "${cleanTitle}".`
+        rationale: `Fórmula de suspense e thriller inspirada na atmosfera mercadológica de "${rawTitle}".`
       };
     }
 
-    // 2. DESENVOLVIMENTO PESSOAL / HÁBITOS (ex: Hábitos Atômicos, O Poder do Hábito, Essencialismo)
-    if (/hábito|habito|poder|essencial|foco|manhã|manha|milagre|disciplina|rotina|mental|regras|limites/i.test(context)) {
-      const habitOptions = [
-        {
-          title: `Micro-Hábitos de Aço`,
-          subtitle: `O método diário de 1% para reprogramar sua rotina, vencer a procrastinação e blindar sua disciplina`,
-          uniqueAngle: `Sistemas progressivos de baixo atrito baseados em micro-ações acionáveis em menos de 10 minutos.`,
-          stance: `A força de vontade falha quando você está cansado; seu ambiente e rotina devem fazer o trabalho por você.`
-        },
-        {
-          title: `O Poder da Ação Mínima`,
-          subtitle: `Como parar de planejar no papel e começar a executar resultados reais todos os dias`,
-          uniqueAngle: `Fórmula de gatilhos automáticos para eliminar o atrito mental de começar tarefas difíceis.`,
-          stance: `Resultados duradouros não vêm de saltos heróicos, mas da repetição imperceptível e cumulativa.`
-        },
-        {
-          title: `Foco Radical`,
-          subtitle: `A disciplinada arte de dizer não ao que rouba sua energia e executar apenas o que importa`,
-          uniqueAngle: `Eliminação sistemática de distrações corporativas e reorganização de prioridades singulares.`,
-          stance: `Se você não priorizar sua vida, alguém com certeza fará isso por você.`
-        }
-      ];
-
-      const picked = habitOptions[Math.abs(cleanTitle.length) % habitOptions.length];
-      return {
-        ...picked,
-        rationale: `Fórmula de alta conversão para não-ficção e produtividade inspirada em "${cleanTitle}".`
-      };
-    }
-
-    // 3. FINANÇAS / INVESTIMENTOS (ex: Pai Rico, Os Segredos da Mente Milionária, A Psicologia Financeira)
+    // 2. FINANÇAS / INVESTIMENTOS
     if (/rico|milion|dinheiro|invest|finan|patrimonio|lucro|moeda|capital/i.test(context)) {
       return {
         title: `A Máquina de Liberdade Financeira`,
         subtitle: `O mapa definitivo para construir patrimônio previsível e renda passiva partindo do zero`,
         uniqueAngle: `Metodologia de alocação de ativos simples, sem especulação de risco e com foco em dividendos sustentáveis.`,
         stance: `Enriquecimento sustentável é um processo lento, disciplinado e matemático, imune a modismos.`,
-        rationale: `Fórmula de autoridade e segurança patrimonial inspirada em "${cleanTitle}".`
+        rationale: `Fórmula de autoridade e segurança patrimonial inspirada em "${rawTitle}".`
       };
     }
 
-    // 4. PADRÃO ELEGANTE (NÃO REPETITIVO)
+    // 3. DESENVOLVIMENTO PESSOAL / HÁBITOS / PRODUTIVIDADE
+    const habitOptions = [
+      {
+        title: `Micro-Hábitos de Aço`,
+        subtitle: `O método diário de 1% para reprogramar sua rotina, vencer a procrastinação e blindar sua disciplina`,
+        uniqueAngle: `Sistemas progressivos de baixo atrito baseados em micro-ações acionáveis em menos de 10 minutos.`,
+        stance: `A força de vontade falha quando você está cansado; seu ambiente e rotina devem fazer o trabalho por você.`
+      },
+      {
+        title: `O Poder da Ação Mínima`,
+        subtitle: `Como parar de planejar no papel e começar a executar resultados reais todos os dias`,
+        uniqueAngle: `Fórmula de gatilhos automáticos para eliminar o atrito mental de começar tarefas difíceis.`,
+        stance: `Resultados duradouros não vêm de saltos heróicos, mas da repetição imperceptível e cumulativa.`
+      },
+      {
+        title: `Foco Radical`,
+        subtitle: `A disciplinada arte de dizer não ao que rouba sua energia e executar apenas o que importa`,
+        uniqueAngle: `Eliminação sistemática de distrações corporativas e reorganização de prioridades singulares.`,
+        stance: `Se você não priorizar sua vida, alguém com certeza fará isso por você.`
+      }
+    ];
+
+    const picked = habitOptions[Math.abs(rawTitle.length) % habitOptions.length];
     return {
-      title: `O Efeito ${cleanTitle.split(' ')[0] || 'Transformador'}`,
-      subtitle: `Estratégias avançadas e método prático para alcançar resultados superiores com consistência`,
-      uniqueAngle: `Abordagem pragmática que combina conceitos consagrados com execução passo a passo no dia a dia.`,
-      stance: `Esta obra rejeita o conteúdo raso e entrega um roteiro denso e acionável para o leitor.`,
-      rationale: `Direcionamento editorial inspirado nas forças mercadológicas de "${cleanTitle}".`
+      ...picked,
+      rationale: `Fórmula de alta conversão para não-ficção e produtividade inspirada em "${rawTitle}".`
     };
   }
 }

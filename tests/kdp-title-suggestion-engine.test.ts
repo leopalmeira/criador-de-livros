@@ -3,24 +3,35 @@ import { KdpTitleSuggestionEngine } from '../src/services/kdp-title-suggestion-e
 
 describe('KdpTitleSuggestionEngine', () => {
   it('gera sugestões apropriadas para Thriller / Mistério sem fórmulas genéricas de autoajuda', () => {
-    const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme('Thriller psicológico', 'Suspense doméstico');
+    const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme('Thriller psicológico', 'Obsessão');
     expect(suggestions.length).toBeGreaterThan(0);
     expect(suggestions[0].kind).toBe('ficcao');
-    // Não deve conter títulos com 'O Novo Código de'
     suggestions.forEach(s => {
       expect(s.title).not.toContain('O Novo Código de');
+      expect(s.title).not.toBe('O Efeito O');
       expect(s.subtitle).not.toContain('Como alcançar resultados superiores');
     });
   });
 
-  it('descontrói bestsellers de suspense (ex: Garota Exemplar) gerando títulos adequados de thriller', () => {
+  it('gera títulos similares a partir de uma ideia livre digitada pelo usuário', () => {
+    const similar = KdpTitleSuggestionEngine.getSimilarTitles('Obsessão', 'Thriller psicológico', 'Suspense');
+    expect(similar.length).toBeGreaterThanOrEqual(4);
+    expect(similar[0].kind).toBe('ficcao');
+    similar.forEach(s => {
+      expect(s.title.toLowerCase()).toContain('obsessão');
+      expect(s.title).not.toBe('O Efeito O');
+    });
+  });
+
+  it('descontrói bestsellers de suspense sem quebrar palavras curtas como "O"', () => {
     const book = {
-      title: 'Garota Exemplar',
+      title: 'O Colecionador',
       bsr: 12500,
-      author: 'Gillian Flynn'
+      author: 'John Fowles'
     };
     const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook(book, 'Thriller psicológico');
     expect(inspired.title).toBeDefined();
+    expect(inspired.title).not.toBe('O Efeito O');
     expect(inspired.title).not.toContain('O Novo Código de');
     expect(inspired.subtitle).toBeDefined();
     expect(inspired.uniqueAngle).toBeDefined();
@@ -46,7 +57,7 @@ describe('KdpTitleSuggestionEngine', () => {
     };
     const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook(book, 'Desenvolvimento Pessoal');
     expect(inspired.title).not.toContain('O Novo Código de');
+    expect(inspired.title).not.toBe('O Efeito O');
     expect(inspired.uniqueAngle).toBeDefined();
   });
 });
-

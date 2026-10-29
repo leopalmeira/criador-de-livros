@@ -566,6 +566,24 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [segmentCategoryFilter, setSegmentCategoryFilter] = useState<string>('all');
   const [segmentSearchQuery, setSegmentSearchQuery] = useState<string>('');
 
+  const [isGeneratingSimilares, setIsGeneratingSimilares] = useState(false);
+
+  // Gera títulos similares a partir do que o usuário digitou ou da ideia central
+  const handleGerarTitulosSimilares = (baseText?: string) => {
+    setIsGeneratingSimilares(true);
+    try {
+      const query = baseText || titulo || subtemaSelecionado || temaSelecionado || genero;
+      const similares = KdpTitleSuggestionEngine.getSimilarTitles(query, temaSelecionado || genero, subtemaSelecionado);
+      setSuggestedTitlesList(similares);
+      setStatusMsg(`✓ ${similares.length} sugestões de títulos similares geradas com base em "${query}"!`);
+      setStatusType('ok');
+    } catch (err) {
+      console.error('Erro ao gerar títulos similares:', err);
+    } finally {
+      setIsGeneratingSimilares(false);
+    }
+  };
+
   // Sugestões Contextualizadas de Título & Subtítulo por Segmento KDP
   const [suggestedTitlesList, setSuggestedTitlesList] = useState<TitleSuggestion[]>(() =>
     KdpTitleSuggestionEngine.getSuggestionsForTheme('Desenvolvimento Pessoal', 'Hábitos e disciplina', [])
@@ -1424,7 +1442,8 @@ Regras Absolutas:
     const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme(segName, seg?.dominantHook, mappedRefs);
     setSuggestedTitlesList(suggestions);
 
-    if (suggestions.length > 0 && (!titulo.trim() || titulo.startsWith('O Novo Código de') || titulo.startsWith('O Guia Definitivo de'))) {
+    // Não sobrescreve se o usuário já estiver digitando ou se for fórmula antiga
+    if (suggestions.length > 0 && (!titulo.trim() || titulo.startsWith('O Novo Código de') || titulo.startsWith('O Guia Definitivo de') || titulo === 'O Efeito O')) {
       setTitulo(suggestions[0].title);
       setSubtitulo(suggestions[0].subtitle);
       setUniqueAngle(suggestions[0].uniqueAngle);
@@ -5272,7 +5291,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   </label>
                   <select
                     value={subtemaSelecionado}
-                    onChange={(e) => setSubtemaSelecionado(e.target.value)}
+                    onChange={(e) => {
+                      const newSub = e.target.value;
+                      setSubtemaSelecionado(newSub);
+                      const fresh = KdpTitleSuggestionEngine.getSimilarTitles(newSub, temaSelecionado || genero, newSub);
+                      setSuggestedTitlesList(fresh);
+                    }}
                     style={{
                       width: '100%',
                       padding: '6px 10px',
@@ -5321,94 +5345,227 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               )}
             </div>
 
-            {/* SUGESTÕES DINÂMICAS DE TÍTULOS COMERCIAIS PARA O TEMA SELECIONADO */}
-            {suggestedTitlesList.length > 0 && (
-              <div style={{ marginTop: 10, marginBottom: 12, padding: '10px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <Sparkles size={13} color="#16a34a" /> Títulos & Subtítulos Recomendados ({temaSelecionado || genero})
-                  </span>
-                  <span style={{ fontSize: 9.5, color: '#15803d', background: '#dcfce7', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>
-                    BSR &lt; 80.000
-                  </span>
+            {/* 1.1 TÍTULO & SUBTÍTULO LIVRES COM SUGESTÕES SIMILARES */}
+            <div style={{
+              marginBottom: 12,
+              background: '#ffffff',
+              padding: 14,
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
+                <div>
+                  <label style={{ fontSize: 12.5, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Sparkles size={14} color="#0284c7" />
+                    <span>1.1 Título & Subtítulo da Obra (Livre Escolha & Personalização Total)</span>
+                  </label>
+                  <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0', lineHeight: 1.3 }}>
+                    Você é <b>100% livre</b> para digitar o título que quiser ou usar as sugestões similares abaixo como inspiração para editar.
+                  </p>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
-                  {suggestedTitlesList.slice(0, 4).map((sug, i) => {
-                    const isCur = titulo === sug.title;
-                    return (
-                      <div
-                        key={i}
-                        style={{
-                          background: isCur ? '#ffffff' : '#f8fafc',
-                          border: isCur ? '2px solid #10b981' : '1px solid #cbd5e1',
-                          borderRadius: 6,
-                          padding: '8px 10px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between',
-                          gap: 6
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#0369a1', background: '#e0f2fe', padding: '1px 5px', borderRadius: 3 }}>
-                              {sug.hookType}
-                            </span>
-                            <span style={{ fontSize: 9, color: '#059669', fontWeight: 700 }}>
-                              ~BSR #{sug.targetBsrEstimate.toLocaleString('pt-BR')}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', lineHeight: 1.25 }}>
-                            {sug.title}
-                          </div>
-                          <div style={{ fontSize: 10, color: '#475569', marginTop: 2, lineHeight: 1.3 }}>
-                            {sug.subtitle}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectSuggestedTitle(sug, false)}
-                            style={{
-                              flex: 1,
-                              padding: '4px 6px',
-                              background: isCur ? '#10b981' : '#ffffff',
-                              color: isCur ? '#ffffff' : '#0f172a',
-                              border: isCur ? '1px solid #059669' : '1px solid #cbd5e1',
-                              borderRadius: 4,
-                              fontSize: 10,
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {isCur ? '✓ Selecionado' : 'Usar Título'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectSuggestedTitle(sug, true)}
-                            style={{
-                              padding: '4px 8px',
-                              background: '#0f172a',
-                              color: '#ffffff',
-                              border: 'none',
-                              borderRadius: 4,
-                              fontSize: 10,
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 2
-                            }}
-                          >
-                            Avançar →
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleGerarTitulosSimilares(titulo || subtemaSelecionado || temaSelecionado)}
+                    disabled={isGeneratingSimilares}
+                    style={{
+                      background: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: 6,
+                      padding: '4px 10px',
+                      color: '#1d4ed8',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <RefreshCw size={11} className={isGeneratingSimilares ? 'spin' : ''} />
+                    {isGeneratingSimilares ? 'Gerando...' : '💡 Sugerir Mais Similares'}
+                  </button>
+                  {(titulo || subtitulo) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTitulo('');
+                        setSubtitulo('');
+                      }}
+                      style={{
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 6,
+                        padding: '4px 8px',
+                        color: '#dc2626',
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Limpar
+                    </button>
+                  )}
                 </div>
               </div>
-            )}
+
+              {/* CAMPO DE DIGITAÇÃO LIVRE DO TÍTULO */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#334155' }}>
+                    Título Principal da Obra:
+                  </label>
+                  <span style={{ fontSize: 10.5, color: '#64748b' }}>
+                    {titulo.length} caracteres
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  placeholder="Digite o título que você quiser (ex: O Preço da Obsessão, A Esposa de Vidro, etc.)..."
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    border: '1.5px solid #94a3b8',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    background: '#ffffff',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* CAMPO DE DIGITAÇÃO LIVRE DO SUBTÍTULO */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#334155' }}>
+                    Subtítulo Comercial da Obra (Opcional):
+                  </label>
+                  <span style={{ fontSize: 10.5, color: '#64748b' }}>
+                    {subtitulo.length} caracteres
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={subtitulo}
+                  onChange={(e) => setSubtitulo(e.target.value)}
+                  placeholder="Digite o subtítulo que você quiser ou personalize uma das sugestões abaixo..."
+                  style={{
+                    width: '100%',
+                    padding: '7px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    color: '#334155',
+                    background: '#ffffff',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* SUGESTÕES DE TÍTULOS SIMILARES & INSPIRAÇÃO (NÃO OBRIGATÓRIAS) */}
+              {suggestedTitlesList.length > 0 && (
+                <div style={{ background: '#f8fafc', padding: 10, borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Sparkles size={12} color="#0284c7" />
+                      Sugestões de Títulos Similares & Comerciais (Clique para preencher e editar livremente):
+                    </span>
+                    <span style={{ fontSize: 9.5, color: '#059669', background: '#ecfdf5', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                      BSR &lt; 80.000
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+                    {suggestedTitlesList.slice(0, 4).map((sug, i) => {
+                      const isCur = titulo === sug.title;
+                      return (
+                        <div
+                          key={i}
+                          style={{
+                            background: isCur ? '#f0fdf4' : '#ffffff',
+                            border: isCur ? '2px solid #10b981' : '1px solid #cbd5e1',
+                            borderRadius: 6,
+                            padding: '8px 10px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: 6
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                              <span style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', color: '#0369a1', background: '#e0f2fe', padding: '1px 5px', borderRadius: 3 }}>
+                                {sug.hookType}
+                              </span>
+                              <span style={{ fontSize: 9, color: '#059669', fontWeight: 700 }}>
+                                ~BSR #{sug.targetBsrEstimate.toLocaleString('pt-BR')}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11.5, fontWeight: 800, color: '#0f172a', lineHeight: 1.25 }}>
+                              {sug.title}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#475569', marginTop: 2, lineHeight: 1.3 }}>
+                              {sug.subtitle}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTitulo(sug.title);
+                                setSubtitulo(sug.subtitle);
+                                if (sug.uniqueAngle) setUniqueAngle(sug.uniqueAngle);
+                                if (sug.stance) setStanceTopic(sug.stance);
+                                setStatusMsg(`✓ Título e subtítulo aplicados: "${sug.title}" (Você pode editar livremente!)`);
+                                setStatusType('ok');
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '4px 6px',
+                                background: isCur ? '#10b981' : '#f8fafc',
+                                color: isCur ? '#ffffff' : '#0f172a',
+                                border: isCur ? '1px solid #059669' : '1px solid #cbd5e1',
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {isCur ? '✓ No Campo' : 'Preencher Campo'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectSuggestedTitle(sug, true)}
+                              style={{
+                                padding: '4px 8px',
+                                background: '#0f172a',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2
+                              }}
+                            >
+                              Avançar →
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* NOVO CAMPO COAUTHOR: POSICIONAMENTO / TESE FORTE SOBRE O TEMA (STANCE ON THE TOPIC) */}
             <div style={{ marginBottom: 12, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
