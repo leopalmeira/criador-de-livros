@@ -53,7 +53,7 @@ export class CoverPromptEngine {
       }
 
       case 'midjourney': {
-        const positivePrompt = `editorial book cover art, ${baseSubject}, aesthetic mastery, editorial prestige, cinematic 35mm photography, subtle golden ratio framing, elegant negative space for typography, hyper-detailed lighting --ar 2:3 --v 6.1 --style raw --stylize 250 --no text letters typography signature watermark bestseller badge sticker`;
+        const positivePrompt = `editorial book cover art, ${baseSubject}, aesthetic mastery, editorial prestige, cinematic 35mm photography, subtle golden ratio framing, elegant negative space for typography, hyper-detailed lighting --ar 2:3 --v 6.1 --style raw --stylize 250 --no text letters typography signature watermark bestseller badge sticker barcode white box white rectangle blank box qr code cutout`;
         const negativePrompt = `text, letters, typography, signature, watermark, bestseller badge, sticker, ribbon, amateur, low quality, blurred`;
         const parameters = `--ar 2:3 --v 6.1 --style raw --stylize 250`;
         return {
@@ -68,7 +68,7 @@ export class CoverPromptEngine {
       }
 
       case 'flux-1': {
-        const positivePrompt = `cinematic hyper-detailed book cover art representing "${cleanTopic}", ${baseSubject}, 8k UHD, prestigious photography, rich chiaroscuro contrast, clean vertical editorial framing, atmospheric haze, volumetric lighting, photorealistic textures, zero text, blank space at top, no bestseller badge`;
+        const positivePrompt = `cinematic hyper-detailed book cover art representing "${cleanTopic}", ${baseSubject}, 8k UHD, prestigious photography, rich chiaroscuro contrast, clean vertical editorial framing, atmospheric haze, volumetric lighting, photorealistic textures, zero text, clean dark atmospheric tonal zone at top, no bestseller badge, no white box, full bleed`;
         const negativePrompt = `text, watermarks, signatures, fonts, bestseller badge, ribbons, low resolution, deformed, bad composition`;
         const parameters = `width: 1024, height: 1536, steps: 30, guidance: 4.5, model: flux-schnell/dev`;
         return {
@@ -83,8 +83,8 @@ export class CoverPromptEngine {
       }
 
       case 'sdxl-comfy': {
-        const positivePrompt = `masterpiece, (best quality:1.2), hyper-detailed, prestigious book cover art, ${baseSubject}, editorial style, highly detailed textures, dramatic lighting, sharp focus, 8k resolution, (empty space for title:1.1), negative space, cinematic, no text, no bestseller badge`;
-        const negativePrompt = `(worst quality, low quality:1.4), (text, font, letters, watermark, signature, bestseller badge, ribbon:1.5), deformed, bad hands, blurry, out of frame, cropped`;
+        const positivePrompt = `masterpiece, (best quality:1.2), hyper-detailed, prestigious book cover art, ${baseSubject}, editorial style, highly detailed textures, dramatic lighting, sharp focus, 8k resolution, (clean dark atmospheric zone for title:1.1), negative space, cinematic, no text, no bestseller badge, full bleed`;
+        const negativePrompt = `(worst quality, low quality:1.4), (barcode, barcode box, white box, white rectangle, blank box, qr code:1.5), (text, font, letters, watermark, signature, bestseller badge, ribbon:1.5), deformed, bad hands, blurry, out of frame, cropped`;
         const parameters = `CFG: 7.0, Sampler: DPM++ 2M Karras, Steps: 32, Resolution: 896x1344`;
         return {
           engine: 'sdxl-comfy',
@@ -99,8 +99,8 @@ export class CoverPromptEngine {
 
       case 'dalle-3':
       default: {
-        const positivePrompt = `An elegant and striking vertical book cover background for a prestigious book about "${cleanTopic}". The composition features ${baseSubject}. The artwork uses dramatic, refined lighting, pristine digital art with no text, letters, words, or bestseller badges anywhere on the image. High contrast with intentional negative space in the upper third to allow placement of title typography.`;
-        const negativePrompt = `Do not include any text, typography, title letters, author names, bestseller badge, ribbons, or watermarks.`;
+        const positivePrompt = `An elegant and striking vertical book cover background for a prestigious book about "${cleanTopic}". The composition features ${baseSubject}. The artwork uses dramatic, refined lighting, pristine digital art with no text, letters, words, or bestseller badges anywhere on the image. High contrast with intentional atmospheric zone in the upper third to allow placement of title typography. No barcode, no white box, no blank rectangle, edge-to-edge illustration.`;
+        const negativePrompt = `Do not include any barcode, barcode box, white box, white rectangle, blank box, qr code, cutout, text, typography, title letters, author names, bestseller badge, ribbons, or watermarks.`;
         const parameters = `size: 1024x1792, quality: hd, style: natural`;
         return {
           engine: 'dalle-3',

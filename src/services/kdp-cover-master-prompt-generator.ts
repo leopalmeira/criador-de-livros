@@ -367,7 +367,8 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
     `- Author Name (bottom baseline): "${autor}" in distinguished small caps.`,
     `Scene & Environment: ${composicaoFundo}`,
     `Lighting & Color Grade: ${iluminacaoCenica} Palette: ${paletaCoresSugerida.join(', ')}.`,
-    `Technical Directives: 80mm medium-format lens, subtle 35mm film grain, minimum 0.25-inch safe margin from edges for all text, 0.125-inch full bleed background extension, zero 3D book mockup, zero extra random words, ultra-sharp commercial publishing finish.`
+    `Technical Directives: 80mm medium-format lens, subtle 35mm film grain, minimum 0.25-inch safe margin from edges for all text, 0.125-inch full bleed background extension, zero 3D book mockup, zero extra random words, ultra-sharp commercial publishing finish.`,
+    `MANDATORY NEGATIVE RULES: NO BARCODE, NO QR CODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT, NO STICKER, NO EMPTY WHITE SPACE. Full-bleed continuous artwork edge-to-edge. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square`
   ].join('\n\n');
 
   const secao6_Diretrizes = isEn
@@ -418,9 +419,9 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
     `- Back Cover Brief Reading / Synopsis Block (centered in a clean, high-contrast typographic zone with generous 12.7mm outer safe margins, set in crisp readable editorial serif/sans-serif):`,
     `"${leituraContracapa.corpoSinopse.replace(/\n+/g, ' ')}"`,
     `- Back Cover Closing Editorial Line: "${leituraContracapa.chamadaFinal}"`,
-    `- Continuous Artwork on Back Cover: Clean seamless background without artificial white boxes or placeholder cutouts.`,
+    `- 100% Full-Bleed Artwork on Back Cover: Continuous, edge-to-edge textured background filling every corner and extending fully to the bottom and side borders.`,
     `Color Palette Unifying Front, Spine & Back: ${paletaCoresSugerida.join(', ')}.`,
-    `Strict Technical Print Rules: Flat 2D full-bleed press sheet (0.125-inch / 3.2mm outer bleed on all 4 sides), zero 3D perspective distortion, zero background room/table mockup, crisp legible typography, 8k editorial print production quality.`
+    `MANDATORY STRICT PROHIBITIONS & NEGATIVE RULES: ABSOLUTELY NO BARCODE, NO BARCODE BOX, NO BARCODE RECTANGLE, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO BLANK SPACE, NO PLACEHOLDER RECTANGLE, NO CUTOUT, NO STICKER, NO WHITE SQUARE, NO BLANK AREA FOR BARCODE. The artwork, rich scenery, and dark background textures must cover 100% of the back cover right to the bottom edge without any empty white rectangles or blank cutouts. Amazon KDP stamps the barcode automatically during physical printing. Zero 3D perspective distortion, zero background room/table mockup, flat 2D press sheet, 8k editorial print production quality. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square`
   ].join('\n\n');
 
   const promptContracapaIsoladaMotorIa = [
@@ -431,8 +432,9 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
     `- Top Hook Headline (upper zone, bold accent lettering): "${leituraContracapa.ganchoTopo}"`,
     `- Central Brief Reading / Synopsis Text (middle zone, clean high-contrast editorial typography over a softly darkened atmospheric area): "${leituraContracapa.corpoSinopse.replace(/\n+/g, ' ')}"`,
     `- Closing Editorial Note (below synopsis): "${leituraContracapa.chamadaFinal}"`,
-    `- Clean Artwork Distribution: Full rich atmospheric illustration flowing across the whole surface without blank cutouts or artificial white boxes.`,
-    `Technical Directives: 100% visual continuity with the front cover's lighting (${iluminacaoCenica}), 0.25-inch inner text safety margin, 0.125-inch full bleed, flat 2D print-ready back cover, no 3D mockup.`
+    `- 100% Continuous Illustrated Surface: Full rich atmospheric illustration flowing across the whole surface edge-to-edge.`,
+    `Technical Directives: 100% visual continuity with the front cover's lighting (${iluminacaoCenica}), 0.25-inch inner text safety margin, 0.125-inch full bleed, flat 2D print-ready back cover, no 3D mockup.`,
+    `MANDATORY STRICT NEGATIVE PROHIBITIONS: ABSOLUTELY NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO BLANK SPACE, NO PLACEHOLDER RECTANGLE, NO WHITE SQUARE, NO EMPTY WHITE SPACE. The illustration and textured background must extend 100% edge-to-edge across the entire back cover right to the bottom and corners without any empty cutout or white frame. Amazon KDP stamps the barcode during physical printing. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square`
   ].join('\n\n');
 
   const promptCapaEContracapaCompleto = isEn
@@ -469,6 +471,7 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
         `- **Bleed (Sangria)**: 0.125 in (3.2 mm) continuous artwork extension beyond all four outer trim edges.`,
         `- **Safe Margin (Margem de Segurança)**: Minimum 0.25 in (6.4 mm) to 0.5 in (12.7 mm) inside trim lines for all text and critical elements.`,
         `- **Format**: Flat 2D full-bleed press layout (no 3D mockups, no watermarks, no random text).`,
+        `- **Mandatory Negative Prohibition**: ABSOLUTELY NO BARCODES, NO BARCODE BOXES, NO WHITE BOXES, NO WHITE RECTANGLES, NO BLANK BOXES, NO PLACEHOLDER RECTANGLES. 100% full continuous background illustration across the entire back cover.`,
         ``,
         `### 5. AI ENGINE PROMPT — FULL WRAPAROUND SPREAD (FRONT + SPINE + BACK COVER TOGETHER)`,
         `\`\`\`text\n${promptCapaEContracapaMotorIa}\n\`\`\``,
@@ -509,7 +512,7 @@ ${paletaCoresSugerida.map(c => `  • ${c}`).join('\n')}
         `- **Formato Padrão de Impressão (Fechado)**: 15,24 x 22,86 cm (6 x 9 pol) a 300 DPI reais.`,
         `- **Formato da Planilha Aberta (Spread Completo com Sangria)**: ~32,5 x 23,5 cm (Contracapa + Lombada proporcional ao número de páginas + Capa Frontal + 3,2 mm de sangria externa em todos os 4 lados).`,
         `- **Margem Interna de Segurança**: Mínimo de 6,4 mm (0.25 pol) a 12,7 mm (0.5 pol) a partir da linha de refilo para qualquer texto, garantindo corte perfeito sem perda de letras.`,
-        `- **Regras Negativas Estritas**: Arte 2D plana aberta pronta para gráfica, sem mockup 3D inclinado, sem marcas d'água, sem selos falsos, sem palavras deformadas.`,
+        `- **Regras Negativas Estritas (REGRA DE OURO)**: É TERMINANTEMENTE PROIBIDO DESENHAR CÓDIGO DE BARRAS, CAIXA BRANCA, RETÂNGULO VAZIO, ESPAÇO EM BRANCO OU RECORTE NA CONTRACAPA OU NA CAPA. A arte cenográfica e a textura devem cobrir 100% de toda a área até a linha de corte. A Amazon KDP estampa o código de barras oficial automaticamente por cima da arte na impressão física. Arte 2D plana aberta pronta para gráfica, sem mockup 3D inclinado, sem marcas d'água, sem selos falsos.`,
         ``,
         `### 5. PROMPT PARA MOTOR DE IA — CAPA COMPLETA ABERTA (CAPA + LOMBADA + CONTRACAPA JUNTAS)`,
         `\`\`\`text\n${promptCapaEContracapaMotorIa}\n\`\`\``,

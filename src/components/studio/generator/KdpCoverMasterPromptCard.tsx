@@ -295,6 +295,29 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
         </button>
       </div>
 
+      {/* REGRA OBRIGATÓRIA: PROIBIÇÃO DE CÓDIGO DE BARRAS E CAIXA BRANCA NOS PROMPTS */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          background: 'rgba(16, 185, 129, 0.12)',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
+          borderRadius: 8,
+          padding: '8px 14px',
+          fontSize: 11.5,
+          color: '#a7f3d0',
+          lineHeight: 1.45,
+          marginTop: 8,
+          marginBottom: isExpanded ? 8 : 0
+        }}
+      >
+        <span style={{ fontSize: 16 }}>🛡️</span>
+        <div>
+          <b style={{ color: '#ffffff' }}>Regra Obrigatória nos Prompts:</b> A arte da capa e da contracapa preenche 100% da superfície de ponta a ponta sem caixas brancas nem código de barras. Parâmetros negativos estritos (<code>--no barcode white box blank rectangle</code>) estão ativados nos prompts de IA para impedir retângulos brancos ou vazios.
+        </div>
+      </div>
+
       {/* CONTEÚDO EXPANDIDO */}
       {isExpanded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>

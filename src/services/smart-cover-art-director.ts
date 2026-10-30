@@ -428,7 +428,7 @@ export class SmartCoverArtDirector {
 
     const fullVisualPrompt = `Award-winning commercial book cover artwork for "${params.title}". ${chosenScene.prompt}. Composition: ${chosenScene.framing}, camera perspective: ${chosenScene.cameraAngle}, lighting: ${chosenScene.lighting}. Clean upper and lower zones for professional typography. High visual contrast, premium cinematic aesthetic, 8k resolution, professional technical execution. NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO BADGES, NO LOGOS, NO WATERMARKS.`;
 
-    const negativePrompt = 'text, letters, typography, words, watermark, logos, blurry, low quality, distorted anatomy, deformed hands, extra fingers, generic stock clip-art, oversaturated amateur illustration';
+    const negativePrompt = 'barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, cutout, text, letters, typography, words, watermark, logos, blurry, low quality, distorted anatomy, deformed hands, extra fingers, generic stock clip-art, oversaturated amateur illustration';
 
     return {
       bookId: params.bookId,

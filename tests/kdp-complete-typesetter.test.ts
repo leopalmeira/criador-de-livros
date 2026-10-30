@@ -66,3 +66,4 @@ describe('KdpCompleteTypesetter — Diagramação Completa Página por Página',
     expect(pag1.status).toBe('diagramada_alinhada');
   });
 });
+
