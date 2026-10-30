@@ -35,6 +35,12 @@ import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrit
 import type { FinalBookRecord } from '../../../types/editorial-correction';
 import { newId } from '../../../services/project-state';
 import { BOOK_THEMES, getTheme, isChildrenTheme, type BookTheme } from '../../../data/book-themes';
+import {
+  KdpTrueCrimeRoyalHistoryService,
+  type CrimeRealCaso,
+  type HistoriaReiCaso,
+  type CuriosidadeItem
+} from '../../../services/kdp-true-crime-royal-history-service';
 import { AGE_BANDS, type AgeBandId, validateAgeRequirement, buildAgeDirective } from '../../../services/age-engine';
 import { researchMarket, pickReferences, describeRank, displayField, DATA_UNAVAILABLE, type MarketReference } from '../../../services/market-intel';
 import { AmazonLiveService } from '../../../services/amazon-live-service';
@@ -607,6 +613,27 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [authorAchievements, setAuthorAchievements] = useState('');
   const [authorStyleInspiration, setAuthorStyleInspiration] = useState('');
   const [authorOfficialBio, setAuthorOfficialBio] = useState('');
+  // Estados para Pesquisa Factual de Crimes Reais & História de Reis (Google / IA)
+  const [trueCrimePais, setTrueCrimePais] = useState('Brasil');
+  const [trueCrimeAno, setTrueCrimeAno] = useState('1992');
+  const [trueCrimeCasos, setTrueCrimeCasos] = useState<CrimeRealCaso[]>([]);
+  const [buscandoTrueCrime, setBuscandoTrueCrime] = useState(false);
+  const [expandedCrimeId, setExpandedCrimeId] = useState<string | null>(null);
+
+  const [royalReino, setRoyalReino] = useState('Inglaterra / Grã-Bretanha');
+  const [royalEpoca, setRoyalEpoca] = useState('Século XVI');
+  const [royalCasos, setRoyalCasos] = useState<HistoriaReiCaso[]>([]);
+  const [buscandoRoyal, setBuscandoRoyal] = useState(false);
+  const [expandedRoyalId, setExpandedRoyalId] = useState<string | null>(null);
+
+  // Estados para Almanaque de Curiosidades e Fatos Surpreendentes
+  const [curioSobreOQue, setCurioSobreOQue] = useState('Coisas mais estranhas e fatos inacreditáveis do mundo');
+  const [curioPaisRegiao, setCurioPaisRegiao] = useState('Global / Mundo Todo');
+  const [curioQuantidade, setCurioQuantidade] = useState<number>(50);
+  const [curioItens, setCurioItens] = useState<CuriosidadeItem[]>([]);
+  const [buscandoCurio, setBuscandoCurio] = useState(false);
+  const [expandedCurioId, setExpandedCurioId] = useState<string | null>(null);
+
   const [focusTags, setFocusTags] = useState<string[]>([]);
   const [customFocusTag, setCustomFocusTag] = useState('');
   const [proposedBookSummary, setProposedBookSummary] = useState('');
@@ -653,6 +680,164 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [tikTokChapterIndex, setTikTokChapterIndex] = useState(0);
   const [isEditingManuscriptInline, setIsEditingManuscriptInline] = useState(false);
   const [isChapterBgmPlaying, setIsChapterBgmPlaying] = useState(false);
+
+  // ─── GESTÃO DE CRIMES REAIS DE GRANDE REPERCUSSÃO ───
+  const handleBuscarCrimesReais = async () => {
+    setBuscandoTrueCrime(true);
+    setStatusMsg(`🔍 Pesquisando crimes reais de grande repercussão em ${trueCrimePais} (${trueCrimeAno})...`);
+    setStatusType('normal');
+    try {
+      const casos = await KdpTrueCrimeRoyalHistoryService.buscarCrimesReais({
+        pais: trueCrimePais,
+        anoOuPeriodo: trueCrimeAno,
+        idioma,
+        chamarAiFn: (p, opt) => chamarGeminiTexto(p, opt)
+      });
+      setTrueCrimeCasos(casos);
+      setStatusMsg(`✓ ${casos.length} crimes reais emblemáticos encontrados com artigos completos!`);
+      setStatusType('ok');
+    } catch (err: any) {
+      setStatusMsg(`Erro na busca de crimes reais: ${err?.message || 'Tente novamente.'}`);
+      setStatusType('error');
+    } finally {
+      setBuscandoTrueCrime(false);
+    }
+  };
+
+  const handleToggleSelectCrime = (id: string) => {
+    setTrueCrimeCasos(prev => prev.map(c => c.id === id ? { ...c, selecionadoParaLivro: !c.selecionadoParaLivro } : c));
+  };
+
+  const handleComporLivroComCrimes = () => {
+    const selecionados = trueCrimeCasos.filter(c => c.selecionadoParaLivro);
+    if (selecionados.length === 0) {
+      alert('Por favor, marque ao menos 1 caso real para compor o livro.');
+      return;
+    }
+    const props = KdpTrueCrimeRoyalHistoryService.comporLivroCrimes({
+      casos: selecionados,
+      pais: trueCrimePais,
+      anoOuPeriodo: trueCrimeAno,
+      idioma,
+      autor
+    });
+
+    setTitulo(props.tituloSugerido);
+    setSubtitulo(props.subtituloSugerido);
+    setUniqueAngle(props.premissaCentral);
+    setStanceTopic(props.premissaCentral);
+    setTopico(props.topicoDescricao);
+    setResourceNotes(prev => (prev ? `${prev}\n\n${props.dossieArtigosConsolidado}` : props.dossieArtigosConsolidado));
+    setVariedOutlinePreview(props.capitulosSugeridos as any);
+    setStatusMsg(`✓ Livro estruturado com ${selecionados.length} crimes reais selecionados!`);
+    setStatusType('ok');
+  };
+
+  // ─── GESTÃO DE HISTÓRIA DE REIS E DINASTIAS ───
+  const handleBuscarHistoriaReis = async () => {
+    setBuscandoRoyal(true);
+    setStatusMsg(`👑 Pesquisando soberanos e crônicas reais em ${royalReino} (${royalEpoca})...`);
+    setStatusType('normal');
+    try {
+      const casos = await KdpTrueCrimeRoyalHistoryService.buscarHistoriaReis({
+        reinoOuPais: royalReino,
+        epocaOuSeculo: royalEpoca,
+        idioma,
+        chamarAiFn: (p, opt) => chamarGeminiTexto(p, opt)
+      });
+      setRoyalCasos(casos);
+      setStatusMsg(`✓ ${casos.length} monarcas e reinados encontrados com artigos completos!`);
+      setStatusType('ok');
+    } catch (err: any) {
+      setStatusMsg(`Erro na pesquisa histórica: ${err?.message || 'Tente novamente.'}`);
+      setStatusType('error');
+    } finally {
+      setBuscandoRoyal(false);
+    }
+  };
+
+  const handleToggleSelectRei = (id: string) => {
+    setRoyalCasos(prev => prev.map(r => r.id === id ? { ...r, selecionadoParaLivro: !r.selecionadoParaLivro } : r));
+  };
+
+  // ─── GESTÃO DO ALMANAQUE DE CURIOSIDADES E FATOS SURPREENDENTES ───
+  const handleBuscarCuriosidades = async () => {
+    setBuscandoCurio(true);
+    setStatusMsg(`🧠 Pesquisando curiosidades fascinantes sobre "${curioSobreOQue}" em ${curioPaisRegiao}...`);
+    setStatusType('normal');
+    try {
+      const itens = await KdpTrueCrimeRoyalHistoryService.buscarCuriosidades({
+        sobreOQue: curioSobreOQue,
+        paisOuRegiao: curioPaisRegiao,
+        quantidade: Math.min(20, curioQuantidade),
+        idioma,
+        chamarAiFn: (p, opt) => chamarGeminiTexto(p, opt)
+      });
+      setCurioItens(itens);
+      setStatusMsg(`✓ ${itens.length} fatos fascinantes e curiosidades verificadas encontradas!`);
+      setStatusType('ok');
+    } catch (err: any) {
+      setStatusMsg(`Erro na pesquisa de curiosidades: ${err?.message || 'Tente novamente.'}`);
+      setStatusType('error');
+    } finally {
+      setBuscandoCurio(false);
+    }
+  };
+
+  const handleToggleSelectCurio = (id: string) => {
+    setCurioItens(prev => prev.map(item => item.id === id ? { ...item, selecionadoParaLivro: !item.selecionadoParaLivro } : item));
+  };
+
+  const handleComporLivroComCuriosidades = () => {
+    const selecionados = curioItens.filter(item => item.selecionadoParaLivro);
+    if (selecionados.length === 0) {
+      alert('Por favor, selecione ao menos 1 curiosidade para compor o livro.');
+      return;
+    }
+    const props = KdpTrueCrimeRoyalHistoryService.comporLivroCuriosidades({
+      curiosidades: selecionados,
+      sobreOQue: curioSobreOQue,
+      paisOuRegiao: curioPaisRegiao,
+      quantidadeTotal: curioQuantidade || 50,
+      idioma,
+      autor
+    });
+
+    setTitulo(props.tituloSugerido);
+    setSubtitulo(props.subtituloSugerido);
+    setUniqueAngle(props.premissaCentral);
+    setStanceTopic(props.premissaCentral);
+    setTopico(props.topicoDescricao);
+    setResourceNotes(prev => (prev ? `${prev}\n\n${props.dossieArtigosConsolidado}` : props.dossieArtigosConsolidado));
+    setVariedOutlinePreview(props.capitulosSugeridos as any);
+    setStatusMsg(`✓ Livro de curiosidades estruturado com ${selecionados.length} fatos verificados!`);
+    setStatusType('ok');
+  };
+
+  const handleComporLivroComReis = () => {
+    const selecionados = royalCasos.filter(r => r.selecionadoParaLivro);
+    if (selecionados.length === 0) {
+      alert('Por favor, marque ao menos 1 monarca ou reinado para compor o livro.');
+      return;
+    }
+    const props = KdpTrueCrimeRoyalHistoryService.comporLivroReis({
+      casos: selecionados,
+      reinoOuPais: royalReino,
+      epocaOuSeculo: royalEpoca,
+      idioma,
+      autor
+    });
+
+    setTitulo(props.tituloSugerido);
+    setSubtitulo(props.subtituloSugerido);
+    setUniqueAngle(props.premissaCentral);
+    setStanceTopic(props.premissaCentral);
+    setTopico(props.topicoDescricao);
+    setResourceNotes(prev => (prev ? `${prev}\n\n${props.dossieArtigosConsolidado}` : props.dossieArtigosConsolidado));
+    setVariedOutlinePreview(props.capitulosSugeridos as any);
+    setStatusMsg(`✓ Livro estruturado com ${selecionados.length} reinados históricos selecionados!`);
+    setStatusType('ok');
+  };
 
   const handleToggleChapterBgm = () => {
     if (isChapterBgmPlaying) {
@@ -6024,6 +6209,729 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 </div>
               </div>
             </div>
+
+            {/* IDENTIFICAÇÃO DE GÊNEROS INVESTIGATIVOS ESPECIAIS */}
+            {(() => {
+              const fullTheme = `${temaSelecionado} ${genero} ${subtemaSelecionado}`.toLowerCase();
+              const isTrueCrimeTheme = /crimes?\s*reais?|true\s*crime|caso.*criminal/i.test(fullTheme);
+              const isRoyalHistoryTheme = /hist[oó]ria\s*de\s*reis|monarquia|dinastia|reis.*rainhas/i.test(fullTheme);
+              const isCuriositiesTheme = /curiosidade|fatos?\s*surpreendente|trivia|almanaque|coisas?\s*estranhas?/i.test(fullTheme);
+
+              return (
+                <>
+                  {/* ═══════ PAINEL ESPECIAL DE CRIMES REAIS DE GRANDE REPERCUSSÃO ═══════ */}
+                  {isTrueCrimeTheme && (
+                    <div style={{
+                      marginBottom: 14,
+                      background: '#090d16',
+                      color: '#f8fafc',
+                      padding: 16,
+                      borderRadius: 10,
+                      border: '1.5px solid #dc2626',
+                      boxShadow: '0 8px 24px rgba(220, 38, 38, 0.15)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 800, color: '#fca5a5' }}>
+                            <span>🕵️‍♂️ Investigador de Crimes Reais de Grande Repercussão (Dossiê Factual & Google)</span>
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: 11, color: '#cbd5e1', lineHeight: 1.35 }}>
+                            Selecione o <b>país</b> e o <b>ano/período</b> dos crimes. A IA buscará no acervo histórico e no Google os casos de maior repercussão na imprensa e na justiça com artigos investigativos completos para compor a obra.
+                          </p>
+                        </div>
+                        <span style={{ fontSize: 10, background: '#7f1d1d', color: '#fecaca', padding: '3px 8px', borderRadius: 4, fontWeight: 700 }}>
+                          True Crime Documental
+                        </span>
+                      </div>
+
+                      {/* FORMULÁRIO DE FILTRO POR PAÍS E ANO */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>
+                            🌎 País dos Crimes:
+                          </label>
+                          <select
+                            value={trueCrimePais}
+                            onChange={(e) => setTrueCrimePais(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #475569',
+                              background: '#1e293b',
+                              color: '#ffffff',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}
+                          >
+                            {KdpTrueCrimeRoyalHistoryService.PAISES_CRIMES_REAIS.map(p => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>
+                            📅 Ano ou Período dos Crimes:
+                          </label>
+                          <input
+                            type="text"
+                            value={trueCrimeAno}
+                            onChange={(e) => setTrueCrimeAno(e.target.value)}
+                            placeholder="Ex: 1992, Anos 90, 1980, 2008..."
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #475569',
+                              background: '#1e293b',
+                              color: '#ffffff',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={handleBuscarCrimesReais}
+                            disabled={buscandoTrueCrime}
+                            style={{
+                              padding: '8px 16px',
+                              background: buscandoTrueCrime ? '#64748b' : 'linear-gradient(135deg, #dc2626, #991b1b)',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 800,
+                              cursor: buscandoTrueCrime ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)'
+                            }}
+                          >
+                            {buscandoTrueCrime ? '🔍 Pesquisando Casos...' : '🔍 Buscar Crimes Reais de Grande Repercussão'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* LISTAGEM DE CRIMES ENCONTRADOS */}
+                      {trueCrimeCasos.length > 0 && (
+                        <div style={{ marginTop: 12, borderTop: '1px solid #334155', paddingTop: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#fecaca' }}>
+                              📑 {trueCrimeCasos.length} Casos Encontrados em {trueCrimePais} ({trueCrimeAno}). Marque os que deseja no livro:
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleComporLivroComCrimes}
+                              style={{
+                                padding: '6px 14px',
+                                background: '#10b981',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 6,
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                              }}
+                            >
+                              📚 Compor Livro com os Casos Selecionados ({trueCrimeCasos.filter(c => c.selecionadoParaLivro).length})
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {trueCrimeCasos.map((caso) => {
+                              const isExpanded = expandedCrimeId === caso.id;
+                              return (
+                                <div
+                                  key={caso.id}
+                                  style={{
+                                    background: '#1e293b',
+                                    border: caso.selecionadoParaLivro ? '1.5px solid #ef4444' : '1px solid #334155',
+                                    borderRadius: 8,
+                                    padding: 12,
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', flex: 1 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!!caso.selecionadoParaLivro}
+                                        onChange={() => handleToggleSelectCrime(caso.id)}
+                                        style={{ marginTop: 3, width: 16, height: 16, accentColor: '#dc2626' }}
+                                      />
+                                      <div>
+                                        <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff' }}>
+                                          {caso.tituloCaso}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                          📍 {caso.cidadeEstado} ({caso.anoOuPeriodo}) • <b>Vítimas:</b> {caso.vitimasOuAlvos} • <b>Acusados:</b> {caso.autoresOuAcusados}
+                                        </div>
+                                        <div style={{ fontSize: 11.5, color: '#cbd5e1', marginTop: 4, lineHeight: 1.35 }}>
+                                          {caso.resumoBreve}
+                                        </div>
+                                        <div style={{ fontSize: 10.5, color: '#f87171', marginTop: 4, fontWeight: 600 }}>
+                                          🚨 Repercussão: {caso.nivelRepercussao}
+                                        </div>
+                                      </div>
+                                    </label>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedCrimeId(isExpanded ? null : caso.id)}
+                                      style={{
+                                        padding: '5px 10px',
+                                        background: '#334155',
+                                        color: '#f8fafc',
+                                        border: 'none',
+                                        borderRadius: 5,
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {isExpanded ? '▲ Fechar Artigo' : '📖 Ler Artigo Completo'}
+                                    </button>
+                                  </div>
+
+                                  {/* ARTIGO COMPLETO INVESTIGATIVO EXPANDIDO */}
+                                  {isExpanded && (
+                                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #475569', fontSize: 11.5, color: '#e2e8f0', lineHeight: 1.5 }}>
+                                      <div style={{ background: '#0f172a', padding: 12, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        <div>
+                                          <b style={{ color: '#f87171' }}>1. A Cena do Crime & Ocorrido:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.cenaECrime}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#38bdf8' }}>2. A Investigação Policial & Perícia Forense:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.investigacaoEPericia}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#fbbf24' }}>3. Reviravoltas, Depoimentos e Suspeitos:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.reviravoltasESuspeitos}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#4ade80' }}>4. O Julgamento no Tribunal & Desfecho Judicial:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.julgamentoEDesfecho}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#c084fc' }}>5. Impacto Social & Repercussão Histórica:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.impactoHistorico}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ═══════ PAINEL ESPECIAL DE HISTÓRIA DE REIS E DINASTIAS ═══════ */}
+                  {isRoyalHistoryTheme && (
+                    <div style={{
+                      marginBottom: 14,
+                      background: '#1c1917',
+                      color: '#f8fafc',
+                      padding: 16,
+                      borderRadius: 10,
+                      border: '1.5px solid #d97706',
+                      boxShadow: '0 8px 24px rgba(217, 119, 6, 0.15)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 800, color: '#fde68a' }}>
+                            <span>👑 Crônicas Históricas de Reis, Rainhas & Grandes Dinastias</span>
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: 11, color: '#e7e5e4', lineHeight: 1.35 }}>
+                            Selecione o <b>reino/império</b> e a <b>época histórica</b>. A IA resgatará reinados lendários, conspirações de corte, batalhas e segredos palacianos com artigos biográficos detalhados.
+                          </p>
+                        </div>
+                        <span style={{ fontSize: 10, background: '#78350f', color: '#fef3c7', padding: '3px 8px', borderRadius: 4, fontWeight: 700 }}>
+                          História & Monarquias
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#e7e5e4', marginBottom: 4 }}>
+                            🏰 Reino ou Império:
+                          </label>
+                          <select
+                            value={royalReino}
+                            onChange={(e) => setRoyalReino(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #78716c',
+                              background: '#292524',
+                              color: '#ffffff',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}
+                          >
+                            {KdpTrueCrimeRoyalHistoryService.REINOS_HISTORICOS.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#e7e5e4', marginBottom: 4 }}>
+                            ⏳ Século, Ano ou Dinastia:
+                          </label>
+                          <input
+                            type="text"
+                            value={royalEpoca}
+                            onChange={(e) => setRoyalEpoca(e.target.value)}
+                            placeholder="Ex: Século XVI, Dinastia Tudor, 1800..."
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #78716c',
+                              background: '#292524',
+                              color: '#ffffff',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={handleBuscarHistoriaReis}
+                            disabled={buscandoRoyal}
+                            style={{
+                              padding: '8px 16px',
+                              background: buscandoRoyal ? '#64748b' : 'linear-gradient(135deg, #d97706, #b45309)',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 800,
+                              cursor: buscandoRoyal ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              boxShadow: '0 2px 8px rgba(217, 119, 6, 0.4)'
+                            }}
+                          >
+                            {buscandoRoyal ? '👑 Pesquisando...' : '👑 Pesquisar História de Reis'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {royalCasos.length > 0 && (
+                        <div style={{ marginTop: 12, borderTop: '1px solid #44403c', paddingTop: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#fde68a' }}>
+                              📜 {royalCasos.length} Soberanos e Reinados em {royalReino} ({royalEpoca}):
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleComporLivroComReis}
+                              style={{
+                                padding: '6px 14px',
+                                background: '#10b981',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 6,
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                              }}
+                            >
+                              📚 Compor Livro com os Soberanos Selecionados ({royalCasos.filter(r => r.selecionadoParaLivro).length})
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {royalCasos.map((caso) => {
+                              const isExpanded = expandedRoyalId === caso.id;
+                              return (
+                                <div
+                                  key={caso.id}
+                                  style={{
+                                    background: '#292524',
+                                    border: caso.selecionadoParaLivro ? '1.5px solid #d97706' : '1px solid #44403c',
+                                    borderRadius: 8,
+                                    padding: 12,
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', flex: 1 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!!caso.selecionadoParaLivro}
+                                        onChange={() => handleToggleSelectRei(caso.id)}
+                                        style={{ marginTop: 3, width: 16, height: 16, accentColor: '#d97706' }}
+                                      />
+                                      <div>
+                                        <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff' }}>
+                                          {caso.tituloReiOuReinado}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#d6d3d1', marginTop: 2 }}>
+                                          👑 {caso.monarcaOuDinastia} • <b>Época:</b> {caso.epocaOuSeculo} • <b>Impacto:</b> {caso.nivelImpacto}
+                                        </div>
+                                        <div style={{ fontSize: 11.5, color: '#e7e5e4', marginTop: 4, lineHeight: 1.35 }}>
+                                          {caso.resumoBreve}
+                                        </div>
+                                      </div>
+                                    </label>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedRoyalId(isExpanded ? null : caso.id)}
+                                      style={{
+                                        padding: '5px 10px',
+                                        background: '#44403c',
+                                        color: '#f8fafc',
+                                        border: 'none',
+                                        borderRadius: 5,
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {isExpanded ? '▲ Fechar Artigo' : '📖 Ler Artigo Completo'}
+                                    </button>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #57534e', fontSize: 11.5, color: '#f5f5f4', lineHeight: 1.5 }}>
+                                      <div style={{ background: '#1c1917', padding: 12, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        <div>
+                                          <b style={{ color: '#fde68a' }}>1. Ascensão ao Trono & Legitimidade:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.ascensaoAoTrono}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#f87171' }}>2. Guerras, Campanhas & Conquistas:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.guerrasEConquistas}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#fb923c' }}>3. Conspirações, Intrigas & Traições:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.conspiracoesETraicoes}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#4ade80' }}>4. Queda ou Fim do Reinado & Legado:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.quedaOuLegado}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#38bdf8' }}>5. Curiosidades & Vida na Corte:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{caso.artigoCompleto.fatosCuriosos}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ═══════ PAINEL ESPECIAL DE CURIOSIDADES & FATOS SURPREENDENTES ═══════ */}
+                  {isCuriositiesTheme && (
+                    <div style={{
+                      marginBottom: 14,
+                      background: '#090d16',
+                      color: '#f8fafc',
+                      padding: 16,
+                      borderRadius: 10,
+                      border: '1.5px solid #0284c7',
+                      boxShadow: '0 8px 24px rgba(2, 132, 199, 0.15)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 800, color: '#38bdf8' }}>
+                            <span>🧠 Motor de Curiosidades & Fatos Fascinantes (Google / IA)</span>
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: 11, color: '#cbd5e1', lineHeight: 1.35 }}>
+                            Diga <b>sobre o que vai ser</b> (ex: animais bizarros, invenções estranhas, coisas ocultas), de <b>onde ou país</b> e a <b>quantidade de curiosidades</b>. A IA pesquisará e organizará os fatos mais intrigantes.
+                          </p>
+                        </div>
+                        <span style={{ fontSize: 10, background: '#0369a1', color: '#e0f2fe', padding: '3px 8px', borderRadius: 4, fontWeight: 700 }}>
+                          Almanaque de Curiosidades
+                        </span>
+                      </div>
+
+                      {/* FORMULÁRIO DE CURIOSIDADES */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 110px auto', gap: 10, alignItems: 'end', marginBottom: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>
+                            🎯 Sobre o que vai ser? (Coisas / Assunto / Tema):
+                          </label>
+                          <input
+                            type="text"
+                            value={curioSobreOQue}
+                            onChange={(e) => setCurioSobreOQue(e.target.value)}
+                            placeholder="Ex: Coisas mais estranhas, Animais bizarros, Leis absurdas..."
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #475569',
+                              background: '#1e293b',
+                              color: '#ffffff',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>
+                            🌍 De onde / País / Região:
+                          </label>
+                          <select
+                            value={curioPaisRegiao}
+                            onChange={(e) => setCurioPaisRegiao(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #475569',
+                              background: '#1e293b',
+                              color: '#ffffff',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}
+                          >
+                            {[
+                              'Global / Mundo Todo',
+                              'Brasil',
+                              'Estados Unidos (EUA)',
+                              'Japão',
+                              'Reino Unido',
+                              'Alemanha',
+                              'França',
+                              'Itália',
+                              'Egito Antigo',
+                              'Ásia e Oriente',
+                              'América Latina'
+                            ].map(loc => (
+                              <option key={loc} value={loc}>{loc}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>
+                            🔢 Quantidade:
+                          </label>
+                          <select
+                            value={curioQuantidade}
+                            onChange={(e) => setCurioQuantidade(parseInt(e.target.value) || 50)}
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #475569',
+                              background: '#1e293b',
+                              color: '#ffffff',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}
+                          >
+                            <option value={25}>25 fatos</option>
+                            <option value={50}>50 fatos</option>
+                            <option value={75}>75 fatos</option>
+                            <option value={100}>100 fatos</option>
+                            <option value={101}>101 fatos</option>
+                            <option value={150}>150 fatos</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={handleBuscarCuriosidades}
+                            disabled={buscandoCurio}
+                            style={{
+                              padding: '8px 16px',
+                              background: buscandoCurio ? '#64748b' : 'linear-gradient(135deg, #0284c7, #0369a1)',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 800,
+                              cursor: buscandoCurio ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
+                            }}
+                          >
+                            {buscandoCurio ? '🔍 Pesquisando...' : '🔍 Buscar Curiosidades'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* SUGESTÕES RÁPIDAS DE TEMAS DE CURIOSIDADES */}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                        {[
+                          'Coisas que parecem mentira mas são verdade',
+                          'Animais inacreditáveis do fundo do mar',
+                          'Invenções acidentais que mudaram o mundo',
+                          'Curiosidades secretas do Japão',
+                          'Fatos bizarros da história que não ensinam na escola',
+                          'Mistérios do corpo humano'
+                        ].map((sug, sIdx) => (
+                          <button
+                            key={sIdx}
+                            type="button"
+                            onClick={() => setCurioSobreOQue(sug)}
+                            style={{
+                              background: '#1e293b',
+                              border: curioSobreOQue === sug ? '1px solid #38bdf8' : '1px solid #334155',
+                              color: curioSobreOQue === sug ? '#38bdf8' : '#94a3b8',
+                              padding: '3px 8px',
+                              borderRadius: 4,
+                              fontSize: 10.5,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            + {sug}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* LISTAGEM DE CURIOSIDADES ENCONTRADAS */}
+                      {curioItens.length > 0 && (
+                        <div style={{ marginTop: 12, borderTop: '1px solid #334155', paddingTop: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#bae6fd' }}>
+                              💡 {curioItens.length} Curiosidades Encontradas sobre "{curioSobreOQue}" ({curioPaisRegiao}):
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleComporLivroComCuriosidades}
+                              style={{
+                                padding: '6px 14px',
+                                background: '#10b981',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 6,
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                              }}
+                            >
+                              📚 Compor Livro de Curiosidades ({curioItens.filter(c => c.selecionadoParaLivro).length} Fatos Selecionados)
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {curioItens.map((item, idx) => {
+                              const isExpanded = expandedCurioId === item.id;
+                              return (
+                                <div
+                                  key={item.id}
+                                  style={{
+                                    background: '#1e293b',
+                                    border: item.selecionadoParaLivro ? '1.5px solid #0284c7' : '1px solid #334155',
+                                    borderRadius: 8,
+                                    padding: 12,
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', flex: 1 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!!item.selecionadoParaLivro}
+                                        onChange={() => handleToggleSelectCurio(item.id)}
+                                        style={{ marginTop: 3, width: 16, height: 16, accentColor: '#0284c7' }}
+                                      />
+                                      <div>
+                                        <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff' }}>
+                                          #{idx + 1}. {item.tituloFato}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#38bdf8', marginTop: 2 }}>
+                                          🏷️ {item.categoriaOuCoisa} • 📍 {item.origemOuPais}
+                                        </div>
+                                        <div style={{ fontSize: 11.5, color: '#e2e8f0', marginTop: 4, lineHeight: 1.35 }}>
+                                          {item.fatoSurpreendente}
+                                        </div>
+                                      </div>
+                                    </label>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedCurioId(isExpanded ? null : item.id)}
+                                      style={{
+                                        padding: '5px 10px',
+                                        background: '#334155',
+                                        color: '#f8fafc',
+                                        border: 'none',
+                                        borderRadius: 5,
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {isExpanded ? '▲ Fechar' : '💡 Ver Explicação'}
+                                    </button>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #475569', fontSize: 11.5, color: '#cbd5e1', lineHeight: 1.5 }}>
+                                      <div style={{ background: '#0f172a', padding: 12, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <div>
+                                          <b style={{ color: '#38bdf8' }}>Como e Por Que Acontece (Explicação Científica/Histórica):</b>
+                                          <p style={{ margin: '3px 0 0' }}>{item.explicacaoDetalhada}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#fbbf24' }}>Por Que Quase Ninguém Sabe:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{item.porQuePoucosSabem}</p>
+                                        </div>
+                                        <div>
+                                          <b style={{ color: '#4ade80' }}>Fonte / Referência Oficial:</b>
+                                          <p style={{ margin: '3px 0 0' }}>{item.fonteOuReferencia}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </>
+              );
+            })()}
 
             {/* 1.1 TÍTULO & SUBTÍTULO LIVRES COM SUGESTÕES SIMILARES */}
             <div style={{
