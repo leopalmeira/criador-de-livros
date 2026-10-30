@@ -117,11 +117,6 @@ export class PdfBuilder {
     doc.setFontSize(14);
     doc.text((activeProject.author || 'Autor').toUpperCase(), widthMm / 2, heightMm * 0.65, { align: 'center' });
 
-    // Rodapé de edição
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(100, 100, 100);
-    doc.text('1ª Edição • Publicação Independente Amazon KDP', widthMm / 2, heightMm - marginBottom, { align: 'center' });
     doc.setTextColor(0, 0, 0);
 
     // ==========================================

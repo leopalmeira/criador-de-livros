@@ -1611,28 +1611,9 @@ TEXTO_SOBRECAPA:
                       <div style={{ fontSize: 10, opacity: 0.7 }}>BookEngin Bestseller KDP</div>
                     </div>
 
-                    {/* CÓDIGO DE BARRAS SIMULADO */}
-                    <div
-                      style={{
-                        background: '#ffffff',
-                        padding: '4px 6px',
-                        borderRadius: 3,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 1
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 60,
-                          height: 18,
-                          background: 'repeating-linear-gradient(90deg, #000, #000 2px, #fff 2px, #fff 4px)'
-                        }}
-                      />
-                      <span style={{ fontSize: 7, color: '#000', fontWeight: 800, letterSpacing: 0.5 }}>
-                        978-85-BOOKENGIN
-                      </span>
+                    {/* Rodapé limpo de contracapa sem caixa branca de código de barras */}
+                    <div style={{ fontSize: 9, opacity: 0.65, fontStyle: 'italic' }}>
+                      Design editorial contínuo
                     </div>
                   </div>
                 </div>

@@ -60,4 +60,27 @@ describe('KdpTitleSuggestionEngine', () => {
     expect(inspired.title).not.toBe('O Efeito O');
     expect(inspired.uniqueAngle).toBeDefined();
   });
+
+  it('gera sugestões 100% em American English quando idioma é inglês', () => {
+    const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme('Psychological Thriller', 'Obsession', [], 'inglês');
+    expect(suggestions.length).toBeGreaterThan(0);
+    expect(suggestions[0].title).toMatch(/^[A-Za-z0-9\s:,'"-]+$/);
+    expect(suggestions[0].subtitle).toMatch(/^[A-Za-z0-9\s:,'"-]+$/);
+    expect(suggestions[0].title).not.toContain('O Segredo');
+    expect(suggestions[0].title).not.toContain('A Garota');
+    expect(suggestions[0].rationale).toContain('suspense');
+  });
+
+  it('gera inspiração de bestseller 100% em American English para obras em inglês', () => {
+    const book = {
+      title: 'The Silent Patient',
+      bsr: 320,
+      author: 'Alex Michaelides'
+    };
+    const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook(book, 'Thriller', 'inglês');
+    expect(inspired.title).toBeDefined();
+    expect(inspired.title).not.toContain('O Segredo');
+    expect(inspired.title).not.toContain('A Esposa');
+    expect(inspired.subtitle).toMatch(/^[A-Za-z0-9\s:,'".!?-]+$/);
+  });
 });

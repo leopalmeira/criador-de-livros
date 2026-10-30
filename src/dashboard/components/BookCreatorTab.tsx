@@ -2860,23 +2860,9 @@ export const BookCreatorTab: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Código de Barras KDP Placeholder */}
-                    <div style={{
-                      width: '130px',
-                      height: '56px',
-                      background: '#ffffff',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '4px',
-                      marginTop: '20px',
-                      border: '1px solid #cbd5e1'
-                    }}>
-                      <div style={{ fontSize: '7px', color: '#64748b', fontWeight: 700, marginTop: '2px' }}>
-                        Área reservada para ISBN KDP
-                      </div>
+                    {/* Rodapé da contracapa sem caixa branca */}
+                    <div style={{ marginTop: '20px', fontSize: '9px', color: '#94a3b8' }}>
+                      Arte de fundo 100% contínua
                     </div>
                   </div>
 

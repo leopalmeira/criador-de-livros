@@ -984,9 +984,7 @@ Retorne APENAS a frase de continuação e fechamento, sem introdução e sem asp
                               por {livro.autor}
                             </p>
 
-                            <div style={{ marginTop: 'auto', paddingTop: 50, fontSize: 11, color: '#94a3b8' }}>
-                              Todos os direitos reservados • Formato oficial {formato}
-                            </div>
+
                           </>
                         ) : (
                           /* FORMULÁRIO DE EDIÇÃO DE TÍTULO, SUBTÍTULO E AUTOR */

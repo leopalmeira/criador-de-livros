@@ -169,6 +169,120 @@ const ROMANCE_FORMULAS: TitleFormula[] = [
   }
 ];
 
+// Fórmulas 100% em Inglês Americano para Ficção / Thriller / Mistério / Suspense
+const EN_FICTION_THRILLER_FORMULAS: TitleFormula[] = [
+  {
+    titleFn: () => `The Girl Who Knew Too Much`,
+    subFn: () => `A relentless psychological thriller where every truth is a trap and no one is innocent`,
+    hook: 'curiosidade',
+    rationale: 'Classic psychological suspense hook with top Kindle Unlimited page retention.',
+    stance: 'An unreliable narrator with layered secrets unraveling toward a shocking final twist.'
+  },
+  {
+    titleFn: () => `The Secret of Cabin 7`,
+    subFn: () => `They swore never to speak of that night. Until the first body was uncovered.`,
+    hook: 'reviravolta',
+    rationale: 'High-tension isolated setting thriller with a broken moral pact.',
+    stance: 'Rising psychological paranoia and the gradual collapse of suburban appearances.'
+  },
+  {
+    titleFn: () => `The Perfect Stranger`,
+    subFn: () => `She knew everyone's secrets in town. But someone knew exactly what she did ten years ago.`,
+    hook: 'curiosidade',
+    rationale: 'Fast-paced domestic noir in the tradition of modern American bestsellers.',
+    stance: 'Deconstructs quiet suburban facades to reveal calculated psychological vengeance.'
+  },
+  {
+    titleFn: () => `Before She Disappears`,
+    subFn: () => `A gripping countdown where time is running out and the only witness is the prime suspect`,
+    hook: 'reviravolta',
+    rationale: 'Relentless ticking clock structure with multiple cliffhangers.',
+    stance: 'Cinematic pacing with major revelations at every chapter ending.'
+  },
+  {
+    titleFn: () => `The Edge of Obsession`,
+    subFn: () => `A dangerous psychological game where the line between desire and madness turns deadly`,
+    hook: 'curiosidade',
+    rationale: 'Compelling dark psychological thriller targeting avid US suspense readers.',
+    stance: 'Explores compulsive observation and mental decay under relentless pressure.'
+  },
+  {
+    titleFn: () => `The Neighbor Next Door`,
+    subFn: () => `You think you know the people next door. Until the basement door swings open.`,
+    hook: 'emocional',
+    rationale: 'Domestic paranoia thriller appealing directly to primal fears.',
+    stance: 'The fragility of safety behind closed suburban doors.'
+  }
+];
+
+// Fórmulas 100% em Inglês Americano para Desenvolvimento Pessoal / Hábitos
+const EN_SELF_HELP_HABITS_FORMULAS: TitleFormula[] = [
+  {
+    titleFn: () => `Atomic Routine Mastery`,
+    subFn: () => `The proven 1% daily system to break procrastination, reset focus, and build unbreakable habits`,
+    hook: 'promessa-forte',
+    rationale: 'Frictionless, counter-intuitive habit framework for high-intent readers.',
+    stance: 'Rejects fleeting motivation in favor of cumulative 10-minute micro-systems.'
+  },
+  {
+    titleFn: () => `Effortless Discipline`,
+    subFn: () => `A neuroscience-based roadmap to achieve lasting consistency without relying on raw willpower`,
+    hook: 'autoridade',
+    rationale: 'Addresses chronic inconsistency backed by actionable behavioral science.',
+    stance: 'Willpower is finite; engineer your environment to execute on autopilot.'
+  },
+  {
+    titleFn: () => `The Deep Focus Protocol`,
+    subFn: () => `How to shield your mind from digital noise, eliminate mental fatigue, and double your output`,
+    hook: 'promessa-forte',
+    rationale: 'High search volume addressing digital overwhelm and attention fragmentation.',
+    stance: 'Deep uninterrupted focus is the rarest and most lucrative skill of our era.'
+  },
+  {
+    titleFn: () => `The Minimal Action Edge`,
+    subFn: () => `Stop overthinking and start building high-impact daily momentum with frictionless systems`,
+    hook: 'promessa-forte',
+    rationale: 'Direct anti-procrastination blueprint for professionals and creatives.',
+    stance: 'Consistency is behavioral architecture, not mental torture or guilt.'
+  }
+];
+
+// Fórmulas 100% em Inglês Americano para Finanças / Negócios
+const EN_FINANCE_BUSINESS_FORMULAS: TitleFormula[] = [
+  {
+    titleFn: () => `The Financial Freedom Machine`,
+    subFn: () => `The definitive roadmap to build predictable wealth and passive income starting from scratch`,
+    hook: 'promessa-forte',
+    rationale: 'High conversion financial blueprint focused on sustainable asset growth.',
+    stance: 'Demystified personal investing without speculative risks or hype.'
+  },
+  {
+    titleFn: () => `The Predictable Profit Code`,
+    subFn: () => `Battle-tested pricing, positioning, and sales systems for modern businesses and creators`,
+    hook: 'autoridade',
+    rationale: 'Targeted to entrepreneurs seeking reliable cash flow and repeat clients.',
+    stance: 'Revenue is vanity, profit is sanity, and cash flow is absolute survival.'
+  }
+];
+
+// Fórmulas 100% em Inglês Americano para Romance
+const EN_ROMANCE_FORMULAS: TitleFormula[] = [
+  {
+    titleFn: () => `Contract with the Enemy`,
+    subFn: () => `A sharp enemies-to-lovers fake dating romance that spun dangerously out of control`,
+    hook: 'curiosidade',
+    rationale: 'The most popular and profitable trope in commercial Kindle romance.',
+    stance: 'Forced proximity where sharp banter evolves into an undeniable bond.'
+  },
+  {
+    titleFn: () => `Where Our Paths Cross`,
+    subFn: () => `An emotional small-town second chance romance about old wounds and unconditional love`,
+    hook: 'emocional',
+    rationale: 'High emotional resonance and reader loyalty in small-town romance.',
+    stance: 'Authentic vulnerability as the foundation of lasting human intimacy.'
+  }
+];
+
 function cleanTitleWords(raw: string): string[] {
   return raw
     .replace(/[:\-\–\(\)\[\]\.,!]/g, ' ')
@@ -206,27 +320,29 @@ export class KdpTitleSuggestionEngine {
   public static getSuggestionsForTheme(
     theme: string,
     subtheme?: string,
-    referenceBooks: (MarketReference | { title: string; subtitle?: string; bsr?: number; [k: string]: any })[] = []
+    referenceBooks: (MarketReference | { title: string; subtitle?: string; bsr?: number; [k: string]: any })[] = [],
+    language?: string
   ): TitleSuggestion[] {
+    const isEn = Boolean(language && /ingl|en/i.test(language));
     const norm = `${theme} ${subtheme || ''}`.toLowerCase();
     const isFiction = this.isFictionContext(theme, subtheme || '');
     const isRomance = /romance|namoro|amor|paixão/i.test(norm);
     const isFinance = /finança|financa|invest|dinheiro|negócio|negocio|empresa|vendas/i.test(norm);
     const isHealth = /saúde|saude|nutrição|nutricao|sono|corpo|mente|ansiedade|longevidade/i.test(norm);
 
-    let formulas: TitleFormula[] = SELF_HELP_HABITS_FORMULAS;
+    let formulas: TitleFormula[] = isEn ? EN_SELF_HELP_HABITS_FORMULAS : SELF_HELP_HABITS_FORMULAS;
     let kind: 'ficcao' | 'nao-ficcao' = 'nao-ficcao';
 
     if (isRomance) {
-      formulas = ROMANCE_FORMULAS;
+      formulas = isEn ? EN_ROMANCE_FORMULAS : ROMANCE_FORMULAS;
       kind = 'ficcao';
     } else if (isFiction) {
-      formulas = FICTION_THRILLER_FORMULAS;
+      formulas = isEn ? EN_FICTION_THRILLER_FORMULAS : FICTION_THRILLER_FORMULAS;
       kind = 'ficcao';
     } else if (isFinance) {
-      formulas = FINANCE_BUSINESS_FORMULAS;
+      formulas = isEn ? EN_FINANCE_BUSINESS_FORMULAS : FINANCE_BUSINESS_FORMULAS;
     } else if (isHealth) {
-      formulas = HEALTH_WELLNESS_FORMULAS;
+      formulas = isEn ? EN_SELF_HELP_HABITS_FORMULAS : HEALTH_WELLNESS_FORMULAS;
     }
 
     const suggestions: TitleSuggestion[] = formulas.map((f, i) => {
@@ -254,7 +370,7 @@ export class KdpTitleSuggestionEngine {
     // Se houver livros de referência compatíveis fornecidos, inclui títulos inspirados de forma proporcional
     if (compatibleRefs.length > 0) {
       compatibleRefs.slice(0, 2).forEach((book, idx) => {
-        const inspired = this.generateInspiredFromBook(book, theme);
+        const inspired = this.generateInspiredFromBook(book, theme, language);
         // Evita duplicar títulos já presentes na lista
         if (!suggestions.some(s => s.title.toLowerCase() === inspired.title.toLowerCase())) {
           suggestions.splice(idx + 1, 0, {
@@ -285,8 +401,10 @@ export class KdpTitleSuggestionEngine {
   public static getSimilarTitles(
     userIdea: string,
     theme: string = '',
-    subtheme: string = ''
+    subtheme: string = '',
+    language?: string
   ): TitleSuggestion[] {
+    const isEn = Boolean(language && /ingl|en/i.test(language));
     const raw = (userIdea || '').trim();
     const effectiveTheme = theme || 'Desenvolvimento Pessoal';
     const isFiction = this.isFictionContext(effectiveTheme, subtheme, raw);
@@ -414,8 +532,10 @@ export class KdpTitleSuggestionEngine {
    */
   public static generateInspiredFromBook(
     book: Partial<MarketReference> | { title: string; subtitle?: string; bsr?: number; [k: string]: any },
-    themeContext?: string
+    themeContext?: string,
+    language?: string
   ): { title: string; subtitle: string; uniqueAngle: string; stance: string; rationale: string } {
+    const isEn = Boolean(language && /ingl|en/i.test(language));
     const rawTitle = (book.title || '').trim();
     const cleanWords = cleanTitleWords(rawTitle);
     const mainWord = cleanWords[0] || 'Segredo';
@@ -424,6 +544,39 @@ export class KdpTitleSuggestionEngine {
 
     // 1. FICÇÃO / SUSPENSE / THRILLER / ROMANCE
     if (isFiction) {
+      if (isEn) {
+        const enFictionOptions = [
+          {
+            title: 'The Perfect Stranger',
+            subtitle: 'A relentless psychological thriller where every truth is a trap and no one is innocent',
+            uniqueAngle: 'First-person unreliable narrator with creeping dread and major revelations every 3 chapters.',
+            stance: 'Deconstructs quiet suburban facades to expose the calculated psychological roots of revenge.'
+          },
+          {
+            title: 'The Secret She Carried',
+            subtitle: 'Some promises were meant to stay buried in the past. Until the first witness started talking.',
+            uniqueAngle: 'Dual timeline investigation alternating between past crimes and present danger.',
+            stance: 'Explores guilt, silence, and the devastating cost of childhood complicity.'
+          },
+          {
+            title: 'The Neighbor on Cabin 9',
+            subtitle: 'She saw something she should not have through the fence. Now they know exactly who she is.',
+            uniqueAngle: 'Claustrophobic suspense focused on surveillance and paranoia in a gated mountain community.',
+            stance: 'Modern domestic voyeurism and the razor-thin margin between curiosity and peril.'
+          },
+          {
+            title: 'Before the Clock Strikes',
+            subtitle: 'A fast-paced cat-and-mouse game where the only living witness is the primary suspect',
+            uniqueAngle: 'Ticking clock thriller alternating between the investigator and the accused.',
+            stance: 'Refuses easy moralizing: the line between victim and mastermind is intentionally blurred.'
+          }
+        ];
+        const picked = enFictionOptions[Math.abs(rawTitle.length) % enFictionOptions.length];
+        return {
+          ...picked,
+          rationale: `American suspense formula inspired by the market success of "${rawTitle}".`
+        };
+      }
       const fictionOptions = [
         {
           title: `A Esposa Perfeita`,
@@ -466,6 +619,15 @@ export class KdpTitleSuggestionEngine {
 
     // 2. FINANÇAS / INVESTIMENTOS
     if (/rico|milion|dinheiro|invest|finan|patrimonio|lucro|moeda|capital/i.test(context)) {
+      if (isEn) {
+        return {
+          title: 'The Financial Freedom Machine',
+          subtitle: 'The definitive roadmap to build predictable wealth and passive income starting from scratch',
+          uniqueAngle: 'Simple asset allocation blueprint, zero hype, focused on compounding resilient cash flow.',
+          stance: 'Sustainable wealth is a patient, systematic discipline immune to short-term noise.',
+          rationale: `Authority and financial resilience formula inspired by "${rawTitle}".`
+        };
+      }
       return {
         title: `A Máquina de Liberdade Financeira`,
         subtitle: `O mapa definitivo para construir patrimônio previsível e renda passiva partindo do zero`,
@@ -476,6 +638,27 @@ export class KdpTitleSuggestionEngine {
     }
 
     // 3. DESENVOLVIMENTO PESSOAL / HÁBITOS / PRODUTIVIDADE
+    if (isEn) {
+      const enHabitOptions = [
+        {
+          title: 'Atomic Routine Mastery',
+          subtitle: 'The proven 1% daily system to break procrastination, reset focus, and build unbreakable habits',
+          uniqueAngle: 'Low-friction habit stacks designed to trigger action in under 10 minutes.',
+          stance: 'Willpower fades under stress; your environment must do the heavy lifting for you.'
+        },
+        {
+          title: 'The Deep Focus Protocol',
+          subtitle: 'How to shield your mind from digital noise, eliminate mental fatigue, and double your output',
+          uniqueAngle: 'Systematic noise reduction and ruthless prioritization of high-value tasks.',
+          stance: 'Deep uninterrupted concentration is the ultimate competitive advantage.'
+        }
+      ];
+      const picked = enHabitOptions[Math.abs(rawTitle.length) % enHabitOptions.length];
+      return {
+        ...picked,
+        rationale: `High-conversion nonfiction and habit architecture inspired by "${rawTitle}".`
+      };
+    }
     const habitOptions = [
       {
         title: `Micro-Hábitos de Aço`,

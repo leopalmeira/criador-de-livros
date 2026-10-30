@@ -362,7 +362,13 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     }
   }
 
-  const cleanTitles = chapters.map((c, i) => sanitize(cleanChapterTitle(c.titulo) || `Capítulo ${i + 1}`));
+  const isEnDoc = Boolean(input.livro.idioma && /ingl|en/i.test(input.livro.idioma));
+  const cleanTitles = chapters.map((c, i) => {
+    let raw = cleanChapterTitle(c.titulo);
+    if (!raw) raw = isEnDoc ? `Chapter ${i + 1}` : `Capítulo ${i + 1}`;
+    else if (isEnDoc) raw = raw.replace(/^cap[ií]tulo\s*/i, "Chapter ");
+    return sanitize(raw);
+  });
   const starts: number[] = new Array(chapters.length).fill(0);
 
   const finishPage = () => {
@@ -485,8 +491,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   const authorPrefix = isEn ? 'by' : isEs ? 'por' : 'por';
   doc.text(sanitize(`${authorPrefix} ${input.livro.autor}`), LW / 2, LH - 1.5, { align: 'center' });
 
-  doc.setFont('times', 'normal').setFontSize(8.5).setTextColor(120);
-  doc.text(sanitize('EDIÇÃO ESPECIAL AMAZON KDP • DIREITOS RESERVADOS'), LW / 2, LH - 1.1, { align: 'center' });
+
   restoreBodyFont();
 
   // 3) SUMÁRIO (páginas reais vindas do passe anterior)
@@ -645,10 +650,11 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
 
     y = mT + 1.05;
     doc.setFont('times', 'bold').setFontSize(10).setTextColor(125, 132, 145);
-    doc.text(`CAPÍTULO ${ci + 1}`, LW / 2, y, { align: 'center' });
+    const capPrefix = isEn ? "CHAPTER" : isEs ? "CAPÍTULO" : "CAPÍTULO";
+    doc.text(`${capPrefix} ${ci + 1}`, LW / 2, y, { align: "center" });
     y += 0.38;
     const tSize = Math.max(14, Math.min(28, Math.round(input.tamCapitulo * 1.65)));
-    const isGenericChapterTitle = /^cap[ií]tulo\s*\d+$/i.test((cleanTitles[ci] || '').trim());
+    const isGenericChapterTitle = /^(?:cap[ií]tulo|chapter)\s*\d+$/i.test((cleanTitles[ci] || '').trim());
     if (!isGenericChapterTitle && cleanTitles[ci].trim()) {
       doc.setFont('times', 'bold').setFontSize(tSize).setTextColor(rgb[0], rgb[1], rgb[2]);
       const titleLines = doc.splitTextToSize(cleanTitles[ci], textW) as string[];

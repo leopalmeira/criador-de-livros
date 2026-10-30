@@ -250,7 +250,8 @@ export class KdpCompleteTypesetter {
    */
   public static simularPaginasFisicasKdp(
     capitulos: CapituloLike[],
-    trimSize = '6x9'
+    trimSize = '6x9',
+    idioma?: string
   ): PaginaDiagramadaInfo[] {
     const paginas: PaginaDiagramadaInfo[] = [];
     let numeroPaginaAtual = 1;
@@ -261,10 +262,17 @@ export class KdpCompleteTypesetter {
     const isSmall = trimSize.includes('5.5') || trimSize.includes('5x8');
     const capacidadeAbertura = isSmall ? 160 : 190;
     const capacidadeCorpo = isSmall ? 220 : 260;
+    const isEn = Boolean(idioma && /ingl|en/i.test(idioma));
 
     capitulos.forEach((cap, cIdx) => {
       const capNum = cIdx + 1;
-      const capTitle = cap.titulo || `Capítulo ${capNum}`;
+      let capTitle = cap.titulo || (isEn ? `Chapter ${capNum}` : `Capítulo ${capNum}`);
+      if (isEn) {
+        capTitle = capTitle.replace(/^cap[íi]tulo\s*/i, 'Chapter ');
+        if (!/^chapter\s*\d+/i.test(capTitle)) {
+          capTitle = `Chapter ${capNum}: ${capTitle}`;
+        }
+      }
       const paras = cap.texto.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
 
       if (paras.length === 0) return;
@@ -374,9 +382,14 @@ export class KdpCompleteTypesetter {
       totalPalavrasGerais += words;
       const parasCount = cap.texto.split(/\n\s*\n/).filter(Boolean).length;
 
+      const isEnDetail = Boolean(livroAtualizado.idioma && /ingl|en/i.test(livroAtualizado.idioma));
+      let displayTitle = cap.titulo || (isEnDetail ? `Chapter ${idx + 1}` : `Capítulo ${idx + 1}`);
+      if (isEnDetail) {
+        displayTitle = displayTitle.replace(/^cap[íi]tulo\s*/i, 'Chapter ');
+      }
       detalhesCapitulos.push({
         capituloIndex: idx,
-        titulo: cap.titulo || `Capítulo ${idx + 1}`,
+        titulo: displayTitle,
         palavras: words,
         paginasOcupadas: Math.max(1, Math.ceil(words / 240)),
         paragrafos: parasCount,
@@ -385,7 +398,7 @@ export class KdpCompleteTypesetter {
     });
 
     // 2. Simula e audita a paginação física KDP página a página
-    const paginasFisicas = this.simularPaginasFisicasKdp(livroAtualizado.capitulos, trimSize);
+    const paginasFisicas = this.simularPaginasFisicasKdp(livroAtualizado.capitulos, trimSize, livroAtualizado.idioma);
 
     const relatorio: RelatorioDiagramacaoCompleta = {
       sucesso: true,

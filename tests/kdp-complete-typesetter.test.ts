@@ -65,5 +65,29 @@ describe('KdpCompleteTypesetter — Diagramação Completa Página por Página',
     expect(pag1.capituloNumero).toBe(1);
     expect(pag1.status).toBe('diagramada_alinhada');
   });
+
+  it('formata títulos estritamente como Chapter em livros em língua inglesa', () => {
+    const livroEn = {
+      titulo: 'The Silent Target',
+      autor: 'Leandro Palmeira',
+      idioma: 'inglês',
+      capitulos: [
+        {
+          titulo: 'Capítulo 1: The Dark Harbor',
+          texto: 'Cold rain washed over the concrete pier in Brooklyn. Detective Miller checked his watch.'
+        },
+        {
+          titulo: 'Shadows in the Alley',
+          texto: 'A figure disappeared into the midnight fog near Manhattan bridge.'
+        }
+      ]
+    };
+
+    const resultado = KdpCompleteTypesetter.diagramarLivroCompleto(livroEn, '6x9');
+    expect(resultado.relatorio.detalhesCapitulos[0].titulo).toContain('Chapter 1');
+    expect(resultado.relatorio.detalhesCapitulos[0].titulo).not.toContain('Capítulo');
+    expect(resultado.relatorio.paginas[0].capituloTitulo).toContain('Chapter');
+    expect(resultado.relatorio.paginas[0].capituloTitulo).not.toContain('Capítulo');
+  });
 });
 

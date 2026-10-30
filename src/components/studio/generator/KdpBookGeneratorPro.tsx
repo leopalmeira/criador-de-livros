@@ -1784,47 +1784,88 @@ Escreva uma PROPOSTA DE VALOR E POSICIONAMENTO COMPETITIVO (2 parágrafos curtos
 
   const handleGerarSumarioRitmoVariado = async () => {
     setIsAiStepBusy('varied-outline');
+    const isEn = Boolean(idioma && /ingl|en/i.test(idioma));
     const numCaps = Math.max(4, Math.min(25, maxCapitulos || 10));
     const baseWordsPerCap = Math.round(((paginasAlvo || 100) * 260) / numCaps);
     try {
-      const prompt = `Você é arquiteto de sumários de bestsellers.
+      const prompt = isEn
+        ? `You are an architectural outline planner for US bestsellers on Amazon KDP.
+Book: "${titulo || temaSelecionado || genero}" | Structure: ${bookStructureType}
+Premise: "${topico || stanceTopic || uniqueAngle || temaSelecionado}"
+Total chapters: ${numCaps}.
+US Geographical Setting: ${estadoEua || 'the United States'}.
+Create a dynamic table of contents where EVERY CHAPTER has varied pacing, unique narrative approach, and modern American vocabulary.
+Every single chapter title MUST start with "Chapter X: [Creative English Title]".
+Return ONLY a valid JSON array in this exact format:
+[{"num": 1, "title": "Chapter 1: The Initial Spark", "sectionsCount": 3, "targetWords": ${Math.round(baseWordsPerCap * 0.85)}, "focus": "Magnetic hook and core premise"}]`
+        : `Você é arquiteto de sumários de bestsellers.
 Livro: "${titulo || temaSelecionado || genero}" | Estrutura: ${bookStructureType}
 Premissa: "${topico || stanceTopic || uniqueAngle || temaSelecionado}"
 Total de capítulos: ${numCaps}.
 Para evitar a repetição típica de IA, crie um sumário em que CADA CAPÍTULO tenha um ritmo diferente (alguns capítulos mais curtos e diretos com 2-3 seções, outros mais densos e detalhados com 4-5 seções).
 Retorne APENAS um JSON array no formato:
 [{"num": 1, "title": "Título do Cap 1", "sectionsCount": 3, "targetWords": ${Math.round(baseWordsPerCap * 0.85)}, "focus": "Gancho inicial e quebra de mito"}]`;
+
       const res = await chamarGeminiTexto(prompt, { temperature: 0.7, maxTokens: 1200 });
-      const txt = (typeof res === 'string' ? res : res?.texto || '').replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(txt);
+      const rawRes = typeof res === 'string' ? res : res?.texto || '';
+      const cleanJson = rawRes.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        setVariedOutlinePreview(parsed);
-        setStatusMsg(`✓ Sumário com ritmo variado (${parsed.length} capítulos) arquitetado!`);
+        const cleanParsed = parsed.map((item: any) => {
+          let t = String(item.title || '');
+          if (isEn) {
+            t = t.replace(/^cap[íi]tulo\s*/i, 'Chapter ');
+            if (!/^chapter\s*\d+/i.test(t)) {
+              t = `Chapter ${item.num}: ${t}`;
+            }
+          }
+          return { ...item, title: t };
+        });
+        setVariedOutlinePreview(cleanParsed);
+        setStatusMsg(isEn ? `✓ Varied outline (${cleanParsed.length} chapters) planned successfully!` : `✓ Sumário com ritmo variado (${cleanParsed.length} capítulos) arquitetado!`);
         setStatusType('ok');
         return;
       }
     } catch {
       // Fallback determinístico com ritmo variado
     }
-    const tempos = [
+    const temposPt = [
       { mult: 0.85, secs: 3, role: 'Abertura magnética e quebra de crença padrão' },
       { mult: 1.15, secs: 4, role: 'Aprofundamento central com casos e evidências' },
       { mult: 0.90, secs: 2, role: 'Virada rápida de ritmo e aplicação direta' },
       { mult: 1.25, secs: 5, role: 'Desenvolvimento denso do método e exemplos reais' },
       { mult: 0.95, secs: 3, role: 'Consolidação prática e preparação para o próximo nível' }
     ];
+    const temposEn = [
+      { mult: 0.85, secs: 3, role: 'Magnetic opening hook and myth busting' },
+      { mult: 1.15, secs: 4, role: 'Core deep dive with evidence and real cases' },
+      { mult: 0.90, secs: 2, role: 'Fast-paced shift and direct practical application' },
+      { mult: 1.25, secs: 5, role: 'Intensive narrative development and crucial breakthroughs' },
+      { mult: 0.95, secs: 3, role: 'Actionable consolidation and path forward' }
+    ];
+    const tempos = isEn ? temposEn : temposPt;
     const generated = Array.from({ length: numCaps }, (_, idx) => {
       const t = tempos[idx % tempos.length];
+      const fallbackTitle = isEn
+        ? `Chapter ${idx + 1}: Step ${idx + 1} of the Journey`
+        : `Capítulo ${idx + 1}: Etapa ${idx + 1} da Jornada`;
+      let chosenTitle = planoEditorial?.chapters?.[idx]?.title || fallbackTitle;
+      if (isEn) {
+        chosenTitle = chosenTitle.replace(/^cap[íi]tulo\s*/i, 'Chapter ');
+        if (!/^chapter\s*\d+/i.test(chosenTitle)) {
+          chosenTitle = `Chapter ${idx + 1}: ${chosenTitle}`;
+        }
+      }
       return {
         num: idx + 1,
-        title: planoEditorial?.chapters?.[idx]?.title || `Capítulo ${idx + 1}: Etapa ${idx + 1} da Jornada`,
+        title: chosenTitle,
         sectionsCount: t.secs,
         targetWords: Math.round(baseWordsPerCap * t.mult),
         focus: (planoEditorial?.chapters?.[idx] as any)?.summary || t.role
       };
     });
     setVariedOutlinePreview(generated);
-    setStatusMsg('✓ Sumário com ritmo variado por capítulo configurado!');
+    setStatusMsg(isEn ? '✓ Varied outline per chapter configured!' : '✓ Sumário com ritmo variado por capítulo configurado!');
     setStatusType('ok');
   };
 
@@ -2478,8 +2519,9 @@ ${ganchoImediato}`;
   };
 
   const parseCapitulo = (txt: string, num: number, totalCaps?: number): Capitulo => {
-    const mt = txt.match(/TITULO:\s*(.+)/i);
-    const mx = txt.match(/TEXTO:\s*([\s\S]+)/i);
+    const isEn = Boolean(idioma && /ingl|en/i.test(idioma));
+    const mt = txt.match(/(?:TITULO|TITLE):\s*(.+)/i);
+    const mx = txt.match(/(?:TEXTO|TEXT):\s*([\s\S]+)/i);
     let texto = mx ? mx[1].trim() : txt.trim();
     texto = texto.replace(/^TITLE:\s*.+$/im, '').replace(/^TEXT:\s*/im, '')
       .replace(/^TITULO:\s*.+$/im, '').replace(/^TEXTO:\s*/im, '').trim();
@@ -2487,8 +2529,16 @@ ${ganchoImediato}`;
     // GARANTE INTEGRIDADE DO FINAL: impede término com frase cortada ou palavras faltando
     texto = assegurarConclusaoCapitulo(texto, totalCaps ? num === totalCaps : false);
 
+    let rawTitle = mt ? mt[1].trim() : (isEn ? `Chapter ${num}` : `Capítulo ${num}`);
+    if (isEn) {
+      rawTitle = rawTitle.replace(/^cap[íi]tulo\s*/i, 'Chapter ');
+      if (!/^chapter\s*\d+/i.test(rawTitle)) {
+        rawTitle = `Chapter ${num}: ${rawTitle}`;
+      }
+    }
+
     return {
-      titulo: mt ? mt[1].trim() : `Capítulo ${num}`,
+      titulo: rawTitle,
       texto
     };
   };
@@ -5019,6 +5069,15 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
       stepToValidate++;
     }
 
+    const newCompletedSet = new Set(currentCompleted);
+    for (let s = 1; s < targetStep; s++) {
+      newCompletedSet.add(s);
+    }
+    if (targetStep === 10 && (capaFinal || wrapPreviewUrl)) {
+      newCompletedSet.add(10);
+    }
+    currentCompleted = Array.from(newCompletedSet);
+
     setCompletedSteps(currentCompleted);
     setWizardStep(targetStep);
     setActiveTab('wizard');
@@ -5344,7 +5403,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 { s: 10, name: 'Capa & Contracapa', sub: 'Prompts & Importação' }
               ].map((st, idx, arr) => {
                 const isActive = wizardStep === st.s && activeTab === 'wizard';
-                const isDone = completedSteps.includes(st.s);
+                const isDone = completedSteps.includes(st.s) || wizardStep > st.s;
                 return (
                   <div key={st.s} style={{ display: 'flex', flexDirection: 'column' }}>
                     <button
@@ -5886,7 +5945,23 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     </label>
                     <select
                       value={idioma}
-                      onChange={(e) => setIdioma(e.target.value)}
+                      onChange={(e) => {
+                        const newLang = e.target.value;
+                        setIdioma(newLang);
+                        if (newLang === 'inglês') {
+                          const sugs = KdpTitleSuggestionEngine.getSuggestionsForTheme(temaSelecionado || 'Desenvolvimento Pessoal', 'inglês');
+                          setSugestoesTitulos(sugs);
+                          if (!titulo || titulo === 'O Segredo Que Ela Levou' || titulo === 'A Sombra do Alvo' || titulo === 'O Poder do Foco Inabalável') {
+                            if (sugs.length > 0) {
+                              setTitulo(sugs[0].title);
+                              if (sugs[0].subtitle) setSubtitulo(sugs[0].subtitle);
+                            }
+                          }
+                        } else if (newLang === 'português') {
+                          const sugs = KdpTitleSuggestionEngine.getSuggestionsForTheme(temaSelecionado || 'Desenvolvimento Pessoal', 'português');
+                          setSugestoesTitulos(sugs);
+                        }
+                      }}
                       style={{
                         width: '100%',
                         padding: '7px 10px',
@@ -7180,7 +7255,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <button type="button" onClick={() => setWizardStep(2)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
               </button>
-              <button type="button" onClick={() => setWizardStep(4)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+              <button type="button" onClick={() => handleAdvanceToStep(4)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
                 {ui('Próximo: Recursos', 'Next: Resources')} <ChevronRight size={15} />
               </button>
             </div>
@@ -7282,7 +7357,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <button type="button" onClick={() => setWizardStep(3)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
                 </button>
-                <button type="button" onClick={() => setWizardStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                <button type="button" onClick={() => handleAdvanceToStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                   {ui('Próximo: Persona & Bio', 'Next: Author Bio')} <ChevronRight size={15} />
                 </button>
               </div>
@@ -7447,7 +7522,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <button type="button" onClick={() => setWizardStep(4)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
                 </button>
-                <button type="button" onClick={() => setWizardStep(6)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                <button type="button" onClick={() => handleAdvanceToStep(6)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                   {ui('Próximo: Proposta & Foco', 'Next: Proposed Book')} <ChevronRight size={15} />
                 </button>
               </div>
@@ -7754,7 +7829,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <button type="button" onClick={() => setWizardStep(5)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
               </button>
-              <button type="button" onClick={() => setWizardStep(7)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+              <button type="button" onClick={() => handleAdvanceToStep(7)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
                 {ui('Próximo: Detalhes & Sumário', 'Next: Details & Outline')} <ChevronRight size={15} />
               </button>
             </div>
@@ -8064,7 +8139,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <button type="button" onClick={() => setWizardStep(6)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
               </button>
-              <button type="button" onClick={() => setWizardStep(8)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
+              <button type="button" onClick={() => handleAdvanceToStep(8)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
                 🚀 {ui('Ir para Escrita & Produção', 'Go to Write & Production')} <ChevronRight size={15} />
               </button>
             </div>
@@ -8499,7 +8574,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <button type="button" onClick={() => setWizardStep(7)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
               </button>
-              <button type="button" onClick={() => setWizardStep(9)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <button type="button" onClick={() => handleAdvanceToStep(9)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 {ui('Próximo: Descrição', 'Next: Description')} <ChevronRight size={15} />
               </button>
             </div>
@@ -8591,7 +8666,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 <button type="button" onClick={() => setWizardStep(8)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   <ChevronLeft size={14} /> {ui('Voltar', 'Back')}
                 </button>
-                <button type="button" onClick={() => setWizardStep(10)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                <button type="button" onClick={() => handleAdvanceToStep(10)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                   {ui('Próximo: Capa & Prompts', 'Next: Book Cover')} <ChevronRight size={15} />
                 </button>
               </div>
@@ -10007,18 +10082,20 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                     paddingBottom: 4,
                                     borderBottom: '2px solid #0f172a'
                                   }}>
-                                    Sumário Geral
+                                    {Boolean(livro.idioma && /ingl|en/i.test(livro.idioma)) ? 'Table of Contents' : 'Sumário Geral'}
                                   </span>
                                 </div>
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                   {(() => {
+                                    const isEnTOC = Boolean(livro.idioma && /ingl|en/i.test(livro.idioma));
                                     let runningPage = 5;
                                     return livro.capitulos.map((c, idx) => {
                                       const words = c.texto?.split(/\s+/).filter(Boolean).length || 0;
                                       const estPages = Math.max(2, Math.ceil(words / 280));
                                       const startPage = runningPage;
                                       runningPage += estPages;
+                                      const cleanTOCItem = isEnTOC ? c.titulo.replace(/^cap[íi]tulo\s*/i, 'Chapter ') : c.titulo;
                                       return (
                                         <div
                                           key={idx}
@@ -10030,7 +10107,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                           }}
                                         >
                                           <span style={{ fontWeight: 600, color: '#0f172a' }}>
-                                            {idx + 1}. {c.titulo}
+                                            {idx + 1}. {cleanTOCItem}
                                           </span>
                                           <span
                                             style={{
@@ -10041,7 +10118,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                             }}
                                           />
                                           <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#64748b', fontWeight: 600 }}>
-                                            pág. {startPage}
+                                            {isEnTOC ? 'page' : 'pág.'} {startPage}
                                           </span>
                                         </div>
                                       );
@@ -10075,7 +10152,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                     }}
                                   >
                                     <div style={{ fontSize: 11, letterSpacing: '3px', textTransform: 'uppercase', color: '#64748b', fontWeight: 700, marginBottom: 4 }}>
-                                      Capítulo {idx + 1}
+                                      {Boolean(livro.idioma && /ingl|en/i.test(livro.idioma)) ? 'Chapter' : 'Capítulo'} {idx + 1}
                                     </div>
                                     <h2
                                       style={{
@@ -10087,7 +10164,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                                         transition: 'color 0.2s ease'
                                       }}
                                     >
-                                      {c.titulo}
+                                      {Boolean(livro.idioma && /ingl|en/i.test(livro.idioma)) ? c.titulo.replace(/^cap[íi]tulo\s*/i, 'Chapter ') : c.titulo}
                                     </h2>
                                     <div style={{ width: 40, height: 1, background: '#cbd5e1', margin: '0 auto 12px auto' }} />
 
@@ -10955,7 +11032,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             <button
                               type="button"
                               onClick={() => {
-                                if (wizardStep < 10) setWizardStep(wizardStep + 1);
+                                if (wizardStep < 10) handleAdvanceToStep(wizardStep + 1);
                                 else setWizardStep(2);
                               }}
                               style={{

@@ -667,7 +667,7 @@ export class PrintCoverService {
     ctx.fillText(`${params.author.toUpperCase()}`, anchorX, canvas.height - 140);
     ctx.fillStyle = '#64748b';
     ctx.font = '400 24px sans-serif';
-    ctx.fillText('Edição Oficial Amazon KDP • Diagramação Editorial', anchorX, canvas.height - 95);
+    // Rodapé limpo sem rótulo de edição artificial
 
     // Não desenha caixa branca de código de barras para não estragar a arte da contracapa com espaço em branco
     return canvas.toDataURL('image/png');

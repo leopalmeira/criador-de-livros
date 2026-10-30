@@ -37,25 +37,47 @@ export async function orchestrateEditorialPlan(
   chapterCount: number,
   customAiCall: EditorialPlanAiCaller = chamarGeminiTexto
 ): Promise<KdpEditorialPlan> {
-  const systemInstruction = `Você é um orquestrador editorial KDP que combina três funções antes da redação: arquiteto editorial, estrategista de leitor/mercado e editor de continuidade. Produza um plano original, útil e específico para o livro informado.
+  const isEn = Boolean(book.language && /ingl|en/i.test(book.language));
+
+  const systemInstruction = isEn
+    ? `You are an elite Amazon KDP editorial orchestrator combining three roles: editorial architect, market strategist, and continuity director.
+MANDATORY LANGUAGE RULE: The ENTIRE plan (editorialVision, readerPromise, continuityBible, every single chapter title, objective, keyPoints, and transition) MUST be 100% in natural AMERICAN ENGLISH.
+ABSOLUTELY ZERO WORDS IN PORTUGUESE OR ANY OTHER LANGUAGE.
+Chapter title format MUST be "Chapter X: Creative English Title" or a creative title in English without the word "Capítulo".
+Produce strictly valid JSON without markdown wrapping, matching this exact structure:
+{"editorialVision":"...","readerPromise":"...","continuityBible":"...","chapters":[{"title":"...","objective":"...","keyPoints":["..."],"transition":"..."}]}
+Include exactly ${chapterCount} chapters. Every chapter must have a distinct creative title, clear objective, 3 to 5 actionable key points, and a seamless transition.`
+    : `Você é um orquestrador editorial KDP que combina três funções antes da redação: arquiteto editorial, estrategista de leitor/mercado e editor de continuidade. Produza um plano original, útil e específico para o livro informado.
 Use o idioma da obra. Em não ficção, prefira orientações acionáveis, separe fatos de opinião, não invente estudos, estatísticas, citações ou promessas garantidas; respeite os limites profissionais de saúde e finanças. Em ficção, mantenha causalidade, personagens e progressão dramática coerentes.
 Retorne somente JSON válido, sem markdown, com esta estrutura exata:
 {"editorialVision":"...","readerPromise":"...","continuityBible":"...","chapters":[{"title":"...","objective":"...","keyPoints":["..."],"transition":"..."}]}
 Inclua exatamente ${chapterCount} capítulos. Todo capítulo deve ter título, objetivo específico, 3 a 5 pontos-chave concretos e uma transição coerente para o próximo capítulo ou desfecho. Não use títulos genéricos repetidos.`;
 
-  const prompt = `Planeje a arquitetura editorial completa desta obra:
+  const prompt = isEn
+    ? `Plan the complete editorial architecture for this book:
+Title: ${book.title}
+Subtitle: ${book.subtitle || "Not defined"}
+Genre: ${book.genre}
+Theme: ${book.theme || book.genre}
+Subtheme: ${book.subtheme || "Not defined"}
+Premise/Topic: ${book.topic}
+Target Reader: ${book.targetReader || "General reader interested in the topic"}
+Reader Promise: ${book.promise || "Clear, actionable mastery and compelling storytelling"}
+Differentiator: ${book.differentiator || "Original, practical and engaging approach"}
+Language: 100% AMERICAN ENGLISH (US)
+Total Chapters: ${chapterCount}`
+    : `Planeje a arquitetura editorial completa desta obra:
 Título: ${book.title}
-Subtítulo: ${book.subtitle || 'Não definido'}
+Subtítulo: ${book.subtitle || "Não definido"}
 Gênero: ${book.genre}
 Tema: ${book.theme || book.genre}
-Subtema: ${book.subtheme || 'Não definido'}
+Subtema: ${book.subtheme || "Não definido"}
 Premissa/assunto central: ${book.topic}
-Leitor-alvo: ${book.targetReader || 'Leitor interessado no tema'}
-Promessa ao leitor: ${book.promise || 'Aprendizado claro e aplicável'}
-Diferencial: ${book.differentiator || 'Abordagem original e prática'}
+Leitor-alvo: ${book.targetReader || "Leitor interessado no tema"}
+Promessa ao leitor: ${book.promise || "Aprendizado claro e aplicável"}
+Diferencial: ${book.differentiator || "Abordagem original e prática"}
 Idioma: ${book.language}
 Quantidade de capítulos: ${chapterCount}`;
-
   const response = await customAiCall(prompt, {
     systemInstruction,
     temperature: 0.55,
@@ -77,9 +99,12 @@ Quantidade de capítulos: ${chapterCount}`;
 
   // Normalização de resiliência: garante que pequenos deslizes de formato da IA não invalidem a estrutura
   const normalizedChapters: KdpEditorialChapterPlan[] = rawChapters.map((chapter: any, index: number) => {
-    const rawTitle = typeof chapter?.title === 'string' && chapter.title.trim()
+    let rawTitle = typeof chapter?.title === 'string' && chapter.title.trim()
       ? chapter.title.trim()
-      : `Capítulo ${index + 1}`;
+      : (isEn ? `Chapter ${index + 1}` : `Capítulo ${index + 1}`);
+    if (isEn) {
+      rawTitle = rawTitle.replace(/^cap[ií]tulo\s*/i, 'Chapter ');
+    }
     const title = cleanChapterTitle(rawTitle);
 
     const objective = typeof chapter?.objective === 'string' && chapter.objective.trim()
@@ -238,6 +263,144 @@ export function buildFallbackEditorialPlan(
     : isEs
     ? `Mantener coherencia estricta en terminología, tono realista y directo, sin repeticiones ni rodeos conceptuales.`
     : `Manter rigor terminológico, voz autoral direta e consistente, progressão lógica sem repetições e pontes naturais entre os capítulos.`;
+
+  // Matriz de progressão temática em Inglês para Não Ficção
+  const matrizNaoFiccaoEn = [
+    {
+      title: "The Foundation: Mapping the Core Problem",
+      objective: "Define the central obstacle, shatter common myths, and establish a rock-solid conceptual baseline.",
+      keyPoints: [
+        `Diagnosis of the current landscape surrounding ${temaRef}`,
+        "Why conventional shortcuts and quick fixes consistently fail",
+        "Non-negotiable foundational principles for sustainable progress"
+      ],
+      transition: "With the foundation laid, the next phase is mastering strategic clarity and daily execution."
+    },
+    {
+      title: "Core Pillars and Strategic Clarity",
+      objective: "Build the mental framework and daily discipline required to execute without hesitation.",
+      keyPoints: [
+        "Dismantling cognitive noise and unproductive assumptions",
+        "Aligning daily habits with long-term priority targets",
+        "How top industry performers structure their workflow"
+      ],
+      transition: "Having anchored internal clarity, we move directly to high-impact execution systems."
+    },
+    {
+      title: "The Execution Framework in Action",
+      objective: "Deploy actionable protocols, daily checklists, and practical implementation routines.",
+      keyPoints: [
+        "Step-by-step framework to launch without cognitive overload",
+        "Frictionless tools for high-efficiency daily momentum",
+        "Fast feedback metrics to measure genuine progress"
+      ],
+      transition: "As execution starts, predictable obstacles emerge that require tactical shielding."
+    },
+    {
+      title: "Overcoming Obstacles, Resistance, and Blind Spots",
+      objective: "Identify recurring bottlenecks and build resilience against burnout and setbacks.",
+      keyPoints: [
+        "The three most frequent errors made by beginners and how to avoid them",
+        "Maintaining velocity during unexpected disruptions or low-energy periods",
+        "Tactics to protect your focus, energy, and mental bandwidth"
+      ],
+      transition: "Having cleared the hurdles, we advance toward optimization and compounding mastery."
+    },
+    {
+      title: "Advanced Strategies and Continuous Optimization",
+      objective: "Refine high-leverage techniques to maximize efficiency and accelerate outcomes.",
+      keyPoints: [
+        "Process optimization and sustainable compounding gains",
+        "Automating routine choices to conserve mental energy",
+        "Tactics for professional differentiation and deep mastery"
+      ],
+      transition: "To validate these frameworks, we inspect real-world case applications."
+    },
+    {
+      title: "Real-World Case Studies and Field Lessons",
+      objective: "Examine authentic scenarios of implementation across varying environments.",
+      keyPoints: [
+        "Dissecting what separates success from frustration in practice",
+        "Adapting the core framework to different schedules and constraints",
+        "Timeless insights gathered from sustained field execution"
+      ],
+      transition: "With practical validation established, the focus turns to long-term sustainability."
+    },
+    {
+      title: "Long-Term Systems and Relentless Consistency",
+      objective: "Ensure outcomes endure by embedding them into automated, sustainable systems.",
+      keyPoints: [
+        "Turning deliberate effort into effortless automatic habits",
+        "Periodic audits and quantitative checkpoints",
+        "Building resilience against environment shifts"
+      ],
+      transition: "We arrive at the final synthesis and the creation of your definitive action roadmap."
+    },
+    {
+      title: "The Master Blueprint and Future Horizons",
+      objective: "Consolidate the entire journey into a clear, empowering, future-proof blueprint.",
+      keyPoints: [
+        "Final implementation checklist of mastered principles",
+        "Personal manifesto of commitment to sustained excellence",
+        "Guidelines for autonomous lifelong progression"
+      ],
+      transition: "Complete and definitive conclusion delivering lasting transformational value."
+    }
+  ];
+
+  // Matriz de progressão temática em Inglês para Ficção
+  const matrizFiccaoEn = [
+    {
+      title: "The Inciting Incident and the Cold Dawn",
+      objective: "Establish the world, introduce the protagonist in their routine, and trigger the catalyst event.",
+      keyPoints: [
+        "The fragile normalcy and lingering tensions of the protagonist",
+        "An unexpected omen or event that shatters routine",
+        "The initial dilemma that forces an irreversible choice"
+      ],
+      transition: "Normalcy broken, the journey crosses into dangerous, uncharted territory."
+    },
+    {
+      title: "Crossing the Threshold into the Unknown",
+      objective: "Thrust the characters into the new environment and test their resolve against early hazards.",
+      keyPoints: [
+        "Arrival in an uncertain realm with unwritten rules",
+        "First encounters with ambiguous allies and potential adversaries",
+        "An early test exposing the vulnerabilities of the group"
+      ],
+      transition: "The illusion of an easy escape crumbles as deeper threats emerge from the shadows."
+    },
+    {
+      title: "Hidden Shadows and Whispers of Betrayal",
+      objective: "Deepen the central mystery and elevate dramatic tension through revealed secrets.",
+      keyPoints: [
+        "Discovery of a hidden conspiracy no one foresaw",
+        "Fractures of trust between the primary characters",
+        "A ticking clock that rapidly limits all avenues of retreat"
+      ],
+      transition: "With no safe harbor left, the only path forward leads into the heart of danger."
+    },
+    {
+      title: "The Point of No Return",
+      objective: "Escalate the conflict to a dramatic peak where the greatest loss or realization occurs.",
+      keyPoints: [
+        "Direct confrontation with an overwhelming opposing force",
+        "A moment of utter despair where all hope seems lost",
+        "A pivotal decision that rekindles the protagonist determination"
+      ],
+      transition: "From the ashes of crisis, the final strategy takes shape for the ultimate clash."
+    },
+    {
+      title: "The Final Confrontation and Full Resolution",
+      objective: "Resolve the central conflict in a memorable, definitive, and emotionally resonant finale.",
+      keyPoints: [
+        "The climactic face-off where every hidden truth collides",
+        "Ultimate triumph earned through hardship and personal growth",
+        "An epilogue tying all loose threads into a deeply satisfying conclusion"
+      ],
+      transition: "Complete narrative resolution bringing full closure to the journey."
+    }
+  ];
 
   // Matriz de progressão temática para Não Ficção
   const matrizNaoFiccao = [
@@ -486,7 +649,10 @@ export function buildFallbackEditorialPlan(
         : (isEn ? 'The Master Blueprint & Next Steps' : isEs ? 'El Plan Definitivo y Próximos Pasos' : 'O Plano Definitivo e Próximos Passos');
     }
 
-    const templateObj = (isFiccao ? matrizFiccao : matrizNaoFiccao)[i % (isFiccao ? matrizFiccao : matrizNaoFiccao).length];
+    const matrizAtiva = isEn
+      ? (isFiccao ? matrizFiccaoEn : matrizNaoFiccaoEn)
+      : (isFiccao ? matrizFiccao : matrizNaoFiccao);
+    const templateObj = matrizAtiva[i % matrizAtiva.length];
 
     const transition = num === chapterCount
       ? (isEn ? 'Final conclusion and full completion of the book.' : isEs ? 'Conclusión final y cierre definitivo de la obra.' : 'Conclusão definitiva e encerramento da obra com impacto e coerência.')
