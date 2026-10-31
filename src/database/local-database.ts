@@ -19,7 +19,7 @@ import type { EditorialJob, FinalBookRecord } from '../types/editorial-correctio
 import { DEFAULT_SETTINGS, DEFAULT_SALES_MODELS } from './defaults';
 
 const DB_NAME = 'BookIntelDB';
-const DB_VERSION = 4; // v4: editorialJobs + finalBooks (correção editorial e PDFs finais)
+const DB_VERSION = 5; // v5: bookGlobalMemory, bookChapterStates, bookCanonicalFacts, bookLayoutSettings, bookAuditReports
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -258,6 +258,38 @@ class LocalDatabase {
           const finalStore = db.createObjectStore('finalBooks', { keyPath: 'id' });
           finalStore.createIndex('bookId', 'bookId', { unique: false });
           finalStore.createIndex('finalizedAt', 'finalizedAt', { unique: false });
+        }
+
+        // 1. Memória Editorial Global Persistente (BOOK_GLOBAL_MEMORY)
+        if (!db.objectStoreNames.contains('bookGlobalMemory')) {
+          const memStore = db.createObjectStore('bookGlobalMemory', { keyPath: 'bookId' });
+          memStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+        }
+
+        // 2. Estados dos Capítulos Individuais (LAST_CHAPTER_STATE)
+        if (!db.objectStoreNames.contains('bookChapterStates')) {
+          const capStateStore = db.createObjectStore('bookChapterStates', { keyPath: 'id' });
+          capStateStore.createIndex('bookId', 'bookId', { unique: false });
+          capStateStore.createIndex('chapterNumber', 'chapterNumber', { unique: false });
+        }
+
+        // 3. Fatos Canônicos Imutáveis da Obra
+        if (!db.objectStoreNames.contains('bookCanonicalFacts')) {
+          const factStore = db.createObjectStore('bookCanonicalFacts', { keyPath: 'id' });
+          factStore.createIndex('bookId', 'bookId', { unique: false });
+          factStore.createIndex('category', 'category', { unique: false });
+        }
+
+        // 4. Configurações Visuais de Diagramação (Desacopladas do texto)
+        if (!db.objectStoreNames.contains('bookLayoutSettings')) {
+          const layoutStore = db.createObjectStore('bookLayoutSettings', { keyPath: 'bookId' });
+          layoutStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+        }
+
+        // 5. Relatórios Consolidados de Auditoria Editorial
+        if (!db.objectStoreNames.contains('bookAuditReports')) {
+          const auditStore = db.createObjectStore('bookAuditReports', { keyPath: 'bookId' });
+          auditStore.createIndex('updatedAt', 'updatedAt', { unique: false });
         }
       };
 
@@ -990,7 +1022,222 @@ class LocalDatabase {
     const history = await this.getCategoryMetricsHistory(marketplace, category, subcategory);
     return history.length > 0 ? history[0] : null;
   }
+
+  // --- MEMÓRIA EDITORIAL GLOBAL & ESTADOS SEQUENCIAIS ---
+  async saveBookGlobalMemory(bookId: string, memory: any): Promise<void> {
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('bookGlobalMemory', 'readwrite');
+        const store = tx.objectStore('bookGlobalMemory');
+        const req = store.put({ ...memory, bookId, updatedAt: new Date().toISOString() });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('book_memory_' + bookId, JSON.stringify(memory));
+        }
+      } catch (e) {
+        console.warn('Falha no fallback de memória editorial:', e);
+      }
+    }
+  }
+
+  async getBookGlobalMemory(bookId: string): Promise<any | null> {
+    try {
+      const db = await this.getDB();
+      return await new Promise<any | null>((resolve, reject) => {
+        const tx = db.transaction('bookGlobalMemory', 'readonly');
+        const store = tx.objectStore('bookGlobalMemory');
+        const req = store.get(bookId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('book_memory_' + bookId);
+          return raw ? JSON.parse(raw) : null;
+        }
+      } catch {}
+      return null;
+    }
+  }
+
+  async saveChapterState(bookId: string, chapterNumber: number, state: any): Promise<void> {
+    const recordId = bookId + '_cap_' + chapterNumber;
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('bookChapterStates', 'readwrite');
+        const store = tx.objectStore('bookChapterStates');
+        const req = store.put({ ...state, id: recordId, bookId, chapterNumber });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('book_chapter_state_' + recordId, JSON.stringify(state));
+        }
+      } catch {}
+    }
+  }
+
+  async getChapterStates(bookId: string): Promise<any[]> {
+    try {
+      const db = await this.getDB();
+      return await new Promise<any[]>((resolve, reject) => {
+        const tx = db.transaction('bookChapterStates', 'readonly');
+        const store = tx.objectStore('bookChapterStates');
+        const index = store.index('bookId');
+        const req = index.getAll(bookId);
+        req.onsuccess = () => {
+          const results = req.result || [];
+          results.sort((a, b) => (a.chapterNumber || 0) - (b.chapterNumber || 0));
+          resolve(results);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  async getLatestChapterState(bookId: string): Promise<any | null> {
+    const states = await this.getChapterStates(bookId);
+    if (states.length > 0) {
+      return states[states.length - 1];
+    }
+    return null;
+  }
+
+  async saveCanonicalFacts(bookId: string, facts: any[]): Promise<void> {
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('bookCanonicalFacts', 'readwrite');
+        const store = tx.objectStore('bookCanonicalFacts');
+        for (const fact of facts) {
+          store.put({ ...fact, id: bookId + '_' + (fact.id || Math.random().toString(36).slice(2, 6)), bookId });
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('book_facts_' + bookId, JSON.stringify(facts));
+        }
+      } catch {}
+    }
+  }
+
+  async getCanonicalFacts(bookId: string): Promise<any[]> {
+    try {
+      const db = await this.getDB();
+      return await new Promise<any[]>((resolve, reject) => {
+        const tx = db.transaction('bookCanonicalFacts', 'readonly');
+        const store = tx.objectStore('bookCanonicalFacts');
+        const index = store.index('bookId');
+        const req = index.getAll(bookId);
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('book_facts_' + bookId);
+          return raw ? JSON.parse(raw) : [];
+        }
+      } catch {}
+      return [];
+    }
+  }
+
+  async saveBookLayoutSettings(bookId: string, settings: any): Promise<void> {
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('bookLayoutSettings', 'readwrite');
+        const store = tx.objectStore('bookLayoutSettings');
+        const req = store.put({ ...settings, bookId, updatedAt: new Date().toISOString() });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('book_layout_' + bookId, JSON.stringify(settings));
+        }
+      } catch {}
+    }
+  }
+
+  async getBookLayoutSettings(bookId: string): Promise<any | null> {
+    try {
+      const db = await this.getDB();
+      return await new Promise<any | null>((resolve, reject) => {
+        const tx = db.transaction('bookLayoutSettings', 'readonly');
+        const store = tx.objectStore('bookLayoutSettings');
+        const req = store.get(bookId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('book_layout_' + bookId);
+          return raw ? JSON.parse(raw) : null;
+        }
+      } catch {}
+      return null;
+    }
+  }
+
+  async saveAuditReport(bookId: string, report: any): Promise<void> {
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('bookAuditReports', 'readwrite');
+        const store = tx.objectStore('bookAuditReports');
+        const req = store.put({ ...report, bookId, updatedAt: new Date().toISOString() });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('book_audit_' + bookId, JSON.stringify(report));
+        }
+      } catch {}
+    }
+  }
+
+  async getAuditReport(bookId: string): Promise<any | null> {
+    try {
+      const db = await this.getDB();
+      return await new Promise<any | null>((resolve, reject) => {
+        const tx = db.transaction('bookAuditReports', 'readonly');
+        const store = tx.objectStore('bookAuditReports');
+        const req = store.get(bookId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('book_audit_' + bookId);
+          return raw ? JSON.parse(raw) : null;
+        }
+      } catch {}
+      return null;
+    }
+  }
 }
+
 
 export const db = new LocalDatabase();
 export const localDatabase = db;

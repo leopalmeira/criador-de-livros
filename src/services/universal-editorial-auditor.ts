@@ -668,6 +668,18 @@ export class UniversalEditorialAuditor {
       if (!isEn) {
         const arcaismos = txt.match(/\b(outrossim|quiçá|dessarte|conquanto|deveras|hodierno|alhures)\b/gi);
         if (arcaismos) {
+          const mapArcaico: Record<string, string> = {
+            outrossim: 'além disso',
+            quiçá: 'talvez',
+            dessarte: 'assim',
+            conquanto: 'embora',
+            deveras: 'realmente',
+            hodierno: 'atual',
+            alhures: 'em outro lugar'
+          };
+          const first = arcaismos[0].toLowerCase();
+          const fixWord = mapArcaico[first] || 'além disso';
+
           issues.push(newIssue({
             stepNumber: 5,
             stepName: 'Vocabulário Contemporâneo',
@@ -677,7 +689,7 @@ export class UniversalEditorialAuditor {
             severity: 'MEDIO',
             description: `Uso de termos anacrônicos/arcaicos (${[...new Set(arcaismos)].join(', ')}) em obra contemporânea.`,
             originalSnippet: arcaismos[0],
-            suggestedFix: 'Substituir por conectivos modernos ("além disso", "talvez", "assim", "embora").',
+            suggestedFix: fixWord,
             autoFixAvailable: true,
             requiresAuthorApproval: false
           }));
@@ -990,8 +1002,13 @@ export class UniversalEditorialAuditor {
         const cap = livroAtualizado.capitulos[iss.chapterIndex];
         if (iss.category === 'titulos' && iss.suggestedFix) {
           cap.titulo = iss.suggestedFix;
-        } else if (iss.originalSnippet && iss.suggestedFix && cap.texto.includes(iss.originalSnippet)) {
-          cap.texto = cap.texto.replace(iss.originalSnippet, iss.suggestedFix);
+        } else if (iss.originalSnippet && iss.suggestedFix) {
+          const rx = new RegExp(`\\b${iss.originalSnippet}\\b`, 'gi');
+          if (rx.test(cap.texto)) {
+            cap.texto = cap.texto.replace(rx, iss.suggestedFix);
+          } else if (cap.texto.includes(iss.originalSnippet)) {
+            cap.texto = cap.texto.replace(iss.originalSnippet, iss.suggestedFix);
+          }
         }
         return {
           ...iss,
@@ -1027,10 +1044,17 @@ export class UniversalEditorialAuditor {
             cap.titulo = iss.suggestedFix;
             fixedCount++;
             return { ...iss, applied: true, status: 'corrigido_automaticamente' as const };
-          } else if (iss.originalSnippet && iss.suggestedFix && cap.texto.includes(iss.originalSnippet)) {
-            cap.texto = cap.texto.replace(iss.originalSnippet, iss.suggestedFix);
-            fixedCount++;
-            return { ...iss, applied: true, status: 'corrigido_automaticamente' as const };
+          } else if (iss.originalSnippet && iss.suggestedFix) {
+            const rx = new RegExp(`\\b${iss.originalSnippet}\\b`, 'gi');
+            if (rx.test(cap.texto)) {
+              cap.texto = cap.texto.replace(rx, iss.suggestedFix);
+              fixedCount++;
+              return { ...iss, applied: true, status: 'corrigido_automaticamente' as const };
+            } else if (cap.texto.includes(iss.originalSnippet)) {
+              cap.texto = cap.texto.replace(iss.originalSnippet, iss.suggestedFix);
+              fixedCount++;
+              return { ...iss, applied: true, status: 'corrigido_automaticamente' as const };
+            }
           }
         }
       }

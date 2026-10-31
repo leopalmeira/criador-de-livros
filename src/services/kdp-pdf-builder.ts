@@ -36,6 +36,7 @@ export interface BuildPdfInput {
   capaDataUrl?: string | null;
   contracapaDataUrl?: string | null;
   incluirContracapa?: boolean;
+  incluirCapaNoMiolo?: boolean;
   bookType?: BookType;
   formato: string;
   optSumario: boolean;
@@ -443,7 +444,10 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   };
 
   // 1) CAPA
-  if (input.capaDataUrl) {
+  // Regra KDP (Seção 16): Não inserir a capa frontal como primeira página do PDF do miolo impresso
+  // quando ela já fizer parte do arquivo de capa/wrap de impressão, salvo se incluirCapaNoMiolo for explicitamente true.
+  const deveIncluirCapaNoMiolo = input.incluirCapaNoMiolo === true || (input.incluirCapaNoMiolo !== false && Boolean(input.capaDataUrl));
+  if (deveIncluirCapaNoMiolo && input.capaDataUrl) {
     const info = readImageInfo(input.capaDataUrl);
     if (info) {
       startPage('capa');

@@ -30,6 +30,14 @@ import {
   VerifierIssue
 } from '../../../services/kdp-book-verifier';
 import { EditorialCorrectionSection } from './EditorialCorrectionSection';
+import {
+  BookSequentialWritingEngine,
+  StoryArcController,
+  type BookGlobalMemory,
+  type LastChapterState,
+  type LocalContinuityAuditResult
+} from '../../../services/book-sequential-writing-engine';
+import { SequentialWritingStudio } from './SequentialWritingStudio';
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
 import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrity-engine';
 import type { FinalBookRecord } from '../../../types/editorial-correction';
@@ -358,14 +366,14 @@ const ENGLISH_SUBTHEMES: Record<string, string> = {
   'Foco': 'Focus', 'Organização digital': 'Digital organization'
 };
 
-interface Capitulo {
+export interface Capitulo {
   titulo: string;
   texto: string;
   imagemDataUrl?: string | null;
   imagemPrompt?: string;
 }
 
-interface LivroGerado {
+export interface LivroGerado {
   titulo: string;
   subtitulo: string;
   autor: string;
@@ -925,7 +933,10 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [statusMsg, setStatusMsg] = useState('Pronto para iniciar');
   const [statusType, setStatusType] = useState<'normal' | 'ok' | 'error'>('normal');
   const [progressPercent, setProgressPercent] = useState(0);
-  const [activeTab, setActiveTab] = useState<'wizard' | 'preview' | 'market' | 'capa' | 'promo' | 'auditoria' | 'planner' | 'coauthor'>('wizard');
+  const [activeTab, setActiveTab] = useState<'wizard' | 'escrita' | 'preview' | 'market' | 'capa' | 'promo' | 'auditoria' | 'planner' | 'coauthor'>('wizard');
+  const [globalMemory, setGlobalMemory] = useState<BookGlobalMemory | null>(null);
+  const [lastChapterState, setLastChapterState] = useState<LastChapterState | null>(null);
+  const [capituloSelecionadoIndex, setCapituloSelecionadoIndex] = useState<number>(0);
   const [workspaceLayout, setWorkspaceLayout] = useState<'focused' | 'split'>('focused');
   const [bookType, setBookType] = useState<BookType>('fiction-novel');
   const [creationSelectorValue, setCreationSelectorValue] = useState('format:fiction-novel');
@@ -2418,7 +2429,7 @@ Siga estritamente esta estrutura em 5 partes:
         subtheme: subtemaSelecionado,
         targetReader,
         promise: bookPromise || proposedBookSummary,
-        differentiator: enrichedDifferentiator
+        differentiator: uniqueAngle || 'Abordagem autoral exclusiva'
       }, capsCalc);
       setPlanoEditorial(plano);
       logDiag(`Plano editorial criado com ${plano.chapters.length} capítulos e guia de continuidade.`);
@@ -2435,7 +2446,7 @@ Siga estritamente esta estrutura em 5 partes:
         subtheme: subtemaSelecionado,
         targetReader,
         promise: bookPromise || proposedBookSummary,
-        differentiator: enrichedDifferentiator
+        differentiator: uniqueAngle || 'Abordagem autoral exclusiva'
       }, capsCalc);
       setPlanoEditorial(plano);
       logDiag(`[Self-Healing] Plano editorial consolidado com sucesso com ${plano.chapters.length} capítulos.`);
@@ -2515,6 +2526,29 @@ Siga estritamente esta estrutura em 5 partes:
   };
 
   // LOOP DE GERAÇÃO CAPÍTULO A CAPÍTULO COM AUTO-RECUPERAÇÃO CONTÍNUA (SELF-HEALING)
+  const handleGerarProximoCapituloSequencial = async () => {
+    if (!livro) return;
+    const currentLen = livro.capitulos.length;
+    if (currentLen >= totalCaps) {
+      setStatusMsg('Todos os capítulos planejados já foram escritos.');
+      setStatusType('normal');
+      return;
+    }
+    const plano = planoEditorial || buildFallbackEditorialPlan({
+      title: livro.titulo || titulo || 'Obra Literária',
+      subtitle: livro.subtitulo || subtitulo,
+      genre: livro.genero || genero,
+      language: livro.idioma || idioma,
+      topic: topico,
+      theme: temaSelecionado,
+      subtheme: subtemaSelecionado,
+      targetReader,
+      promise: bookPromise || proposedBookSummary,
+      differentiator: uniqueAngle || 'Abordagem autoral exclusiva'
+    }, totalCaps);
+    await executarLoopGeracao(livro, currentLen, currentLen + 1, livro.meta?.palavrasPorCap || 900, plano);
+  };
+
   const executarLoopGeracao = async (
     livroBase: LivroGerado,
     inicio: number,
@@ -2529,6 +2563,28 @@ Siga estritamente esta estrutura em 5 partes:
 
     const frasesUsadas = new Set<string>();
     let tentativasConsecutivasCapitulo = 0;
+
+    const currentProjId = projectIdRef.current || `proj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    projectIdRef.current = currentProjId;
+
+    // Inicialização da Bíblia Editorial Global (BOOK_GLOBAL_MEMORY)
+    let activeMemory: BookGlobalMemory;
+    const existingMem = globalMemory || (await db.getBookGlobalMemory(currentProjId));
+    if (existingMem) {
+      activeMemory = existingMem;
+    } else {
+      activeMemory = BookSequentialWritingEngine.initGlobalMemory({
+        bookId: currentProjId,
+        title: livroBase.titulo,
+        subtitle: livroBase.subtitulo,
+        author: livroBase.autor,
+        language: livroBase.idioma,
+        genre: livroBase.genero,
+        plannedChapters: total,
+        centralPremise: topico
+      });
+    }
+    setGlobalMemory(activeMemory);
 
     // Função auxiliar para criar resumo compacto de continuidade de cada capítulo
     const extrairResumoContinuo = (texto: string): string => {
@@ -2707,6 +2763,45 @@ ${ganchoImediato}`;
         cap.texto.split(/[.!?]\s+/).forEach(f => {
           if (f.trim().length > 40) frasesUsadas.add(f.trim().toLowerCase());
         });
+
+        // AUDITORIA LOCAL DE CONTINUIDADE (TESTE 1, 2, 3, 4, 5)
+        const currentLastState = lastChapterState || (i > 0 ? await db.getLatestChapterState(currentProjId) : null);
+        const localAudit = BookSequentialWritingEngine.validateChapterContinuity({
+          chapterText: cap.texto,
+          chapterTitle: cap.titulo,
+          chapterNumber: num,
+          totalChapters: total,
+          memory: activeMemory,
+          lastChapterState: currentLastState
+        });
+
+        if (localAudit.issues.length > 0) {
+          logDiag(`Capítulo ${num}: ${localAudit.issues.length} verificação(ões) de continuidade identificada(s). Auto-reparando...`);
+          const { fixedText, fixedCount } = BookSequentialWritingEngine.autoFixContinuityIssues(
+            cap.texto,
+            localAudit.issues
+          );
+          if (fixedCount > 0) {
+            cap.texto = fixedText;
+            logDiag(`Capítulo ${num}: ${fixedCount} inconsistência(s) corrigida(s) e alinhada(s) à Bíblia Editorial.`);
+          }
+        }
+
+        // ATUALIZAÇÃO DA MEMÓRIA EDITORIAL GLOBAL E LAST_CHAPTER_STATE
+        const { updatedMemory, newChapterState } = BookSequentialWritingEngine.updateGlobalMemoryAfterChapter({
+          memory: activeMemory,
+          chapter: cap,
+          chapterNumber: num,
+          auditResult: localAudit
+        });
+        activeMemory = updatedMemory;
+        setGlobalMemory({ ...updatedMemory });
+        setLastChapterState({ ...newChapterState });
+
+        // PERSISTÊNCIA REAL NO BANCO DE DADOS
+        await db.saveBookGlobalMemory(currentProjId, updatedMemory);
+        await db.saveChapterState(currentProjId, num, newChapterState);
+        await db.saveCanonicalFacts(currentProjId, updatedMemory.canonicalFacts);
 
         livroBase.capitulos.push(cap);
         setLivro({ ...livroBase });
@@ -4915,7 +5010,8 @@ Total de Capítulos: ${livro.capitulos.length}
         },
         capaDataUrl: capaFinal,
         contracapaDataUrl: contracapaFinal,
-        incluirContracapa: true,
+        incluirCapaNoMiolo: false, // REGRA KDP (Seção 16): Miolo oficial impresso sem capa frontal na 1ª página
+        incluirContracapa: false,
         bookType,
         formato,
         optSumario,
@@ -5990,7 +6086,84 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {/* 1. EDITOR DA ETAPA ATUAL */}
+                {/* 1. ESCRITA DOS CAPÍTULOS */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('escrita')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '7px 9px',
+                    borderRadius: 6,
+                    border: activeTab === 'escrita' ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                    background: activeTab === 'escrita' ? '#f0f9ff' : '#ffffff',
+                    color: activeTab === 'escrita' ? '#0369a1' : '#334155',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    width: '100%',
+                    textAlign: 'left'
+                  }}
+                >
+                  <BookOpen size={14} color={activeTab === 'escrita' ? '#0284c7' : '#64748b'} />
+                  <span>📖 {ui('1. Escrita dos Capítulos', '1. Chapter Writing')}</span>
+                </button>
+
+                {/* 2. DIAGRAMAÇÃO & PRÉVIA */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('preview')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '7px 9px',
+                    borderRadius: 6,
+                    border: activeTab === 'preview' ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                    background: activeTab === 'preview' ? '#f0f9ff' : '#ffffff',
+                    color: activeTab === 'preview' ? '#0369a1' : '#334155',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    width: '100%',
+                    textAlign: 'left'
+                  }}
+                >
+                  <FileText size={14} color={activeTab === 'escrita'
+                    ? '📖 1. Escrita dos Capítulos & Memória Sequencial'
+                    : activeTab === 'preview' ? '#0284c7' : '#64748b'} />
+                  <span>📑 {ui('2. Diagramação & Prévia', '2. Typesetting & Preview')}</span>
+                </button>
+
+                {/* 3. AUDITORIA & CORREÇÃO */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('auditoria')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '7px 9px',
+                    borderRadius: 6,
+                    border: activeTab === 'auditoria' ? '1.5px solid #10b981' : '1px solid #e2e8f0',
+                    background: activeTab === 'auditoria' ? '#ecfdf5' : '#ffffff',
+                    color: activeTab === 'auditoria' ? '#059669' : '#334155',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    width: '100%',
+                    textAlign: 'left'
+                  }}
+                >
+                  <ShieldCheck size={14} color={activeTab === 'auditoria' ? '#10b981' : '#64748b'} />
+                  <span>🛡️ {ui('3. Auditoria & Correção', '3. Audit & Correction')}</span>
+                </button>
+
+                <div style={{ height: 1, background: '#e2e8f0', margin: '4px 0' }} />
+
+                {/* FERRAMENTAS COMPLEMENTARES */}
+                {/* EDITOR DA ETAPA ATUAL */}
                 <button
                   type="button"
                   onClick={() => setActiveTab('wizard')}
@@ -10388,7 +10561,47 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </div>
             </div>
 
-            {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
+            {/* ABA 0: ESCRITA DOS CAPÍTULOS & MEMÓRIA SEQUENCIAL */}
+              {activeTab === 'escrita' && (
+                <SequentialWritingStudio
+                  livro={livro}
+                  totalCaps={totalCaps}
+                  gerando={gerando}
+                  modoEconomico={modoEconomico}
+                  statusMsg={statusMsg}
+                  selectedChapterIndex={capituloSelecionadoIndex}
+                  onSelectChapterIndex={setCapituloSelecionadoIndex}
+                  onUpdateChapter={(idx, newTitle, newText) => {
+                    if (!livro) return;
+                    const updatedCaps = [...livro.capitulos];
+                    if (updatedCaps[idx]) {
+                      updatedCaps[idx] = { ...updatedCaps[idx], titulo: newTitle, texto: newText };
+                      const updatedLivro = { ...livro, capitulos: updatedCaps };
+                      setLivro(updatedLivro);
+                      salvarProgressoLocal(updatedLivro);
+                    }
+                  }}
+                  onGenerateNextChapter={handleGerarProximoCapituloSequencial}
+                  onStopGeneration={() => {
+                    pararFlagRef.current = true;
+                    setPararFlag(true);
+                    setGerando(false);
+                  }}
+                  onSaveProgress={() => {
+                    if (livro) {
+                      salvarProgressoLocal(livro);
+                      setStatusMsg('✓ Progresso e manuscrito salvos com sucesso!');
+                      setStatusType('ok');
+                    }
+                  }}
+                  editorialPlan={planoEditorial}
+                  globalMemory={globalMemory}
+                  lastChapterState={lastChapterState}
+                  ui={ui}
+                />
+              )}
+
+              {/* ABA 1: PRÉ-VISUALIZAÇÃO DO LIVRO */}
               {activeTab === 'preview' && (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {/* PAINEL DO MOTOR DE SILHUETAS MARGINAIS COM 3% DE SANGRIA EXTERNA */}
