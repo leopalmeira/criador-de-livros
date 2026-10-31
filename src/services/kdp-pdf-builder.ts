@@ -447,13 +447,9 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     const info = readImageInfo(input.capaDataUrl);
     if (info) {
       startPage('capa');
-      const pr = LW / LH;
-      const ir = info.width / info.height;
-      let dw = LW, dh = LH, dx = 0, dy = 0;
-      if (ir > pr) { dh = LH; dw = LH * ir; dx = -(dw - LW) / 2; }
-      else if (ir < pr) { dw = LW; dh = LW / ir; dy = -(dh - LH) / 2; }
+      // MECANISMO ANTI-CORTE KDP: Estampa a capa preenchendo 100% da folha (0, 0, LW, LH) sem corte lateral de letras
       try {
-        doc.addImage(input.capaDataUrl, info.format === 'png' ? 'PNG' : 'JPEG', dx, dy, dw, dh, undefined, 'FAST');
+        doc.addImage(input.capaDataUrl, info.format === 'png' ? 'PNG' : 'JPEG', 0, 0, LW, LH, undefined, 'FAST');
         coverIncluded = true;
         coverOffset = 1;
       } catch (e: any) {
@@ -780,13 +776,9 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     if (input.contracapaDataUrl) {
       const info = readImageInfo(input.contracapaDataUrl);
       if (info) {
-        const pr = LW / LH;
-        const ir = info.width / info.height;
-        let dw = LW, dh = LH, dx = 0, dy = 0;
-        if (ir > pr) { dh = LH; dw = LH * ir; dx = -(dw - LW) / 2; }
-        else if (ir < pr) { dw = LW; dh = LW / ir; dy = -(dh - LH) / 2; }
+        // MECANISMO ANTI-CORTE KDP: Estampa a contracapa cobrindo 100% da folha (0, 0, LW, LH) sem corte lateral de letras
         try {
-          doc.addImage(input.contracapaDataUrl, info.format === 'png' ? 'PNG' : 'JPEG', dx, dy, dw, dh, undefined, 'FAST');
+          doc.addImage(input.contracapaDataUrl, info.format === 'png' ? 'PNG' : 'JPEG', 0, 0, LW, LH, undefined, 'FAST');
           backRendered = true;
         } catch (e: any) {
           warnings.push(`Falha ao incorporar imagem da contracapa: ${e?.message || e}`);

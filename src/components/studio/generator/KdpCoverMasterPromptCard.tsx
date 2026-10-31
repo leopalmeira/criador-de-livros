@@ -181,7 +181,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                   ? `Copiar Dossiê CAPA FRONTAL (${masterData.wordCount} pal.)`
                   : activeMode === 'back-only'
                     ? `Copiar Dossiê CONTRACAPA (${masterData.wordCountContracapa} pal.)`
-                    : `Copiar Dossiê WRAP COMPLETO (${masterData.wordCountCapaEContracapa} pal.)`}
+                    : `Copiar Dossiê CAPA COM CONTRACAPA JUNTO (${masterData.wordCountCapaEContracapa} pal.)`}
             </span>
           </button>
 
@@ -209,10 +209,10 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               {copiedAiOnly
                 ? '✓ Copiado!'
                 : activeMode === 'front-only'
-                  ? 'Copiar Prompt IA (Capa)'
+                  ? 'Copiar Prompt IA (Capa Frontal)'
                   : activeMode === 'back-only'
                     ? 'Copiar Prompt IA (Contracapa)'
-                    : 'Copiar Prompt IA (Wrap)'}
+                    : 'Copiar Prompt IA (Capa com Contracapa Junto)'}
             </span>
           </button>
 
@@ -240,7 +240,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
         </div>
       </div>
 
-      {/* SELETOR DE MODO (3 ABAS DE ALTA DENSIDADE COM 3.000+ PALAVRAS) */}
+      {/* SELETOR DE MODO (3 PROMPTS INDEPENDENTES: CAPA, CONTRACAPA E CAPA COM CONTRACAPA JUNTO) */}
       <div
         style={{
           display: 'grid',
@@ -301,7 +301,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           }}
         >
           <FileText size={14} color={activeMode === 'back-only' ? '#c084fc' : '#64748b'} />
-          <span>2. Contracapa Isolada ({masterData.wordCountContracapa} pal.)</span>
+          <span>2. Contracapa ({masterData.wordCountContracapa} pal.)</span>
         </button>
 
         <button
@@ -326,7 +326,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           }}
         >
           <Layers size={14} color={activeMode === 'full-wrap-back' ? '#34d399' : '#64748b'} />
-          <span>3. Wrap Aberto ({masterData.wordCountCapaEContracapa} pal.)</span>
+          <span>3. Capa com Contracapa Junto ({masterData.wordCountCapaEContracapa} pal.)</span>
         </button>
       </div>
 
@@ -356,8 +356,8 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
       {/* CONTEÚDO EXPANDIDO */}
       {isExpanded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          {/* SE ESTIVER NO MODO CAPA + CONTRACAPA: EXIBE CARD DA BREVE LEITURA NA CONTRACAPA */}
-          {activeMode === 'full-wrap-back' && (
+          {/* SE ESTIVER NO MODO CONTRACAPA OU CAPA COM CONTRACAPA JUNTO: EXIBE CARD DA BREVE LEITURA NA CONTRACAPA */}
+          {(activeMode === 'back-only' || activeMode === 'full-wrap-back') && (
             <div
               style={{
                 background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.9) 100%)',

@@ -153,6 +153,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
+          // @ts-ignore
           const { BackendCoverService } = await import('./src/services/backend-cover-service.ts');
 
           // Rota: GET /api/covers/api-key-status
@@ -289,6 +290,7 @@ function kdpAiBackendPlugin() {
         }
 
         try {
+          // @ts-ignore
           const { AmazonLiveService } = await import('./src/services/amazon-live-service.ts');
           const reqUrl = new URL(req.url, 'http://localhost');
           const pathname = reqUrl.pathname;
@@ -313,6 +315,7 @@ function kdpAiBackendPlugin() {
           }
 
           if (pathname === '/top100-segments' || pathname === '/top100-segments/') {
+            // @ts-ignore
             const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments.ts');
             const category = reqUrl.searchParams.get('category') || undefined;
             const query = reqUrl.searchParams.get('query') || undefined;
@@ -324,6 +327,7 @@ function kdpAiBackendPlugin() {
           }
 
           if (pathname === '/segment-books' || pathname === '/segment-books/') {
+            // @ts-ignore
             const { AmazonTop100Service } = await import('./src/services/amazon-top100-segments.ts');
             const segmentId = reqUrl.searchParams.get('segmentId') || 'habitos-disciplina';
             const excluded = (reqUrl.searchParams.get('excluded') || '').split(',').filter(Boolean);
@@ -336,6 +340,7 @@ function kdpAiBackendPlugin() {
           }
 
           if (pathname === '/suggest-titles' || pathname === '/suggest-titles/') {
+            // @ts-ignore
             const { KdpTitleSuggestionEngine } = await import('./src/services/kdp-title-suggestion-engine.ts');
             const theme = reqUrl.searchParams.get('theme') || 'Desenvolvimento Pessoal';
             const subtheme = reqUrl.searchParams.get('subtheme') || undefined;

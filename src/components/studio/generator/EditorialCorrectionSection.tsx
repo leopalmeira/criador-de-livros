@@ -5,7 +5,7 @@
 // ================================================================
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Wand2, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw,
+  Wand2, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw, SlidersHorizontal, Search, CheckCircle, HelpCircle, ArrowUpRight, BarChart3, BookmarkCheck, FileDown, ShieldAlert,
   Pause, Play, Download, Eye, FileText, ShieldCheck, BookOpen,
   ChevronRight, Sparkles, X, Check, ArrowRight, Layers
 } from 'lucide-react';
@@ -29,6 +29,13 @@ import {
 import { defaultAiCall } from '../../../services/kdp-editorial-corrector';
 import { KdpCompleteTypesetter, type RelatorioDiagramacaoCompleta, type PaginaDiagramadaInfo } from '../../../services/kdp-complete-typesetter';
 import { db } from '../../../database/local-database';
+import {
+  UniversalEditorialAuditor,
+  type UniversalAuditResult,
+  type UniversalAuditIssue,
+  type UniversalAuditSeverity,
+  type UniversalAuditStatus
+} from '../../../services/universal-editorial-auditor';
 
 interface Props {
   livro: PipelineLivro | null;
@@ -74,6 +81,21 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
   const [isTypesetting, setIsTypesetting] = useState(false);
   const [showPagesModal, setShowPagesModal] = useState(false);
 
+  // Estados do Sistema Universal de Revisão e Auditoria de Obras (15 Etapas)
+  const [universalAuditResult, setUniversalAuditResult] = useState<UniversalAuditResult | null>(null);
+  const [isAuditingUniversal, setIsAuditingUniversal] = useState(false);
+  const [universalProgress, setUniversalProgress] = useState<{
+    currentStep: number;
+    totalSteps: number;
+    stepName: string;
+    percent: number;
+    message: string;
+  } | null>(null);
+  const [auditFilterSeverity, setAuditFilterSeverity] = useState<'TODAS' | 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAIXO'>('TODAS');
+  const [auditFilterStatus, setAuditFilterStatus] = useState<'todos' | 'pendentes' | 'resolvidos'>('todos');
+  const [showUniversalReportModal, setShowUniversalReportModal] = useState(false);
+  const [showMemoryModal, setShowMemoryModal] = useState(false);
+
   // Executa o Agente Master de Diagramação do Livro Completo (Checagem Página por Página)
   const handleExecutarDiagramacaoCompleta = async () => {
     if (!livro || livro.capitulos.length === 0) {
@@ -96,6 +118,136 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
     } finally {
       setIsTypesetting(false);
     }
+  };
+
+  // ============================================================================
+  // HANDLERS: SISTEMA UNIVERSAL DE REVISÃO E AUDITORIA (15 ETAPAS)
+  // ============================================================================
+  const handleRunUniversalAudit = async () => {
+    if (!livro || livro.capitulos.length === 0) {
+      onStatusMessage?.('O livro deve conter capítulos antes de iniciar a auditoria universal.', 'error');
+      return;
+    }
+    setIsAuditingUniversal(true);
+    setUniversalProgress({
+      currentStep: 1,
+      totalSteps: 14,
+      stepName: 'Análise Integral do Manuscrito',
+      percent: 5,
+      message: 'Iniciando auditoria editorial multicamadas em 15 etapas...'
+    });
+    onStatusMessage?.('🔍 Auditoria Universal em 15 Etapas iniciada: analisando continuidade, narrativa, fontes, ortografia e diagramação KDP...', 'normal');
+
+    await new Promise(r => setTimeout(r, 120));
+
+    try {
+      const { auditResult, livroRevisado } = await UniversalEditorialAuditor.runUniversalAudit(
+        {
+          titulo: livro.titulo,
+          subtitulo: livro.subtitulo,
+          autor: livro.autor,
+          genero: livro.genero,
+          idioma: livro.idioma,
+          topico,
+          capitulos: livro.capitulos.map(c => ({ titulo: c.titulo, texto: c.texto })),
+          formato,
+          capaFinal
+        },
+        {
+          autoFixSafeIssues: true,
+          onProgress: (p) => {
+            setUniversalProgress({
+              currentStep: p.currentStep,
+              totalSteps: p.totalSteps,
+              stepName: p.stepName,
+              percent: p.percent,
+              message: p.message
+            });
+          }
+        }
+      );
+
+      setUniversalAuditResult(auditResult);
+      if (auditResult.metrics.autoFixedCount > 0) {
+        onBookUpdated(livroRevisado as PipelineLivro);
+      }
+
+      if (auditResult.canExport) {
+        onStatusMessage?.(`✓ ${auditResult.status}: Obra auditada e aprovada pelo conselho editorial com Score ${auditResult.overallScore}/100.`, 'ok');
+      } else {
+        onStatusMessage?.(`⚠️ ${auditResult.status}: ${auditResult.metrics.criticalCount} pontos críticos e ${auditResult.metrics.highCount} pendências requerem atenção.`, 'normal');
+      }
+    } catch (err: any) {
+      console.error('Erro na auditoria universal:', err);
+      onStatusMessage?.(`Erro ao executar auditoria universal: ${err.message}`, 'error');
+    } finally {
+      setIsAuditingUniversal(false);
+      setUniversalProgress(null);
+    }
+  };
+
+  const handleApplyAllSafeFixes = () => {
+    if (!livro || !universalAuditResult) return;
+    const { livroAtualizado, updatedResult, fixedCount } = UniversalEditorialAuditor.applyAllSafeFixes(
+      {
+        titulo: livro.titulo,
+        subtitulo: livro.subtitulo,
+        autor: livro.autor,
+        genero: livro.genero,
+        idioma: livro.idioma,
+        topico,
+        capitulos: livro.capitulos.map(c => ({ titulo: c.titulo, texto: c.texto })),
+        formato,
+        capaFinal
+      },
+      universalAuditResult
+    );
+    setUniversalAuditResult(updatedResult);
+    onBookUpdated(livroAtualizado as PipelineLivro);
+    onStatusMessage?.(`✓ ${fixedCount} correções automáticas seguras aplicadas com sucesso no livro!`, 'ok');
+  };
+
+  const handleApplySingleFix = (issueId: string) => {
+    if (!livro || !universalAuditResult) return;
+    const { livroAtualizado, updatedResult } = UniversalEditorialAuditor.applySingleFix(
+      {
+        titulo: livro.titulo,
+        subtitulo: livro.subtitulo,
+        autor: livro.autor,
+        genero: livro.genero,
+        idioma: livro.idioma,
+        topico,
+        capitulos: livro.capitulos.map(c => ({ titulo: c.titulo, texto: c.texto })),
+        formato,
+        capaFinal
+      },
+      universalAuditResult,
+      issueId
+    );
+    setUniversalAuditResult(updatedResult);
+    onBookUpdated(livroAtualizado as PipelineLivro);
+    onStatusMessage?.('✓ Correção pontual aplicada com sucesso!', 'ok');
+  };
+
+  const handleResolveAuthorApproval = (issueId: string, approved: boolean) => {
+    if (!universalAuditResult) return;
+    const updated = UniversalEditorialAuditor.resolveAuthorApproval(universalAuditResult, issueId, approved);
+    setUniversalAuditResult(updated);
+    onStatusMessage?.(`✓ Decisão editorial registrada: Pendência ${approved ? 'aprovada pelo autor' : 'rejeitada'}.`, 'ok');
+  };
+
+  const handleDownloadUniversalReport = () => {
+    if (!universalAuditResult) return;
+    const md = UniversalEditorialAuditor.generateAuditMarkdownReport(universalAuditResult);
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `RELATORIO_AUDITORIA_EDITORIAL_${(livro?.titulo || 'LIVRO').replace(/\s+/g, '_')}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   // Carrega job existente e livro finalizado ao montar ou mudar livro
@@ -1561,6 +1713,213 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {/* MODAL: RELATÓRIO EDITORIAL UNIVERSAL (15 ETAPAS) */}
+      {showUniversalReportModal && universalAuditResult && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 12,
+            width: '100%',
+            maxWidth: 780,
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#f8fafc'
+            }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+                  Relatório do Conselho Editorial — BookEngin (15 Etapas)
+                </h4>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  {universalAuditResult.bookTitle} • {universalAuditResult.status}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUniversalReportModal(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{
+                background: universalAuditResult.canExport ? '#f0fdf4' : '#fffbeb',
+                border: `1px solid ${universalAuditResult.canExport ? '#bbf7d0' : '#fde68a'}`,
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 12,
+                color: universalAuditResult.canExport ? '#166534' : '#b45309',
+                lineHeight: 1.6
+              }}>
+                <strong>Diagnóstico Editorial:</strong> {universalAuditResult.summary}
+              </div>
+
+              <div style={{
+                background: '#0f172a',
+                color: '#e2e8f0',
+                padding: 16,
+                borderRadius: 8,
+                fontFamily: 'monospace',
+                fontSize: 11,
+                whiteSpace: 'pre-wrap',
+                maxHeight: 380,
+                overflowY: 'auto'
+              }}>
+                {UniversalEditorialAuditor.generateAuditMarkdownReport(universalAuditResult)}
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+              <button
+                type="button"
+                onClick={handleDownloadUniversalReport}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <FileDown size={14} /> Baixar Arquivo Markdown
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUniversalReportModal(false)}
+                style={{ padding: '6px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: MEMÓRIA EDITORIAL GLOBAL (ETAPA 1) */}
+      {showMemoryModal && universalAuditResult && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 12,
+            width: '100%',
+            maxWidth: 720,
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#f8fafc'
+            }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+                  Memória Editorial Global & Continuidade (Etapa 1)
+                </h4>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Registro persistente de personagens, linha do tempo e universo fictício
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMemoryModal(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* PERSONAGENS */}
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+                  Personagens Identificados ({Object.keys(universalAuditResult.memory.characters).length})
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                  {Object.values(universalAuditResult.memory.characters).map((c, i) => (
+                    <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 10px' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{c.name}</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>Papel: {c.role} • 1ª aparição: Cap. {c.firstChapter}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* LINHA DO TEMPO */}
+              {universalAuditResult.memory.timeline.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+                    Linha do Tempo e Marcadores Temporais
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {universalAuditResult.memory.timeline.map((t, i) => (
+                      <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+                        <strong>Capítulo {t.chapter}:</strong> {t.event} {t.timeMarker && <span style={{ color: '#2563eb' }}>({t.timeMarker})</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc' }}>
+              <button
+                type="button"
+                onClick={() => setShowMemoryModal(false)}
+                style={{ padding: '6px 14px', background: '#2563eb', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}

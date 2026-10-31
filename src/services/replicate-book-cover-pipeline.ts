@@ -200,8 +200,7 @@ export async function diagramarCapaFrontalCanvas(params: {
   const img = await carregarElementoImagem(params.capaImgUrl);
   const srcW = img.naturalWidth || img.width || canvas.width;
   const srcH = img.naturalHeight || img.height || canvas.height;
-  const cropH = Math.floor(srcH * 0.92);
-  ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, srcW, srcH, 0, 0, canvas.width, canvas.height);
 
   // Obtém as configurações tipográficas de excelência correspondentes ao gênero
   const configTipo = getCoverTypographyTheme(
@@ -211,28 +210,45 @@ export async function diagramarCapaFrontalCanvas(params: {
   );
 
   // ================================================================
-  // 1. TÍTULO: LÁ EM CIMA GRANDE
+  // 1. TÍTULO: MECANISMO OBRIGATÓRIO ANTI-CORTE KDP (SAFE-ZONE AUTO-FIT)
+  // Margem segura física: 220px em cada lateral (> 0.65" KDP Safe Zone)
   // ================================================================
   let fontSizeTit = params.customTituloConfig?.fontSize || 116;
   if (!params.customTituloConfig?.fontSize) {
-    if (obraTitulo.length > 50) fontSizeTit = 82;
-    else if (obraTitulo.length > 32) fontSizeTit = 96;
-    else if (obraTitulo.length > 20) fontSizeTit = 114;
-    else if (obraTitulo.length < 14) fontSizeTit = 138; // Títulos concisos ganham presença imponente
+    if (obraTitulo.length > 50) fontSizeTit = 78;
+    else if (obraTitulo.length > 32) fontSizeTit = 92;
+    else if (obraTitulo.length > 20) fontSizeTit = 106;
+    else if (obraTitulo.length < 14) fontSizeTit = 126;
   }
 
-  // Posição centralizada no terço superior (lá em cima)
+  const safeMarginX = 220;
+  const larguraMaxTitulo = canvas.width - (safeMarginX * 2);
+  const chosenFontFamily = params.customTituloConfig?.fontFamily || configTipo.fontFamilyTitle;
+
+  let linhasTitulo: string[] = [];
+  const palavrasTitulo = obraTitulo.toUpperCase().split(/\s+/);
+
+  while (fontSizeTit >= 44) {
+    ctx.font = `${configTipo.fontWeightTitle} ${fontSizeTit}px ${chosenFontFamily}`;
+    linhasTitulo = quebrarLinhasTexto(ctx, obraTitulo.toUpperCase(), larguraMaxTitulo);
+    const maxLinhaW = Math.max(...linhasTitulo.map(l => ctx.measureText(l).width));
+    const maxPalavraW = Math.max(...palavrasTitulo.map(p => ctx.measureText(p).width));
+
+    if (maxLinhaW <= larguraMaxTitulo && maxPalavraW <= larguraMaxTitulo) {
+      break;
+    }
+    fontSizeTit -= 2;
+  }
+
+  // Posição centralizada no terço superior (lá em cima com respiro)
   const baseCentroTitulo = 420;
   const centroTitulo = baseCentroTitulo + (params.customTituloConfig?.offsetY || 0);
 
-  const chosenFontFamily = params.customTituloConfig?.fontFamily || configTipo.fontFamilyTitle;
   ctx.font = `${configTipo.fontWeightTitle} ${fontSizeTit}px ${chosenFontFamily}`;
   ctx.shadowColor = configTipo.shadowColor;
   ctx.shadowBlur = configTipo.shadowBlur;
   ctx.textAlign = 'center';
 
-  const larguraMaxTitulo = canvas.width - 240;
-  const linhasTitulo = quebrarLinhasTexto(ctx, obraTitulo.toUpperCase(), larguraMaxTitulo);
   const lineHTit = Math.round(fontSizeTit * 1.16);
   const alturaTotalTit = linhasTitulo.length * lineHTit;
 
@@ -246,7 +262,7 @@ export async function diagramarCapaFrontalCanvas(params: {
 
   linhasTitulo.forEach((linha) => {
     ctx.strokeStyle = configTipo.strokeColor;
-    ctx.lineWidth = configTipo.strokeWidth;
+    ctx.lineWidth = Math.min(configTipo.strokeWidth, Math.round(fontSizeTit * 0.08));
     ctx.strokeText(linha, xTitulo, yTit);
     ctx.fillStyle = gradTitulo;
     ctx.fillText(linha, xTitulo, yTit);
@@ -254,12 +270,12 @@ export async function diagramarCapaFrontalCanvas(params: {
   });
 
   // ================================================================
-  // 2. NOME DO AUTOR: NA PARTE DE BAIXO DO LIVRO (RODAPÉ)
+  // 2. NOME DO AUTOR: NA PARTE DE BAIXO DO LIVRO (RODAPÉ ANTI-CORTE)
   // ================================================================
-  const yAutor = canvas.height - 140; // 2260px
+  const yAutor = canvas.height - 150;
   ctx.shadowBlur = configTipo.shadowBlur;
   ctx.shadowColor = configTipo.shadowColor;
-  ctx.font = `${configTipo.fontWeightAuthor} 46px ${configTipo.fontFamilyAuthor}`;
+  let fontSizeAutor = 44;
   ctx.fillStyle = configTipo.authorColor;
   ctx.textAlign = 'center';
 
@@ -267,32 +283,55 @@ export async function diagramarCapaFrontalCanvas(params: {
     ? obraAutorLimpo.toUpperCase().split('').join(' ')
     : obraAutorLimpo;
 
+  const maxAutorW = canvas.width - (safeMarginX * 2);
+  while (fontSizeAutor >= 20) {
+    ctx.font = `${configTipo.fontWeightAuthor} ${fontSizeAutor}px ${configTipo.fontFamilyAuthor}`;
+    const autorW = ctx.measureText(spacedAutor).width;
+    if (autorW <= maxAutorW) {
+      break;
+    }
+    fontSizeAutor -= 2;
+  }
+
   ctx.strokeStyle = configTipo.strokeColor;
   ctx.lineWidth = Math.max(2, configTipo.strokeWidth - 1);
   ctx.strokeText(spacedAutor, canvas.width / 2, yAutor);
   ctx.fillText(spacedAutor, canvas.width / 2, yAutor);
 
   // ================================================================
-  // 3. SUBTÍTULO: UM POUCO ACIMA DO NOME DO AUTOR
+  // 3. SUBTÍTULO: UM POUCO ACIMA DO NOME DO AUTOR (ANTI-CORTE)
   // ================================================================
   if (obraSubtituloLimpo) {
     ctx.textAlign = 'center';
-    let fontSizeSub = 42;
-    if (obraSubtituloLimpo.length > 90) fontSizeSub = 36;
-    else if (obraSubtituloLimpo.length > 55) fontSizeSub = 39;
+    let fontSizeSub = 40;
+    if (obraSubtituloLimpo.length > 90) fontSizeSub = 32;
+    else if (obraSubtituloLimpo.length > 55) fontSizeSub = 36;
 
-    ctx.font = `${configTipo.fontWeightSubtitle} ${fontSizeSub}px ${configTipo.fontFamilySubtitle}`;
+    const margemSubX = 240;
+    const larguraMaxSub = canvas.width - (margemSubX * 2);
+    let linhasSub: string[] = [];
+    const palavrasSub = obraSubtituloLimpo.split(/\s+/);
+
+    while (fontSizeSub >= 20) {
+      ctx.font = `${configTipo.fontWeightSubtitle} ${fontSizeSub}px ${configTipo.fontFamilySubtitle}`;
+      linhasSub = quebrarLinhasTexto(ctx, obraSubtituloLimpo, larguraMaxSub);
+      const maxSubW = Math.max(...linhasSub.map(l => ctx.measureText(l).width));
+      const maxPalSubW = Math.max(...palavrasSub.map(p => ctx.measureText(p).width));
+      if (maxSubW <= larguraMaxSub && maxPalSubW <= larguraMaxSub) {
+        break;
+      }
+      fontSizeSub -= 2;
+    }
+
     ctx.fillStyle = configTipo.subtitleColor;
     ctx.shadowColor = configTipo.shadowColor;
     ctx.shadowBlur = Math.round(configTipo.shadowBlur * 0.75);
 
-    const larguraMaxSub = canvas.width - 280;
-    const linhasSub = quebrarLinhasTexto(ctx, obraSubtituloLimpo, larguraMaxSub);
     const lineHSub = Math.round(fontSizeSub * 1.34);
     const alturaTotalSub = linhasSub.length * lineHSub;
 
     // Posiciona exatamente acima do autor na base inferior
-    const yBaseSub = yAutor - 90; // espaço limpo entre a base do subtítulo e o autor
+    const yBaseSub = yAutor - 90;
     let ySub = yBaseSub - alturaTotalSub + fontSizeSub;
 
     linhasSub.forEach((linha) => {

@@ -513,8 +513,8 @@ export class PrintCoverService {
     ctx.strokeRect(frameInner, frameInner, canvas.width - frameInner * 2, canvas.height - frameInner * 2);
     ctx.restore();
 
-    // Margens seguras KDP
-    const marginX = 148;
+    // Margens seguras KDP estritas anti-corte (Safe Zone KDP G201113520 ampliada: 200px em cada lado)
+    const marginX = 200;
     const maxTextW = canvas.width - (marginX * 2);
 
     // Posição X de ancoragem conforme alinhamento
@@ -524,18 +524,30 @@ export class PrintCoverService {
     const backContent = this.generateSmartBackCover(params.title, params.synopsis, params.genre || 'Ficção');
     const headline = params.hookHeadline || backContent.hookHeadline;
 
-    // 2. Gancho Comercial / Headline no topo
+    // 2. Gancho Comercial / Headline no topo com auto-fit dinâmico anti-corte
     ctx.textAlign = align;
     ctx.fillStyle = isKids ? '#fef08a' : '#f59e0b'; // Amarelo luminoso ou Âmbar dourado
-    ctx.font = isKids ? 'bold 60px "Fredoka", "Quicksand", sans-serif' : 'bold 58px Georgia, serif';
     ctx.shadowColor = 'rgba(0,0,0,0.85)';
     ctx.shadowBlur = 14;
 
-    const headlineLines = this.quebrarLinhasTexto(ctx, headline, maxTextW);
+    let headlineFontSize = isKids ? 54 : 48;
+    let headlineLines: string[] = [];
+    while (headlineFontSize >= 28) {
+      ctx.font = isKids
+        ? `bold ${headlineFontSize}px "Fredoka", "Quicksand", sans-serif`
+        : `bold ${headlineFontSize}px Georgia, serif`;
+      headlineLines = this.quebrarLinhasTexto(ctx, headline, maxTextW);
+      const maxW = Math.max(...headlineLines.map(l => ctx.measureText(l).width));
+      if (maxW <= maxTextW) {
+        break;
+      }
+      headlineFontSize -= 2;
+    }
+
     let y = 220;
     headlineLines.forEach(line => {
       ctx.fillText(line, anchorX, y);
-      y += 74;
+      y += Math.round(headlineFontSize * 1.25);
     });
 
     // Linha ornamental sutil
@@ -556,17 +568,30 @@ export class PrintCoverService {
     ctx.stroke();
     y += 56;
 
-    // 3. Sinopse da Obra
+    // 3. Sinopse da Obra com auto-fit dinâmico anti-corte
     const synopsis = params.synopsis || backContent.synopsisText;
     ctx.textAlign = align;
     ctx.fillStyle = '#f1f5f9';
-    ctx.font = isKids ? '500 42px "Quicksand", sans-serif' : '400 40px Georgia, serif';
     ctx.shadowBlur = 8;
-    const synLines = this.quebrarLinhasTexto(ctx, synopsis, maxTextW);
+
+    let synFontSize = isKids ? 38 : 34;
+    let synLines: string[] = [];
+    while (synFontSize >= 22) {
+      ctx.font = isKids
+        ? `500 ${synFontSize}px "Quicksand", sans-serif`
+        : `400 ${synFontSize}px Georgia, serif`;
+      synLines = this.quebrarLinhasTexto(ctx, synopsis, maxTextW);
+      const maxW = Math.max(...synLines.map(l => ctx.measureText(l).width));
+      if (maxW <= maxTextW) {
+        break;
+      }
+      synFontSize -= 2;
+    }
+
     synLines.forEach(line => {
-      if (y < 1240) {
+      if (y < 1260) {
         ctx.fillText(line, anchorX, y);
-        y += 58;
+        y += Math.round(synFontSize * 1.4);
       }
     });
 

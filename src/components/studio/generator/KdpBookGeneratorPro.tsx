@@ -106,6 +106,7 @@ import { PrintCoverService } from '../../../services/print-cover-service';
 import { PublishingMetadataService } from '../../../services/publishing-metadata-service';
 import { preflightPdf } from '../../../services/pdf-preflight';
 import { KdpCoverMasterPromptCard } from './KdpCoverMasterPromptCard';
+import { KdpAmericanEnglishConverter } from '../../../services/kdp-american-english-converter';
 
 const newProjectId = () => newId('prj_');
 
@@ -668,6 +669,17 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [isEditingKeywords, setIsEditingKeywords] = useState(false);
   const [promoData, setPromoData] = useState<BookPromotionalPageData | null>(null);
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+
+  // Estados de Conversão Editorial para American English Contemporâneo
+  const [isConvertingToEnglish, setIsConvertingToEnglish] = useState<boolean>(false);
+  const [conversionProgress, setConversionProgress] = useState<{
+    current: number;
+    total: number;
+    percent: number;
+    stepTitle: string;
+    chapterTitle?: string;
+  } | null>(null);
+  const cancelConversionRef = useRef<{ isCancelled: boolean }>({ isCancelled: false });
 
   // Motor de Silhuetas Marginais & Ilustrações de Capítulos (3% Sangria Externa)
   const [silhuetaConfig, setSilhuetaConfig] = useState<SilhuetaMarginalConfig>(SILHUETA_CONFIG_PADRAO);
@@ -2942,11 +2954,10 @@ ${ganchoImediato}`;
     const obraAutorLimpo = sanitizarOrtografiaEditorialCapa(obraAutor);
 
     const img = await carregarElementoImagem(capaImgUrl);
-    // Corta os 8% inferiores da imagem para eliminar 100% de qualquer marca d'água residual
+    // Desenha a arte da capa preenchendo 100% da área do canvas sem distorção nem recortes arbitrários
     const srcW = img.naturalWidth || img.width || canvas.width;
     const srcH = img.naturalHeight || img.height || canvas.height;
-    const cropH = Math.floor(srcH * 0.92);
-    ctx.drawImage(img, 0, 0, srcW, cropH, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, srcW, srcH, 0, 0, canvas.width, canvas.height);
 
     // 1. OBTÉM PALETA E CONFIGURAÇÃO TIPOGRÁFICA ARTÍSTICA DA OBRA
     const isObraInfantil = bookType === 'children-picture-book' || /infantil|crian|kids|3-5|6-8/i.test(`${obraGenero} ${obraPremissa} ${faixaEtaria}`);
@@ -3025,33 +3036,55 @@ ${ganchoImediato}`;
       ctx.restore();
     }
 
-    // Dimensionamento harmônico do título (ou personalizado pelo autor)
+    // =========================================================================
+    // MECANISMO OBRIGATÓRIO ANTI-CORTE KDP (SAFE-ZONE AUTO-FIT DINÂMICO)
+    // Garante que NENHUMA letra seja cortada nas margens do PDF ou na tiragem física
+    // Margem de segurança física de 220px em cada lateral (> 0.65" KDP Safe Zone)
+    // =========================================================================
     let fontSizeTit = customTituloConfig?.fontSize || 116;
     if (!customTituloConfig?.fontSize) {
-      if (obraTitulo.length > 50) fontSizeTit = 82;
-      else if (obraTitulo.length > 32) fontSizeTit = 96;
-      else if (obraTitulo.length > 20) fontSizeTit = 114;
-      else if (obraTitulo.length < 14) fontSizeTit = 138; // Títulos concisos ganham presença imponente lá no topo
+      if (obraTitulo.length > 50) fontSizeTit = 78;
+      else if (obraTitulo.length > 32) fontSizeTit = 92;
+      else if (obraTitulo.length > 20) fontSizeTit = 106;
+      else if (obraTitulo.length < 14) fontSizeTit = 126;
     }
 
-    // TÍTULO LÁ EM CIMA GRANDE (Terço Superior da Capa)
+    const tituloAlinhadoEsquerda = layoutTitulo === 'esquerda';
+    ctx.textAlign = tituloAlinhadoEsquerda ? 'left' : 'center';
+    const safeMarginX = tituloAlinhadoEsquerda ? 260 : 220;
+    const larguraMaxTitulo = canvas.width - (safeMarginX * 2); // 1160px centralizados
+    const chosenFontFamily = customTituloConfig?.fontFamily || configTipo.fontFamilyTitle;
+
+    // Loop de auto-ajuste de fonte: se qualquer linha OU qualquer palavra individual exceder larguraMaxTitulo,
+    // o fontSizeTit é reduzido automaticamente até caber perfeitamente com 100% de margem
+    let linhasTitulo: string[] = [];
+    const palavrasTitulo = obraTitulo.toUpperCase().split(/\s+/);
+
+    while (fontSizeTit >= 44) {
+      ctx.font = `${configTipo.fontWeightTitle} ${fontSizeTit}px ${chosenFontFamily}`;
+      linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), larguraMaxTitulo);
+      const maxLinhaW = Math.max(...linhasTitulo.map(l => ctx.measureText(l).width));
+      const maxPalavraW = Math.max(...palavrasTitulo.map(p => ctx.measureText(p).width));
+
+      if (maxLinhaW <= larguraMaxTitulo && maxPalavraW <= larguraMaxTitulo) {
+        break;
+      }
+      fontSizeTit -= 2;
+    }
+
+    // TÍTULO LÁ EM CIMA GRANDE (Terço Superior da Capa com Respiro Editorial)
     const baseCentroTitulo = 420;
     const centroTitulo = baseCentroTitulo + (customTituloConfig?.offsetY || 0);
 
-    const chosenFontFamily = customTituloConfig?.fontFamily || configTipo.fontFamilyTitle;
     ctx.font = `${configTipo.fontWeightTitle} ${fontSizeTit}px ${chosenFontFamily}`;
     ctx.shadowColor = configTipo.shadowColor;
     ctx.shadowBlur = configTipo.shadowBlur;
 
-    const tituloAlinhadoEsquerda = layoutTitulo === 'esquerda';
-    ctx.textAlign = tituloAlinhadoEsquerda ? 'left' : 'center';
-    const larguraMaxTitulo = tituloAlinhadoEsquerda ? canvas.width - 420 : canvas.width - 240;
-    const linhasTitulo = quebrarLinhas(ctx, obraTitulo.toUpperCase(), larguraMaxTitulo);
     const lineHTit = Math.round(fontSizeTit * 1.16);
     const alturaTotalTit = linhasTitulo.length * lineHTit;
 
     let yTit = Math.round(centroTitulo - (alturaTotalTit / 2) + (fontSizeTit * 0.35));
-    const xTitulo = tituloAlinhadoEsquerda ? 150 : canvas.width / 2;
+    const xTitulo = tituloAlinhadoEsquerda ? safeMarginX : canvas.width / 2;
 
     // Gradiente vertical para conferir acabamento harmônico e nobre ao título
     const gradTitulo = ctx.createLinearGradient(0, yTit - lineHTit, 0, yTit + alturaTotalTit);
@@ -3060,7 +3093,7 @@ ${ganchoImediato}`;
 
     linhasTitulo.forEach(l => {
       ctx.strokeStyle = configTipo.strokeColor;
-      ctx.lineWidth = configTipo.strokeWidth;
+      ctx.lineWidth = Math.min(configTipo.strokeWidth, Math.round(fontSizeTit * 0.08));
       ctx.strokeText(l, xTitulo, yTit);
       ctx.fillStyle = gradTitulo;
       ctx.fillText(l, xTitulo, yTit);
@@ -3091,34 +3124,59 @@ ${ganchoImediato}`;
       ctx.restore();
     }
 
-    // 2. NOME DO AUTOR NA PARTE DE BAIXO DO LIVRO (RODAPÉ)
-    const yAutor = canvas.height - 140; // 2260px
+    // 2. NOME DO AUTOR NA PARTE DE BAIXO DO LIVRO (RODAPÉ COM MARGEM SEGURA)
+    const yAutor = canvas.height - 150; // Margem vertical segura de 150px
     ctx.shadowBlur = configTipo.shadowBlur;
     ctx.shadowColor = configTipo.shadowColor;
-    ctx.font = `${configTipo.fontWeightAuthor} 46px ${configTipo.fontFamilyAuthor}`;
+    let fontSizeAutor = 44;
     ctx.fillStyle = configTipo.authorColor;
     ctx.textAlign = 'center';
     const spacedAutor = configTipo.authorLetterSpacing
       ? obraAutorLimpo.toUpperCase().split('').join(' ')
       : obraAutorLimpo;
+
+    const maxAutorW = canvas.width - (safeMarginX * 2);
+    while (fontSizeAutor >= 20) {
+      ctx.font = `${configTipo.fontWeightAuthor} ${fontSizeAutor}px ${configTipo.fontFamilyAuthor}`;
+      const autorW = ctx.measureText(spacedAutor).width;
+      if (autorW <= maxAutorW) {
+        break;
+      }
+      fontSizeAutor -= 2;
+    }
+
     ctx.strokeStyle = configTipo.strokeColor;
     ctx.lineWidth = Math.max(2, configTipo.strokeWidth - 1);
     ctx.strokeText(spacedAutor, canvas.width / 2, yAutor);
     ctx.fillText(spacedAutor, canvas.width / 2, yAutor);
 
-    // 3. SUBTÍTULO COMERCIAL HARMONIZADO: UM POUCO ACIMA DO NOME DO AUTOR
+    // 3. SUBTÍTULO COMERCIAL HARMONIZADO: UM POUCO ACIMA DO NOME DO AUTOR (ANTI-CORTE)
     if (obraSubtituloLimpo) {
       ctx.textAlign = 'center';
-      let fontSizeSub = 42;
-      if (obraSubtituloLimpo.length > 90) fontSizeSub = 36;
-      else if (obraSubtituloLimpo.length > 55) fontSizeSub = 39;
+      let fontSizeSub = 40;
+      if (obraSubtituloLimpo.length > 90) fontSizeSub = 32;
+      else if (obraSubtituloLimpo.length > 55) fontSizeSub = 36;
 
-      ctx.font = `${configTipo.fontWeightSubtitle} ${fontSizeSub}px ${configTipo.fontFamilySubtitle}`;
+      const margemSubX = 240;
+      const larguraMaxSub = canvas.width - (margemSubX * 2);
+      let linhasSub: string[] = [];
+      const palavrasSub = obraSubtituloLimpo.split(/\s+/);
+
+      while (fontSizeSub >= 20) {
+        ctx.font = `${configTipo.fontWeightSubtitle} ${fontSizeSub}px ${configTipo.fontFamilySubtitle}`;
+        linhasSub = quebrarLinhas(ctx, obraSubtituloLimpo, larguraMaxSub);
+        const maxSubW = Math.max(...linhasSub.map(l => ctx.measureText(l).width));
+        const maxPalSubW = Math.max(...palavrasSub.map(p => ctx.measureText(p).width));
+        if (maxSubW <= larguraMaxSub && maxPalSubW <= larguraMaxSub) {
+          break;
+        }
+        fontSizeSub -= 2;
+      }
+
       ctx.fillStyle = configTipo.subtitleColor;
       ctx.shadowColor = configTipo.shadowColor;
       ctx.shadowBlur = Math.round(configTipo.shadowBlur * 0.75);
 
-      const linhasSub = quebrarLinhas(ctx, obraSubtituloLimpo, canvas.width - 280);
       const lineHSub = Math.round(fontSizeSub * 1.34);
       const alturaTotalSub = linhasSub.length * lineHSub;
 
@@ -4414,6 +4472,88 @@ ${ganchoImediato}`;
     setKeywordsKdp(generatedKeys);
     setStatusMsg('✓ 7 Palavras-Chave oficiais do Amazon KDP regeneradas com base no seu nicho!');
     setStatusType('ok');
+  };
+
+  // CONVERSÃO EDITORIAL COMPLETA DA OBRA & MIOLO PARA AMERICAN ENGLISH CONTEMPORÂNEO
+  const handleConverterObraParaAmericanEnglish = async () => {
+    if (!livro || !livro.capitulos || livro.capitulos.length === 0) {
+      alert(ui(
+        '⚠️ Não há capítulos gerados na obra atual para converter. Gere os capítulos primeiro na Etapa 8.',
+        '⚠️ No chapters available in the current book to convert. Please generate chapters first.'
+      ));
+      return;
+    }
+
+    const confirmar = window.confirm(ui(
+      `🇺🇸 CONVERSÃO COMPLETA PARA AMERICAN ENGLISH CONTEMPORÂNEO\n\n` +
+      `Deseja converter o título, subtítulo e todos os ${livro.capitulos.length} capítulos do miolo para o inglês americano contemporâneo?\n\n` +
+      `• Escrito naturalmente como um bestseller dos EUA por um autor americano contemporâneo.\n` +
+      `• Padronização estrita de capítulos: "Chapter 1: ...", "Chapter 2: ..."\n` +
+      `• Diálogos autênticos com aspas ("...") e vocabulário moderno.\n` +
+      `• Ancoragem geográfica nos EUA (${estadoEua || 'New York, NY'}).\n\n` +
+      `Deseja iniciar a conversão agora?`,
+      `Convert entire book and all ${livro.capitulos.length} chapters to contemporary American English?`
+    ));
+
+    if (!confirmar) return;
+
+    cancelConversionRef.current = { isCancelled: false };
+    setIsConvertingToEnglish(true);
+    setConversionProgress({
+      current: 0,
+      total: livro.capitulos.length + 1,
+      percent: 0,
+      stepTitle: 'Iniciando localização editorial para American English...'
+    });
+
+    try {
+      const livroConvertido = await KdpAmericanEnglishConverter.convertEntireBook({
+        livro,
+        topico: topico || uniqueAngle || bookPromise,
+        estadoEua: estadoEua || 'New York (NY)',
+        cancellationRef: cancelConversionRef.current,
+        onProgress: (p) => {
+          setConversionProgress(p);
+        },
+        onChapterDone: (updatedBook) => {
+          setLivro(updatedBook);
+          salvarProgressoLocal(updatedBook);
+        }
+      });
+
+      if (!cancelConversionRef.current.isCancelled) {
+        setLivro(livroConvertido);
+        setTitulo(livroConvertido.titulo);
+        setSubtitulo(livroConvertido.subtitulo);
+        setIdioma('inglês');
+        salvarProgressoLocal(livroConvertido);
+        setStatusMsg('✓ Obra e todo o miolo convertidos com sucesso para American English contemporâneo!');
+        setStatusType('ok');
+        alert(ui(
+          '🎉 Sucesso! A obra e todos os capítulos foram convertidos para American English contemporâneo no padrão Amazon KDP Bestseller ("Chapter N").',
+          '🎉 Success! Book successfully converted into contemporary American English!'
+        ));
+      }
+    } catch (err: any) {
+      console.error('Erro na conversão para American English:', err);
+      setStatusMsg('Erro na conversão para American English: ' + (err?.message || 'Falha na IA'));
+      setStatusType('error');
+      alert(ui(
+        'Ocorreu um erro durante a conversão: ' + (err?.message || 'Falha na IA'),
+        'Error during conversion: ' + (err?.message || 'AI error')
+      ));
+    } finally {
+      setIsConvertingToEnglish(false);
+      setConversionProgress(null);
+    }
+  };
+
+  const handleCancelarConversaoEnglish = () => {
+    cancelConversionRef.current.isCancelled = true;
+    setIsConvertingToEnglish(false);
+    setConversionProgress(null);
+    setStatusMsg('Conversão para American English pausada pelo autor.');
+    setStatusType('normal');
   };
 
   // REGENERAÇÃO DE CAPA DIRETO AO LADO DA CAPA (COM IA E NOVO CONCEITO VISUAL)
@@ -5944,6 +6084,32 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 >
                   <ShieldCheck size={14} color={activeTab === 'auditoria' ? '#10b981' : '#64748b'} />
                   <span>🛡️ {ui('Auditoria (Ortografia & Enredo)', 'Audit (Grammar & Plot)')}</span>
+                </button>
+
+                {/* 4.1 LOCALIZAÇÃO EM AMERICAN ENGLISH */}
+                <button
+                  type="button"
+                  onClick={handleConverterObraParaAmericanEnglish}
+                  disabled={isConvertingToEnglish || !livro || livro.capitulos.length === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '7px 9px',
+                    borderRadius: 6,
+                    border: idioma === 'inglês' ? '1.5px solid #3b82f6' : '1px solid #e2e8f0',
+                    background: idioma === 'inglês' ? '#eff6ff' : '#ffffff',
+                    color: idioma === 'inglês' ? '#1d4ed8' : '#334155',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer',
+                    width: '100%',
+                    textAlign: 'left'
+                  }}
+                  title="Converte o miolo e título para American English contemporâneo natural"
+                >
+                  <Globe size={14} color={idioma === 'inglês' ? '#3b82f6' : '#64748b'} />
+                  <span>🇺🇸 {ui('Localizar em American English', 'Localize in American English')}</span>
                 </button>
 
                 {/* 5. BESTSELLERS & MERCADO */}
@@ -13750,6 +13916,100 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         idioma={idioma || 'pt'}
                         compactMode={false}
                       />
+
+                      {/* LOCALIZAÇÃO EM AMERICAN ENGLISH CONTEMPORÂNEO (ETAPA PÓS-PROMPTS DE CAPA & CONTRACAPA) */}
+                      <div style={{
+                        width: '100%',
+                        background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+                        border: '1.5px solid #3b82f6',
+                        borderRadius: 10,
+                        padding: 16,
+                        marginTop: 18,
+                        textAlign: 'left',
+                        boxShadow: '0 4px 14px rgba(59, 130, 246, 0.08)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                          <div style={{ flex: 1, minWidth: 260 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 20 }}>🇺🇸</span>
+                              <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, color: '#1e3a8a' }}>
+                                Localização Editorial KDP: Converter Livro & Miolo para American English Contemporâneo
+                              </h4>
+                              <span style={{
+                                background: idioma === 'inglês' ? '#dcfce7' : '#dbeafe',
+                                color: idioma === 'inglês' ? '#15803d' : '#1d4ed8',
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: 12
+                              }}>
+                                {idioma === 'inglês' ? '✓ Obra em American English' : 'Pronto para conversão'}
+                              </span>
+                            </div>
+                            <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#1e40af', lineHeight: 1.45 }}>
+                              Reescreve naturalmente todo o miolo capítulo a capítulo como se fosse escrito por um autor nativo americano contemporâneo: prosa idiomática fluida, pontuação de diálogos com aspas duplas ("..."), padronização estrita Amazon KDP ("Chapter N") e eliminação total de construções traduzidas ao pé da letra.
+                            </p>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={handleConverterObraParaAmericanEnglish}
+                              disabled={isConvertingToEnglish || !livro || livro.capitulos.length === 0}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                padding: '10px 18px',
+                                background: isConvertingToEnglish ? '#94a3b8' : 'linear-gradient(135deg, #1d4ed8, #1e40af)',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 8,
+                                fontSize: 12.5,
+                                fontWeight: 800,
+                                cursor: isConvertingToEnglish ? 'wait' : 'pointer',
+                                boxShadow: '0 3px 10px rgba(29, 78, 216, 0.25)'
+                              }}
+                            >
+                              <Sparkles size={14} />
+                              {isConvertingToEnglish
+                                ? `Convertendo Cap. ${conversionProgress?.current || 1}/${conversionProgress?.total || livro?.capitulos?.length || 1}...`
+                                : (idioma === 'inglês' ? '🔄 Reconverter Miolo para American English' : '🇺🇸 Converter Livro & Miolo para American English')}
+                            </button>
+
+                            {isConvertingToEnglish && (
+                              <button
+                                type="button"
+                                onClick={handleCancelarConversaoEnglish}
+                                style={{
+                                  padding: '9px 14px',
+                                  background: '#fee2e2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fca5a5',
+                                  borderRadius: 8,
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Pausar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {isConvertingToEnglish && conversionProgress && (
+                          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #bfdbfe' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, fontSize: 11.5, fontWeight: 700, color: '#1e3a8a' }}>
+                              <span>Convertendo: {conversionProgress.chapterTitle}</span>
+                              <span>{conversionProgress.percent}%</span>
+                            </div>
+                            <div style={{ height: 6, background: '#dbeafe', borderRadius: 3, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', background: '#2563eb', width: `${conversionProgress.percent}%`, transition: 'width 0.25s ease' }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
                       {/* CARD DAS 7 PALAVRAS-CHAVE OFICIAIS DO AMAZON KDP */}
                       <div style={{
