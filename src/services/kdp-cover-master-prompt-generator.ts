@@ -13,9 +13,20 @@ export interface CoverMasterPromptInput {
   genero: string;
   premissa?: string;
   idioma?: string;
+  local?: string;
+  epoca?: string;
+  contextoNarrativo?: string;
+  capitulosAmostra?: Array<{ titulo: string; texto: string }>;
 }
 
 export interface CoverMasterPromptOutput {
+  // Metadados de Ancoragem Espaço-Temporal Fiel ao Livro
+  localDetectado: string;
+  epocaDetectada: string;
+  contextoRealResumido: string;
+  cenografiaReal: string;
+  proibicoesEspecificas: string[];
+
   // Modo 1: Apenas Capa Frontal (Mínimo 3.000 palavras)
   promptCompleto: string;
   promptParaMotorIa: string;
@@ -52,6 +63,164 @@ export interface CoverMasterPromptOutput {
 /**
  * Conta palavras reais em um texto
  */
+
+export interface SintoniaEspacoTemporal {
+  local: string;
+  epoca: string;
+  contextoConflito: string;
+  cenografiaCapa: string;
+  cenografiaContracapa: string;
+  proibicoesEspecificas: string[];
+}
+
+/**
+ * Extrai o local geográfico real, o tempo/época (contemporaneidade),
+ * e o contexto específico do conflito do livro para impedir alucinações de cenários estranhos.
+ */
+export function extrairSintoniaEspacoTemporal(
+  input: CoverMasterPromptInput,
+  isEn: boolean
+): SintoniaEspacoTemporal {
+  const corpus = [
+    input.local || '',
+    input.epoca || '',
+    input.contextoNarrativo || '',
+    input.premissa || '',
+    input.subtitulo || '',
+    input.titulo || '',
+    ...(input.capitulosAmostra || []).map(c => `${c.titulo}: ${(c.texto || '').slice(0, 1000)}`)
+  ].join(' ');
+
+  const corpusLower = corpus.toLowerCase();
+
+  // 1. Extração do Local / Setting Real
+  let localReal = input.local?.trim() || '';
+
+  if (!localReal) {
+    const locaisConhecidos = [
+      { regex: /\b(s[aã]o paulo|sp)\b/i, label: 'São Paulo, Brasil' },
+      { regex: /\b(rio de janeiro|rj)\b/i, label: 'Rio de Janeiro, Brasil' },
+      { regex: /\b(curitiba)\b/i, label: 'Curitiba, Brasil' },
+      { regex: /\b(belo horizonte|bh)\b/i, label: 'Belo Horizonte, Brasil' },
+      { regex: /\b(porto alegre)\b/i, label: 'Porto Alegre, Brasil' },
+      { regex: /\b(bras[ií]lia)\b/i, label: 'Brasília, Brasil' },
+      { regex: /\b(salvador)\b/i, label: 'Salvador, Brasil' },
+      { regex: /\b(new york|nova york|nyc|manhattan)\b/i, label: 'New York City, NY (EUA)' },
+      { regex: /\b(seattle)\b/i, label: 'Seattle, WA (EUA)' },
+      { regex: /\b(chicago)\b/i, label: 'Chicago, IL (EUA)' },
+      { regex: /\b(boston)\b/i, label: 'Boston, MA (EUA)' },
+      { regex: /\b(los angeles|la)\b/i, label: 'Los Angeles, CA (EUA)' },
+      { regex: /\b(san francisco)\b/i, label: 'San Francisco, CA (EUA)' },
+      { regex: /\b(miami)\b/i, label: 'Miami, FL (EUA)' },
+      { regex: /\b(texas|houston|dallas|austin)\b/i, label: 'Texas (EUA)' },
+      { regex: /\b(londres|london)\b/i, label: 'Londres, Reino Unido' },
+      { regex: /\b(paris)\b/i, label: 'Paris, França' }
+    ];
+
+    for (const item of locaisConhecidos) {
+      if (item.regex.test(corpusLower)) {
+        localReal = item.label;
+        break;
+      }
+    }
+  }
+
+  // Detecta o tipo de ambiente físico da trama
+  let tipoAmbiente = '';
+  if (/escrit[oó]rio|corporativ|empresa|reuni[aã]o|diretor|advoc|neg[oó]cio|mercado financeiro/i.test(corpusLower)) {
+    tipoAmbiente = isEn
+      ? 'sleek contemporary corporate interior with floor-to-ceiling glass, polished marble, modern ambient lighting'
+      : 'ambiente corporativo contemporâneo elegante com vidros amplos, mármore polido e iluminação moderna indireta';
+  } else if (/hospital|cl[ií]nica|m[eé]dic|cirurg/i.test(corpusLower)) {
+    tipoAmbiente = isEn
+      ? 'modern state-of-the-art medical center corridors, cold clean ambient reflections'
+      : 'instalações hospitalares contemporâneas de alta tecnologia com reflexos limpos e iluminação sóbria';
+  } else if (/tribunal|j[uú]ri|juiz|vara|promotor|julgamento/i.test(corpusLower)) {
+    tipoAmbiente = isEn
+      ? 'imposing contemporary courthouse, polished rich wood, modern architectural lines'
+      : 'edifício judicial contemporâneo imponente com linhas arquitetônicas modernas';
+  } else if (/mans[aã]o|casa|resid[eê]ncia|condom[ií]nio|apartamento/i.test(corpusLower)) {
+    tipoAmbiente = isEn
+      ? 'sophisticated contemporary architectural residence, large panoramic windows overlooking quiet modern evening streets'
+      : 'residência de arquitetura contemporânea sofisticada, vidraças amplas com vista para ruas modernas e tranquilas ao anoitecer';
+  } else if (/floresta|bosque|trilha|serra|montanha|cabana/i.test(corpusLower)) {
+    tipoAmbiente = isEn
+      ? 'dense misty pine forest with quiet asphalt road, modern architectural cabin in the distance, low ground fog'
+      : 'floresta densa de pinheiros com estrada de asfalto moderna, névoa rasteira e cabana contemporânea ao longe';
+  } else if (/praia|litoral|mar|costa|oceano/i.test(corpusLower)) {
+    tipoAmbiente = isEn
+      ? 'contemporary coastal promenade, calm evening ocean horizon, sleek modern coastal architecture'
+      : 'orla costeira contemporânea com mar calmo ao anoitecer e arquitetura litorânea moderna';
+  } else {
+    tipoAmbiente = isEn
+      ? 'sleek modern contemporary urban setting with clean architectural lines, subtle evening illumination and wet pavement reflections'
+      : 'ambiente urbano contemporâneo com arquitetura moderna, iluminação noturna acolhedora e reflexos no pavimento';
+  }
+
+  if (!localReal) {
+    localReal = isEn ? 'Contemporary American Metropolitan Setting' : 'Cenário Urbano Contemporâneo';
+  }
+
+  // 2. Extração de Tempo & Contemporaneidade
+  let epocaReal = input.epoca?.trim() || '';
+  if (!epocaReal) {
+    if (/\b(s[eé]culo\s+xix|anos\s+1800|era\s+vitoriana|victorian)\b/i.test(corpusLower)) {
+      epocaReal = isEn ? '19th Century Victorian Era' : 'Século XIX (Era Vitoriana)';
+    } else if (/\b(anos\s+1920|d[eé]cada\s+de\s+20|roaring\s+twenties)\b/i.test(corpusLower)) {
+      epocaReal = isEn ? '1920s Art Deco Era' : 'Anos 1920 (Era Art Déco)';
+    } else if (/\b(anos\s+1980|anos\s+80|eighties)\b/i.test(corpusLower)) {
+      epocaReal = isEn ? '1980s Retro Era' : 'Anos 1980';
+    } else if (/\b(medieval|idade\s+m[eé]dia|feudal)\b/i.test(corpusLower)) {
+      epocaReal = isEn ? 'Medieval Historic Era' : 'Era Medieval Histórica';
+    } else {
+      epocaReal = isEn ? 'Contemporary 2020s (Modern Day)' : 'Contemporâneo / Século XXI (Dias Atuais)';
+    }
+  }
+
+  const isHistorico = !epocaReal.includes('Contemporâneo') && !epocaReal.includes('Contemporary');
+
+  // 3. Proibições Estritas de Cenários Incoerentes (Anti-Alucinação)
+  const proibicoes: string[] = [];
+  const naoTemLondres = !localReal.toLowerCase().includes('londres') && !localReal.toLowerCase().includes('london');
+  const naoTemParis = !localReal.toLowerCase().includes('paris');
+
+  if (naoTemLondres) {
+    proibicoes.push('Big Ben');
+    proibicoes.push('Palácio de Westminster');
+    proibicoes.push('Cabines telefônicas vermelhas britânicas');
+    proibicoes.push('Arcos neogóticos ou pontes londrinas');
+  }
+  if (naoTemParis) {
+    proibicoes.push('Torre Eiffel');
+    proibicoes.push('Catedrais góticas parisienses');
+  }
+  if (!isHistorico) {
+    proibicoes.push('Carruagens arcaicas');
+    proibicoes.push('Lampiões a gás vitorianos');
+    proibicoes.push('Vestimentas medievais ou da era vitoriana');
+  }
+
+  // 4. Cenografia Real da Capa Frontal e Contracapa
+  const cenografiaCapa = isEn
+    ? `Authentic setting anchored strictly in ${localReal} (${epocaReal}). Scene environment: ${tipoAmbiente}. Architectural style and atmosphere strictly true to the narrative context. ABSOLUTELY NO foreign landmarks or out-of-context monuments (${proibicoes.join(', ')}). Atmospheric lighting and contemporary textures harmonized with the book's psychological tension.`
+    : `Cenário autêntico ancorado estritamente em ${localReal} (${epocaReal}). Ambiente: ${tipoAmbiente}. Arquitetura, iluminação e elementos fiéis ao enredo do livro. PROIBIÇÃO ABSOLUTA de monumentos ou cenários alheios à história (${proibicoes.join(', ')}). Atmosfera e texturas contemporâneas em sintonia com a tensão narrativa.`;
+
+  const cenografiaContracapa = isEn
+    ? `Seamless visual extension of the ${localReal} atmosphere from the front cover, transitioning softly into an elegant, dark matte slate reading canvas engineered for flawless legibility of the back-cover synopsis.`
+    : `Extensão contínua da ambientação de ${localReal} da capa frontal, suavizando-se harmoniosamente em uma superfície fosca e limpa para leitura impecável da sinopse de contracapa.`;
+
+  const contextoConflito = input.contextoNarrativo || input.premissa || input.subtitulo || input.titulo;
+
+  return {
+    local: localReal,
+    epoca: epocaReal,
+    contextoConflito,
+    cenografiaCapa,
+    cenografiaContracapa,
+    proibicoesEspecificas: proibicoes
+  };
+}
+
 export function contarPalavras(texto: string): number {
   return (texto || '').trim().split(/\s+/).filter(Boolean).length;
 }
@@ -164,6 +333,9 @@ export function gerarMasterPromptCapa600a1200Palavras(input: CoverMasterPromptIn
   const generoRaw = (genero || 'Ficção').trim();
   const g = generoRaw.toLowerCase();
 
+  // Extração semântica de Local, Tempo/Época, Contemporaneidade e Contexto Real do Livro
+  const sintonia = extrairSintoniaEspacoTemporal(input, isEn);
+
   // Definições de Estilo Editorial
   let generoNome = isEn ? 'Psychological Thriller & Mystery' : 'Suspense Psicológico e Mistério';
   let estiloRecomendado = isEn ? 'Cinematic Dark Noir Hyper-Detailed 35mm' : 'Dark Noir Cinematográfico Hiperdetalhado 35mm';
@@ -172,12 +344,8 @@ export function gerarMasterPromptCapa600a1200Palavras(input: CoverMasterPromptIn
   let iluminacaoCenica = isEn
     ? 'Chiaroscuro key lighting from low-angle sodium streetlamps, heavy atmospheric rain fog, rich specular reflections on wet asphalt, volumetric rim lighting.'
     : 'Iluminação chiaroscuro dramática, feixes volumétricos de luz ambarina cortando neblina espessa, reflexos especulares em asfalto molhado e contra-luz suave.';
-  let composicaoFundo = isEn
-    ? 'A solitary trench-coated detective silhouette walking through rain-slicked nocturnal city streets, distant blurred emergency lights, neo-gothic bridge arches looming in the haze.'
-    : 'Silhueta solitária de um detetive de sobretudo caminhando por ruas úmidas de uma metrópole noturna, reflexos de sirenes borradas na bruma e arcos arquitetônicos neogóticos ao fundo.';
-  let composicaoContracapa = isEn
-    ? 'Continuous seamless panoramic extension of the rainy city skyline and cool cobalt-slate twilight haze, settling into a dark matte textured slate panel on the back cover optimized for immaculate reading of the synopsis.'
-    : 'Extensão panorâmica e contínua do horizonte urbano chuvoso e da bruma noturna da capa frontal, suavizando-se em uma superfície fosca em ardósia profunda na contracapa, garantindo contraste impecável para a leitura da sinopse.';
+  let composicaoFundo = sintonia.cenografiaCapa;
+  let composicaoContracapa = sintonia.cenografiaContracapa;
   let texturaTipografica = isEn
     ? 'Weathered cold bronze metal relief with subtle microscopic scratches and rim highlights.'
     : 'Relevo em bronze oxidado frio com micro-ranhuras táteis e realce luminoso nas bordas superiores.';
@@ -554,12 +722,18 @@ MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE REC
   const wordCountWrap = contarPalavras(promptCapaEContracapaCompleto);
 
   return {
+    localDetectado: sintonia.local,
+    epocaDetectada: sintonia.epoca,
+    contextoRealResumido: sintonia.contextoConflito,
+    cenografiaReal: sintonia.cenografiaCapa,
+    proibicoesEspecificas: sintonia.proibicoesEspecificas,
+
     promptCompleto: promptFrontalCompleto,
-    promptParaMotorIa: `Flat 2D full-bleed bestselling book FRONT COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic: ${estiloRecomendado}. Scene: ${composicaoFundo}. Lighting: ${iluminacaoCenica}. Palette: ${paletaCoresSugerida.join(', ')}. Typography: Title "${titulo}", Subtitle "${subtitulo}", Author "${autor}". --ar 2:3 --v 6.1 --style raw --stylize 250 --no barcode, barcode box, white box, white rectangle, blank box, qr code`,
+    promptParaMotorIa: `Flat 2D full-bleed bestselling book FRONT COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic: ${estiloRecomendado}. Scene: ${composicaoFundo}. Lighting: ${iluminacaoCenica}. Palette: ${paletaCoresSugerida.join(', ')}. Typography: Title "${titulo}", Subtitle "${subtitulo}", Author "${autor}". --ar 2:3 --v 6.1 --style raw --stylize 250 --no barcode, barcode box, white box, white rectangle, blank box, qr code, big ben, london parliament, out-of-context foreign landmarks, unrelated monuments, blurry textures`,
     wordCount: wordCountFront,
 
     promptContracapaIsoladaCompleto: promptContracapaCompleto,
-    promptContracapaIsoladaMotorIa: `Flat 2D full-bleed book BACK COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic twin of front cover in ${estiloRecomendado}. Palette: ${paletaCoresSugerida.join(', ')}. Environment: ${composicaoContracapa}. Typography: Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, and Closing line. Edge-to-edge continuous artwork with clean dark matte reading zone. Zero 3D mockup, flat 2D print press sheet. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code`,
+    promptContracapaIsoladaMotorIa: `Flat 2D full-bleed book BACK COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic twin of front cover in ${estiloRecomendado}. Palette: ${paletaCoresSugerida.join(', ')}. Environment: ${composicaoContracapa}. Typography: Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, and Closing line. Edge-to-edge continuous artwork with clean dark matte reading zone. Zero 3D mockup, flat 2D print press sheet. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, big ben, london parliament, out-of-context foreign landmarks, unrelated monuments`,
     wordCountContracapa: wordCountBack,
 
     promptCapaEContracapaCompleto,

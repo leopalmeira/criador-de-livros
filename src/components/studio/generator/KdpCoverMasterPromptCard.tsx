@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Copy, Check, Sparkles, BookOpen, Layers, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Copy, Check, Sparkles, BookOpen, Layers, ChevronDown, ChevronUp, FileText, MapPin, Clock, ShieldCheck } from 'lucide-react';
 import {
   gerarMasterPromptCapa600a1200Palavras,
   CoverMasterPromptOutput
@@ -13,6 +13,10 @@ interface KdpCoverMasterPromptCardProps {
   premissa?: string;
   idioma?: string;
   compactMode?: boolean;
+  local?: string;
+  epoca?: string;
+  contextoNarrativo?: string;
+  capitulos?: Array<{ titulo: string; texto: string }>;
 }
 
 type PromptTabMode = 'front-only' | 'back-only' | 'full-wrap-back';
@@ -24,7 +28,11 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
   genero = 'Ficção',
   premissa,
   idioma = 'pt',
-  compactMode = false
+  compactMode = false,
+  local,
+  epoca,
+  contextoNarrativo,
+  capitulos
 }) => {
   const [activeMode, setActiveMode] = useState<PromptTabMode>('full-wrap-back');
   const [copiedFull, setCopiedFull] = useState<boolean>(false);
@@ -40,9 +48,13 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
       autor: autor || 'Autor Bestseller',
       genero: genero || 'Ficção',
       premissa: premissa || '',
-      idioma: idioma || 'pt'
+      idioma: idioma || 'pt',
+      local,
+      epoca,
+      contextoNarrativo,
+      capitulosAmostra: capitulos
     });
-  }, [titulo, subtitulo, autor, genero, premissa, idioma]);
+  }, [titulo, subtitulo, autor, genero, premissa, idioma, local, epoca, contextoNarrativo, capitulos]);
 
   const copyTextToClipboard = async (text: string, setter: (v: boolean) => void) => {
     try {

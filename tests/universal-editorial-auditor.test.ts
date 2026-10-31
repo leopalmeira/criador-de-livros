@@ -83,3 +83,4 @@ describe('UniversalEditorialAuditor — Sistema Universal de Revisão e Auditori
     expect(auditResult.metrics.criticalCount).toBeGreaterThan(0);
   });
 });
+

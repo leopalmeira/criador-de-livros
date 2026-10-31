@@ -10242,6 +10242,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   premissa={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
                   idioma={idioma || 'pt'}
                   compactMode={true}
+                  local={estadoEua ? `${estadoEua}, EUA` : undefined}
+                  epoca="Contemporâneo / Século XXI (Dias Atuais)"
+                  contextoNarrativo={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
+                  capitulos={livro?.capitulos}
                 />
               </div>
 
@@ -12581,6 +12585,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     premissa={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
                     idioma={idioma || 'pt'}
                     compactMode={true}
+                    local={estadoEua ? `${estadoEua}, EUA` : undefined}
+                    epoca="Contemporâneo / Século XXI (Dias Atuais)"
+                    contextoNarrativo={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
+                    capitulos={livro?.capitulos}
                   />
                 </div>
               )}
@@ -13915,6 +13923,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         premissa={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
                         idioma={idioma || 'pt'}
                         compactMode={false}
+                        local={estadoEua ? `${estadoEua}, EUA` : undefined}
+                        epoca="Contemporâneo / Século XXI (Dias Atuais)"
+                        contextoNarrativo={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
+                        capitulos={livro?.capitulos}
                       />
 
                       {/* LOCALIZAÇÃO EM AMERICAN ENGLISH CONTEMPORÂNEO (ETAPA PÓS-PROMPTS DE CAPA & CONTRACAPA) */}
@@ -14189,6 +14201,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           premissa={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
                           idioma={idioma || 'pt'}
                           compactMode={false}
+                          local={estadoEua ? `${estadoEua}, EUA` : undefined}
+                          epoca="Contemporâneo / Século XXI (Dias Atuais)"
+                          contextoNarrativo={bookPromise || uniqueAngle || topico || temaSelecionado || subtitulo}
+                          capitulos={livro?.capitulos}
                         />
                       </div>
                     </div>

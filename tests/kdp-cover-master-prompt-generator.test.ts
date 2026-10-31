@@ -51,5 +51,43 @@ describe('KdpCoverMasterPromptGenerator — Prompts com 3.000+ Palavras e Regras
     expect(result.promptContracapaIsoladaMotorIa).toContain('--no barcode, barcode box, white box, white rectangle');
     expect(result.promptCapaEContracapaMotorIa).toContain('--no barcode, barcode box, white box, white rectangle');
   });
+
+  it('4. Deve ancorar local real e contemporaneidade, proibindo Big Ben e monumentos alheios', () => {
+    const result = gerarMasterPromptCapa600a1200Palavras({
+      titulo: 'O Segredo da Manipulação',
+      subtitulo: 'Um thriller corporativo tenso',
+      autor: 'Leandro Souza',
+      genero: 'Thriller psicológico',
+      local: 'São Paulo, Brasil',
+      premissa: 'Um jogo de poder nos escritórios da Avenida Faria Lima onde cada mensagem esconde uma chantagem.',
+      idioma: 'pt'
+    });
+
+    expect(result.localDetectado).toContain('São Paulo');
+    expect(result.epocaDetectada).toContain('Contemporâneo');
+    expect(result.proibicoesEspecificas).toContain('Big Ben');
+    expect(result.promptParaMotorIa).toContain('big ben');
+    expect(result.promptParaMotorIa).toContain('out-of-context foreign landmarks');
+    expect(result.promptCompleto).not.toContain('neo-gothic bridge arches');
+  });
+
+  it('5. Deve extrair cenário e contemporaneidade a partir dos capítulos do manuscrito', () => {
+    const result = gerarMasterPromptCapa600a1200Palavras({
+      titulo: 'Chamas no Lago',
+      autor: 'Clarice Santos',
+      genero: 'Mistério',
+      idioma: 'pt',
+      capitulosAmostra: [
+        {
+          titulo: 'Capítulo 1: O Encontro na Cabana',
+          texto: 'Eles chegaram à cabana isolada na floresta de pinheiros às 22h, enquanto o celular ainda vibrava no bolso com mensagens urgentes.'
+        }
+      ]
+    });
+
+    expect(result.cenografiaReal).toMatch(/floresta|pinheiro|cabana/i);
+    expect(result.epocaDetectada).toContain('Contemporâneo');
+    expect(result.proibicoesEspecificas).toContain('Big Ben');
+  });
 });
 
