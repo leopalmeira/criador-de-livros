@@ -1734,6 +1734,159 @@ Regras Absolutas:
     }, 150);
   };
 
+  // ─── COMPOSIÇÃO DIRETA A PARTIR DE PESQUISA & TESE (ETAPA 1) ───
+  const handleComporObraPorPesquisaETese = () => {
+    const tTema = temaSelecionado || 'Desenvolvimento Pessoal';
+    const sub = subtemaSelecionado || 'Foco & Hábitos';
+    const isEn = idioma === 'inglês';
+    const sugs = KdpTitleSuggestionEngine.getSuggestionsForTheme(tTema, isEn ? 'inglês' : 'português');
+    const primary = sugs[0] || {
+      title: isEn ? `The Power of ${tTema}` : `O Poder de ${tTema}`,
+      subtitle: isEn ? 'A Definitive Guide to Mastery and Results' : 'Guia Prático e Estratégico',
+      uniqueAngle: isEn
+        ? `A structured system to master ${sub} with daily application and measurable retention.`
+        : `Metodologia estruturada para dominar ${sub} com foco em aplicação diária e resultados mensuráveis.`,
+      stance: isEn
+        ? 'Overcome shallow shortcuts through solid principles and lasting consistency.'
+        : 'Superar atalhos rasos através de princípios sólidos e consistência duradoura.'
+    };
+
+    setTitulo(primary.title);
+    if (primary.subtitle) setSubtitulo(primary.subtitle);
+    if (primary.uniqueAngle) setUniqueAngle(primary.uniqueAngle);
+    if (primary.stance) setStanceTopic(primary.stance);
+    setTopico(primary.uniqueAngle || `Obra focada em ${tTema} e ${sub}.`);
+
+    const titlesList = isEn
+      ? [
+          'Foundations and the Starting Point',
+          'The Core Psychological Mechanism',
+          'The Step-by-Step Strategic System',
+          'Overcoming Friction and Mental Roadblocks',
+          'Real-World Case Studies and Proof',
+          'Long-Term Mastery and Habit Autonomy'
+        ]
+      : [
+          'Fundamentos e o Ponto de Partida',
+          'O Mecanismo Central de Ação',
+          'O Sistema Prático Passo a Passo',
+          'Superando Fricções e Recaídas',
+          'Casos Reais e Validação Prática',
+          'Maestria Duradoura e Autonomia'
+        ];
+
+    const capsBase = titlesList.map((ctitle, cidx) => ({
+      num: cidx + 1,
+      title: `${cidx + 1}. ${ctitle}`,
+      sectionsCount: 3,
+      targetWords: 1100,
+      focus: isEn ? `Deep practical dive into ${ctitle.toLowerCase()}` : `Aprofundamento prático em ${ctitle.toLowerCase()}`
+    }));
+    setVariedOutlinePreview(capsBase);
+
+    const newCompleted = Array.from(new Set([...completedSteps, 1, 2]));
+    setCompletedSteps(newCompleted);
+    setStatusMsg(isEn ? `⚡ Book composed from research & thesis: "${primary.title}"!` : `⚡ Obra composta a partir da Pesquisa & Tese: "${primary.title}"!`);
+    setStatusType('ok');
+    setWizardStep(7);
+  };
+
+  // ─── PULAR PESQUISA / ANÁLISE DIRETO PARA TÍTULO OU ESCRITA ───
+  const handlePularPesquisaEAnalise = (targetStep: number = 3) => {
+    const isEn = idioma === 'inglês';
+    const newCompleted = Array.from(new Set([...completedSteps, 1, 2]));
+    setCompletedSteps(newCompleted);
+    setWizardStep(targetStep);
+    setStatusMsg(
+      targetStep === 8
+        ? (isEn ? '⏩ Jumping directly to Chapter Writing!' : '⏩ Indo direto para a Escrita de Capítulos!')
+        : (isEn ? '⏩ Jumping directly to Book Title!' : '⏩ Indo direto para o Título da Obra!')
+    );
+    setStatusType('ok');
+  };
+
+  // ─── COMPOSIÇÃO DIRETA A PARTIR DOS BESTSELLERS (ETAPA 2) ───
+  const handleComporObraPorBestsellers = (singleBook?: AmazonSegmentBook) => {
+    const isEn = idioma === 'inglês';
+    const chosen = singleBook
+      ? [singleBook]
+      : (activePoolBooks.filter(b => selectedInspirationAsins.includes(b.asin)).length > 0
+          ? activePoolBooks.filter(b => selectedInspirationAsins.includes(b.asin))
+          : activePoolBooks.slice(0, 3));
+
+    const refBook = chosen[0] || activePoolBooks[0];
+    if (!refBook) {
+      alert(isEn ? 'No reference book available.' : 'Nenhum livro de referência disponível no momento.');
+      return;
+    }
+
+    const inspired = KdpTitleSuggestionEngine.generateInspiredFromBook(refBook, temaSelecionado || genero);
+    setTitulo(inspired.title);
+    if (inspired.subtitle) setSubtitulo(inspired.subtitle);
+    if (inspired.uniqueAngle) setUniqueAngle(inspired.uniqueAngle);
+    if (inspired.stance) setStanceTopic(inspired.stance);
+    setTopico(
+      isEn
+        ? `Book inspired by top seller "${refBook.title}", addressing key reader frustrations with a direct practical method.`
+        : `Obra inspirada nos líderes de vendas (${refBook.title}), com foco em preencher as lacunas e resolver as maiores frustrações dos leitores.`
+    );
+
+    const mapped: MarketReference[] = (chosen.length > 0 ? chosen : activePoolBooks.slice(0, 5)).map((b: any) => ({
+      title: b.title,
+      subtitle: b.subtitle,
+      author: b.author,
+      asin: b.asin,
+      bsr: b.bsr,
+      rating: b.rating,
+      reviewsCount: b.reviewsCount,
+      priceUsd: b.priceUsd,
+      estimatedMonthlySales: b.estimatedMonthlySales,
+      estimatedMonthlyRevenueUsd: b.estimatedMonthlyRevenueUsd,
+      coverImage: b.coverImage,
+      amazonUrl: b.amazonUrl,
+      hookRationale: b.hookRationale,
+      rank: b.bsr,
+      rankType: 'BSR',
+      relevance: 100,
+      source: 'api/amazon/top100-segments',
+      collectedAt: Date.now()
+    }));
+    setMarketReferences(mapped);
+
+    const titlesList = isEn
+      ? [
+          'The Market Gap: What Competitors Missed',
+          'Foundational Principles and Strategy',
+          'The High-Retention Framework',
+          'Overcoming Friction and Counter-Arguments',
+          'Case Studies: How Top Performers Win',
+          'The Lifelong Execution Blueprint'
+        ]
+      : [
+          'A Lacuna do Mercado: O que os Concorrentes Ignoraram',
+          'Princípios Fundamentais e Estratégia',
+          'O Método de Alta Retenção',
+          'Superando Fricções e Objeções',
+          'Estudos de Caso: Como os Melhores Vencem',
+          'O Plano de Execução Definitivo'
+        ];
+
+    const capsBase = titlesList.map((ctitle, cidx) => ({
+      num: cidx + 1,
+      title: `${cidx + 1}. ${ctitle}`,
+      sectionsCount: 3,
+      targetWords: 1100,
+      focus: isEn ? `Strategic analysis on ${ctitle.toLowerCase()}` : `Análise estratégica de ${ctitle.toLowerCase()}`
+    }));
+    setVariedOutlinePreview(capsBase);
+
+    const newCompleted = Array.from(new Set([...completedSteps, 1, 2, 3]));
+    setCompletedSteps(newCompleted);
+    setStatusMsg(isEn ? `📚 Book composed from bestseller "${refBook.title}"!` : `📚 Obra composta com base no bestseller "${refBook.title}"! Diferencial e sumário configurados.`);
+    setStatusType('ok');
+    setWizardStep(7);
+  };
+
   // Auto-Preencher Dossiê Editorial com IA em 1 clique
   const handleAutoPreencherDossie = async () => {
     setIsAiStepBusy('auto-dossie');
@@ -5369,6 +5522,28 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* INPUTS DE ARQUIVO OCULTOS PERSISTENTES (CAPA FRONTAL, CONTRACAPA E WRAP COMPLETO) */}
+      <input
+        type="file"
+        ref={coverFileInputRef}
+        accept="image/png,image/jpeg,image/webp"
+        onChange={handleImportarCapa}
+        style={{ display: 'none' }}
+      />
+      <input
+        type="file"
+        ref={backCoverFileInputRef}
+        accept="image/png,image/jpeg,image/webp"
+        onChange={handleImportarContracapa}
+        style={{ display: 'none' }}
+      />
+      <input
+        type="file"
+        ref={wrapFileInputRef}
+        accept="image/png,image/jpeg,image/webp"
+        onChange={handleImportarWrapCompleto}
+        style={{ display: 'none' }}
+      />
       {/* HEADER ELEGANTE & LIMPO DO BOOKENGIN (SEM EXCESSO DE BOTÕES NO TOPO) */}
       <header
         style={{
@@ -6021,6 +6196,102 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 
             {/* ═══════ WIZARD STEP 1: PESQUISA, TEMA & TESE ÚNICA ═══════ */}
             <div style={{ display: wizardStep === 1 ? undefined : 'none' }}>
+
+            {/* BARRA DE AÇÃO DIRETA: COMPOR COM A TESE OU PULAR PESQUISA */}
+            <div style={{
+              marginBottom: 12,
+              padding: '12px 14px',
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+              borderRadius: 8,
+              border: '1px solid #334155',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Sparkles size={14} color="#38bdf8" />
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: '#f8fafc' }}>
+                    {ui('Utilidade da Pesquisa & Tese para Compor o Livro', 'Research & Thesis Utility to Compose Book')}
+                  </span>
+                </div>
+                <p style={{ margin: '3px 0 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.35 }}>
+                  {ui(
+                    'Use a pesquisa para estruturar automaticamente título, diferencial e sumário do livro, ou pule direto para a escrita livre.',
+                    'Use research to automatically structure title, differentiator and outline, or jump straight to free writing.'
+                  )}
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleComporObraPorPesquisaETese}
+                  style={{
+                    padding: '7px 14px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 6px rgba(16,185,129,0.3)'
+                  }}
+                  title="Gera título, subtítulo, diferencial competitivo e sumário a partir deste tema"
+                >
+                  <Sparkles size={13} /> {ui('⚡ Compor Livro Automaticamente com esta Tese', '⚡ Auto-Compose Book with this Thesis')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePularPesquisaEAnalise(3)}
+                  style={{
+                    padding: '7px 12px',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5
+                  }}
+                  title="Pular pesquisa e ir direto para escolha do título"
+                >
+                  {ui('⏩ Pular Pesquisa (Ir para Título)', '⏩ Skip Research (Go to Title)')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePularPesquisaEAnalise(8)}
+                  style={{
+                    padding: '7px 12px',
+                    background: '#f1f5f9',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5
+                  }}
+                  title="Pular tudo e ir direto para o editor de escrita"
+                >
+                  {ui('⏩ Ir Direto para Escrita', '⏩ Jump to Writing')}
+                </button>
+              </div>
+            </div>
 
             {/* ETAPA 1 — ESCOLHA DO TEMA DO LIVRO */}
             <div style={{ marginBottom: 12, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
@@ -7244,6 +7515,102 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             {/* ═══════ WIZARD STEP 2: INTELIGÊNCIA DE MERCADO & TOP 100 SEGMENTOS ═══════ */}
             <div style={{ display: wizardStep === 2 ? undefined : 'none' }}>
 
+            {/* BARRA DE AÇÃO DIRETA: COMPOR COM OS BESTSELLERS OU PULAR ANÁLISE */}
+            <div style={{
+              marginBottom: 12,
+              padding: '12px 14px',
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+              borderRadius: 8,
+              border: '1px solid #334155',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Award size={15} color="#f59e0b" />
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: '#f8fafc' }}>
+                    {ui('Composição Editorial Baseada nos Bestsellers Top 50', 'Bestseller-Driven Book Composition')}
+                  </span>
+                </div>
+                <p style={{ margin: '3px 0 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.35 }}>
+                  {ui(
+                    'Extraia o diferencial competitivo dos líderes de vendas (resolvendo as falhas dos concorrentes) ou pule direto para criação autoral.',
+                    'Extract competitive differentiators from top sellers or skip straight to authorial creation.'
+                  )}
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleComporObraPorBestsellers()}
+                  style={{
+                    padding: '7px 14px',
+                    background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 6px rgba(59,130,246,0.3)'
+                  }}
+                  title="Usa os bestsellers selecionados ou líderes do nicho para gerar título e sumário diferenciados"
+                >
+                  <Sparkles size={13} /> {ui('📚 Compor Obra com os Bestsellers Selecionados', '📚 Compose with Selected Bestsellers')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePularPesquisaEAnalise(3)}
+                  style={{
+                    padding: '7px 12px',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5
+                  }}
+                  title="Pular análise e ir direto para escolha do título autoral"
+                >
+                  {ui('⏩ Pular Análise (Ir para Título)', '⏩ Skip Analysis (Go to Title)')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePularPesquisaEAnalise(8)}
+                  style={{
+                    padding: '7px 12px',
+                    background: '#f1f5f9',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5
+                  }}
+                  title="Pular análise e ir direto para o editor de escrita"
+                >
+                  {ui('⏩ Ir Direto para Escrita', '⏩ Jump to Writing')}
+                </button>
+              </div>
+            </div>
+
             <div style={{ marginBottom: 14, background: '#ffffff', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
               {/* CABEÇALHO DO MÓDULO TOP 100 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
@@ -7635,8 +8002,32 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                           )}
                         </div>
 
-                        {/* BOTÕES DE AÇÃO: INSPIRAR (SELECIONAR) E DESCARTAR (SUBSTITUIR) */}
-                        <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                        {/* BOTÕES DE AÇÃO: COMPOR DIRETO, INSPIRAR E DESCARTAR */}
+                        <div style={{ display: 'flex', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleComporObraPorBestsellers(book)}
+                            title="Compor obra imediatamente com base no diferencial deste bestseller"
+                            style={{
+                              flex: '1 1 100%',
+                              padding: '5px 8px',
+                              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: 5,
+                              fontSize: 10.5,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4,
+                              boxShadow: '0 2px 5px rgba(37,99,235,0.25)'
+                            }}
+                          >
+                            <Sparkles size={11} /> ⚡ Compor Livro com Este Bestseller
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleToggleSelectInspiration(book)}
@@ -7779,26 +8170,49 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleAdvanceToStep3WithSelected}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '9px 20px',
-                  background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 7,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
-                }}
-              >
-                {ui('Avançar para Etapa 3: Título do Livro', 'Advance to Step 3: Book Title')} <ChevronRight size={15} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleComporObraPorBestsellers()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '9px 16px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 7,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(16,185,129,0.3)'
+                  }}
+                >
+                  <Sparkles size={14} /> {ui('⚡ Compor com Bestsellers', '⚡ Compose with Bestsellers')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAdvanceToStep3WithSelected}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '9px 18px',
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 7,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
+                  }}
+                >
+                  {ui('Avançar para Etapa 3: Título do Livro', 'Advance to Step 3: Book Title')} <ChevronRight size={15} />
+                </button>
+              </div>
             </div>
 
             </div>{/* FIM WIZARD STEP 2 */}
@@ -9217,16 +9631,7 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <Sparkles size={15} /> 🎨 Gerar Capa & Página Promocional
             </button>
 
-            {/* INPUT DE ARQUIVO OCULTO PARA IMPORTAR CAPA EXTERNA */}
-            <input
-              type="file"
-              ref={coverFileInputRef}
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleImportarCapa}
-              style={{ display: 'none' }}
-            />
-
-            {/* BOTÃO IMPORTAR CAPA DO COMPUTADOR */}
+            {/* BOTÃO IMPORTAR CAPA DO COMPUTADOR (Aciona o input persistente do topo) */}
             <button
               type="button"
               onClick={() => coverFileInputRef.current?.click()}

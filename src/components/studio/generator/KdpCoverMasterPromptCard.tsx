@@ -15,7 +15,7 @@ interface KdpCoverMasterPromptCardProps {
   compactMode?: boolean;
 }
 
-type PromptTabMode = 'front-only' | 'full-wrap-back';
+type PromptTabMode = 'front-only' | 'back-only' | 'full-wrap-back';
 
 export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> = ({
   titulo,
@@ -63,14 +63,20 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
 
   const currentFullPrompt = activeMode === 'front-only'
     ? masterData.promptCompleto
+    : activeMode === 'back-only'
+    ? masterData.promptContracapaIsoladaCompleto
     : masterData.promptCapaEContracapaCompleto;
 
   const currentAiPrompt = activeMode === 'front-only'
     ? masterData.promptParaMotorIa
+    : activeMode === 'back-only'
+    ? masterData.promptContracapaIsoladaMotorIa
     : masterData.promptCapaEContracapaMotorIa;
 
   const currentWordCount = activeMode === 'front-only'
     ? masterData.wordCount
+    : activeMode === 'back-only'
+    ? masterData.wordCountContracapa
     : masterData.wordCountCapaEContracapa;
 
   return (
@@ -165,15 +171,17 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               transition: 'all 0.18s ease',
               boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)'
             }}
-            title="Copiar o Dossiê Completo da aba selecionada"
+            title="Copiar o Dossiê Completo da aba selecionada (3.000+ palavras)"
           >
             {copiedFull ? <Check size={14} /> : <Copy size={14} />}
             <span>
               {copiedFull
-                ? '✓ Prompt Completo Copiado!'
+                ? '✓ Dossiê Completo Copiado!'
                 : activeMode === 'front-only'
-                  ? `Copiar Dossiê SÓ CAPA (${masterData.wordCount} pal.)`
-                  : `Copiar Dossiê CAPA + CONTRACAPA (${masterData.wordCountCapaEContracapa} pal.)`}
+                  ? `Copiar Dossiê CAPA FRONTAL (${masterData.wordCount} pal.)`
+                  : activeMode === 'back-only'
+                    ? `Copiar Dossiê CONTRACAPA (${masterData.wordCountContracapa} pal.)`
+                    : `Copiar Dossiê WRAP COMPLETO (${masterData.wordCountCapaEContracapa} pal.)`}
             </span>
           </button>
 
@@ -201,8 +209,10 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               {copiedAiOnly
                 ? '✓ Copiado!'
                 : activeMode === 'front-only'
-                  ? 'Copiar Prompt IA (Só Capa)'
-                  : 'Copiar Prompt IA (Capa + Contracapa)'}
+                  ? 'Copiar Prompt IA (Capa)'
+                  : activeMode === 'back-only'
+                    ? 'Copiar Prompt IA (Contracapa)'
+                    : 'Copiar Prompt IA (Wrap)'}
             </span>
           </button>
 
@@ -230,11 +240,11 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
         </div>
       </div>
 
-      {/* SELETOR DE MODO: 1. APENAS CAPA FRONTAL vs 2. CAPA + LOMBADA + CONTRACAPA COM BREVE LEITURA */}
+      {/* SELETOR DE MODO (3 ABAS DE ALTA DENSIDADE COM 3.000+ PALAVRAS) */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: 8,
           marginTop: 10,
           marginBottom: isExpanded ? 12 : 0,
@@ -251,22 +261,47 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 8,
-            padding: '10px 14px',
+            gap: 7,
+            padding: '9px 12px',
             borderRadius: 8,
             border: activeMode === 'front-only' ? '1px solid #38bdf8' : '1px solid transparent',
             background: activeMode === 'front-only'
               ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.28), rgba(37, 99, 235, 0.22))'
               : 'transparent',
             color: activeMode === 'front-only' ? '#ffffff' : '#94a3b8',
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: 800,
             cursor: 'pointer',
             transition: 'all 0.15s ease'
           }}
         >
-          <BookOpen size={15} color={activeMode === 'front-only' ? '#38bdf8' : '#64748b'} />
-          <span>1. Prompt — Apenas Capa Frontal (2:3)</span>
+          <BookOpen size={14} color={activeMode === 'front-only' ? '#38bdf8' : '#64748b'} />
+          <span>1. Capa Frontal ({masterData.wordCount} pal.)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMode('back-only')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 7,
+            padding: '9px 12px',
+            borderRadius: 8,
+            border: activeMode === 'back-only' ? '1px solid #a855f7' : '1px solid transparent',
+            background: activeMode === 'back-only'
+              ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(126, 34, 206, 0.22))'
+              : 'transparent',
+            color: activeMode === 'back-only' ? '#ffffff' : '#94a3b8',
+            fontSize: 11.5,
+            fontWeight: 800,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <FileText size={14} color={activeMode === 'back-only' ? '#c084fc' : '#64748b'} />
+          <span>2. Contracapa Isolada ({masterData.wordCountContracapa} pal.)</span>
         </button>
 
         <button
@@ -276,22 +311,22 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 8,
-            padding: '10px 14px',
+            gap: 7,
+            padding: '9px 12px',
             borderRadius: 8,
             border: activeMode === 'full-wrap-back' ? '1px solid #10b981' : '1px solid transparent',
             background: activeMode === 'full-wrap-back'
               ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(2, 132, 199, 0.22))'
               : 'transparent',
             color: activeMode === 'full-wrap-back' ? '#ffffff' : '#94a3b8',
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: 800,
             cursor: 'pointer',
             transition: 'all 0.15s ease'
           }}
         >
-          <Layers size={15} color={activeMode === 'full-wrap-back' ? '#34d399' : '#64748b'} />
-          <span>2. Prompt — Capa + Lombada + Contracapa (Com Breve Leitura em Sintonia)</span>
+          <Layers size={14} color={activeMode === 'full-wrap-back' ? '#34d399' : '#64748b'} />
+          <span>3. Wrap Aberto ({masterData.wordCountCapaEContracapa} pal.)</span>
         </button>
       </div>
 
