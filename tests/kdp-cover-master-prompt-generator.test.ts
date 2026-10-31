@@ -52,3 +52,4 @@ describe('KdpCoverMasterPromptGenerator — Prompts com 3.000+ Palavras e Regras
     expect(result.promptCapaEContracapaMotorIa).toContain('--no barcode, barcode box, white box, white rectangle');
   });
 });
+

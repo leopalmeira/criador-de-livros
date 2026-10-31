@@ -6405,8 +6405,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                         const newLang = e.target.value;
                         setIdioma(newLang);
                         if (newLang === 'inglês') {
-                          const sugs = KdpTitleSuggestionEngine.getSuggestionsForTheme(temaSelecionado || 'Desenvolvimento Pessoal', 'inglês');
-                          setSugestoesTitulos(sugs);
+                          const sugs = KdpTitleSuggestionEngine.getSuggestionsForTheme(temaSelecionado || 'Desenvolvimento Pessoal', subtemaSelecionado || '', [], 'inglês');
+                          setSuggestedTitlesList(sugs);
                           if (!titulo || titulo === 'O Segredo Que Ela Levou' || titulo === 'A Sombra do Alvo' || titulo === 'O Poder do Foco Inabalável') {
                             if (sugs.length > 0) {
                               setTitulo(sugs[0].title);
@@ -6414,8 +6414,8 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                             }
                           }
                         } else if (newLang === 'português') {
-                          const sugs = KdpTitleSuggestionEngine.getSuggestionsForTheme(temaSelecionado || 'Desenvolvimento Pessoal', 'português');
-                          setSugestoesTitulos(sugs);
+                          const sugs = KdpTitleSuggestionEngine.getSuggestionsForTheme(temaSelecionado || 'Desenvolvimento Pessoal', subtemaSelecionado || '', [], 'português');
+                          setSuggestedTitlesList(sugs);
                         }
                       }}
                       style={{
