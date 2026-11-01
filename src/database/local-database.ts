@@ -1236,6 +1236,49 @@ class LocalDatabase {
       return null;
     }
   }
+
+  // --- ESTADO DA MÁQUINA DE PRODUÇÃO EDITORIAL ---
+  async saveProductionState(bookId: string, state: any): Promise<void> {
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('bookAuditReports', 'readwrite');
+        const store = tx.objectStore('bookAuditReports');
+        const key = `${bookId}__production_state`;
+        const req = store.put({ ...state, bookId: key, updatedAt: new Date().toISOString() });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('book_prod_state_' + bookId, JSON.stringify(state));
+        }
+      } catch {}
+    }
+  }
+
+  async getProductionState(bookId: string): Promise<any | null> {
+    try {
+      const db = await this.getDB();
+      return await new Promise<any | null>((resolve, reject) => {
+        const tx = db.transaction('bookAuditReports', 'readonly');
+        const store = tx.objectStore('bookAuditReports');
+        const key = `${bookId}__production_state`;
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('book_prod_state_' + bookId);
+          return raw ? JSON.parse(raw) : null;
+        }
+      } catch {}
+      return null;
+    }
+  }
 }
 
 

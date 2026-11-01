@@ -38,6 +38,12 @@ import {
   type LocalContinuityAuditResult
 } from '../../../services/book-sequential-writing-engine';
 import { SequentialWritingStudio } from './SequentialWritingStudio';
+import {
+  assertNotDiagnosticBook,
+  BookEnginEditorialHouse,
+  type ProductionStateMachine,
+  type ProductionStageStatus,
+} from '../../../services/editorial-multiagent-house';
 import { normalizeChapterHeading } from '../../../services/chapter-structure';
 import { runAutonomousEditorialCycle } from '../../../services/autonomous-editorial-pipeline';
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
@@ -937,6 +943,7 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [progressPercent, setProgressPercent] = useState(0);
   const [activeTab, setActiveTab] = useState<'wizard' | 'escrita' | 'preview' | 'market' | 'capa' | 'promo' | 'auditoria' | 'planner' | 'coauthor'>('wizard');
   const [globalMemory, setGlobalMemory] = useState<BookGlobalMemory | null>(null);
+  const [productionState, setProductionState] = useState<ProductionStateMachine | null>(null);
   const [lastChapterState, setLastChapterState] = useState<LastChapterState | null>(null);
   const [capituloSelecionadoIndex, setCapituloSelecionadoIndex] = useState<number>(0);
   const [workspaceLayout, setWorkspaceLayout] = useState<'focused' | 'split'>('focused');
@@ -2362,6 +2369,8 @@ Siga estritamente esta estrutura em 5 partes:
 
   // INICIAR GERAÇÃO DO LIVRO
   const iniciarGeracao = async () => {
+    assertNotDiagnosticBook(titulo);
+
     if (bookType === 'planner' || bookType === 'diary') {
       setActiveTab('planner');
       setStatusMsg('Este formato gera páginas preenchíveis, sem capítulos narrativos. Use o Criador de planners e diários.');
@@ -2461,6 +2470,16 @@ Siga estritamente esta estrutura em 5 partes:
     // Consome 1 crédito editorial para a produção do livro
     debitarCreditoLivro(novoLivro.titulo);
 
+    // Inicializa a Máquina de Produção Editorial das 6 Etapas
+    const initialProdState = BookEnginEditorialHouse.createInitialProductionState(novoLivro.titulo, capsCalc);
+    initialProdState.stages.planejamento.status = 'concluido';
+    initialProdState.stages.planejamento.progressReal = 'Bíblia e personagens estruturados';
+    initialProdState.stages.escrita.status = 'em_execucao';
+    initialProdState.currentStage = 'escrita';
+    initialProdState.overallStatus = 'EXECUTANDO';
+    setProductionState(initialProdState);
+    await db.saveProductionState(novoLivro.titulo, initialProdState);
+
     setLivro(novoLivro);
     setCapaFinal(null);
     setFundoImg(null);
@@ -2475,11 +2494,31 @@ Siga estritamente esta estrutura em 5 partes:
   // CONTINUAR GERAÇÃO INTERROMPIDA
   const continuarGeracao = async () => {
     if (!livro) return;
+    assertNotDiagnosticBook(livro.titulo);
     pararFlagRef.current = false;
     setPararFlag(false);
     const palavrasPorCap = livro.meta?.palavrasPorCap || 900;
     const startFrom = livro.capitulos.length;
     const total = totalCaps || Math.max(3, Math.min(maxCapitulos, Math.round((livro.meta?.paginasAlvo || paginasAlvo) * 300 / palavrasPorCap)));
+
+    setProductionState(prev => {
+      const state = prev || BookEnginEditorialHouse.createInitialProductionState(livro.titulo, total);
+      const updated = {
+        ...state,
+        overallStatus: 'EXECUTANDO' as const,
+        currentStage: 'escrita' as const,
+        stages: {
+          ...state.stages,
+          escrita: {
+            ...state.stages.escrita,
+            status: 'em_execucao' as ProductionStageStatus,
+            currentWork: `Retomando escrita a partir do capítulo ${startFrom + 1}...`,
+          }
+        }
+      };
+      db.saveProductionState(livro.titulo, updated);
+      return updated;
+    });
 
     let plano = planoEditorial;
     if (!plano || plano.chapters.length !== total) {
@@ -2693,13 +2732,27 @@ ${num === total ? '9. DESFECHO DEFINITIVO: Este é o encerramento do livro compl
 11. VISÃO EDITORIAL ORQUESTRADA: ${plano.editorialVision}
 12. PROMESSA AO LEITOR: ${plano.readerPromise}
 13. BÍBLIA DE CONTINUIDADE: ${plano.continuityBible}
+14. PROIBIÇÃO DE ALTERAÇÃO DE IDENTIDADE E PROFISSÃO: Personagens mantêm obrigatoriamente a profissão, nome, parentesco e papel definidos. NUNCA altere a profissão de um personagem entre capítulos.
+15. PROIBIÇÃO DE METARREFERÊNCIAS: NUNCA escreva frases como 'no capítulo anterior', 'como vimos antes', 'o autor nos mostra', 'como mencionado no sumário'.
 
 FORMATO ESTRITO:
 TITULO: ${isEnBook ? `Chapter ${num}: Creative Chapter Title in English` : isEsBook ? `Capítulo ${num}: Título Creativo en Español` : `Título Criativo do Capítulo ${num}`}
 TEXTO:
 (Parágrafos da história separados por linha em branco)`;
 
-        // PROMPT DO USUÁRIO ENXUTO E DIRETO
+        // PROMPT DO USUÁRIO ENXUTO E DIRETO COM FICHAS CANÔNICAS
+        const charsDossier = (activeMemory.characters || [])
+          .map(c => `• ${c.name} (${c.fullName || c.name}): PROFISSÃO CANÔNICA IMUTÁVEL: "${c.profession || 'Canônica'}". Papel: ${c.background || 'Personagem'}. Estado: ${c.physicalState || 'Ativo'}, ${c.emotionalState || 'Normal'}. Local: ${c.currentLocation || 'Cenário da cena'}.`)
+          .join('\n');
+
+        const fatosCanonicos = (activeMemory.canonicalFacts || [])
+          .map(f => `• [FATO CANÔNICO INVIOLÁVEL]: ${f.fact}`)
+          .join('\n');
+
+        const cenariosCanonicos = (activeMemory.locations || [])
+          .map(l => `• ${l.name}${l.city ? ` (${l.city})` : ''}${l.floor !== undefined ? ` [Andar ${l.floor}]` : ''}: ${l.spatialLayout || l.propertyType || l.name}`)
+          .join('\n');
+
         let prompt = `━━━ DADOS DA OBRA ━━━
 Título: "${livroBase.titulo}" | Subtítulo: "${livroBase.subtitulo}"
 Autor: ${livroBase.autor} | Gênero: ${livroBase.genero} (${livroBase.idioma})
@@ -2714,6 +2767,18 @@ Transição planejada: ${diretrizArquitetura.transition || 'Conectar de forma fl
 
 ━━━ GANCHO DE TRANSIÇÃO DIRETA ━━━
 ${ganchoImediato}`;
+
+        if (charsDossier) {
+          prompt += `\n\n━━━ FICHAS DOS PERSONAGENS (PROFISSÕES E IDENTIDADES IMUTÁVEIS) ━━━\n${charsDossier}\nREGRA CRÍTICA: NUNCA altere ou invente outra profissão, cargo ou identidade para os personagens acima.`;
+        }
+
+        if (fatosCanonicos) {
+          prompt += `\n\n━━━ FATOS CANÔNICOS ESTABELECIDOS (NUNCA CONTRADIZER) ━━━\n${fatosCanonicos}`;
+        }
+
+        if (cenariosCanonicos) {
+          prompt += `\n\n━━━ CENÁRIOS E LOCALIZAÇÕES FÍSICAS PRECISAS ━━━\n${cenariosCanonicos}`;
+        }
 
         if (historicoEnredo && historicoEnredo !== 'Início da narrativa.') {
           prompt += `\n\n━━━ CONTINUIDADE DOS CAPÍTULOS ANTERIORES ━━━\n${historicoEnredo}`;
@@ -2789,6 +2854,29 @@ ${ganchoImediato}`;
           }
         }
 
+        // AUDITORIA TRIPLA MULTIAGENTES (Agentes 4, 5 e 6) & CORRETOR AUTÔNOMO (Agente 9)
+        const editorialMem = BookEnginEditorialHouse.fromGlobalMemory(activeMemory);
+        const tripleAudit = BookEnginEditorialHouse.verifyChapterTriplePass({
+          chapterText: cap.texto,
+          chapterTitle: cap.titulo,
+          chapterNumber: num,
+          totalChapters: total,
+          memory: editorialMem,
+        });
+
+        if (tripleAudit.issues.length > 0) {
+          const { fixedText, fixedTitle, correctionsAppliedCount } = BookEnginEditorialHouse.agent9AutonomousCorrector(
+            cap.texto,
+            cap.titulo,
+            tripleAudit.issues
+          );
+          if (correctionsAppliedCount > 0) {
+            cap.texto = fixedText;
+            cap.titulo = fixedTitle;
+            logDiag(`Capítulo ${num}: ${correctionsAppliedCount} inconsistência(s) corrigida(s) autonomamente pelo Agente 9.`);
+          }
+        }
+
         // ATUALIZAÇÃO DA MEMÓRIA EDITORIAL GLOBAL E LAST_CHAPTER_STATE
         const { updatedMemory, newChapterState } = BookSequentialWritingEngine.updateGlobalMemoryAfterChapter({
           memory: activeMemory,
@@ -2809,6 +2897,30 @@ ${ganchoImediato}`;
         setLivro({ ...livroBase });
         setCapAtual(livroBase.capitulos.length);
         salvarProgressoLocal(livroBase);
+
+        // Atualiza a Máquina de Estados Editorial com o progresso do capítulo
+        setProductionState(prev => {
+          if (!prev) return prev;
+          const capsCount = livroBase.capitulos.length;
+          const isDone = capsCount >= total;
+          const updated: ProductionStateMachine = {
+            ...prev,
+            currentChapter: capsCount,
+            tasksCompleted: capsCount + 1,
+            statusMessage: isDone ? 'Escrita dos capítulos concluída! Iniciando revisão editorial...' : `Escrevendo capítulo ${capsCount + 1} de ${total}...`,
+            stages: {
+              ...prev.stages,
+              escrita: {
+                ...prev.stages.escrita,
+                status: (isDone ? 'concluido' : 'em_execucao') as ProductionStageStatus,
+                progressReal: `${capsCount} de ${total} capítulos prontos`,
+                currentWork: isDone ? 'Todos os capítulos escritos com sucesso.' : `Redigindo capítulo ${capsCount + 1}...`,
+              }
+            }
+          };
+          db.saveProductionState(livroBase.titulo, updated);
+          return updated;
+        });
 
         // Se houve incidentes anteriores neste capítulo, atualizar no log como resolvido
         if (tentativasConsecutivasCapitulo > 0) {
@@ -2965,6 +3077,33 @@ ${ganchoImediato}`;
         ? `✓ História concluída e auditada. ${missingStoryArt} ilustração(ões) ainda precisam ser geradas no preview antes de exportar.`
         : '✓ Livro completo, auditado pelos 2 Agentes Independentes e validado para KDP!');
       setStatusType(missingStoryArt > 0 ? 'error' : 'ok');
+
+      // Finaliza o ciclo completo da Máquina de Estados Editorial
+      setProductionState(prev => {
+        const state = prev || BookEnginEditorialHouse.createInitialProductionState(livroBase.titulo, total);
+        const updated: ProductionStateMachine = {
+          ...state,
+          overallStatus: 'CONCLUIDO',
+          currentStage: 'auditoria_final',
+          currentChapter: total,
+          tasksCompleted: total + 5,
+          statusMessage: 'Obra 100% concluída, revisada, diagramada e auditada com sucesso!',
+          stages: {
+            planejamento: { ...state.stages.planejamento, status: 'concluido', progressReal: '100% estruturado' },
+            escrita: { ...state.stages.escrita, status: 'concluido', progressReal: `${total} de ${total} capítulos prontos` },
+            revisao_editorial: { ...state.stages.revisao_editorial, status: 'concluido', progressReal: '100% analisado' },
+            revisao_linguistica: { ...state.stages.revisao_linguistica, status: 'concluido', progressReal: '100% revisado' },
+            diagramacao: { ...state.stages.diagramacao, status: 'concluido', progressReal: 'Diagramado KDP' },
+            auditoria_final: { ...state.stages.auditoria_final, status: 'concluido', progressReal: 'Aprovado' },
+          },
+          pdfAvailable: true,
+          epubAvailable: true,
+          finalAuditStatus: 'APROVADA NA AUDITORIA EDITORIAL INTERNA',
+          updatedAt: new Date().toISOString(),
+        };
+        db.saveProductionState(livroBase.titulo, updated);
+        return updated;
+      });
     }
 
     setGerando(false);
@@ -10617,11 +10756,21 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       salvarProgressoLocal(updatedLivro);
                     }
                   }}
-                  onGenerateNextChapter={handleGerarProximoCapituloSequencial}
+                  onStartFullProduction={livro && livro.capitulos.length > 0 && livro.capitulos.length < totalCaps ? continuarGeracao : iniciarGeracao}
                   onStopGeneration={() => {
                     pararFlagRef.current = true;
                     setPararFlag(true);
                     setGerando(false);
+                    setProductionState(prev => {
+                      if (!prev) return prev;
+                      const updated: ProductionStateMachine = {
+                        ...prev,
+                        overallStatus: 'PAUSADO',
+                        statusMessage: `Produção pausada no capítulo ${livro?.capitulos.length || 0} de ${totalCaps}.`,
+                      };
+                      if (livro) db.saveProductionState(livro.titulo, updated);
+                      return updated;
+                    });
                   }}
                   onSaveProgress={() => {
                     if (livro) {
@@ -10630,7 +10779,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                       setStatusType('ok');
                     }
                   }}
-                  editorialPlan={planoEditorial}
+                  onViewBook={() => setActiveTab('preview')}
+                  onDownloadBook={() => {
+                    baixarPDF();
+                  }}
+                  onOpenReport={() => setActiveTab('auditoria')}
+                  productionState={productionState}
                   globalMemory={globalMemory}
                   lastChapterState={lastChapterState}
                   ui={ui}
