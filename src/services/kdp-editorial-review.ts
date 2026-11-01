@@ -11,18 +11,13 @@ import type {
 } from '../types/editorial-correction';
 import type { AiCall } from './kdp-editorial-corrector';
 import { levenshtein, normText, normWord, splitParagraphs, stripAccents, wordsOf } from './editorial-text-utils';
+import { repairIncompleteTitle, shortenTitleSafely, stripChapterNumbering } from './chapter-structure';
 
 // ---------------------------------------------------------------
 // TÍTULOS / SUMÁRIO
 // ---------------------------------------------------------------
-export function cleanChapterTitle(title: string): string {
-  let cleaned = (title || '').trim();
-  let prev = '';
-  // Remove prefixos como Capítulo 1: ou Chapter 1 -
-  while (cleaned !== prev && /^(?:cap[ií]tulo|chapter|cap)\s*(?:\d+|[ivxlc]+)?\s*[:.\-–—]*\s*/i.test(cleaned)) {
-    prev = cleaned;
-    cleaned = cleaned.replace(/^(?:cap[ií]tulo|chapter|cap)\s*(?:\d+|[ivxlc]+)?\s*[:.\-–—]*\s*/i, '').trim();
-  }
+export function cleanChapterTitle(title: string, _fallbackText?: string): string {
+  let cleaned = stripChapterNumbering(title || '').trim();
 
   // Remove sufixos mecânicos como (Parte 1) ou - Parte 2
   cleaned = cleaned.replace(/\s*[\(\[\{]?(?:parte|part)\s*\d+[\)\]\}]?\s*$/i, '').trim();
@@ -38,11 +33,9 @@ export function cleanChapterTitle(title: string): string {
     cleaned = words.length <= 4 ? `The Foundation of ${resto}` : 'The Core Foundation';
   }
 
-  // Se o título ainda tiver mais de 10 palavras, condensa para as 6 primeiras palavras de impacto
-  const words = cleaned.split(/\s+/).filter(Boolean);
-  if (words.length > 8) {
-    cleaned = words.slice(0, 6).join(' ');
-  }
+  // Condensa títulos muito longos sem jamais cortar em conectivos ou preposições
+  cleaned = shortenTitleSafely(cleaned, 9);
+  cleaned = repairIncompleteTitle(cleaned);
 
   return cleaned || (title || '').trim();
 }

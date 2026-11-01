@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { BookProject } from '../../types/book-project';
+import { normalizeChapterHeading } from '../chapter-structure';
 import { ManuscriptAccentRepairEngine } from '../manuscript-accent-repair';
 import { ManuscriptIntegrityEngine } from '../manuscript-integrity-engine';
 
@@ -265,17 +266,19 @@ li {
     }
 
     const chapters: FormattedEpubChapter[] = rawChapters.map((ch: any, idx: number): FormattedEpubChapter => {
-      const num = ch.index || ch.number || (idx + 1);
-      const titleRaw = ch.title || ch.titulo || `Capítulo ${num}`;
-      const titleClean = ManuscriptIntegrityEngine.cleanLaTeXResiduals(titleRaw);
-      const titleRepaired = ManuscriptAccentRepairEngine.repairManuscript(titleClean);
+      const num = idx + 1;
       const contentRaw = ch.content || ch.prose || ch.texto || ch.summary || 'Capítulo em elaboração.';
       const contentSanitized = ManuscriptIntegrityEngine.sanitizeChapterContent(contentRaw);
       const contentRepaired = ManuscriptAccentRepairEngine.repairManuscript(contentSanitized.cleanText);
 
+      const titleRaw = ch.title || ch.titulo || `Capítulo ${num}`;
+      const titleClean = ManuscriptIntegrityEngine.cleanLaTeXResiduals(titleRaw);
+      const titleRepaired = ManuscriptAccentRepairEngine.repairManuscript(titleClean);
+      const normalized = normalizeChapterHeading(titleRepaired, num, project.language, contentRepaired);
+
       return {
         num,
-        title: titleRepaired,
+        title: normalized.fullHeading,
         content: contentRepaired
       };
     });

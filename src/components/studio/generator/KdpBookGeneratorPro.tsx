@@ -38,6 +38,8 @@ import {
   type LocalContinuityAuditResult
 } from '../../../services/book-sequential-writing-engine';
 import { SequentialWritingStudio } from './SequentialWritingStudio';
+import { normalizeChapterHeading } from '../../../services/chapter-structure';
+import { runAutonomousEditorialCycle } from '../../../services/autonomous-editorial-pipeline';
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
 import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrity-engine';
 import type { FinalBookRecord } from '../../../types/editorial-correction';
@@ -2916,14 +2918,53 @@ ${ganchoImediato}`;
 
     if (!pararFlagRef.current) {
       setProgressPercent(100);
+      logDiag('✓ Todos os capítulos foram gerados. Iniciando Auditoria Autônoma Dupla (Agente 1 + Agente 2 + QA de Layout KDP)...');
+      setStatusMsg('🛡️ Executando Auditoria Autônoma Dupla (Agente 1 + Agente 2) e validação de diagramação...');
+
+      try {
+        const autoAudit = await runAutonomousEditorialCycle({
+          bookId: currentProjId,
+          title: livroBase.titulo,
+          subtitle: livroBase.subtitulo,
+          author: livroBase.autor,
+          genre: livroBase.genero || genero,
+          language: livroBase.idioma || idioma,
+          chapters: livroBase.capitulos.map(c => ({
+            titulo: c.titulo,
+            texto: c.texto,
+            imagemDataUrl: c.imagemDataUrl ?? null,
+          })),
+          globalMemory: activeMemory,
+          capaDataUrl: capaFinal,
+          requestedFormat: formato,
+          maxCycles: 3,
+          onProgress: (evt) => {
+            logDiag(`[Auditoria Autônoma ${evt.stageIndex}/${evt.totalStages}] ${evt.label}: ${evt.detail}`);
+            setStatusMsg(`🛡️ [${evt.stageIndex}/${evt.totalStages}] ${evt.label}: ${evt.detail}`);
+          },
+        });
+
+        livroBase.capitulos = autoAudit.approvedChapters.map((c, idx) => ({
+          ...livroBase.capitulos[idx],
+          titulo: c.titulo,
+          texto: c.texto,
+          imagemDataUrl: c.imagemDataUrl ?? livroBase.capitulos[idx]?.imagemDataUrl ?? null,
+        }));
+        setLivro({ ...livroBase });
+        salvarProgressoLocal(livroBase);
+        logDiag(`✓ Ciclo Autônomo Duplo finalizado: ${autoAudit.finalStatus} | Formato KDP ideal: ${autoAudit.layoutQaReport.selectedFormat}.`);
+      } catch (auditErr: any) {
+        console.warn('Aviso no ciclo autônomo pós-geração:', auditErr);
+        logDiag(`⚠️ Aviso na auditoria automática pós-geração: ${auditErr.message || 'verifique na aba Auditoria & Correção'}.`);
+      }
+
       const missingStoryArt = bookType === 'children-picture-book'
         ? livroBase.capitulos.filter(chapter => !chapter.imagemDataUrl).length
         : 0;
       setStatusMsg(missingStoryArt > 0
-        ? `✓ História concluída. ${missingStoryArt} ilustração(ões) ainda precisam ser geradas no preview antes de exportar.`
-        : '✓ Livro completo com sucesso! Agora você pode gerar a capa e a página promocional.');
+        ? `✓ História concluída e auditada. ${missingStoryArt} ilustração(ões) ainda precisam ser geradas no preview antes de exportar.`
+        : '✓ Livro completo, auditado pelos 2 Agentes Independentes e validado para KDP!');
       setStatusType(missingStoryArt > 0 ? 'error' : 'ok');
-      logDiag('✓ Todos os capítulos foram gerados.');
     }
 
     setGerando(false);
@@ -2975,15 +3016,10 @@ ${ganchoImediato}`;
     texto = assegurarConclusaoCapitulo(texto, totalCaps ? num === totalCaps : false);
 
     let rawTitle = mt ? mt[1].trim() : (isEn ? `Chapter ${num}` : `Capítulo ${num}`);
-    if (isEn) {
-      rawTitle = rawTitle.replace(/^cap[íi]tulo\s*/i, 'Chapter ');
-      if (!/^chapter\s*\d+/i.test(rawTitle)) {
-        rawTitle = `Chapter ${num}: ${rawTitle}`;
-      }
-    }
+    const normalized = normalizeChapterHeading(rawTitle, num, idioma, texto);
 
     return {
-      titulo: rawTitle,
+      titulo: normalized.cleanTitle,
       texto
     };
   };

@@ -36,6 +36,12 @@ import {
   type UniversalAuditSeverity,
   type UniversalAuditStatus
 } from '../../../services/universal-editorial-auditor';
+import {
+  runAutonomousEditorialCycle,
+  WriteLockManager,
+  type AutonomousEditorialCycleResult,
+  type PipelineProgressEvent
+} from '../../../services/autonomous-editorial-pipeline';
 
 interface Props {
   livro: PipelineLivro | null;
@@ -95,6 +101,92 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
   const [auditFilterStatus, setAuditFilterStatus] = useState<'todos' | 'pendentes' | 'resolvidos'>('todos');
   const [showUniversalReportModal, setShowUniversalReportModal] = useState(false);
   const [showMemoryModal, setShowMemoryModal] = useState(false);
+
+  // Estados do Ciclo Autônomo de Dupla Auditoria (EDITORIAL_AUDITOR_AGENT + INDEPENDENT_EDITORIAL_VERIFIER + LAYOUT_QA_AGENT)
+  const [dualAuditResult, setDualAuditResult] = useState<AutonomousEditorialCycleResult | null>(null);
+  const [isRunningDualAudit, setIsRunningDualAudit] = useState(false);
+  const [dualAuditProgress, setDualAuditProgress] = useState<PipelineProgressEvent | null>(null);
+  const [activeAgentTab, setActiveAgentTab] = useState<'agent1' | 'agent2' | 'layoutQa' | 'checklist'>('agent1');
+
+  useEffect(() => {
+    if (!bookId) return;
+    db.getAuditReport(bookId).then(saved => {
+      if (saved && saved.agent1Report && saved.agent2Report) {
+        setDualAuditResult(saved as AutonomousEditorialCycleResult);
+      }
+    }).catch(() => {});
+  }, [bookId]);
+
+  const handleRunAutonomousDualCycle = async () => {
+    if (!livro || livro.capitulos.length === 0) {
+      onStatusMessage?.('O livro deve conter capítulos antes de executar o ciclo autônomo de dupla auditoria.', 'error');
+      return;
+    }
+    setIsRunningDualAudit(true);
+    onStatusMessage?.('🛡️ Iniciando Ciclo Autônomo Duplo: Agente 1 (EDITORIAL_AUDITOR_AGENT) -> Persistência -> Agente 2 (INDEPENDENT_EDITORIAL_VERIFIER) -> QA de Layout PDF/EPUB...', 'normal');
+
+    try {
+      const globalMem = await db.getBookGlobalMemory(bookId);
+      const result = await runAutonomousEditorialCycle({
+        bookId,
+        title: livro.titulo,
+        subtitle: livro.subtitulo,
+        author: livro.autor || 'Autor',
+        genre: livro.genero || 'Ficção',
+        language: livro.idioma || 'Português',
+        chapters: livro.capitulos.map(c => ({
+          titulo: c.titulo,
+          texto: c.texto,
+          imagemDataUrl: (c as any).imagemDataUrl ?? null,
+        })),
+        globalMemory: globalMem,
+        capaDataUrl: capaFinal,
+        requestedFormat: formato,
+        maxCycles: 3,
+        onProgress: evt => setDualAuditProgress(evt),
+      });
+
+      setDualAuditResult(result);
+      setUniversalAuditResult(result.agent1Report.universalAudit);
+      onBookUpdated({
+        ...livro,
+        capitulos: result.approvedChapters.map(c => ({
+          titulo: c.titulo,
+          texto: c.texto,
+          imagemDataUrl: c.imagemDataUrl ?? null,
+        })),
+      });
+
+      if (result.finalStatus === 'APROVADA NA AUDITORIA INTERNA') {
+        onStatusMessage?.(`✓ ${result.finalStatus}: Agente 1, Agente 2 e QA de Layout validaram 100% da obra (Formato KDP: ${result.layoutQaReport.selectedFormat}).`, 'ok');
+      } else {
+        onStatusMessage?.(`⚠️ ${result.finalStatus}: Verifique os apontamentos separados do Agente 1 e do Agente 2.`, 'normal');
+      }
+    } catch (err: any) {
+      console.error('Erro no ciclo autônomo duplo:', err);
+      onStatusMessage?.(`Erro no ciclo autônomo de dupla auditoria: ${err.message}`, 'error');
+    } finally {
+      setIsRunningDualAudit(false);
+    }
+  };
+
+  const handleRestoreVersionSnapshot = (versionNumber: number) => {
+    if (!livro) return;
+    const restored = WriteLockManager.restoreVersion(bookId, versionNumber);
+    if (!restored) {
+      onStatusMessage?.('Versão solicitada não encontrada no histórico local.', 'error');
+      return;
+    }
+    onBookUpdated({
+      ...livro,
+      capitulos: restored.chapters.map(c => ({
+        titulo: c.titulo,
+        texto: c.texto,
+        imagemDataUrl: c.imagemDataUrl ?? null,
+      })),
+    });
+    onStatusMessage?.(`✓ Versão v${versionNumber} (${restored.createdBy}) restaurada com sucesso!`, 'ok');
+  };
 
   // Executa o Agente Master de Diagramação do Livro Completo (Checagem Página por Página)
   const handleExecutarDiagramacaoCompleta = async () => {
@@ -707,6 +799,268 @@ export const EditorialCorrectionSection: React.FC<Props> = ({
             </>
           )}
         </div>
+      </div>
+
+      {/* CICLO AUTÔNOMO DE DUPLA AUDITORIA (EDITORIAL_AUDITOR_AGENT + INDEPENDENT_EDITORIAL_VERIFIER + LAYOUT_QA_AGENT) */}
+      <div style={{
+        background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%)',
+        border: '1.5px solid #10b981',
+        borderRadius: 12,
+        padding: '16px 20px',
+        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.1)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+              <ShieldCheck size={18} color="#059669" />
+              <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, color: '#064e3b' }}>
+                Auditoria Autônoma Dupla & QA Técnico KDP (Agente 1 + Agente 2 + Layout QA)
+              </h4>
+              {dualAuditResult && (
+                <span style={{
+                  background: dualAuditResult.finalStatus === 'APROVADA NA AUDITORIA INTERNA' ? '#dcfce7' : '#fef3c7',
+                  color: dualAuditResult.finalStatus === 'APROVADA NA AUDITORIA INTERNA' ? '#166534' : '#92400e',
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  padding: '2px 10px',
+                  borderRadius: 12,
+                  border: `1px solid ${dualAuditResult.finalStatus === 'APROVADA NA AUDITORIA INTERNA' ? '#86efac' : '#fde68a'}`
+                }}>
+                  {dualAuditResult.finalStatus}
+                </span>
+              )}
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: '#047857', lineHeight: 1.45 }}>
+              Executa automaticamente após a geração: <strong>EDITORIAL_AUDITOR_AGENT</strong> audita e persiste no banco,
+              <strong> INDEPENDENT_EDITORIAL_VERIFIER</strong> reabre a versão salva e verifica regressões/continuidade com regras independentes,
+              e <strong>LAYOUT_QA_AGENT</strong> valida PDF e EPUB no formato KDP ideal.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleRunAutonomousDualCycle}
+            disabled={isRunningDualAudit || isRunning}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '10px 18px',
+              background: isRunningDualAudit ? '#94a3b8' : 'linear-gradient(135deg, #059669, #0d9488)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: isRunningDualAudit ? 'wait' : 'pointer',
+              boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)'
+            }}
+          >
+            <ShieldCheck size={15} />
+            {isRunningDualAudit ? 'Executando Dupla Auditoria...' : '🛡️ Executar Dupla Auditoria + QA PDF/EPUB'}
+          </button>
+        </div>
+
+        {/* BARRA DE 8 ETAPAS DO PIPELINE AUTÔNOMO (SEÇÃO 13) */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
+          gap: 6,
+          marginTop: 12
+        }}>
+          {[
+            { idx: 1, label: '1. Manuscrito finalizado' },
+            { idx: 2, label: '2. Auditoria Agente 1' },
+            { idx: 3, label: '3. Correções aplicadas' },
+            { idx: 4, label: '4. Verificação Agente 2' },
+            { idx: 5, label: '5. Pendências encontradas' },
+            { idx: 6, label: '6. Diagramação KDP' },
+            { idx: 7, label: '7. Validação PDF/EPUB' },
+            { idx: 8, label: '8. Status Final' },
+          ].map(step => {
+            const currentIdx = dualAuditResult ? 8 : (dualAuditProgress?.stageIndex || 0);
+            const done = currentIdx >= step.idx;
+            const active = isRunningDualAudit && dualAuditProgress?.stageIndex === step.idx;
+            return (
+              <div
+                key={step.idx}
+                style={{
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  background: active ? '#fef9c3' : done ? '#dcfce7' : '#ffffff',
+                  color: active ? '#854d0e' : done ? '#166534' : '#64748b',
+                  border: `1px solid ${active ? '#fde047' : done ? '#86efac' : '#cbd5e1'}`
+                }}
+              >
+                {done ? '✓ ' : active ? '⏳ ' : '○ '}{step.label}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* RELATÓRIOS SEPARADOS DO AGENTE 1, AGENTE 2 E LAYOUT QA */}
+        {dualAuditResult && (
+          <div style={{ marginTop: 14, background: '#ffffff', borderRadius: 8, border: '1px solid #cbd5e1', padding: 12 }}>
+            <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setActiveAgentTab('agent1')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  background: activeAgentTab === 'agent1' ? '#059669' : '#f1f5f9',
+                  color: activeAgentTab === 'agent1' ? '#ffffff' : '#334155'
+                }}
+              >
+                Relatório Agente 1 (EDITORIAL_AUDITOR_AGENT)
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAgentTab('agent2')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  background: activeAgentTab === 'agent2' ? '#0284c7' : '#f1f5f9',
+                  color: activeAgentTab === 'agent2' ? '#ffffff' : '#334155'
+                }}
+              >
+                Relatório Agente 2 (INDEPENDENT_EDITORIAL_VERIFIER)
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAgentTab('layoutQa')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  background: activeAgentTab === 'layoutQa' ? '#4f46e5' : '#f1f5f9',
+                  color: activeAgentTab === 'layoutQa' ? '#ffffff' : '#334155'
+                }}
+              >
+                Relatório LAYOUT_QA_AGENT ({dualAuditResult.layoutQaReport.selectedFormat})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAgentTab('checklist')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  background: activeAgentTab === 'checklist' ? '#0f172a' : '#f1f5f9',
+                  color: activeAgentTab === 'checklist' ? '#ffffff' : '#334155'
+                }}
+              >
+                Critérios de Aprovação (10/10) & Versões
+              </button>
+            </div>
+
+            {activeAgentTab === 'agent1' && (
+              <div style={{ fontSize: 12, color: '#334155' }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                  Agente 1 ({dualAuditResult.agent1Report.persistedVersionId}) • Persistência confirmada no banco: {dualAuditResult.agent1Report.persistedVerifiedFromStorage ? 'SIM ✓' : 'NÃO'}
+                </div>
+                <div>
+                  Capítulos analisados: <strong>{dualAuditResult.agent1Report.chaptersAnalyzed}</strong> | Correções automáticas aplicadas: <strong>{dualAuditResult.agent1Report.autoFixedCount}</strong> | Score Editorial: <strong>{dualAuditResult.agent1Report.universalAudit?.overallScore ?? 100}/100</strong>
+                </div>
+                {dualAuditResult.agent1Report.structuralFixes.length > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 11, color: '#047857' }}>
+                    {dualAuditResult.agent1Report.structuralFixes.slice(0, 5).map((f, idx) => (
+                      <div key={idx}>• {f}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeAgentTab === 'agent2' && (
+              <div style={{ fontSize: 12, color: '#334155' }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                  Agente 2 Independente ({dualAuditResult.agent2Report.persistedVersionId}) • Aberto diretamente do armazenamento: {dualAuditResult.agent2Report.loadedDirectlyFromStorage ? 'SIM ✓' : 'NÃO'}
+                </div>
+                <div>
+                  Regras independentes executadas: <strong>{dualAuditResult.agent2Report.independentRulesExecuted.length}</strong> | Regressões detectadas: <strong>{dualAuditResult.agent2Report.regressionsDetected}</strong> | Erros críticos restantes: <strong>{dualAuditResult.agent2Report.remainingCriticalIssues}</strong>
+                </div>
+                {dualAuditResult.agent2Report.findings.length === 0 ? (
+                  <div style={{ marginTop: 6, color: '#15803d', fontWeight: 600 }}>
+                    ✓ O Verificador Editorial Independente confirmou que todas as correções do Agente 1 foram salvas e nenhuma regressão permaneceu no manuscrito.
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 6, fontSize: 11 }}>
+                    {dualAuditResult.agent2Report.findings.slice(0, 6).map(f => (
+                      <div key={f.id} style={{ color: f.fixedAutomatically ? '#0369a1' : '#b45309' }}>
+                        • [Cap. {f.chapterNumber}] {f.description} ({f.fixedAutomatically ? 'Corrigido pelo Agente 2' : 'Aguardando aprovação do autor'})
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeAgentTab === 'layoutQa' && (
+              <div style={{ fontSize: 12, color: '#334155' }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                  Formato KDP Selecionado: {dualAuditResult.layoutQaReport.selectedFormat} ({dualAuditResult.layoutQaReport.layoutRecommendation.categoryProfile})
+                </div>
+                <div style={{ fontSize: 11.5, color: '#475569', marginBottom: 6 }}>
+                  {dualAuditResult.layoutQaReport.layoutRecommendation.rationale}
+                </div>
+                <div>
+                  PDF KDP Válido: <strong>{dualAuditResult.layoutQaReport.pdfValidation.ok ? 'SIM ✓' : 'NÃO'}</strong> | EPUB 3 Válido: <strong>{dualAuditResult.layoutQaReport.epubValidation.ok ? 'SIM ✓' : 'NÃO'}</strong> | Cabeçalhos sem cortes: <strong>{!dualAuditResult.layoutQaReport.headersCutOrTruncated ? 'SIM ✓' : 'NÃO'}</strong> | Palavras do manuscrito 100% preservadas: <strong>{dualAuditResult.layoutQaReport.manuscriptWordsPreserved ? 'SIM ✓' : 'NÃO'}</strong>
+                </div>
+              </div>
+            )}
+
+            {activeAgentTab === 'checklist' && (
+              <div style={{ fontSize: 11.5, color: '#334155' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 4, marginBottom: 8 }}>
+                  {Object.entries(dualAuditResult.approvalChecklist || {}).map(([k, ok]) => (
+                    <div key={k} style={{ color: ok ? '#15803d' : '#b91c1c', fontWeight: 600 }}>
+                      {ok ? '✓' : '✗'} {k}
+                    </div>
+                  ))}
+                </div>
+                {dualAuditResult.versionHistory && dualAuditResult.versionHistory.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
+                    <span style={{ fontWeight: 700 }}>Restaurar versão:</span>
+                    {dualAuditResult.versionHistory.map(v => (
+                      <button
+                        key={v.versionId}
+                        type="button"
+                        onClick={() => handleRestoreVersionSnapshot(v.versionNumber)}
+                        style={{
+                          padding: '3px 8px',
+                          fontSize: 10.5,
+                          borderRadius: 4,
+                          border: '1px solid #cbd5e1',
+                          background: '#f8fafc',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        v{v.versionNumber} ({v.createdBy})
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* NOVO: AGENTE MASTER DE DIAGRAMAÇÃO EDITORIAL PÁGINA POR PÁGINA */}

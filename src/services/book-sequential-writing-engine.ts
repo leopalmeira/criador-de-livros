@@ -5,6 +5,18 @@
 // (LAST_CHAPTER_STATE) e auditoria de continuidade local antes de salvar.
 // ============================================================================
 
+import { isIncompleteTitle, normalizeChapterHeading } from './chapter-structure';
+
+export interface TrackedNarrativeElement {
+  id: string;
+  type: 'event' | 'secondary_character' | 'object' | 'conflict';
+  name: string;
+  description: string;
+  introducedInChapter: number;
+  resolvedInChapter?: number;
+  status: 'pending' | 'resolved';
+}
+
 export interface CharacterMemory {
   id: string;
   name: string;
@@ -110,6 +122,7 @@ export interface BookGlobalMemory {
   timeline: TimelineEvent[];
   plotThreads: PlotThread[];
   canonicalFacts: CanonicalFact[];
+  trackedElements?: TrackedNarrativeElement[];
   nonFictionData?: NonFictionMemory;
 }
 
@@ -159,7 +172,12 @@ export type ContinuityIssueCategory =
   | 'premature_ending'
   | 'secret_leak'
   | 'missing_object'
-  | 'dialogue_contradiction';
+  | 'dialogue_contradiction'
+  | 'meta_reference'
+  | 'incomplete_title'
+  | 'unpunctuated_dialogue'
+  | 'unresolved_element'
+  | 'repetitive_opening_or_hook';
 
 export interface ContinuityAuditIssue {
   id: string;
@@ -178,6 +196,7 @@ export interface LocalContinuityAuditResult {
   score: number; // 0 a 100
   issues: ContinuityAuditIssue[];
   fixedText?: string;
+  fixedTitle?: string;
 }
 
 // ============================================================================
@@ -360,10 +379,71 @@ export class BookSequentialWritingEngine {
           currentTensionLevel: 4
         }
       ],
-      canonicalFacts: params.existingFacts || []
+      canonicalFacts: params.existingFacts || [],
+      trackedElements: []
     };
 
     return memory;
+  }
+
+  /**
+   * Registra um evento, personagem secundário, objeto/pista ou conflito pendente na memória global,
+   * identificando onde foi introduzido e acompanhando até sua resolução.
+   */
+  static registerTrackedElement(
+    memory: BookGlobalMemory,
+    element: {
+      type: 'event' | 'secondary_character' | 'object' | 'conflict';
+      name: string;
+      description: string;
+      introducedInChapter: number;
+    }
+  ): TrackedNarrativeElement {
+    if (!memory.trackedElements) memory.trackedElements = [];
+    const existing = memory.trackedElements.find(
+      e => e.name.toLowerCase() === element.name.trim().toLowerCase() && e.type === element.type
+    );
+    if (existing) return existing;
+
+    const item: TrackedNarrativeElement = {
+      id: `trk_${element.type}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      type: element.type,
+      name: element.name.trim(),
+      description: element.description.trim(),
+      introducedInChapter: element.introducedInChapter,
+      status: 'pending'
+    };
+    memory.trackedElements.push(item);
+    memory.version += 1;
+    memory.updatedAt = new Date().toISOString();
+    return item;
+  }
+
+  /**
+   * Marca um elemento rastreado (evento, personagem secundário, objeto ou conflito) como resolvido.
+   */
+  static resolveTrackedElement(
+    memory: BookGlobalMemory,
+    idOrName: string,
+    resolvedInChapter: number
+  ): boolean {
+    if (!memory.trackedElements) return false;
+    const target = memory.trackedElements.find(
+      e => e.id === idOrName || e.name.toLowerCase() === idOrName.trim().toLowerCase()
+    );
+    if (!target) return false;
+    target.status = 'resolved';
+    target.resolvedInChapter = resolvedInChapter;
+    memory.version += 1;
+    memory.updatedAt = new Date().toISOString();
+    return true;
+  }
+
+  /**
+   * Retorna todos os elementos narrativos pendentes (eventos, personagens secundários, objetos, conflitos).
+   */
+  static getPendingElements(memory: BookGlobalMemory): TrackedNarrativeElement[] {
+    return (memory.trackedElements || []).filter(e => e.status === 'pending');
   }
 
   /**
@@ -462,12 +542,26 @@ export class BookSequentialWritingEngine {
       }).join('\n');
     }
 
-    // 6. Diretiva do Arco
+    // 6. Elementos Pendentes Rastreados (Eventos, Personagens Secundários, Objetos e Conflitos)
+    const pendingElements = BookSequentialWritingEngine.getPendingElements(memory);
+    const pendingElementsText = pendingElements.length > 0
+      ? pendingElements.map(e => `• [${e.type.toUpperCase()}] "${e.name}" (Introduzido no Cap. ${e.introducedInChapter}): ${e.description}`).join('\n')
+      : 'Nenhum elemento pendente sem acompanhamento no momento.';
+
+    // 7. Diretiva do Arco
     const arcDirective = `ESTÁGIO NARRATIVO: ${arcInfo.label} (Tensão Alvo: ${arcInfo.tensionTarget}/10)
 DIRETRIZ DE ARCO: ${arcInfo.directive}
 ${arcInfo.allowDefinitiveResolution
-  ? 'ATENÇÃO: Este é o encerramento final do livro. Você DEVE solucionar os mistérios centrais e cumprir todas as promessas da obra.'
+  ? 'ATENÇÃO: Este é o encerramento final do livro. Você DEVE solucionar os mistérios centrais, resolver todos os elementos pendentes e cumprir todas as promessas da obra.'
   : 'PROIBIÇÃO ABSOLUTA: NÃO resolva definitivamente o conflito principal neste capítulo. Mantenha os arcos abertos e a tensão narrativa crescente.'}`;
+
+    const antiErrorPromptRules = `━━━ REGRAS DE OURO DE ESCRITA E CONTINUIDADE (OBRIGATÓRIO) ━━━
+1. TÍTULOS COMPLETOS E SEM NUMERAÇÃO DUPLICADA: Nunca termine títulos de capítulos com conectivos ou preposições sem complemento ("de", "da", "do", "que", "com", "para", "of", "with", "to"). Nunca duplique a numeração no título (proibido "Capítulo 1: Capítulo 1").
+2. PROIBIDO REFERÊNCIAS ARTIFICIAIS: Nunca use frases meta-narrativas como "no capítulo anterior", "como vimos no capítulo passado" ou "in the previous chapter" dentro de narrativas ficcionais.
+3. VARIEDADE NARRATIVA: Evite repetição excessiva de descrições, aberturas de capítulos e ganchos finais idênticos aos capítulos anteriores.
+4. PRESERVAÇÃO DE ELEMENTOS: Não abandone personagens secundários, objetos importantes, pistas ou conflitos pendentes sem resolução.
+5. COERÊNCIA TEMPORAL E ESPACIAL: Não mude de local, horário ou tempo verbal sem transição clara e justificada.
+6. PONTUAÇÃO DE DIÁLOGOS: Todos os diálogos devem ter travessão ou aspas padronizadas e pontuação final adequada.`;
 
     const systemContext = `BÍBLIA EDITORIAL GLOBAL DO LIVRO (BOOK_GLOBAL_MEMORY):
 Título: "${memory.identity.title}" | Subtítulo: "${memory.identity.subtitle}"
@@ -482,7 +576,12 @@ PERSONAGENS CANÔNICOS:
 ${charactersText}
 
 LOCAIS CANÔNICOS:
-${locationsText}`;
+${locationsText}
+
+ELEMENTOS PENDENTES (EVENTOS, PERSONAGENS SECUNDÁRIOS, OBJETOS E CONFLITOS):
+${pendingElementsText}
+
+${antiErrorPromptRules}`;
 
     const userContext = `━━━ DIRETRIZES DO CAPÍTULO ${chapterNumber} DE ${totalChapters} ━━━
 Título Planejado: ${outlineDirective?.title || `Capítulo ${chapterNumber}`}
@@ -720,12 +819,84 @@ ${priorHistory ? `━━━ HISTÓRICO DE CAPÍTULOS ANTERIORES ━━━\n${pri
       }
     }
 
+    // 6. Verificação de Título Incompleto ou Numeração Duplicada (Seção 1)
+    let fixedTitle: string | undefined;
+    if (params.chapterTitle) {
+      const normalizedTitle = normalizeChapterHeading(params.chapterTitle, chapterNumber, memory.identity.language, chapterText);
+      const hasDupNum = /^(?:cap[ií]tulo|chapter|cap\.?)\s*\d+\s*[:.\-–—]+\s*(?:cap[ií]tulo|chapter|cap\.?)\s*\d+/i.test(params.chapterTitle.trim());
+      if (isIncompleteTitle(params.chapterTitle) || normalizedTitle.wasRepaired || hasDupNum) {
+        fixedTitle = normalizedTitle.cleanTitle;
+        issues.push({
+          id: `incomplete_title_${chapterNumber}_${Date.now()}`,
+          chapterNumber,
+          severity: 'error',
+          category: 'incomplete_title',
+          description: `Título do capítulo ${chapterNumber} incompleto, terminado em conectivo ou com numeração duplicada ("${params.chapterTitle}").`,
+          originalExcerpt: params.chapterTitle,
+          suggestedFix: normalizedTitle.cleanTitle,
+          autoFixApplied: false
+        });
+      }
+    }
+
+    // 7. Proibição de Referências Artificiais ("no capítulo anterior" / "in the previous chapter")
+    const isNonFiction = /n[aã]o[\s-]?fic|t[eé]cnic|educacion|did[aá]tic|autoajuda|neg[oó]cios/i.test(memory.identity.genre || '');
+    if (!isNonFiction) {
+      const metaPatterns = [
+        /\b(?:como\s+vimos\s+)?no\s+cap[ií]tulo\s+anterior\s*,?\s*/gi,
+        /\bconforme\s+(?:visto|relatado|descrito)\s+no\s+cap[ií]tulo\s+(?:anterior|passado)\s*,?\s*/gi,
+        /\b(?:as\s+seen\s+)?in\s+the\s+(?:previous|last)\s+chapter\s*,?\s*/gi,
+        /\bno\s+cap[ií]tulo\s+passado\s*,?\s*/gi
+      ];
+      for (const mp of metaPatterns) {
+        const match = chapterText.match(mp);
+        if (match) {
+          issues.push({
+            id: `meta_ref_${chapterNumber}_${Date.now()}`,
+            chapterNumber,
+            severity: 'error',
+            category: 'meta_reference',
+            description: `Referência meta-narrativa artificial detectada em obra ficcional ("${match[0].trim()}").`,
+            originalExcerpt: match[0],
+            suggestedFix: '',
+            autoFixApplied: false
+          });
+        }
+      }
+    }
+
+    // 8. Verificação de Elementos Pendentes no Capítulo Final
+    if (chapterNumber >= totalChapters && memory.trackedElements && memory.trackedElements.length > 0) {
+      for (const elem of memory.trackedElements) {
+        if (elem.status === 'pending') {
+          const elemRegex = new RegExp(`\\b${elem.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          if (elemRegex.test(chapterText)) {
+            elem.status = 'resolved';
+            elem.resolvedInChapter = chapterNumber;
+          } else {
+            issues.push({
+              id: `unresolved_elem_${chapterNumber}_${elem.id}`,
+              chapterNumber,
+              severity: 'warning',
+              category: 'unresolved_element',
+              description: `Elemento pendente (${elem.type}: "${elem.name}", introduzido no Cap. ${elem.introducedInChapter}) não foi mencionado ou resolvido até o capítulo final.`,
+              originalExcerpt: elem.name,
+              suggestedFix: `Integrar resolução de "${elem.name}" (${elem.description}) no desfecho.`,
+              canonicalReference: `Introduzido no Cap. ${elem.introducedInChapter}`,
+              autoFixApplied: false
+            });
+          }
+        }
+      }
+    }
+
     const score = Math.max(0, 100 - issues.reduce((acc, iss) => acc + (iss.severity === 'critical' ? 30 : iss.severity === 'error' ? 15 : 5), 0));
 
     return {
       isValid: issues.filter(i => i.severity === 'critical').length === 0,
       score,
-      issues
+      issues,
+      fixedTitle
     };
   }
 
@@ -764,6 +935,19 @@ ${priorHistory ? `━━━ HISTÓRICO DE CAPÍTULOS ANTERIORES ━━━\n${pri
             regex,
             'uma calmaria passageira se instaurou, mas sob a superfície novas sombras e perguntas continuavam à espreita'
           );
+          issue.autoFixApplied = true;
+          fixedCount++;
+        }
+      } else if (issue.category === 'meta_reference') {
+        const escaped = issue.originalExcerpt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escaped, 'gi');
+        if (regex.test(text)) {
+          text = text.replace(regex, (_match, offset, fullStr) => {
+            // Se estava no início de período, capitaliza a próxima letra na limpeza pós-replace
+            return offset === 0 || /[.!?]\s+$/.test(fullStr.slice(0, offset)) ? '' : '';
+          });
+          // Limpa espaços duplos e garante letra maiúscula após ponto ou início de parágrafo
+          text = text.replace(/(^|\n\s*|[.!?]\s+)([a-záéíóúâêôãõç])/gm, (_m, p1, p2) => `${p1}${p2.toUpperCase()}`);
           issue.autoFixApplied = true;
           fixedCount++;
         }
@@ -881,3 +1065,4 @@ ${priorHistory ? `━━━ HISTÓRICO DE CAPÍTULOS ANTERIORES ━━━\n${pri
     };
   }
 }
+

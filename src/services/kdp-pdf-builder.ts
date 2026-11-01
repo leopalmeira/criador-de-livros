@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import type { BookType } from '../types/book-project';
 import type { CoverStatus } from '../types/editorial-correction';
 import { cleanChapterTitle } from './kdp-editorial-review';
+import { shortenTitleSafely } from './chapter-structure';
 import { ManuscriptIntegrityEngine } from './manuscript-integrity-engine';
 
 export const TRIM_SIZES: Record<string, [number, number]> = {
@@ -365,7 +366,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
 
   const isEnDoc = Boolean(input.livro.idioma && /ingl|en/i.test(input.livro.idioma));
   const cleanTitles = chapters.map((c, i) => {
-    let raw = cleanChapterTitle(c.titulo);
+    let raw = cleanChapterTitle(c.titulo, c.texto);
     if (!raw) raw = isEnDoc ? `Chapter ${i + 1}` : `Capítulo ${i + 1}`;
     else if (isEnDoc) raw = raw.replace(/^cap[ií]tulo\s*/i, "Chapter ");
     return sanitize(raw);
@@ -380,11 +381,17 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     if (meta.kind === 'capitulo' && !meta.firstOfChapter) {
       let rawHeader = isRecto(page) ? cleanTitles[meta.chapterIndex!] : bookTitle;
       let header = (rawHeader || '').trim();
-      // Trunca em 34 caracteres para NUNCA quebrar em múltiplas linhas e nunca colidir com o texto
-      if (header.length > 34) {
-        header = header.slice(0, 32).trim() + '…';
+      // Ajusta fonte adaptativa ou condensa em limite semântico (sem cortar palavras ao meio ou em conectivos)
+      let headerFontSize = 8.5;
+      doc.setFont('times', 'italic').setFontSize(headerFontSize).setTextColor(115);
+      const maxHeaderW = textW * 0.92;
+      while (headerFontSize > 7.0 && doc.getTextWidth(header) > maxHeaderW) {
+        headerFontSize -= 0.25;
+        doc.setFontSize(headerFontSize);
       }
-      doc.setFont('times', 'italic').setFontSize(8.5).setTextColor(115);
+      if (doc.getTextWidth(header) > maxHeaderW) {
+        header = shortenTitleSafely(header, 6);
+      }
       doc.text(header, LW / 2, 0.48, { align: 'center' });
       meta.header = header;
     }
@@ -512,7 +519,8 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     chapters.forEach((_, i) => {
       doc.setFont('times', 'normal').setFontSize(10.5);
       const cleanT = cleanTitles[i];
-      const label = `${i + 1}.  ${cleanT}`;
+      const isGeneric = /^(?:cap[ií]tulo|chapter)\s*\d+$/i.test(cleanT.trim());
+      const label = isGeneric ? cleanT : `${i + 1}.  ${cleanT}`;
       const wrapped = doc.splitTextToSize(label, textW - 0.75) as string[];
       if (y + wrapped.length * entryH > bottomLimit) {
         startPage('sumario');
