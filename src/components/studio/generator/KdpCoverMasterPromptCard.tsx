@@ -41,6 +41,8 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
   const [copiedBlurb, setCopiedBlurb] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(!compactMode);
 
+  const isEn = Boolean(idioma && /ingl|en/i.test(idioma));
+
   const masterData: CoverMasterPromptOutput = useMemo(() => {
     return gerarMasterPromptCapa600a1200Palavras({
       titulo: titulo || 'Obra Literária',
@@ -128,7 +130,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: '#f8fafc', letterSpacing: '-0.01em' }}>
-                Master Prompt de Capa & Contracapa em Sintonia Editorial
+                {isEn ? 'KDP Master Prompt Cover Studio (Front, Back & Full Wrap)' : 'Master Prompt de Capa & Contracapa em Sintonia Editorial'}
               </h3>
               <span
                 style={{
@@ -141,7 +143,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                   fontWeight: 700
                 }}
               >
-                {currentWordCount} palavras reais
+                {currentWordCount} {isEn ? 'words' : 'palavras reais'}
               </span>
               <span
                 style={{
@@ -154,11 +156,13 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                   fontWeight: 700
                 }}
               >
-                Gênero: {genero}
+                {isEn ? 'Genre:' : 'Gênero:'} {genero}
               </span>
             </div>
             <p style={{ margin: '3px 0 0 0', fontSize: 11, color: '#94a3b8' }}>
-              Direção de arte completa para Apenas Capa Frontal ou Capa + Lombada + Contracapa com Breve Leitura em 100% de sintonia visual.
+              {isEn
+                ? 'Full professional art direction for Front Cover, Back Cover, or Full Wrap Spread with anti-crop safe zones and harmonized color palette.'
+                : 'Direção de arte completa para Apenas Capa Frontal ou Capa + Lombada + Contracapa com Breve Leitura em 100% de sintonia visual.'}
             </p>
           </div>
         </div>
@@ -183,17 +187,17 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               transition: 'all 0.18s ease',
               boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)'
             }}
-            title="Copiar o Dossiê Completo da aba selecionada (3.000+ palavras)"
+            title={isEn ? 'Copy full 3,000+ words master prompt dossier' : 'Copiar o Dossiê Completo da aba selecionada (3.000+ palavras)'}
           >
             {copiedFull ? <Check size={14} /> : <Copy size={14} />}
             <span>
               {copiedFull
-                ? '✓ Dossiê Completo Copiado!'
+                ? (isEn ? '✓ Full Dossier Copied!' : '✓ Dossiê Completo Copiado!')
                 : activeMode === 'front-only'
-                  ? `Copiar Dossiê CAPA FRONTAL (${masterData.wordCount} pal.)`
+                  ? (isEn ? `Copy FRONT COVER Dossier (${masterData.wordCount} words)` : `Copiar Dossiê CAPA FRONTAL (${masterData.wordCount} pal.)`)
                   : activeMode === 'back-only'
-                    ? `Copiar Dossiê CONTRACAPA (${masterData.wordCountContracapa} pal.)`
-                    : `Copiar Dossiê CAPA COM CONTRACAPA JUNTO (${masterData.wordCountCapaEContracapa} pal.)`}
+                    ? (isEn ? `Copy BACK COVER Dossier (${masterData.wordCountContracapa} words)` : `Copiar Dossiê CONTRACAPA (${masterData.wordCountContracapa} pal.)`)
+                    : (isEn ? `Copy FULL WRAP SPREAD Dossier (${masterData.wordCountCapaEContracapa} words)` : `Copiar Dossiê CAPA COM CONTRACAPA JUNTO (${masterData.wordCountCapaEContracapa} pal.)`)}
             </span>
           </button>
 
@@ -214,17 +218,17 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            title="Copiar prompt direto otimizado para geradores de imagem IA (FLUX / Midjourney / Ideogram)"
+            title={isEn ? 'Copy AI-optimized prompt (FLUX / Midjourney / Ideogram)' : 'Copiar prompt direto otimizado para geradores de imagem IA (FLUX / Midjourney / Ideogram)'}
           >
             {copiedAiOnly ? <Check size={13} /> : <Copy size={13} />}
             <span>
               {copiedAiOnly
-                ? '✓ Copiado!'
+                ? (isEn ? '✓ Copied!' : '✓ Copiado!')
                 : activeMode === 'front-only'
-                  ? 'Copiar Prompt IA (Capa Frontal)'
+                  ? (isEn ? 'Copy AI Prompt (Front Cover)' : 'Copiar Prompt IA (Capa Frontal)')
                   : activeMode === 'back-only'
-                    ? 'Copiar Prompt IA (Contracapa)'
-                    : 'Copiar Prompt IA (Capa com Contracapa Junto)'}
+                    ? (isEn ? 'Copy AI Prompt (Back Cover)' : 'Copiar Prompt IA (Contracapa)')
+                    : (isEn ? 'Copy AI Prompt (Full Wrap Spread)' : 'Copiar Prompt IA (Capa com Contracapa Junto)')}
             </span>
           </button>
 
@@ -288,7 +292,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           }}
         >
           <BookOpen size={14} color={activeMode === 'front-only' ? '#38bdf8' : '#64748b'} />
-          <span>1. Capa Frontal ({masterData.wordCount} pal.)</span>
+          <span>{isEn ? `1. Front Cover (${masterData.wordCount} words)` : `1. Capa Frontal (${masterData.wordCount} pal.)`}</span>
         </button>
 
         <button
@@ -313,7 +317,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           }}
         >
           <FileText size={14} color={activeMode === 'back-only' ? '#c084fc' : '#64748b'} />
-          <span>2. Contracapa ({masterData.wordCountContracapa} pal.)</span>
+          <span>{isEn ? `2. Back Cover (${masterData.wordCountContracapa} words)` : `2. Contracapa (${masterData.wordCountContracapa} pal.)`}</span>
         </button>
 
         <button
@@ -338,11 +342,11 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           }}
         >
           <Layers size={14} color={activeMode === 'full-wrap-back' ? '#34d399' : '#64748b'} />
-          <span>3. Capa com Contracapa Junto ({masterData.wordCountCapaEContracapa} pal.)</span>
+          <span>{isEn ? `3. Full Wrap Spread (${masterData.wordCountCapaEContracapa} words)` : `3. Capa com Contracapa Junto (${masterData.wordCountCapaEContracapa} pal.)`}</span>
         </button>
       </div>
 
-      {/* REGRA OBRIGATÓRIA: PROIBIÇÃO DE CÓDIGO DE BARRAS E CAIXA BRANCA NOS PROMPTS */}
+      {/* REGRA OBRIGATÓRIA: PROIBIÇÃO DE CÓDIGO DE BARRAS, CAIXA BRANCA E CORTE DE LETRAS NOS PROMPTS */}
       <div
         style={{
           display: 'flex',
@@ -361,7 +365,10 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
       >
         <span style={{ fontSize: 16 }}>🛡️</span>
         <div>
-          <b style={{ color: '#ffffff' }}>Regra Obrigatória nos Prompts:</b> A arte da capa e da contracapa preenche 100% da superfície de ponta a ponta sem caixas brancas nem código de barras. Parâmetros negativos estritos (<code>--no barcode white box blank rectangle</code>) estão ativados nos prompts de IA para impedir retângulos brancos ou vazios.
+          <b style={{ color: '#ffffff' }}>{isEn ? 'Mandatory Anti-Crop & Safe Zone Directive:' : 'Regra Obrigatória nos Prompts:'}</b>{' '}
+          {isEn
+            ? 'Cover and back cover art fully occupies 100% of the canvas with a strict 15% inner margin buffer for all typography and key focal elements. No text near edges or borders. Negative parameters (--no barcode white box cropped text cut-off letters) are enforced.'
+            : 'A arte da capa e da contracapa preenche 100% da superfície de ponta a ponta sem caixas brancas nem código de barras. Margem de segurança de 15% nas bordas (anti-corte de letras). Parâmetros negativos estritos (--no barcode white box cropped text) estão ativados nos prompts.'}
         </div>
       </div>
 
@@ -382,7 +389,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <FileText size={15} color="#34d399" />
                   <span style={{ fontSize: 12, fontWeight: 800, color: '#ecfdf5', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Breve Leitura da Contracapa (Em Total Sintonia com a Capa)
+                    {isEn ? 'Back Cover Synopsis & Blurb (Harmonized with Front Cover)' : 'Breve Leitura da Contracapa (Em Total Sintonia com a Capa)'}
                   </span>
                 </div>
 
@@ -405,7 +412,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                     }}
                   >
                     {copiedBlurb ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copiedBlurb ? '✓ Sinopse Copiada!' : 'Copiar Texto da Contracapa'}</span>
+                    <span>{copiedBlurb ? (isEn ? '✓ Blurb Copied!' : '✓ Sinopse Copiada!') : (isEn ? 'Copy Back Cover Blurb' : 'Copiar Texto da Contracapa')}</span>
                   </button>
 
                   <button
@@ -424,10 +431,10 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
-                    title="Copiar prompt caso deseje gerar somente a arte vertical da contracapa em total sintonia com a capa"
+                    title={isEn ? 'Copy prompt for back cover only in 2:3 vertical aspect ratio' : 'Copiar prompt caso deseje gerar somente a arte vertical da contracapa em total sintonia com a capa'}
                   >
                     {copiedBackOnly ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copiedBackOnly ? '✓ Prompt Contracapa Copiado!' : 'Copiar Prompt IA (Só Contracapa 2:3)'}</span>
+                    <span>{copiedBackOnly ? (isEn ? '✓ Back Cover Prompt Copied!' : '✓ Prompt Contracapa Copiado!') : (isEn ? 'Copy AI Prompt (Back Cover 2:3)' : 'Copiar Prompt IA (Só Contracapa 2:3)')}</span>
                   </button>
                 </div>
               </div>
@@ -466,7 +473,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
           >
             <div>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, letterSpacing: '0.05em' }}>
-                Estilo Visual em Sintonia (Capa & Contracapa)
+                {isEn ? 'Harmonized Visual Style' : 'Estilo Visual em Sintonia (Capa & Contracapa)'}
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8', marginTop: 2 }}>
                 {masterData.estiloRecomendado}
@@ -475,7 +482,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
 
             <div>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, letterSpacing: '0.05em' }}>
-                Tipografia do Título & Lombada
+                {isEn ? 'Title & Spine Typography' : 'Tipografia do Título & Lombada'}
               </div>
               <div style={{ fontSize: 11.5, color: '#f8fafc', marginTop: 2 }}>
                 {masterData.fonteTituloSugerida}
@@ -484,19 +491,31 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
 
             <div>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, letterSpacing: '0.05em' }}>
-                Arquitetura Editorial 300 DPI
+                {isEn ? 'Editorial 300 DPI Architecture' : 'Arquitetura Editorial 300 DPI'}
               </div>
               <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 2, lineHeight: 1.35 }}>
-                • <b>Capa Frontal:</b> Título no topo + Subtítulo + Autor<br />
-                • <b>Lombada:</b> Título vertical + Autor centralizado<br />
-                • <b>Contracapa:</b> Gancho + Breve Leitura + Área ISBN
+                {isEn ? (
+                  <>
+                    • <b>Front Cover:</b> Top Title + Subtitle + Author<br />
+                    • <b>Spine:</b> Vertical Title + Centered Author<br />
+                    • <b>Back Cover:</b> Hook + Blurb + ISBN Safe Area
+                  </>
+                ) : (
+                  <>
+                    • <b>Capa Frontal:</b> Título no topo + Subtítulo + Autor<br />
+                    • <b>Lombada:</b> Título vertical + Autor centralizado<br />
+                    • <b>Contracapa:</b> Gancho + Breve Leitura + Área ISBN
+                  </>
+                )}
               </div>
             </div>
           </div>
 
           {/* PALETA CROMÁTICA DO GÊNERO */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Paleta Cromática Contínua:</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
+              {isEn ? 'Harmonized Color Palette:' : 'Paleta Cromática Contínua:'}
+            </span>
             {masterData.paletaCoresSugerida.map((cor, idx) => {
               const hexMatch = cor.match(/#([0-9a-f]{6})/i);
               const hex = hexMatch ? `#${hexMatch[1]}` : '#334155';
@@ -564,7 +583,15 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
               }}
             >
               <span>
-                💡 <b>Dica Editorial:</b> Alterne entre as abas acima para copiar o prompt de <b>Apenas Capa Frontal</b> ou o de <b>Capa + Lombada + Contracapa com a Breve Leitura inclusa</b>.
+                {isEn ? (
+                  <>
+                    💡 <b>Editorial Tip:</b> Switch tabs above to copy either the <b>Front Cover Only</b> prompt, <b>Back Cover Only</b>, or the <b>Full Wrap Spread</b> dossier with synopsis and anti-crop safe zones.
+                  </>
+                ) : (
+                  <>
+                    💡 <b>Dica Editorial:</b> Alterne entre as abas acima para copiar o prompt de <b>Apenas Capa Frontal</b> ou o de <b>Capa + Lombada + Contracapa com a Breve Leitura inclusa</b>.
+                  </>
+                )}
               </span>
               <button
                 type="button"
@@ -581,7 +608,7 @@ export const KdpCoverMasterPromptCard: React.FC<KdpCoverMasterPromptCardProps> =
                   gap: 4
                 }}
               >
-                <Copy size={11} /> Copiar Prompt Desta Aba
+                <Copy size={11} /> {isEn ? 'Copy Prompt from This Tab' : 'Copiar Prompt Desta Aba'}
               </button>
             </div>
           </div>

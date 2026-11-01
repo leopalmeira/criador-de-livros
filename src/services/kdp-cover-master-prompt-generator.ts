@@ -186,18 +186,18 @@ export function extrairSintoniaEspacoTemporal(
 
   if (naoTemLondres) {
     proibicoes.push('Big Ben');
-    proibicoes.push('Palácio de Westminster');
-    proibicoes.push('Cabines telefônicas vermelhas britânicas');
-    proibicoes.push('Arcos neogóticos ou pontes londrinas');
+    proibicoes.push(isEn ? 'Palace of Westminster' : 'Palácio de Westminster');
+    proibicoes.push(isEn ? 'British red telephone booths' : 'Cabines telefônicas vermelhas britânicas');
+    proibicoes.push(isEn ? 'Neo-gothic arches or London bridges' : 'Arcos neogóticos ou pontes londrinas');
   }
   if (naoTemParis) {
-    proibicoes.push('Torre Eiffel');
-    proibicoes.push('Catedrais góticas parisienses');
+    proibicoes.push(isEn ? 'Eiffel Tower' : 'Torre Eiffel');
+    proibicoes.push(isEn ? 'Parisian gothic cathedrals' : 'Catedrais góticas parisienses');
   }
   if (!isHistorico) {
-    proibicoes.push('Carruagens arcaicas');
-    proibicoes.push('Lampiões a gás vitorianos');
-    proibicoes.push('Vestimentas medievais ou da era vitoriana');
+    proibicoes.push(isEn ? 'Archaic horse carriages' : 'Carruagens arcaicas');
+    proibicoes.push(isEn ? 'Victorian gas lamps' : 'Lampiões a gás vitorianos');
+    proibicoes.push(isEn ? 'Medieval or Victorian costumes' : 'Vestimentas medievais ou da era vitoriana');
   }
 
   // 4. Cenografia Real da Capa Frontal e Contracapa
@@ -293,7 +293,8 @@ function expandirTextoAteMeta(
   textoBase: string,
   blocosExpansao: string[],
   metaPalavras = 3050,
-  contextoObra: { titulo: string; autor: string; genero: string } = { titulo: 'A Obra', autor: 'O Autor', genero: 'Literatura' }
+  contextoObra: { titulo: string; autor: string; genero: string } = { titulo: 'A Obra', autor: 'O Autor', genero: 'Literatura' },
+  isEn: boolean = false
 ): string {
   let resultado = textoBase;
   let idx = 0;
@@ -303,7 +304,13 @@ function expandirTextoAteMeta(
       idx++;
     } else {
       idx++;
-      const blocoComplementar = [
+      const blocoComplementar = isEn ? [
+        `## VISUAL EXCELLENCE DIRECTIVES & NARRATIVE PSYCHOLOGY — SUPPLEMENTARY COMPENDIUM #${idx}`,
+        `To ensure that "${contextoObra.titulo}" by ${contextoObra.autor} commands sovereign authority at the pinnacle of ${contextoObra.genero}, the art direction embeds supplementary safeguards of high aesthetic impact:`,
+        `1. Reader Trust Anchoring: The synthesis between artwork and refined typography establishes an immediate bond of credibility. The discerning contemporary reader identifies premium editorial craftsmanship in under 0.3 seconds, directly correlating the physical cover quality with the depth of the interior prose.`,
+        `2. Dynamic Light & Shadow Behavior Across Digital and Physical Media: Shadow values and tonal gradients have been calibrated to preserve full fidelity on OLED, AMOLED, and IPS mobile screens, as well as on physical 6x9 coated or cream print-on-demand book papers. The wide dynamic range prevents crushed blacks or clipping across RGB and CMYK gamuts.`,
+        `3. Absolute Artwork Continuity with Zero Barcode Boxes & Anti-Crop Buffer: We reaffirm the non-negotiable mandate that no white box, artificial rectangle, or simulated barcode placeholder may be injected into the artwork. The scene flows edge-to-edge in full bleed, while all typography is kept strictly within the central safe zone to ensure zero trimming cuts by industrial printing guillotines.`
+      ].join('\n') : [
         `## DIRETRIZES DE EXCELÊNCIA VISUAL E PSICOLOGIA NARRATIVA — CADERNO COMPLEMENTAR #${idx}`,
         `Para garantir que a obra "${contextoObra.titulo}" de ${contextoObra.autor} se posicione soberanamente no ápice do gênero de ${contextoObra.genero}, o projeto gráfico incorpora salvaguardas adicionais de impacto estético:`,
         `1. Ancoragem de Confiança do Leitor: A harmonia entre a arte e a tipografia estabelece uma relação imediata de credibilidade. O leitor contemporâneo identifica instantaneamente o esmero editorial, associando o acabamento visual primoroso à qualidade do texto interno.`,
@@ -340,7 +347,9 @@ export function gerarMasterPromptCapa600a1200Palavras(input: CoverMasterPromptIn
   let generoNome = isEn ? 'Psychological Thriller & Mystery' : 'Suspense Psicológico e Mistério';
   let estiloRecomendado = isEn ? 'Cinematic Dark Noir Hyper-Detailed 35mm' : 'Dark Noir Cinematográfico Hiperdetalhado 35mm';
   let fonteTituloSugerida = 'Trajan Pro Bold, Bebas Neue ou Montserrat Bold';
-  let paletaCoresSugerida = ['#0f172a (Ardósia Profunda)', '#d97706 (Âmbar Cinematográfico)', '#ffffff (Branco Giz)', '#1e293b (Carvão Noturno)', '#0284c7 (Azul Cobalto)'];
+  let paletaCoresSugerida = isEn
+    ? ['#0f172a (Deep Slate)', '#d97706 (Cinematic Amber)', '#ffffff (Chalk White)', '#1e293b (Midnight Charcoal)', '#0284c7 (Cobalt Blue)']
+    : ['#0f172a (Ardósia Profunda)', '#d97706 (Âmbar Cinematográfico)', '#ffffff (Branco Giz)', '#1e293b (Carvão Noturno)', '#0284c7 (Azul Cobalto)'];
   let iluminacaoCenica = isEn
     ? 'Chiaroscuro key lighting from low-angle sodium streetlamps, heavy atmospheric rain fog, rich specular reflections on wet asphalt, volumetric rim lighting.'
     : 'Iluminação chiaroscuro dramática, feixes volumétricos de luz ambarina cortando neblina espessa, reflexos especulares em asfalto molhado e contra-luz suave.';
@@ -354,7 +363,9 @@ export function gerarMasterPromptCapa600a1200Palavras(input: CoverMasterPromptIn
     generoNome = isEn ? 'Contemporary & Historical Romance' : 'Romance Contemporâneo e Histórico';
     estiloRecomendado = isEn ? 'Golden Hour Impressionist Fine Art' : 'Fine-Art Impressionista da Hora Dourada';
     fonteTituloSugerida = 'Playfair Display, Cormorant Garamond ou Didot';
-    paletaCoresSugerida = ['#451a03 (Sépia Quente)', '#f59e0b (Ouro Rosa Suave)', '#fffbeb (Marfim Antigo)', '#831843 (Vinho Profundo)', '#1e1b4b (Índigo Crepuscular)'];
+    paletaCoresSugerida = isEn
+      ? ['#451a03 (Warm Sepia)', '#f59e0b (Soft Rose Gold)', '#fffbeb (Antique Ivory)', '#831843 (Deep Wine)', '#1e1b4b (Twilight Indigo)']
+      : ['#451a03 (Sépia Quente)', '#f59e0b (Ouro Rosa Suave)', '#fffbeb (Marfim Antigo)', '#831843 (Vinho Profundo)', '#1e1b4b (Índigo Crepuscular)'];
     iluminacaoCenica = isEn
       ? 'Warm romantic golden-hour backlighting, soft natural lens flares, gentle twilight dusk glow.'
       : 'Luz dourada de fim de tarde rasgando o horizonte com flares ópticos acolhedores e contraluz suave.';
@@ -369,7 +380,9 @@ export function gerarMasterPromptCapa600a1200Palavras(input: CoverMasterPromptIn
     generoNome = isEn ? 'Science Fiction & Cosmic Speculative' : 'Ficção Científica e Espacial';
     estiloRecomendado = isEn ? 'Hard Sci-Fi Cinematic Photorealism' : 'Realismo Cinematográfico Espacial Futurista';
     fonteTituloSugerida = 'Orbitron, Montserrat Black ou Agency FB';
-    paletaCoresSugerida = ['#020617 (Vácuo Cósmico)', '#06b6d4 (Ciano Neon)', '#f59e0b (Laranja Iônico)', '#ffffff (Branco Estelar)', '#1e1b4b (Nebulosa Roxa)'];
+    paletaCoresSugerida = isEn
+      ? ['#020617 (Cosmic Void)', '#06b6d4 (Neon Cyan)', '#f59e0b (Ionic Amber)', '#ffffff (Stellar White)', '#1e1b4b (Purple Nebula)']
+      : ['#020617 (Vácuo Cósmico)', '#06b6d4 (Ciano Neon)', '#f59e0b (Laranja Iônico)', '#ffffff (Branco Estelar)', '#1e1b4b (Nebulosa Roxa)'];
     iluminacaoCenica = isEn
       ? 'Volumetric neon blue and amber ion engine illumination, planetary rim-light, sharp specular highlights on aerospace alloy.'
       : 'Iluminação volumétrica azul neon e laranja iônico, contra-luz estelar planetária e reflexos especulares em titânio aeroespacial.';
@@ -384,7 +397,9 @@ export function gerarMasterPromptCapa600a1200Palavras(input: CoverMasterPromptIn
     generoNome = isEn ? 'True Crime & Investigative Dossier' : 'Crimes Reais e Dossiê Investigativo';
     estiloRecomendado = isEn ? 'Forensic Noir Cinematic Documentary' : 'Documentário Forense Noir Cinematográfico';
     fonteTituloSugerida = 'Bebas Neue, Impact Editorial ou DIN Next Bold';
-    paletaCoresSugerida = ['#0a0a0a (Preto Pericial)', '#dc2626 (Vermelho Carmesim de Alerta)', '#e2e8f0 (Branco Giz de Cena)', '#475569 (Chumbo Frio)', '#ca8a04 (Fita Amarela Pericial)'];
+    paletaCoresSugerida = isEn
+      ? ['#0a0a0a (Forensic Black)', '#dc2626 (Crimson Alert Red)', '#e2e8f0 (Scene Chalk White)', '#475569 (Cold Lead Slate)', '#ca8a04 (Crime Scene Yellow)']
+      : ['#0a0a0a (Preto Pericial)', '#dc2626 (Vermelho Carmesim de Alerta)', '#e2e8f0 (Branco Giz de Cena)', '#475569 (Chumbo Frio)', '#ca8a04 (Fita Amarela Pericial)'];
     iluminacaoCenica = isEn
       ? 'High-contrast forensic strobe lighting, harsh interrogation shadows, cold directional flashlights cutting through midnight shadows.'
       : 'Luz pericial estroboscópica de alto contraste, sombras cortantes de interrogatório policial e feixes frios de lanternas investigativas.';
@@ -399,7 +414,9 @@ export function gerarMasterPromptCapa600a1200Palavras(input: CoverMasterPromptIn
     generoNome = isEn ? 'Royal History & Dynasty Epics' : 'História de Reis e Monarquias';
     estiloRecomendado = isEn ? 'Regal Oil Painting Fine Art Renaissance' : 'Pintura a Óleo Realista Renascentista';
     fonteTituloSugerida = 'Cinzel Decorative, Trajan Bold ou Garamond Premier Pro';
-    paletaCoresSugerida = ['#0f172a (Azul Real)', '#b45309 (Ouro Imperial)', '#831843 (Púrpura Dinástica)', '#ffffff (Branco Arminho)', '#1c1917 (Ébano de Trono)'];
+    paletaCoresSugerida = isEn
+      ? ['#0f172a (Royal Blue)', '#b45309 (Imperial Gold)', '#831843 (Dynastic Purple)', '#ffffff (Ermine White)', '#1c1917 (Throne Ebony)']
+      : ['#0f172a (Azul Real)', '#b45309 (Ouro Imperial)', '#831843 (Púrpura Dinástica)', '#ffffff (Branco Arminho)', '#1c1917 (Ébano de Trono)'];
     iluminacaoCenica = isEn
       ? 'Rembrandt dramatic chiaroscuro candlelit illumination, golden light glinting off diamond crown jewels and heavy embroidered velvet robes.'
       : 'Iluminação chiaroscuro estilo Rembrandt, velas trêmulas refletindo em coroas douradas e sombras misteriosas em salões de trono de pedra.';
@@ -415,9 +432,9 @@ export function gerarMasterPromptCapa600a1200Palavras(input: CoverMasterPromptIn
   const leituraContracapa = construirBreveLeituraContracapa(titulo, subtitulo, autor, generoRaw, premissa, isEn);
 
   // ============================================================================
-  // CONSTRUÇÃO DO PROMPT DE CAPA FRONTAL (>= 3.000 PALAVRAS)
+  // CONSTRUÇÃO DO PROMPT DE CAPA FRONTAL (>= 3.000 PALAVRAS) — PT E EN
   // ============================================================================
-  const frontPromptSections = [
+  const frontPromptSectionsPt = [
     `# DOSSIÊ EXECUTIVO DE DIREÇÃO DE ARTE — CAPA FRONTAL (PADRÃO BEST-SELLER INTERNACIONAL)
 - Obra: "${titulo}"
 - Subtítulo: "${subtitulo || 'Edição Oficial de Lançamento'}"
@@ -457,11 +474,11 @@ A paleta cromática selecionada para a capa frontal utiliza a seguinte matriz ha
 ${paletaCoresSugerida.map(c => `- Cor Estratégica: ${c}`).join('\n')}
 A cor dominante estabelece o tom emocional sombrio e sofisticado da obra, enquanto as cores secundárias e de acento operam como disparadores de atenção, guiando os olhos do leitor através da hierarquia visual. As cores foram calibradas para manter saturação elegante e controle de gamut CMYK e RGB, evitando aberrações cromáticas vulgares ou saturações estouradas que depreciariam o posicionamento da obra no mercado de livros de prestígio.`,
 
-    `## 9. HIERARQUIA TIPOGRÁFICA EDITORIAL E INTEGRAÇÃO DE TEXTO
-A arquitetura tipográfica frontal obedece à trindade editorial de ouro:
-1. Título Principal: "${titulo}" posicionado com monumentalidade e equilíbrio no terço superior da capa. A família tipográfica sugerida é ${fonteTituloSugerida}, recebendo tratamento de ${texturaTipografica}. O kerning deve ser meticuloso, com entrelinhas compactas e respiração generosa em relação às margens de corte.
+    `## 9. HIERARQUIA TIPOGRÁFICA EDITORIAL, INTEGRAÇÃO DE TEXTO E ZONA SEGURA ANTI-CORTE
+A arquitetura tipográfica frontal obedece à trindade editorial de ouro com proteção estrita contra cortes industriais:
+1. Título Principal: "${titulo}" posicionado com monumentalidade e equilíbrio no terço superior da capa. A família tipográfica sugerida é ${fonteTituloSugerida}, recebendo tratamento de ${texturaTipografica}. O kerning deve ser meticuloso, com entrelinhas compactas e respiração generosa de pelo menos 15% (250px) em relação às margens de corte, impedindo que qualquer letra seja decepada pelas guilhotinas de impressão.
 2. Subtítulo Comercial: "${subtitulo}" diagramado no quadrante inferior logo acima do autor, em tipografia clean de altíssimo contraste, agindo como gancho persuasivo imediato para o comprador.
-3. Nome do Autor: "${autor}" na base da capa em versalete nobre com espaçamento entre letras expandido, transmitindo notoriedade de autoridade literária consagrada.`,
+3. Nome do Autor: "${autor}" na base da capa em versalete nobre com espaçamento entre letras expandido, mantendo folga segura de pelo menos 220px do rodapé para garantir legibilidade perfeita.`,
 
     `## 10. CLIMA, ATMOSFERA E METEOROLOGIA NARRATIVA
 O clima atmosférico da capa atua como personagem silencioso da narrativa. Condições meteorológicas palpáveis—seja a umidade densa de uma chuva recente que faz o asfalto espelhar a iluminação circundante, a névoa crepuscular que abranda as arestas da metrópole, ou a aridez dourada de um pôr do sol reflexivo—reforçam a imersão sensorial. O ar possui peso e substância, pontuado por micropartículas em suspensão capturadas pelos feixes de luz, criando um ambiente vivo que transporta instantaneamente o leitor para dentro do universo do livro.`,
@@ -472,7 +489,7 @@ Mais de 80% das decisões de compra de livros na Amazon e livrarias digitais oco
     `## 12. PARÂMETROS TÉCNICOS EXCLUSIVOS PARA MOTORES DE IA DE ÚLTIMA GERAÇÃO
 Para geração direta no Midjourney v6.1, FLUX.1 Pro, DALL-E 3 ou Leonardo Phoenix:
 \`\`\`text
-Flat 2D full-bleed bestselling book FRONT COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI commercial publishing standard. Genre: ${generoNome}. Aesthetic: ${estiloRecomendado}. Scene: ${composicaoFundo}. Lighting: ${iluminacaoCenica}. Palette: ${paletaCoresSugerida.join(', ')}. Camera: 80mm medium format lens, authentic 35mm film grain, tactile physical textures, high-conversion thumbnail clarity, edge-to-edge full artwork. Typography: Dominant Title "${titulo}" at upper third (${fonteTituloSugerida}), Subtitle "${subtitulo}", Author "${autor}" at bottom. --ar 2:3 --v 6.1 --style raw --stylize 250
+Flat 2D full-bleed bestselling book FRONT COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI commercial publishing standard. Genre: ${generoNome}. Aesthetic: ${estiloRecomendado}. Scene: ${composicaoFundo}. Lighting: ${iluminacaoCenica}. Palette: ${paletaCoresSugerida.join(', ')}. Camera: 80mm medium format lens, authentic 35mm film grain, tactile physical textures, high-conversion thumbnail clarity, edge-to-edge full artwork. Typography: Dominant Title "${titulo}" at upper third (${fonteTituloSugerida}), Subtitle "${subtitulo}", Author "${autor}" at bottom. CRITICAL ANTI-CROP MANDATE: Keep all typography and titles centered inside central 70% safe zone with 15% clear margin buffer on all borders. Absolutely NO text near edges. --ar 2:3 --v 6.1 --style raw --stylize 250 --no cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, barcode, barcode box, white box, white rectangle, blank box
 \`\`\``,
 
     `## 13. CLÁUSULA NEGATIVA ESTRITA E MANDATÓRIA (PROIBIÇÃO TOTAL DE CÓDIGOS DE BARRA)
@@ -480,12 +497,78 @@ Flat 2D full-bleed bestselling book FRONT COVER artwork for "${titulo}" by ${aut
 Parâmetros Negativos Estritos:
 \`--no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square, artificial white rectangle, frame, 3d book mockup, watermark, deformed hands, blurry textures\``,
 
-    `## 14. MEMORIAL DESCRITIVO DE IMPRESSÃO GRÁFICA FÍSICA E DIGITAL
+    `## 14. MEMORIAL DESCRITIVO DE IMPRESSÃO GRÁFICA FÍSICA E DIGITAL (MECANISMO ANTI-CORTE KDP)
 Esta capa foi dimensionada para impressão física no formato padrão Amazon KDP Paperback (5.5x8.5 pol ou 6x9 pol) em papel couchê brilhante ou fosco aveludado soft-touch com verniz localizado no título. A sangria externa de 0.125 polegadas (3.2 mm) em todas as bordas e a margem interna de segurança de 0.25 polegadas (6.4 mm) garantem que nenhum caractere tipográfico crucial seja decepado no corte das guilhotinas industriais da gráfica. O arquivo final representa a perfeição absoluta da arte editorial moderna.`
   ];
 
-  // Blocos adicionais de aprofundamento para garantir 3.000+ palavras na Capa Frontal
-  const blocosExpansaoFrontal = [
+  const frontPromptSectionsEn = [
+    `# ART DIRECTION EXECUTIVE DOSSIER — FRONT COVER (INTERNATIONAL BESTSELLER STANDARD)
+- Title: "${titulo}"
+- Subtitle: "${subtitulo || 'Official Release Edition'}"
+- Author: "${autor}"
+- Editorial Genre: ${generoNome}
+- Sovereign Visual Style: ${estiloRecomendado}
+- Primary Color Palette: ${paletaCoresSugerida.join(', ')}
+
+## 1. EDITORIAL IDENTITY, STRATEGIC POSITIONING & BOOK DNA
+The front cover of "${titulo}" is architected in strict alignment with elite international publishing houses (Simon & Schuster, Penguin Random House, HarperCollins, Macmillan). This artwork outright rejects amateur cliches, generic stock aesthetics, and visual noise. Every square millimeter of the front cover projects authoritative literary pedigree, maximum thumbnail conversion (150px) on e-commerce storefronts, and monumental presence on physical bookstore displays. Positioned within the prestigious domain of ${generoNome}, the visual language establishes a dense, magnetic, and psychologically thrilling atmosphere. Its core mission: halt the reader's eye within 0.3 seconds and ignite an immediate compulsion to purchase and enter the world within.`,
+
+    `## 2. NARRATIVE PREMISE, CORE CONFLICT & PSYCHOLOGICAL DEPTH
+The central premise, distilled as "${premissa || 'A breathtaking and gripping story woven with shocking twists, moral complexity, and high-stakes choices'}", anchors the visual symbolism of the entire artwork. The cover does not merely depict a passive setting; it captures the pivotal moment of narrative rupture—the exact threshold where past decisions collide with the present and the protagonist stands before an irreversible crossroads. The image radiates tension between the composed surface of stability and the turbulent currents of imminent revelations. The archetypes explored—courage, moral ambiguity, high-stakes loyalty, and the relentless pursuit of truth—infuse the aesthetic with palpable narrative gravity.`,
+
+    `## 3. PROTAGONIST, WARDROBE & CINEMATIC BODY LANGUAGE
+At the focal center of the composition, the human or symbolic presence commands immediate attention with cinematic weight and gravitas. If depicting a human figure, their silhouette features authentic, meticulously detailed wardrobe aligned with the story's world—heavy fabrics with tactile weave, natural movement folds, and subtle weathering from climate and high-stakes journey. The posture avoids stiff posing: the character is captured in a charged moment of intense vigilance or resolute action, shoulders braced, gaze sharp and directed slightly beyond the frame as if anticipating danger. Every contour of posture, hands, and cast shadows conveys total authenticity.`,
+
+    `## 4. DETAILED SCENOGRAPHY, SPATIAL SETTING & TACTILE ENVIRONMENT
+The environment of "${composicaoFundo}" builds a fully realized geographic and emotional theater for the story. Depth of field is composed across calibrated optical strata:
+- Foreground: Ultra-detailed tactile elements (wet stone pavement, textured foliage, weathered architecture, or industrial surfaces) that draw the viewer directly into the scene.
+- Midground: The dramatic core subject, carved cleanly through rim-lighting and tonal separation.
+- Background: Architectural silhouettes, atmospheric horizons, and diffuse haze suggesting vast narrative scale. The environment rejects studio voids or synthetic cutouts, delivering a living, breathing realm steeped in realism.`,
+
+    `## 5. LIGHTING PHYSICS, VOLUMETRICS & OPTICAL BEHAVIOR
+The scene illumination is calibrated under realistic cinematic optical principles:
+${iluminacaoCenica}
+The key light strikes at an expressive 45-degree oblique angle, carving rich volumetric form into characters and architecture. The fill light maintains a strict 4:1 contrast ratio, preserving deep shadowy intrigue without crushing shadow textures. A razor-sharp rim light (kicker) outlines the primary silhouette, ensuring clean visual separation against dark backdrops even at smartphone thumbnail scales. Atmospheric Rayleigh and Tyndall scattering generate subtle volumetric rays (crepuscular light beams) that lend palpable physical depth to the air.`,
+
+    `## 6. GEOMETRIC COMPOSITION, GOLDEN RATIO & 35MM CINEMATIC FRAMING
+The compositional geometry strictly obeys the Golden Ratio (1:1.618) and the Rule of Thirds. The framing emulates a Hasselblad H6D-100c medium-format cinema rig equipped with an 80mm f/2.0 anamorphic prime lens. The upper third (12% to 28% of vertical height) is deliberately preserved with clean tonal harmony and controlled contrast, providing a noble breathing zone for the Dominant Title "${titulo}". The central band (28% to 72%) holds the narrative climax, while the lower quadrant (74% to 92%) settles into deep stable shadows to anchor the Subtitle and Author signature cleanly. Vertical aspect ratio: 2:3 (1600x2400 pixels at 300 DPI high-fidelity print standard).`,
+
+    `## 7. HIGH-FIDELITY TACTILE TEXTURES, MATERIALS & MICRO-DETAILS
+Every surface rendered reveals authentic tactile materiality under 8K UHD inspection: aged concrete with microscopic stress fractures, wet asphalt with specular puddle reflections, brushed alloy with realistic micro-abrasions, organic wool and leather with visible grain under raking light, and natural skin pores devoid of artificial wax smoothing. A delicate organic 35mm film grain (Kodak Vision3 500T aesthetic) is layered seamlessly across the image, eliminating sterile digital artifacts.`,
+
+    `## 8. RIGOROUS CHROMATIC PALETTE, SYMBOLISM & EMOTIONAL RESONANCE
+The front cover color architecture employs a tightly controlled harmonic matrix:
+${paletaCoresSugerida.map(c => `- Strategic Hue: ${c}`).join('\n')}
+The dominant base hue establishes the sophisticated, atmospheric foundation of the book, while secondary and accent colors serve as optical triggers, steering the reader's gaze through the hierarchy of elements. All saturation curves respect commercial CMYK and RGB gamuts, preventing garish digital clipping and ensuring luxury shelf appeal.`,
+
+    `## 9. EDITORIAL TYPOGRAPHY, TEXT HIERARCHY & STRICT ANTI-CROP BUFFER
+Front-cover typography conforms to top-tier international publishing standards with mandatory guillotine protection:
+1. Dominant Title: "${titulo}" rendered with monumental grandeur in the upper third. Suggested typeface family: ${fonteTituloSugerida}, receiving ${texturaTipografica} finish. Kerning is meticulously balanced, and all letterforms maintain a generous 15% (250px) safety margin from the canvas edges, completely eliminating any risk of edge clipping by industrial cutters.
+2. Commercial Subtitle: "${subtitulo}" typeset in the lower quadrant directly above the author, utilizing high-contrast crisp lettering to deliver an immediate narrative hook.
+3. Author Signature: "By ${autor}" positioned along the bottom base in sophisticated small caps with tracked letter-spacing, set with a minimum 220px safety buffer above the bottom border.`,
+
+    `## 10. CLIMATE, ATMOSPHERE & NARRATIVE METEOROLOGY
+Atmospheric weather acts as a silent character throughout the visual frame. Palpable meteorological conditions—whether recent rain leaving asphalt mirror-slick, twilight fog softening city skylines, or golden atmospheric dust—heighten emotional immersion. The air carries weight and texture, enlivened by suspended micro-particles caught in light beams.`,
+
+    `## 11. THUMBNAIL CONVERSION ENGINEERING (THUMBNAIL POWER)
+Over 80% of book discovery on Amazon and online retailers happens at a 150-pixel thumbnail dimension. This cover employs high-contrast silhouette principles: the focal subject and primary title remain instantly legible at 10% scale and in grayscale. The visual hook punches through cluttered recommendation feeds with decisive clarity.`,
+
+    `## 12. TECHNICAL GENERATION PARAMETERS FOR NEXT-GEN AI ENGINES
+For direct rendering in Midjourney v6.1, FLUX.1 Pro, DALL-E 3, or Leonardo Phoenix:
+\`\`\`text
+Flat 2D full-bleed bestselling book FRONT COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI commercial publishing standard. Genre: ${generoNome}. Aesthetic: ${estiloRecomendado}. Scene: ${composicaoFundo}. Lighting: ${iluminacaoCenica}. Palette: ${paletaCoresSugerida.join(', ')}. Camera: 80mm medium format lens, authentic 35mm film grain, tactile physical textures, high-conversion thumbnail clarity, edge-to-edge full artwork. Typography: Dominant Title "${titulo}" at upper third (${fonteTituloSugerida}), Subtitle "${subtitulo}", Author "By ${autor}" at bottom. CRITICAL ANTI-CROP SAFE ZONE: Keep all typography, titles, and text strictly inside the central 70% safe zone with a wide 15% outer margin buffer on all four edges. Absolutely NO text near edges or borders. --ar 2:3 --v 6.1 --style raw --stylize 250 --no cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, barcode, barcode box, white box, white rectangle, blank box
+\`\`\``,
+
+    `## 13. MANDATORY NEGATIVE CLAUSE (TOTAL PROHIBITION OF BARCODES & BLANK BOXES)
+It is strictly prohibited to introduce artificial white frames, blank squares, cutouts, or simulated barcode boxes onto the cover. The background artwork must fill 100% of the surface edge-to-edge. Amazon KDP stamps the official ISBN barcode programmatically during physical print execution. Any blank box added by AI corrupts the graphic presentation.
+Mandatory Negative Prompts:
+\`--no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square, artificial white rectangle, frame, 3d book mockup, watermark, deformed hands, blurry textures\``,
+
+    `## 14. PHYSICAL AND DIGITAL PRINTING TECHNICAL MEMORANDUM & GUILLOTINE TOLERANCE
+This cover is calibrated for Amazon KDP Paperback (5.5x8.5 in or 6x9 in) on soft-touch matte or high-gloss stock with spot UV on the title. Outer bleed of 0.125 inches (3.2 mm) and inner safety margin of 0.25 inches (6.4 mm) guarantee that no typographic character or essential focal detail is ever sliced by physical guillotine cutters. The final deliverable represents the pinnacle of contemporary publishing art.`
+  ];
+
+  const blocosExpansaoFrontalPt = [
     `## 15. ANÁLISE COMPARATIVA COM OS 10 MAIORES BEST-SELLERS DO GÊNERO
 Estudos de mercado sobre as 10 obras mais vendidas de ${generoNome} na Amazon US, UK e Brasil demonstram que capas com paleta cromática unificada e contraste dramático convertem 43% mais do que capas sobrecarregadas de elementos secundários. A composição de "${titulo}" adota essa mesma disciplina visual minimalista e poderosa, onde menos elementos significam mais impacto emocional. A sobriedade dos tons de ${paletaCoresSugerida[0]} e ${paletaCoresSugerida[1]} posiciona o livro imediatamente na prateleira de literatura premium, ao lado de mestres contemporâneos do gênero. Cada decisão gráfica foi ponderada para gerar autoridade imediata, permitindo que a capa dispute a atenção do leitor em pé de igualdade com os maiores lançamentos internacionais.`,
     
@@ -536,13 +619,67 @@ Lista de Checagem Obrigatória de Integridade Gráfica:
 [✓] Conformidade com Amazon KDP: O arquivo segue à risca a diretriz oficial da Amazon de aplicar o ISBN físico automaticamente sobre a arte.`
   ];
 
-  const promptFrontalCompleto = expandirTextoAteMeta(frontPromptSections.join('\n\n'), blocosExpansaoFrontal, 3050, { titulo, autor, genero: generoNome });
+  const blocosExpansaoFrontalEn = [
+    `## 15. COMPARATIVE MARKET ANALYSIS OF TOP BESTSELLERS IN THE GENRE
+Market research across the top 10 bestselling titles in ${generoNome} on Amazon US and UK indicates that covers utilizing a unified palette with decisive tonal contrast convert 43% higher than overcrowded designs. The visual architecture of "${titulo}" adheres strictly to this minimalist discipline, ensuring that fewer elements yield maximum emotional resonance. The dignity of ${paletaCoresSugerida[0]} and ${paletaCoresSugerida[1]} establishes the book squarely within the prestige literature domain. Every graphic decision has been weighted to grant immediate authority alongside top-tier releases.`,
+
+    `## 16. DIGITAL COMPOSITION LAYERS & OPTICAL PLANE SEPARATION
+In the final digital master compositing, separation between visual planes follows precise studio ordering:
+- Layer 0 (Infinite Depth): Twilight gradient, distant skyline, or deep cosmic shadow with controlled spatial frequency to ensure zero competition with typography.
+- Layer 1 (Mid-Distance Scenography): Architectural geometry softened with atmospheric haze, simulating authentic atmospheric perspective.
+- Layer 2 (Primary Narrative Focus): The core subject rendered with peak optical sharpness, crisp rim-lighting, and tactile micro-textures across wardrobe and skin.
+- Layer 3 (Atmospheric Particulates): Subtle suspended dust motes or diagonal rain droplets with physical motion blur crossing in front of the subject.
+- Layer 4 (Typographic Hierarchy): High-contrast titles and credits typeset with subtle drop shadows to guarantee effortless legibility.`,
+
+    `## 17. EDITORIAL POST-PROCESSING & CINEMATOGRAPHIC COLOR GRADING
+The color grading applies filmic S-curves: slightly lifted shadow blacks to avoid harsh clipping (crushed blacks), crisp midtone contrast, and rich warm highlights. This calibration preserves the organic warmth of 35mm motion picture stock (Arri Alexa / Kodak 5219), delivering an authoritative finish that transcends fleeting graphic trends. The overall color temperature stays strictly anchored in the verified palette of ${paletaCoresSugerida.join(', ')}.`,
+
+    `## 18. MATERIAL PHYSICS & AMBIENT LIGHT INTERACTION
+Optical reflection and refraction physics are configured with studio rigor:
+- Organic Textures: Human skin features delicate reddish subsurface scattering along backlit contours; hair exhibits authentic specular highlights rather than solid blocks.
+- Wardrobe Textiles: Heavy wool, weathered leather, or tailored fabric display authentic micro-roughness, reacting naturally to directional key lighting.
+- Hard Surfaces: Wet asphalt, aged stone, or polished alloy maintain accurate specular Fresnel reflections, with dry zones exhibiting soft diffuse scattering.`,
+
+    `## 19. ATTENTION ENGINEERING & SUBCONSCIOUS EMOTIONAL READER RESPONSE
+Neuroaesthetic principles mapping human eye fixations on book covers establish a clear path:
+1. Entry Point: Gaze enters at the apex of contrast (the illuminated face or silhouette in the midground).
+2. Secondary Fixation: Within 100 milliseconds, the eye travels upward to the monumental Title "${titulo}".
+3. Tertiary Anchor: The eye drops to the base to register the Subtitle and Author signature "By ${autor}", cementing brand recall and genre anticipation.`,
+
+    `## 20. MULTI-HOUR LIGHTING VARIATIONS & WEATHER SCENARIOS
+The robustness of the visual concept allows the atmosphere to convey temporal movement:
+- Twilight: Horizon burning with warm amber while shadows cool into slate and deep indigo.
+- Midnight: Concentrated sodium streetlights or distant windows casting isolated pools of safety across deep shadows.
+- Fog: Atmospheric density softening distant architecture, creating an intimate, suspenseful enclosure around the subject.`,
+
+    `## 21. MULTI-FORMAT ADAPTATION GUIDE (5.5x8.5, 6x9 & HARDCOVER)
+The composition utilizes dynamic responsive margins. Whether printed in 5.5 x 8.5 in, 6 x 9 in, or standard KDP Case Laminate Hardcover (with 0.625 in turn-in wrap), no crucial element or letterform is compressed or cut. Extended 0.125 in (3.2 mm) outer bleed accommodates all industrial variations.`,
+
+    `## 22. LUXURY INDUSTRIAL PRINT SPECIFICATIONS (SOFT-TOUCH & SPOT UV)
+For premium collector editions, the cover is specified for luxury tactile enhancement:
+- Lamination: 28-micron velvet soft-touch film providing a silken tactile feel.
+- High-Gloss Spot UV: Applied selectively over the Title "${titulo}" and focal motif, producing a 50-micron raised glossy relief against the matte background.
+- Visual Impact: Under bookstore ambient lighting, the title catches specular reflections with breathtaking elegance.`,
+
+    `## 23. FINAL CHECKLIST: STRICT BARCODE PROHIBITION & SAFE ZONE AUDIT
+Master Quality Verification:
+[✓] 100% Continuous Bleed: Artwork covers the complete print area to all outer margins.
+[✓] Zero White Boxes: No blank frames, cutouts, or placeholders.
+[✓] Zero Simulated Barcodes: No AI-drawn barcode lines.
+[✓] Safe Zone Maintained: All letterforms keep at least 15% (250px) buffer from outer trim edges.
+[✓] Amazon KDP Compliance: Strictly respects automated programmatic barcode stamping.`
+  ];
+
+  const frontPromptSections = isEn ? frontPromptSectionsEn : frontPromptSectionsPt;
+  const blocosExpansaoFrontal = isEn ? blocosExpansaoFrontalEn : blocosExpansaoFrontalPt;
+
+  const promptFrontalCompleto = expandirTextoAteMeta(frontPromptSections.join('\n\n'), blocosExpansaoFrontal, 3050, { titulo, autor, genero: generoNome }, isEn);
   const wordCountFront = contarPalavras(promptFrontalCompleto);
 
   // ============================================================================
-  // CONSTRUÇÃO DO PROMPT DE CONTRACAPA ISOLADA (>= 3.000 PALAVRAS)
+  // CONSTRUÇÃO DO PROMPT DE CONTRACAPA ISOLADA (>= 3.000 PALAVRAS) — PT E EN
   // ============================================================================
-  const backPromptSections = [
+  const backPromptSectionsPt = [
     `# DOSSIÊ EXECUTIVO DE DIREÇÃO DE ARTE — CONTRACAPA (QUARTA CAPA EDITORIAL KDP)
 - Obra: "${titulo}"
 - Subtítulo: "${subtitulo || 'Edição Oficial de Lançamento'}"
@@ -578,12 +715,12 @@ A contracapa funciona como a ponte definitiva entre a expectativa do comprador e
     `## 4. CENOGRAFIA DE FUNDO DA CONTRACAPA E ZONA DE ALTO CONTRASTE
 A cenografia de fundo da contracapa (${composicaoContracapa}) foi projetada para resolver o maior desafio do design editorial: beleza estética versus legibilidade do texto. Ao cruzar a lombada em direção ao painel traseiro, a arte suavemente reduz a frequência de elementos visuais complexos e se transforma em uma superfície fosca texturizada (ardósia profunda, carvão ou marfim suave) com contraste tonal altíssimo. Isso permite que a sinopse e os títulos sejam lidos com extrema clareza e conforto óptico, sem que letras disputem espaço com detalhes ruidosos da imagem.`,
 
-    `## 5. HIERARQUIA TIPOGRÁFICA E DIAGRAMAÇÃO DA QUARTA CAPA
-A diagramação da contracapa obedece a uma ordem matemática precisa:
-1. Gancho de Abertura (Upper Top Zone): Letras garrafais em cor de destaque (${paletaCoresSugerida[1]}), tamanho 13pt a 15pt, centralizado ou justificado à esquerda, estabelecendo a premissa de impacto imediato.
-2. Bloco da Sinopse Editorial: Tipografia serifada clássica ou sem serifa moderna (${fonteTituloSugerida}), tamanho 10pt a 11pt, entrelinha de 1.45x, corpo do texto justificado com hifenização elegante, mantendo margem interna de segurança de 0.5 polegadas (12.7 mm).
+    `## 5. HIERARQUIA TIPOGRÁFICA, DIAGRAMAÇÃO DA QUARTA CAPA E MARGENS ANTI-CORTE
+A diagramação da contracapa obedece a uma ordem matemática precisa com margem segura de 15%:
+1. Gancho de Abertura (Upper Top Zone): Letras garrafais em cor de destaque (${paletaCoresSugerida[1]}), tamanho 13pt a 15pt, centralizado ou justificado à esquerda, mantendo ampla distância de 220px do topo.
+2. Bloco da Sinopse Editorial: Tipografia serifada clássica ou sem serifa moderna (${fonteTituloSugerida}), tamanho 10pt a 11pt, entrelinha de 1.45x, corpo do texto justificado com margem lateral generosa de 240px.
 3. Chamada Final de Ação: Fonte em itálico enfático com cor luminosa, destacando o valor duradouro da obra.
-4. Crédito e Mini-Bio do Autor: Pequena nota de autoridade na base esquerda com o nome de ${autor}.`,
+4. Crédito e Assinatura do Autor: Na base da contracapa, posicionado a pelo menos 200px da margem inferior com o nome de ${autor}.`,
 
     `## 6. INTEGRAÇÃO HARMÔNICA COM A LOMBADA (SPINE)
 A lombada do livro, que conecta a capa frontal e a contracapa, segue a mesma textura e gradiente tonal. O título "${titulo}" e o autor "${autor}" são impressos verticalmente ao longo da lombada com espaçamento de segurança de 1.6 mm das dobras vincadas, garantindo que mesmo com variações normais de refilo na esteira industrial da gráfica da Amazon KDP, a tipografia da lombada permaneça perfeitamente centralizada e nítida quando o livro repousar em uma estante.`,
@@ -602,7 +739,7 @@ Regra de Ouro: "A arte preenche tudo; a gráfica carimba por cima."`,
     `## 9. PARÂMETROS TÉCNICOS EXCLUSIVOS PARA MOTORES DE IA — CONTRACAPA ISOLADA
 Para renderização de fundo ou arte de contracapa em motores de IA generativa:
 \`\`\`text
-Flat 2D full-bleed book BACK COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic twin of front cover in ${estiloRecomendado}. Palette: ${paletaCoresSugerida.join(', ')}. Environment: ${composicaoContracapa}. Seamless continuation of front cover lighting (${iluminacaoCenica}). Typography: Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, and Closing line. Edge-to-edge continuous artwork with clean dark matte reading zone. Zero 3D mockup, flat 2D print press sheet. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT, NO STICKER, NO EMPTY WHITE SPACE. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square
+Flat 2D full-bleed book BACK COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic twin of front cover in ${estiloRecomendado}. Palette: ${paletaCoresSugerida.join(', ')}. Environment: ${composicaoContracapa}. Typography: Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, and Closing line. Edge-to-edge continuous artwork with clean dark matte reading zone. Zero 3D mockup, flat 2D print press sheet. CRITICAL ANTI-CROP SAFE ZONE: Keep all text centered within the inner 70% safe area with 15% clear margins on all sides. NEVER place letters near edges. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT. --no cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, barcode, barcode box, white box, white rectangle, blank box, blank space, qr code
 \`\`\``,
 
     `## 10. PSICOLOGIA DE CONVERSÃO DO COMPRADOR NA QUARTA CAPA
@@ -618,8 +755,82 @@ No rodapé da contracapa, uma breve bio ressalta a autoridade de ${autor}: "Auto
 A contracapa foi desenhada para valorizar acabamentos táteis nobres: laminação fosca aveludada (soft-touch) sobre o fundo escuro de ${paletaCoresSugerida[0]}, com aplicação de verniz localizado UV brilhante sobre a frase de impacto e sobre o logotipo da editora. O contraste sensorial entre a textura aveludada do fundo e o relevo brilhante dos destaques transforma o simples ato de segurar o livro em uma experiência de luxo editorial.`
   ];
 
-  // Blocos adicionais de aprofundamento para garantir 3.000+ palavras na Contracapa
-  const blocosExpansaoContracapa = [
+  const backPromptSectionsEn = [
+    `# ART DIRECTION EXECUTIVE DOSSIER — BACK COVER (KDP EDITORIAL FOURTH COVER)
+- Title: "${titulo}"
+- Subtitle: "${subtitulo || 'Official Release Edition'}"
+- Author: "${autor}"
+- Editorial Genre: ${generoNome}
+- Visual Style: ${estiloRecomendado} (Chromatic and Atmospheric Twin of Front Cover)
+- Unified Color Palette: ${paletaCoresSugerida.join(', ')}
+
+## 1. BACK COVER IDENTITY & PANORAMIC CONTINUITY
+The back cover of "${titulo}" is not a standalone artifact, but the definitive closure of the aesthetic journey commenced on the front. While the front arrests attention and evokes emotional fascination, the fourth cover acts as the closer that validates the reader's impulse to purchase and read immediately. Therefore, the back-cover background strictly shares the identical chromatic environment, atmospheric climate, and lighting physics of the front (${iluminacaoCenica}), bridging seamlessly across the spine to form a cohesive panoramic canvas.`,
+
+    `## 2. OFFICIAL BACK COVER COPY (PRINT-READY EDITORIAL BLURB)
+The fourth-cover copy is sculpted under the classic persuasive conversion formula of international bestsellers:
+
+### [TOP HOOK / HEADLINE]:
+**"${leituraContracapa.ganchoTopo}"**
+
+### [CENTRAL PERSUASIVE SYNOPSIS]:
+"${leituraContracapa.corpoSinopse}"
+
+### [READING HIGHLIGHTS & KEY BENEFITS]:
+• Compelling, fast-paced narrative crafted with authentic depth, psychological tension, and shocking revelations.
+• Multi-layered characters navigating visceral moral dilemmas, authentic relationships, and memorable dialogues.
+• Meticulously edited, typeset to millimeter precision, and polished for an unforgettable, immersive reading experience.
+• An essential, unputdownable work for devotees of ${generoNome} demanding superior literary execution.
+
+### [FINAL EDITORIAL CLOSING PITCH]:
+**"${leituraContracapa.chamadaFinal}"**`,
+
+    `## 3. NARRATIVE PROMISE & READER PSYCHOLOGY
+The back cover establishes the vital bridge between reader expectations and narrative fulfillment. Derived from the core premise "${premissa || 'An unforgettable and intense literary journey'}", it frames the dramatic stakes without revealing narrative spoilers. The reader must sense that cracking the first chapter unlocks an unpredictable realm where certainty is stripped away. The phrasing is immediate, contemporary, and evocative, discarding stale idioms in favor of vibrant prose that drives engagement.`,
+
+    `## 4. BACKGROUND SCENOGRAPHY & HIGH-CONTRAST READING ZONE
+The back-cover scenography (${composicaoContracapa}) solves the cardinal challenge of book design: visual beauty versus effortless typographic legibility. Transitioning across the spine into the rear panel, the artwork gently reduces high-frequency detail, opening into an expansive dark matte textured expanse (deep charcoal, slate, or soft parchment) with exceptional tonal contrast. This ensures that the synopsis, headlines, and credits are read with supreme ease without competing with background clutter.`,
+
+    `## 5. TYPOGRAPHIC HIERARCHY, TYPESETTING & ANTI-CROP BUFFER
+Back-cover typesetting adheres to mathematical balance with strict 15% margin safety:
+1. Opening Hook: Set in distinguished display capital letters in strategic accent tone (${paletaCoresSugerida[1]}), 13pt to 15pt, maintaining an expansive 220px margin from the top edge.
+2. Editorial Synopsis Body: Elegant serif or clean modern sans-serif typography (${fonteTituloSugerida}), 10pt to 11pt, 1.45x line-height, justified body with generous 240px horizontal breathing margins to eliminate edge cutting.
+3. Closing Pitch: Emphatic italicized callout in luminous tone, cementing the book's lasting emotional value.
+4. Author Credit & Bio: Positioned along the bottom base with a minimum 200px clearance from the bottom edge.`,
+
+    `## 6. HARMONIOUS INTEGRATION WITH THE SPINE
+The spine joining front and back covers carries identical textures and color values. The Title "${titulo}" and Author "${autor}" run vertically along the spine, bounded by a 1.6 mm safety buffer from both crease hinges, guaranteeing crisp centering when resting on any bookstore or private shelf.`,
+
+    `## 7. TECHNICAL SPECIFICATIONS FOR AMAZON KDP PHYSICAL PRINTING
+- Bleed Allowance: Mandatory 0.125 inches (3.2 mm) along all outer edges for clean mechanical trimming.
+- Internal Safe Margin: No text or critical detail positioned within 0.25 inches (6.4 mm) of final cutlines.
+- Resolution: Strict 300 DPI in calibrated CMYK/RGB for offset and print-on-demand presses.
+- Continuous Surface: Artwork covers 100% of the panel with zero pre-cut gaps.`,
+
+    `## 8. ABSOLUTE PROHIBITION AND MANDATORY RULE: ZERO BARCODES OR WHITE BOXES
+NON-NEGOTIABLE CORE DIRECTIVE: The back cover artwork must completely fill the surface edge-to-edge. It is strictly forbidden to incorporate white rectangles, blank boxes, cutout squares, or simulated barcode placeholders into the artwork.
+Amazon KDP programmatically stamps the official ISBN barcode onto the lower right quadrant during industrial print production. Introducing a manual white box causes severe overlapping defects and printer rejection.`,
+
+    `## 9. TECHNICAL AI PARAMETERS — STANDALONE BACK COVER ARTWORK
+For image generation of the back cover panel:
+\`\`\`text
+Flat 2D full-bleed book BACK COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic twin of front cover in ${estiloRecomendado}. Palette: ${paletaCoresSugerida.join(', ')}. Environment: ${composicaoContracapa}. Typography: Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, and Closing line. Edge-to-edge continuous artwork with clean dark matte reading zone. Zero 3D mockup, flat 2D print press sheet. CRITICAL ANTI-CROP SAFE ZONE: Keep all text centered within the inner 70% safe area with 15% clear margins on all sides. NEVER place letters near edges. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT. --no cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, barcode, barcode box, white box, white rectangle, blank box, blank space, qr code
+\`\`\``,
+
+    `## 10. BACK COVER BUYER CONVERSION PSYCHOLOGY
+Eye-tracking and consumer research demonstrate that after encountering the front cover, 87% of readers physically flip the book to read the back blurb before purchasing. The back cover of "${titulo}" addresses three subconscious queries:
+1. "Is this book for me?" — Addressed instantly by the top headline hook.
+2. "What emotional journey will I experience?" — Answered by the concise, electrifying synopsis.
+3. "Why buy today?" — Validated by reading benefit highlights and the urgent closing pitch.`,
+
+    `## 11. AUTHOR'S AUTHORITATIVE EDITORIAL BIO
+At the base of the back cover, a dignified bio reinforces authority: "Acclaimed author known for razor-sharp prose, unforgettable characterizations, and masterful command of ${generoNome}. Their works explore the raw boundaries of human resilience, captivating readers worldwide." This builds enduring trust and stimulates reader appetite for future catalog titles.`,
+
+    `## 12. LUXURY FINISH HARMONIZATION (SOFT TOUCH & SPOT VARNISH)
+The back cover is engineered to highlight tactile finishes: velvet soft-touch matte lamination across ${paletaCoresSugerida[0]}, paired with spot gloss UV over the opening hook headline. The sensory interplay between silken matte base and raised gloss highlights elevates physical handling into a luxury experience.`
+  ];
+
+  const blocosExpansaoContracapaPt = [
     `## 13. ESTUDO DETALHADO DE LEGIBILIDADE E FADIGA VISUAL
 Para evitar qualquer fadiga visual durante a leitura da sinopse de contracapa sob iluminação artificial fraca em livrarias ou em telas de baixa luminosidade, o índice de contraste (WCAG AAA) entre as letras e o fundo de "${titulo}" é mantido rigorosamente acima de 7:1. Letras em branco puro (${paletaCoresSugerida[2] || '#ffffff'}) ou ouro envelhecido (${paletaCoresSugerida[1] || '#d97706'}) repousam sobre a textura de ardósia escura sem que nenhum elemento gráfico ruidoso atravesse as linhas de texto, proporcionando uma leitura límpida, relaxante e irresistível. A entrelinha de 1.45x assegura que o olho do leitor encontre a linha seguinte com agilidade mecânica perfeita.`,
     
@@ -648,34 +859,84 @@ Para garantir que a impressão física no Amazon KDP transcorra sem advertência
 Os quatro pontos de destaque incluídos na contracapa comunicam de forma rápida e escaneável os maiores diferenciais de "${titulo}":
 1. Ritmo de leitura acelerado com encerramentos de capítulo do tipo "cliffhanger" que impedem o leitor de largar a obra.
 2. Construção cênica visceral com ancoragem sensorial rica em detalhes de época, clima e psicologia humana.
-3. Tratamento editorial primoroso, revisão léxica contemporânea e diagramação alinhada aos manuais clássicos de tipografia.
-4. Conexão temática universal que dialoga tanto com leitores habituais quanto com novos entusiastas de ${generoNome}.`,
+3. Arcos de personagens multifacetados com dilemas morais autênticos e sem maniqueísmos superficiais.
+4. Acabamento gráfico de padrão internacional pronto para enriquecer qualquer estante ou leitor digital.`,
 
-    `## 20. DOSSIÊ DE ACABAMENTO TÁTIL E PERCEPÇÃO DE VALOR DE LIVRARIA
-A experiência física do leitor ao segurar a contracapa de "${titulo}" foi pensada para transmitir luxo:
-- Papel e Gramatura: Cartão Triplex 250g/m² com laminação fosca Soft-Touch anti-marcas de dedos.
-- Peso e Equilíbrio: Rigidez estrutural que não deforma as pontas e confere sensação de robustez duradoura.
-- Acabamento Tipográfico: Leitura confortável com tinta preta de alta densidade óptica (D-Max 1.8) e acentos em verniz especial sobre o título e o nome do autor.`,
+    `## 20. TOLERÂNCIA DE RENDERIZAÇÃO TIPOGRÁFICA E COEFICIENTE DE CONTRASTE
+O coeficiente de contraste entre a tipografia da contracapa e o fundo é mantido estritamente acima de 85% em qualquer condição de luz. Mesmo se o livro for lido sob a luz tênue de um abajur de cabeceira ou em uma livraria com lâmpadas amareladas, a clareza óptica permanece perfeita, sem cansar a visão do leitor.`,
 
-    `## 21. ROTEIRO ESTRITO CONTRA CAIXAS BRANCAS E CÓDIGOS DE BARRA NA CONTRACAPA
-Checagem Final Mandatória para a Contracapa:
-[✓] Fundo Contínuo Total: Nenhuma caixa branca ou área recortada foi desenhada.
-[✓] Zero Código de Barras Falso: Não há simulação de barras verticais ou numeração fictícia.
-[✓] Contraste Perfeito: Todos os parágrafos da sinopse possuem legibilidade máxima contra a arte escura fosca.
-[✓] Alinhamento Perfeito: Espaçamento de 12.7 mm preservado em relação a todas as bordas e à lombada.
-[✓] Conformidade KDP: Pronto para receber o carimbo automático oficial do ISBN da Amazon na gráfica física.`
+    `## 21. ADAPTAÇÃO PARA VISUALIZAÇÃO EM DISPOSITIVOS MÓVEIS (E-COMMERCE PREVIEWS)
+Nas páginas de produto da Amazon, a imagem da contracapa é frequentemente visualizada em zoom em telas de smartphones. Por essa razão, a hierarquia tipográfica foi concebida para que os títulos em negrito e a primeira frase da sinopse sejam legíveis mesmo sem necessidade de pinça de zoom, capturando o comprador que navega rapidamente pelo aplicativo da Amazon.`,
+
+    `## 22. ROTEIRO DE VERIFICAÇÃO FINAL DA CONTRACAPA
+Checagem técnica antes da aprovação de impressão:
+[✓] Harmonia cromática gêmea com a capa frontal mantida.
+[✓] Breve leitura oficial completa: gancho, sinopse persuasiva, bullet points e chamada final integrados.
+[✓] Zona fosca de alto contraste sem ruído visual sob os blocos de texto.
+[✓] Margem interna de segurança respeitada em 100% das linhas tipográficas.
+[✓] Proibição total de caixas brancas ou códigos de barras artificiais observada.`
   ];
 
-  const promptContracapaCompleto = expandirTextoAteMeta(backPromptSections.join('\n\n'), blocosExpansaoContracapa, 3050, { titulo, autor, genero: generoNome });
+  const blocosExpansaoContracapaEn = [
+    `## 13. VISUAL FATIGUE & READABILITY ACCESSIBILITY AUDIT
+To prevent eye strain when reading back-cover copy under dim bookstore lighting or on low-brightness screens, the contrast ratio (WCAG AAA) between text and background on "${titulo}" exceeds 7:1. Crisp white (${paletaCoresSugerida[2] || '#ffffff'}) or antique gold (${paletaCoresSugerida[1] || '#d97706'}) letters rest on deep slate textures with zero distracting graphic noise cutting through lines. Generous 1.45x line spacing ensures the reader's eye navigates with effortless cadence.`,
+
+    `## 14. RETENTION STRATEGY & PERSUASIVE EDITORIAL CLOSURE
+The closing sentence on the back cover of "${titulo}" serves as a lingering emotional catalyst. Upon finishing the blurb, the reader is left with dramatic urgency: the conflict has already sparked in their imagination, and opening Chapter 1 is the only resolution. This matches the proven editorial engineering of international bestsellers, converting transient interest into an immediate confirmed purchase.`,
+
+    `## 15. THREE-ACT CONVERSION ARCHITECTURE FOR BACK COVER SYNOPSIS
+The fourth-cover copy is structured across three dramatic acts:
+- Act 1 (Inciting Stasis Rupture): Establishes the setting and initial disruption crafted by ${autor}, arresting the reader with immediate intrigue.
+- Act 2 (Escalating Stakes): Expands the core tension drawn from premise "${premissa || 'An intense narrative'}", raising personal and moral stakes.
+- Act 3 (Irreversible Crossroads): Leaves the protagonist facing an unavoidable choice, withholding resolution until the pages within.`,
+
+    `## 16. SPINE FLOW CHROMATIC CONTINUITY PRINCIPLE
+Bridging front and back panels, the spine acts as a living atmospheric conduit. Rich dark shadows of ${paletaCoresSugerida[0]} extend unbroken across the folding hinges, ensuring that whether displayed face-out, spine-out, or back-out, visual unity remains pristine. Spine typography shares the exact font family (${fonteTituloSugerida}) utilized across front and back.`,
+
+    `## 17. NEUROSCIENCE OF BUYING DECISIONS ON THE FOURTH COVER
+Book purchasing is 70% emotional and 30% rational. While the front cover engages the emotional limbic system, the back cover delivers the rational justification required by the prefrontal cortex to validate the decision. The clear synopsis, structured benefit bullets, and authoritative hook trigger anticipated dopamine reward, neutralizing post-purchase hesitation.`,
+
+    `## 18. TECHNICAL KDP TRIM AND CREASE TOLERANCES
+To guarantee seamless passage through Amazon KDP Print Previewer:
+- Outer bleed of 3.2 mm (0.125 in) extends artwork beyond cut lines.
+- Safe interior buffer of 12.7 mm (0.5 in) shields copy blocks from mechanical blade shift.
+- Barcode zone in the lower-right quadrant maintains 100% continuous underlying artwork, prepared for automated barcode stamping during physical production.`,
+
+    `## 19. HIGH-CONVERSION BENEFIT BULLET FORMULATION
+The four highlights on the back cover communicate distinctive strengths with scannable efficiency:
+1. Fast-paced chapter velocity punctuated by compelling cliffhangers that discourage putting the book down.
+2. Visceral scene-building enriched with sensory detail, atmospheric depth, and authentic human psychology.
+3. Multi-faceted character arcs navigating profound moral crossroads without simplistic tropes.
+4. Production values engineered to international standards, ready to elevate any library or digital reader.`,
+
+    `## 20. TYPOGRAPHIC RENDERING TOLERANCE & FONT CONTRAST COEFFICIENT
+The contrast coefficient between typography and background remains rigorously above 85% under all lighting environments. Whether inspected under warm reading lamps or supermarket fluorescent fixtures, optical sharpness is maintained effortlessly.`,
+
+    `## 21. E-COMMERCE MOBILE SCREEN PREVIEW ADAPTATION
+On Amazon product pages, back-cover previews are frequently magnified on mobile screens. Typography is engineered so that bold headers and the opening blurb sentence remain legible without requiring pinch-to-zoom, capturing fast-scrolling mobile buyers.`,
+
+    `## 22. FINAL COMPREHENSIVE BACK COVER PRINT AUDIT CHECKLIST
+Pre-flight print verification:
+[✓] Twin chromatic harmony with front cover maintained.
+[✓] Complete copy structure: headline hook, persuasive synopsis, bullet points, and closing pitch integrated.
+[✓] Matte high-contrast reading zone free of visual clutter.
+[✓] Full safe margin compliance across 100% of text blocks.
+[✓] Absolute prohibition of white barcode boxes honored.`
+  ];
+
+  const backPromptSections = isEn ? backPromptSectionsEn : backPromptSectionsPt;
+  const blocosExpansaoContracapa = isEn ? blocosExpansaoContracapaEn : blocosExpansaoContracapaPt;
+
+  const promptContracapaCompleto = expandirTextoAteMeta(backPromptSections.join('\n\n'), blocosExpansaoContracapa, 3050, { titulo, autor, genero: generoNome }, isEn);
   const wordCountBack = contarPalavras(promptContracapaCompleto);
 
   // ============================================================================
-  // CONSTRUÇÃO DO PROMPT DE CAPA ABERTA WRAP (FRENTE + LOMBADA + CONTRACAPA)
+  // CONSTRUÇÃO DO PROMPT DE WRAP COMPLETO ABERTO (>= 3.000 PALAVRAS) — PT E EN
   // ============================================================================
-  const wrapPromptSections = [
-    `# DOSSIÊ MASTER DE CAPA ABERTA COMPLETA (WRAP KDP: CONTRACAPA + LOMBADA + CAPA FRONTAL)
-- Título Oficial da Obra: "${titulo}"
-- Subtítulo Comercial: "${subtitulo || 'Edição Oficial de Lançamento'}"
+  const wrapPromptSectionsPt = [
+    `# DOSSIÊ EXECUTIVO DE DIREÇÃO DE ARTE — CAPA ABERTA COMPLETA (WRAP KDP: CONTRACAPA + LOMBADA + CAPA)
+- Obra: "${titulo}"
+- Subtítulo: "${subtitulo || 'Edição Oficial de Lançamento'}"
 - Autor: "${autor}"
 - Gênero Editorial: ${generoNome}
 - Estilo Visual: ${estiloRecomendado}
@@ -714,12 +975,64 @@ Genre & Aesthetic: ${generoNome} — ${estiloRecomendado}. Continuous seamless w
 2. CENTER PANEL (SPINE): Continuous dark textured strip with vertical Title "${titulo}" and Author "${autor}".
 3. LEFT PANEL (BACK COVER): ${composicaoContracapa}. Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, Closing note "${leituraContracapa.chamadaFinal}".
 Color Palette: ${paletaCoresSugerida.join(', ')}. Lighting: ${iluminacaoCenica}.
-MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT, NO STICKER, NO EMPTY WHITE SPACE. Full-bleed continuous artwork edge-to-edge. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square
+CRITICAL ANTI-CROP SAFE ZONE: Keep all typography, titles, and text strictly inside the central 70% safe zone with a wide 15% outer margin buffer on all four edges. Absolutely NO text near edges or borders.
+MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT, NO STICKER, NO EMPTY WHITE SPACE. Full-bleed continuous artwork edge-to-edge. --no cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square
 \`\`\``
   ];
 
-  const promptCapaEContracapaCompleto = expandirTextoAteMeta(wrapPromptSections.join('\n\n'), [...blocosExpansaoFrontal, ...blocosExpansaoContracapa], 3050);
+  const wrapPromptSectionsEn = [
+    `# ART DIRECTION EXECUTIVE DOSSIER — FULL WRAPAROUND COVER (KDP WRAP: BACK + SPINE + FRONT)
+- Title: "${titulo}"
+- Subtitle: "${subtitulo || 'Official Release Edition'}"
+- Author: "${autor}"
+- Editorial Genre: ${generoNome}
+- Sovereign Aesthetic: ${estiloRecomendado}
+- Panoramic Dimensions: 16:9 aspect ratio / 3250x2350 pixels (or higher) at 300 DPI full bleed.
+- Left Panel (47% width): BACK COVER with blurb copy, reading benefits, and synopsis.
+- Center Panel (6% width): SPINE with vertical Title and Author.
+- Right Panel (47% width): FRONT COVER with dominant title and core illustration.
+
+## 1. PRINCIPLE OF TOTAL CHROMATIC & PANORAMIC HARMONY
+The open wraparound spread for "${titulo}" represents a singular, uninterrupted artwork. It is not three separate panels stitched together, but a continuous visual horizon unfolding smoothly from right to left:
+- Right Panel (Front Cover) establishes the narrative climax with dramatic cinematic lighting (${iluminacaoCenica}) and Title "${titulo}".
+- Center Panel (Spine) acts as an unbroken chromatic bridge, carrying the deep textures of ${paletaCoresSugerida[0]} without visible seams.
+- Left Panel (Back Cover) extends the atmospheric horizon into a clean, high-contrast matte surface for the official blurb copy.`,
+
+    `## 2. OFFICIAL BACK COVER COPY INTEGRATED INTO WRAP
+Opening Headline Hook:
+"${leituraContracapa.ganchoTopo}"
+
+Central Editorial Synopsis:
+"${leituraContracapa.corpoSinopse}"
+
+Persuasive Closing Pitch:
+"${leituraContracapa.chamadaFinal}"`,
+
+    `## 3. MILLIMETRIC KDP SPINE SPECIFICATIONS
+Spine width is calculated from exact manuscript page count and paper weight (official Amazon KDP formula: page count × 0.002252 in for white paper or 0.0025 in for cream paper). Title "${titulo}" and Author "By ${autor}" run along the vertical axis, observing a 1.6 mm safety margin from both crease lines to guarantee precise alignment on any shelf.`,
+
+    `## 4. STRICT TOTAL PROHIBITION OF BARCODES OR WHITE BOXES IN WRAP
+The panoramic wraparound artwork must cover 100% of the printed surface from edge to edge with zero blank boxes, white frames, or cutout rectangles. Amazon KDP prints the official barcode automatically over the artwork during physical fulfillment. Adding a manual white box ruins the spread.`,
+
+    `## 5. COMPLETE TECHNICAL AI GENERATION PROMPT (OPEN WRAP)
+\`\`\`text
+Full wraparound open paperback book cover spread (horizontal 16:9 aspect ratio, 3250x2350 pixels at 300 DPI, flat 2D print-ready press sheet, comprising LEFT = BACK COVER, CENTER = SPINE, RIGHT = FRONT COVER) in 100% visual, chromatic, lighting, and typographic harmony for "${titulo}" by ${autor}.
+Genre & Aesthetic: ${generoNome} — ${estiloRecomendado}. Continuous seamless wraparound background artwork flowing uninterruptedly from the Right Front Cover across the Center Spine to the Left Back Cover.
+1. RIGHT PANEL (FRONT COVER): ${composicaoFundo}. Dominant Title "${titulo}", Subtitle "${subtitulo}", Author "By ${autor}".
+2. CENTER PANEL (SPINE): Continuous dark textured strip with vertical Title "${titulo}" and Author "By ${autor}".
+3. LEFT PANEL (BACK COVER): ${composicaoContracapa}. Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, Closing note "${leituraContracapa.chamadaFinal}".
+Color Palette: ${paletaCoresSugerida.join(', ')}. Lighting: ${iluminacaoCenica}.
+CRITICAL ANTI-CROP SAFE ZONE: Keep all typography, titles, and text strictly inside the central 70% safe zone with a wide 15% outer margin buffer on all four edges. Absolutely NO text near edges or borders.
+MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT, NO STICKER, NO EMPTY WHITE SPACE. Full-bleed continuous artwork edge-to-edge. --no cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, sticker, label, cutout, white square
+\`\`\``
+  ];
+
+  const wrapPromptSections = isEn ? wrapPromptSectionsEn : wrapPromptSectionsPt;
+
+  const promptCapaEContracapaCompleto = expandirTextoAteMeta(wrapPromptSections.join('\n\n'), [...blocosExpansaoFrontal, ...blocosExpansaoContracapa], 3050, { titulo, autor, genero: generoNome }, isEn);
   const wordCountWrap = contarPalavras(promptCapaEContracapaCompleto);
+
+  const authorPrefix = isEn ? 'By ' : '';
 
   return {
     localDetectado: sintonia.local,
@@ -729,15 +1042,15 @@ MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE REC
     proibicoesEspecificas: sintonia.proibicoesEspecificas,
 
     promptCompleto: promptFrontalCompleto,
-    promptParaMotorIa: `Flat 2D full-bleed bestselling book FRONT COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic: ${estiloRecomendado}. Scene: ${composicaoFundo}. Lighting: ${iluminacaoCenica}. Palette: ${paletaCoresSugerida.join(', ')}. Typography: Title "${titulo}", Subtitle "${subtitulo}", Author "${autor}". --ar 2:3 --v 6.1 --style raw --stylize 250 --no barcode, barcode box, white box, white rectangle, blank box, qr code, big ben, london parliament, out-of-context foreign landmarks, unrelated monuments, blurry textures`,
+    promptParaMotorIa: `Flat 2D full-bleed bestselling book FRONT COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic: ${estiloRecomendado}. Scene: ${composicaoFundo}. Lighting: ${iluminacaoCenica}. Palette: ${paletaCoresSugerida.join(', ')}. Typography: Title "${titulo}", Subtitle "${subtitulo}", Author "${authorPrefix}${autor}". CRITICAL ANTI-CROP SAFE ZONE: Keep all typography, titles, and text strictly inside the central 70% safe zone with a wide 15% outer margin buffer on all four edges. Absolutely NO text near edges or borders. --ar 2:3 --v 6.1 --style raw --stylize 250 --no barcode, barcode box, white box, white rectangle, blank box, cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, qr code, big ben, london parliament, out-of-context foreign landmarks, unrelated monuments, blurry textures`,
     wordCount: wordCountFront,
 
     promptContracapaIsoladaCompleto: promptContracapaCompleto,
-    promptContracapaIsoladaMotorIa: `Flat 2D full-bleed book BACK COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic twin of front cover in ${estiloRecomendado}. Palette: ${paletaCoresSugerida.join(', ')}. Environment: ${composicaoContracapa}. Typography: Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, and Closing line. Edge-to-edge continuous artwork with clean dark matte reading zone. Zero 3D mockup, flat 2D print press sheet. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code, big ben, london parliament, out-of-context foreign landmarks, unrelated monuments`,
+    promptContracapaIsoladaMotorIa: `Flat 2D full-bleed book BACK COVER artwork for "${titulo}" by ${autor}. Vertical 2:3 aspect ratio, 1600x2400 pixels, 300 DPI. Genre: ${generoNome}. Aesthetic twin of front cover in ${estiloRecomendado}. Palette: ${paletaCoresSugerida.join(', ')}. Environment: ${composicaoContracapa}. Typography: Top Hook "${leituraContracapa.ganchoTopo}", Synopsis reading block, and Closing line. Edge-to-edge continuous artwork with clean dark matte reading zone. Zero 3D mockup, flat 2D print press sheet. CRITICAL ANTI-CROP SAFE ZONE: Keep all text centered within the inner 70% safe area with 15% clear margins on all sides. NEVER place letters near edges. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT. --no barcode, barcode box, white box, white rectangle, blank box, blank space, cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, qr code, big ben, london parliament, out-of-context foreign landmarks, unrelated monuments`,
     wordCountContracapa: wordCountBack,
 
     promptCapaEContracapaCompleto,
-    promptCapaEContracapaMotorIa: `Full wraparound open paperback book cover spread for "${titulo}" by ${autor}. Horizontal 16:9 aspect ratio, 3250x2350 pixels at 300 DPI, flat 2D print-ready layout (LEFT = BACK COVER, CENTER = SPINE, RIGHT = FRONT COVER) in 100% visual and chromatic harmony. Genre: ${generoNome} — ${estiloRecomendado}. Continuous seamless wraparound background artwork flowing uninterruptedly across all three panels. Palette: ${paletaCoresSugerida.join(', ')}. Lighting: ${iluminacaoCenica}. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT, NO STICKER, NO EMPTY WHITE SPACE. --no barcode, barcode box, white box, white rectangle, blank box, blank space, qr code`,
+    promptCapaEContracapaMotorIa: `Full wraparound open paperback book cover spread for "${titulo}" by ${autor}. Horizontal 16:9 aspect ratio, 3250x2350 pixels at 300 DPI, flat 2D print-ready layout (LEFT = BACK COVER, CENTER = SPINE, RIGHT = FRONT COVER) in 100% visual and chromatic harmony. Genre: ${generoNome} — ${estiloRecomendado}. Continuous seamless wraparound background artwork flowing uninterruptedly across all three panels. Palette: ${paletaCoresSugerida.join(', ')}. Lighting: ${iluminacaoCenica}. CRITICAL ANTI-CROP SAFE ZONE: Keep all panel typography inside the central 70% safe area with generous 15% margins. MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE RECTANGLE, NO BLANK BOX, NO CUTOUT, NO STICKER, NO EMPTY WHITE SPACE. --no barcode, barcode box, white box, white rectangle, blank box, blank space, cropped text, cut-off letters, text on borders, letters on edge, out-of-frame typography, qr code`,
     wordCountCapaEContracapa: wordCountWrap,
 
     ganchoTopoContracapa: leituraContracapa.ganchoTopo,
@@ -747,11 +1060,17 @@ MANDATORY NEGATIVE RULES: NO BARCODE, NO BARCODE BOX, NO WHITE BOX, NO WHITE REC
     estiloRecomendado,
     fonteTituloSugerida,
     paletaCoresSugerida,
-    orientacaoTipografica: {
-      tituloPosicao: 'Terço Superior (12% a 28% da altura)',
+    orientacaoTipografica: isEn ? {
+      tituloPosicao: 'Upper Third (12% to 28% of height) with anti-crop safe margins',
+      tituloEstilo: texturaTipografica,
+      subtituloPosicao: 'Lower Quadrant, directly above Author',
+      autorPosicao: 'Base of Cover (78% to 90% of height) with 220px bottom clearance',
+      contracapaPosicao: 'Center-Left Panel with high contrast and 15% inner safe margin'
+    } : {
+      tituloPosicao: 'Terço Superior (12% a 28% da altura) com margem anti-corte',
       tituloEstilo: texturaTipografica,
       subtituloPosicao: 'Quadrante Inferior, logo acima do Autor',
-      autorPosicao: 'Base da Capa (78% a 92% da altura)',
+      autorPosicao: 'Base da Capa (78% a 92% da altura) com folga anti-corte',
       contracapaPosicao: 'Painel Central-Esquerdo com alto contraste e margem interna de 12.7 mm'
     }
   };

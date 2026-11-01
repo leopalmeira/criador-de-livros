@@ -557,6 +557,10 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const [temaSelecionado, setTemaSelecionado] = useState('');
   const [subtemaSelecionado, setSubtemaSelecionado] = useState('');
 
+  // Modo de Criação: Express Automatizado vs Manual Passo a Passo (10 Etapas)
+  const [modoExpressCriacao, setModoExpressCriacao] = useState<boolean>(true);
+  const [showAdvancedExpressSettings, setShowAdvancedExpressSettings] = useState<boolean>(false);
+
   // Wizard Editorial — Stepper de Progressão Sequencial Rigoroso (1 a 10)
   const [wizardStep, setWizardStep] = useState<number>(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
@@ -2365,6 +2369,91 @@ Siga estritamente esta estrutura em 5 partes:
     } finally {
       setLoadingSugestao(null);
     }
+  };
+
+  // ─── GERAÇÃO AUTOMÁTICA TOTAL EXPRESS (AMAZON BACKEND + SEQUENTIAL ENGINE + DUAL QA) ───
+  const handleGeracaoAutomaticaTotal = async () => {
+    assertNotDiagnosticBook(titulo);
+
+    if (bookType === 'planner' || bookType === 'diary') {
+      setActiveTab('planner');
+      setStatusMsg('Este formato gera páginas preenchíveis, sem capítulos narrativos. Use o Criador de planners e diários.');
+      setStatusType('normal');
+      return;
+    }
+
+    if (creditosLivros < 1) {
+      setCreditModalMotivo('Para gerar este livro completo com IA é necessário 1 crédito. Seu cadastro é 100% gratuito, basta adquirir seus créditos conforme sua produção.');
+      setIsCreditModalOpen(true);
+      return;
+    }
+
+    const currentQuery = (titulo || topico || temaSelecionado || 'Desenvolvimento Pessoal').trim();
+    const isEn = Boolean(idioma && /ingl|en/i.test(idioma));
+
+    setStatusMsg(isEn ? '⚡ Consulting Amazon Market Intelligence and bestseller trends in real-time...' : '⚡ Consultando inteligência de mercado da Amazon em tempo real...');
+    setStatusType('normal');
+
+    let finalTitle = titulo.trim();
+    let finalSub = subtitulo.trim();
+    let finalTopic = topico.trim();
+    let finalAngle = uniqueAngle.trim();
+
+    // 1. Consulta em segundo plano à API da Amazon no backend
+    try {
+      const liveKeywords = await AmazonLiveService.fetchLiveAmazonKeywords({
+        title: finalTitle || currentQuery,
+        subtitle: finalSub,
+        genre: genero,
+        topic: currentQuery
+      });
+      if (liveKeywords && liveKeywords.length > 0) {
+        setKeywordsKdp(liveKeywords);
+        logDiag(`[Amazon Backend] ${liveKeywords.length} palavras-chave de alta conversão indexadas.`);
+      }
+    } catch (err) {
+      console.warn('[Amazon Backend] Consulta online oscilou, usando catálogo local de bestsellers:', err);
+    }
+
+    // 2. Se o título não estiver preenchido, gera título e tese de alta conversão
+    if (!finalTitle) {
+      const suggestions = KdpTitleSuggestionEngine.getSuggestionsForTheme(
+        temaSelecionado || genero,
+        isEn ? 'inglês' : 'português'
+      );
+      const primary = suggestions[0] || {
+        title: isEn ? `The Power of ${currentQuery}` : `O Poder de ${currentQuery}`,
+        subtitle: isEn ? 'A Definitive Guide to Mastery and Results' : 'Guia Prático e Estratégico para Resultados Duradouros',
+        uniqueAngle: isEn
+          ? `A structured system to master ${currentQuery} with daily application and measurable retention.`
+          : `Metodologia estruturada para dominar ${currentQuery} com foco em aplicação diária e resultados mensuráveis.`,
+        stance: isEn
+          ? 'Overcome shallow shortcuts through solid principles and lasting consistency.'
+          : 'Superar atalhos rasos através de princípios sólidos e consistência duradoura.'
+      };
+      finalTitle = primary.title;
+      finalSub = primary.subtitle || '';
+      finalTopic = primary.uniqueAngle || currentQuery;
+      finalAngle = primary.stance || '';
+
+      setTitulo(finalTitle);
+      if (finalSub) setSubtitulo(finalSub);
+      setTopico(finalTopic);
+      if (finalAngle) setUniqueAngle(finalAngle);
+    }
+
+    if (!finalTopic) {
+      finalTopic = isEn ? `Comprehensive and immersive exploration of ${finalTitle}.` : `Aprofundamento abrangente e envolvente em ${finalTitle}.`;
+      setTopico(finalTopic);
+    }
+
+    // 3. Marca etapas preliminares como concluídas
+    setCompletedSteps(Array.from(new Set([...completedSteps, 1, 2, 3, 4, 5, 6, 7])));
+
+    // 4. Executa a geração sequencial completa
+    setTimeout(() => {
+      iniciarGeracao();
+    }, 120);
   };
 
   // INICIAR GERAÇÃO DO LIVRO
@@ -5121,7 +5210,16 @@ ${ganchoImediato}`;
       return;
     }
 
-    const cabecalho = `================================================================================
+    const isEn = Boolean(livro.idioma && /ingl|en/i.test(livro.idioma));
+
+    const cabecalho = isEn
+      ? `================================================================================
+${livro.titulo.toUpperCase()}
+${livro.subtitulo ? `${livro.subtitulo}\n` : ''}Author: ${livro.autor}
+Genre: ${livro.genero}
+Total Chapters: ${livro.capitulos.length}
+================================================================================\n\n`
+      : `================================================================================
 ${livro.titulo.toUpperCase()}
 ${livro.subtitulo ? `${livro.subtitulo}\n` : ''}Autor: ${livro.autor}
 Gênero: ${livro.genero}
@@ -5129,7 +5227,8 @@ Total de Capítulos: ${livro.capitulos.length}
 ================================================================================\n\n`;
 
     const corpo = livro.capitulos.map((c, i) => {
-      return `--------------------------------------------------------------------------------\nCAPÍTULO ${i + 1}: ${c.titulo.toUpperCase()}\n--------------------------------------------------------------------------------\n\n${c.texto}\n\n`;
+      const capHeader = isEn ? `CHAPTER ${i + 1}` : `CAPÍTULO ${i + 1}`;
+      return `--------------------------------------------------------------------------------\n${capHeader}: ${c.titulo.toUpperCase()}\n--------------------------------------------------------------------------------\n\n${c.texto}\n\n`;
     }).join('\n');
 
     const blob = new Blob([cabecalho + corpo], { type: 'text/plain;charset=utf-8' });
@@ -5383,7 +5482,8 @@ Total de Capítulos: ${livro.capitulos.length}
         },
         capaDataUrl: capaFinal,
         contracapaDataUrl: contracapaFinal,
-        incluirContracapa: true,
+        incluirCapaNoMiolo: false,
+        incluirContracapa: false,
         formato,
         optSumario,
         tamCapitulo,
@@ -5573,7 +5673,9 @@ Total de Capítulos: ${livro.capitulos.length}
   // COPIAR TEXTO COMPLETO
   const copiarTexto = () => {
     if (!livro) return;
-    let t = `${livro.titulo}\n${livro.subtitulo}\npor ${livro.autor}\n\n`;
+    const isEn = Boolean(livro.idioma && /ingl|en/i.test(livro.idioma));
+    const authorPrefix = isEn ? 'By' : 'por';
+    let t = `${livro.titulo}\n${livro.subtitulo ? `${livro.subtitulo}\n` : ''}${authorPrefix} ${livro.autor}\n\n`;
     livro.capitulos.forEach(c => {
       t += `\n${c.titulo}\n\n${c.texto}\n`;
     });
@@ -5606,6 +5708,11 @@ Total de Capítulos: ${livro.capitulos.length}
     const fundoStyle = fundoImg ? `background-image:url('${fundoImg}');` : '';
     const esc = (t: string) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+    const isEn = Boolean(livro.idioma && /ingl|en/i.test(livro.idioma));
+    const authorLine = isEn ? `By ${esc(livro.autor)}` : `por ${esc(livro.autor)}`;
+    const ctaText = isEn ? '📚 Available on Amazon KDP' : '📚 Disponível na Amazon KDP';
+    const seloText = isEn ? 'Kindle eBook · Paperback · Kindle Unlimited' : 'eBook Kindle · Capa Comum · Kindle Unlimited';
+
     const html = `<!DOCTYPE html><html lang="${idioma}"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(livro.titulo)}</title><style>
@@ -5630,10 +5737,10 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
 <span class="gen">${esc(genero)}</span>
 <h1>${esc(livro.titulo)}</h1>
 <div class="sub">${esc(livro.subtitulo)}</div>
-<div class="autor">por ${esc(livro.autor)}</div>
+<div class="autor">${authorLine}</div>
 <div class="sinopse">${esc(topico)}</div>
-<a class="cta" href="#">📚 Disponível na Amazon KDP</a>
-<div class="selo">eBook Kindle · Capa Comum · Kindle Unlimited</div>
+<a class="cta" href="#">${ctaText}</a>
+<div class="selo">${seloText}</div>
 </div></div></body></html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
@@ -6138,12 +6245,14 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               </button>
             </div>
 
-            {/* SEÇÃO A: CABEÇALHO DO FLUXO SEQUENCIAL DAS 10 ETAPAS */}
+                        {/* ========================================================= */}
+            {/* PAINEL EDITORIAL KDP: OS 5 ESTÚDIOS PRINCIPAIS            */}
+            {/* ========================================================= */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <CheckCircle2 size={15} color="#10b981" />
                 <span style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {ui('Fluxo Editorial KDP', 'KDP Editorial Flow')}
+                  {ui('Painel Editorial KDP', 'KDP Editorial Panel')}
                 </span>
               </div>
               <span style={{
@@ -6151,439 +6260,382 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 fontWeight: 800,
                 padding: '2px 7px',
                 borderRadius: 999,
-                background: '#ecfdf5',
-                color: '#059669',
-                border: '1px solid #a7f3d0'
+                background: '#eff6ff',
+                color: '#0284c7',
+                border: '1px solid #bae6fd'
               }}>
-                {wizardStep}/10
+                PRO v10
               </span>
             </div>
 
-            {/* LISTA VERTICAL DAS 10 ETAPAS COM CONEXÃO CONTÍNUA */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {[
-                { s: 1, name: 'Pesquisa & Tese', sub: 'Tema, Tese & Idioma' },
-                { s: 2, name: 'Análise Top 50', sub: 'Bestsellers KDP' },
-                { s: 3, name: 'Título do Livro', sub: 'Título & Feedback' },
-                { s: 4, name: 'Recursos & Fontes', sub: 'Links & Notas' },
-                { s: 5, name: 'Persona & Bio', sub: 'Autor & Histórico' },
-                { s: 6, name: 'Proposta & Foco', sub: 'Diferencial & Tags' },
-                { s: 7, name: 'Detalhes & Sumário', sub: 'Estrutura Anti-IA' },
-                { s: 8, name: 'Escrita & Dados', sub: 'Capítulos & Estudos' },
-                { s: 9, name: 'Descrição', sub: 'Sinopse Comercial' },
-                { s: 10, name: 'Capa & Contracapa', sub: 'Prompts & Importação' }
-              ].map((st, idx, arr) => {
-                const isActive = wizardStep === st.s && activeTab === 'wizard';
-                const isDone = completedSteps.includes(st.s) || wizardStep > st.s;
-                return (
-                  <div key={st.s} style={{ display: 'flex', flexDirection: 'column' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTab('wizard');
-                        handleAdvanceToStep(st.s);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 9,
-                        padding: '6px 8px',
-                        borderRadius: 7,
-                        border: isActive ? '1px solid #0f172a' : '1px solid transparent',
-                        background: isActive ? '#0f172a' : isDone ? '#f0fdf4' : 'transparent',
-                        color: isActive ? '#ffffff' : isDone ? '#15803d' : '#334155',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        width: '100%',
-                        transition: 'all 0.15s ease'
-                      }}
-                      title={`Ir para Etapa ${st.s}: ${st.name}`}
-                    >
-                      <div style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        background: isDone ? '#10b981' : isActive ? '#38bdf8' : '#ffffff',
-                        border: isDone ? '2px solid #10b981' : isActive ? '2px solid #38bdf8' : '1px solid #cbd5e1',
-                        color: isDone ? '#ffffff' : isActive ? '#0f172a' : '#64748b',
-                        fontSize: 9.5,
-                        fontWeight: 800,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        {isDone ? '✓' : st.s}
-                      </div>
+            {/* OS 5 ESTÚDIOS PRINCIPAIS */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* 1. CRIAÇÃO & AUTOMAÇÃO */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('wizard');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 10px',
+                  borderRadius: 8,
+                  border: activeTab === 'wizard' ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                  background: activeTab === 'wizard' ? 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' : '#ffffff',
+                  color: activeTab === 'wizard' ? '#0369a1' : '#334155',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  background: activeTab === 'wizard' ? '#0284c7' : '#f1f5f9',
+                  color: activeTab === 'wizard' ? '#ffffff' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Sparkles size={15} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>
+                    {ui('1. Criação & Automação', '1. Creation & Automation')}
+                  </span>
+                  <span style={{ fontSize: 9.5, color: activeTab === 'wizard' ? '#0284c7' : '#94a3b8', lineHeight: 1.2, marginTop: 2 }}>
+                    {ui('Geração express com IA & Amazon', 'Express creation with AI & Amazon')}
+                  </span>
+                </div>
+              </button>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: isActive ? 800 : 700,
-                          lineHeight: 1.2,
-                          whiteSpace: 'nowrap',
-                          textOverflow: 'ellipsis',
-                          overflow: 'hidden'
-                        }}>
-                          {st.name}
-                        </span>
-                        <span style={{
-                          fontSize: 9,
-                          color: isActive ? '#94a3b8' : isDone ? '#16a34a' : '#94a3b8',
-                          lineHeight: 1.2,
-                          marginTop: 1
-                        }}>
-                          {st.sub}
-                        </span>
-                      </div>
-                    </button>
+              {/* 2. ESCRITA & CAPÍTULOS */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('escrita')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 10px',
+                  borderRadius: 8,
+                  border: activeTab === 'escrita' ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                  background: activeTab === 'escrita' ? 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' : '#ffffff',
+                  color: activeTab === 'escrita' ? '#0369a1' : '#334155',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  background: activeTab === 'escrita' ? '#0284c7' : '#f1f5f9',
+                  color: activeTab === 'escrita' ? '#ffffff' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <BookOpen size={15} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>
+                    {ui('2. Escrita & Capítulos', '2. Writing & Chapters')}
+                  </span>
+                  <span style={{ fontSize: 9.5, color: activeTab === 'escrita' ? '#0284c7' : '#94a3b8', lineHeight: 1.2, marginTop: 2 }}>
+                    {ui('Memória global & sequência', 'Global memory & sequence')}
+                  </span>
+                </div>
+              </button>
 
-                    {/* CONECTOR VERTICAL ENTRE ETAPAS */}
-                    {idx < arr.length - 1 && (
-                      <div style={{
-                        width: 2,
-                        height: 5,
-                        background: wizardStep > st.s ? '#10b981' : '#e2e8f0',
-                        marginLeft: 17,
-                        transition: 'background 0.2s ease'
-                      }} />
-                    )}
-                  </div>
-                );
-              })}
+              {/* 3. CAPA & CONTRACAPA KDP */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('capa')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 10px',
+                  borderRadius: 8,
+                  border: activeTab === 'capa' ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
+                  background: activeTab === 'capa' ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' : '#ffffff',
+                  color: activeTab === 'capa' ? '#b45309' : '#334155',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  background: activeTab === 'capa' ? '#f59e0b' : '#f1f5f9',
+                  color: activeTab === 'capa' ? '#ffffff' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Palette size={15} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>
+                    {ui('3. Capa & Contracapa KDP', '3. KDP Cover & Back')}
+                  </span>
+                  <span style={{ fontSize: 9.5, color: activeTab === 'capa' ? '#b45309' : '#94a3b8', lineHeight: 1.2, marginTop: 2 }}>
+                    {ui('Design 300 DPI anti-corte', '300 DPI anti-crop design')}
+                  </span>
+                </div>
+              </button>
+
+              {/* 4. DIAGRAMAÇÃO & PRÉVIA */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('preview')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 10px',
+                  borderRadius: 8,
+                  border: activeTab === 'preview' ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                  background: activeTab === 'preview' ? 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' : '#ffffff',
+                  color: activeTab === 'preview' ? '#0369a1' : '#334155',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  background: activeTab === 'preview' ? '#0284c7' : '#f1f5f9',
+                  color: activeTab === 'preview' ? '#ffffff' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <FileText size={15} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>
+                    {ui('4. Diagramação & Prévia', '4. Typesetting & Preview')}
+                  </span>
+                  <span style={{ fontSize: 9.5, color: activeTab === 'preview' ? '#0284c7' : '#94a3b8', lineHeight: 1.2, marginTop: 2 }}>
+                    {ui('Miolo KDP (sem capa na pág 1)', 'KDP Interior (clean page 1)')}
+                  </span>
+                </div>
+              </button>
+
+              {/* 5. AUDITORIA & QUALIDADE */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('auditoria')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 10px',
+                  borderRadius: 8,
+                  border: activeTab === 'auditoria' ? '1.5px solid #10b981' : '1px solid #e2e8f0',
+                  background: activeTab === 'auditoria' ? 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' : '#ffffff',
+                  color: activeTab === 'auditoria' ? '#059669' : '#334155',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  background: activeTab === 'auditoria' ? '#10b981' : '#f1f5f9',
+                  color: activeTab === 'auditoria' ? '#ffffff' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <ShieldCheck size={15} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>
+                    {ui('5. Auditoria & Qualidade', '5. Quality & Audit')}
+                  </span>
+                  <span style={{ fontSize: 9.5, color: activeTab === 'auditoria' ? '#059669' : '#94a3b8', lineHeight: 1.2, marginTop: 2 }}>
+                    {ui('Auditoria dupla autônoma', 'Dual autonomous QA audit')}
+                  </span>
+                </div>
+              </button>
             </div>
 
-            {/* SEPARADOR VISUAL: FERRAMENTAS DO MIOLO & MODOS */}
-            <div style={{ paddingTop: 8, borderTop: '2px solid #e2e8f0', marginTop: 4 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span>🛠️</span>
-                <span>{ui('Ferramentas & Modos do Livro', 'Book Tools & Modes')}</span>
+            {/* SEPARADOR VISUAL E RECURSOS EXECUTIVOS */}
+            <div style={{ paddingTop: 8, borderTop: '1px solid #f1f5f9', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+                {ui('Recursos & Inteligência Amazon', 'Resources & Amazon Intel')}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {/* 1. ESCRITA DOS CAPÍTULOS */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('escrita')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: activeTab === 'escrita' ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
-                    background: activeTab === 'escrita' ? '#f0f9ff' : '#ffffff',
-                    color: activeTab === 'escrita' ? '#0369a1' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <BookOpen size={14} color={activeTab === 'escrita' ? '#0284c7' : '#64748b'} />
-                  <span>📖 {ui('1. Escrita dos Capítulos', '1. Chapter Writing')}</span>
-                </button>
+              {/* INTELIGÊNCIA AMAZON BESTSELLERS */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('market')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  border: activeTab === 'market' ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                  background: activeTab === 'market' ? '#f0f9ff' : '#ffffff',
+                  color: activeTab === 'market' ? '#0369a1' : '#475569',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left'
+                }}
+              >
+                <TrendingUp size={13} color="#0284c7" />
+                <span>{ui('Bestsellers & Mercado Amazon', 'Bestsellers & Amazon Market')}</span>
+              </button>
 
-                {/* 2. DIAGRAMAÇÃO & PRÉVIA */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('preview')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: activeTab === 'preview' ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
-                    background: activeTab === 'preview' ? '#f0f9ff' : '#ffffff',
-                    color: activeTab === 'preview' ? '#0369a1' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <FileText size={14} color={activeTab === 'escrita'
-                    ? '📖 1. Escrita dos Capítulos & Memória Sequencial'
-                    : activeTab === 'preview' ? '#0284c7' : '#64748b'} />
-                  <span>📑 {ui('2. Diagramação & Prévia', '2. Typesetting & Preview')}</span>
-                </button>
+              {/* LOCALIZAR EM AMERICAN ENGLISH */}
+              <button
+                type="button"
+                onClick={handleConverterObraParaAmericanEnglish}
+                disabled={isConvertingToEnglish || !livro || livro.capitulos.length === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  border: idioma === 'inglês' ? '1.5px solid #3b82f6' : '1px solid #e2e8f0',
+                  background: idioma === 'inglês' ? '#eff6ff' : '#ffffff',
+                  color: idioma === 'inglês' ? '#1d4ed8' : '#475569',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer',
+                  width: '100%',
+                  textAlign: 'left'
+                }}
+                title="Converte o miolo e título para American English contemporâneo"
+              >
+                <Globe size={13} color="#3b82f6" />
+                <span>{ui('🇺🇸 Localizar em American English', '🇺🇸 Localize in American English')}</span>
+              </button>
 
-                {/* 3. AUDITORIA & CORREÇÃO */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('auditoria')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: activeTab === 'auditoria' ? '1.5px solid #10b981' : '1px solid #e2e8f0',
-                    background: activeTab === 'auditoria' ? '#ecfdf5' : '#ffffff',
-                    color: activeTab === 'auditoria' ? '#059669' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <ShieldCheck size={14} color={activeTab === 'auditoria' ? '#10b981' : '#64748b'} />
-                  <span>🛡️ {ui('3. Auditoria & Correção', '3. Audit & Correction')}</span>
-                </button>
+              {/* FOLHEAR PÁGINAS (FLIPBOOK) */}
+              <button
+                type="button"
+                onClick={() => setIsPageReviewerOpen(true)}
+                disabled={!livro || livro.capitulos.length === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  border: '1px solid #e2e8f0',
+                  background: '#ffffff',
+                  color: (!livro || livro.capitulos.length === 0) ? '#94a3b8' : '#475569',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer',
+                  width: '100%',
+                  textAlign: 'left'
+                }}
+              >
+                <Eye size={13} color="#64748b" />
+                <span>{ui('Folhear Páginas (Flipbook)', 'Page Reviewer')}</span>
+              </button>
 
-                <div style={{ height: 1, background: '#e2e8f0', margin: '4px 0' }} />
+              {/* TOGGLE DIVIDIR TELA */}
+              <button
+                type="button"
+                onClick={() => setWorkspaceLayout(prev => prev === 'split' ? 'focused' : 'split')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  border: workspaceLayout === 'split' ? '1px solid #0f172a' : '1px solid #e2e8f0',
+                  background: workspaceLayout === 'split' ? '#0f172a' : '#ffffff',
+                  color: workspaceLayout === 'split' ? '#ffffff' : '#475569',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left'
+                }}
+              >
+                <Columns size={13} />
+                <span>{workspaceLayout === 'split' ? ui('Modo Foco (1 Tela)', 'Focus Mode') : ui('Dividir Tela (Split View)', 'Split View')}</span>
+              </button>
+            </div>
 
-                {/* FERRAMENTAS COMPLEMENTARES */}
-                {/* EDITOR DA ETAPA ATUAL */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('wizard')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: activeTab === 'wizard' ? '1px solid #0284c7' : '1px solid #e2e8f0',
-                    background: activeTab === 'wizard' ? '#f0f9ff' : '#ffffff',
-                    color: activeTab === 'wizard' ? '#0369a1' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <Sparkles size={14} color={activeTab === 'wizard' ? '#0284c7' : '#64748b'} />
-                  <span>✍️ {ui(`Editor da Etapa ${wizardStep}`, `Step ${wizardStep} Editor`)}</span>
-                </button>
+            {/* BOTÕES RÁPIDOS DE DOWNLOAD KDP */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, paddingTop: 4 }}>
+              <button
+                type="button"
+                onClick={baixarPDF}
+                disabled={!livro || livro.capitulos.length === 0}
+                style={{
+                  padding: '6px 4px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: (!livro || livro.capitulos.length === 0) ? '#94a3b8' : '#0369a1',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4
+                }}
+                title="Baixar PDF diagramado do Miolo (sem capa na pág 1)"
+              >
+                <Download size={11} /> 📕 PDF Miolo
+              </button>
 
-                {/* 2. MANUSCRITO & LIVRO DIAGRAMADO */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('preview')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: activeTab === 'preview' ? '1px solid #0284c7' : '1px solid #e2e8f0',
-                    background: activeTab === 'preview' ? '#f0f9ff' : '#ffffff',
-                    color: activeTab === 'preview' ? '#0369a1' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <BookOpen size={14} color={activeTab === 'preview' ? '#0284c7' : '#64748b'} />
-                  <span>📖 {ui('Manuscrito Diagramado', 'Formatted Manuscript')}</span>
-                </button>
-
-                {/* 3. CAPA & CONTRACAPA KDP */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('capa')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: activeTab === 'capa' ? '1px solid #f59e0b' : '1px solid #e2e8f0',
-                    background: activeTab === 'capa' ? '#fffbeb' : '#ffffff',
-                    color: activeTab === 'capa' ? '#b45309' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <Palette size={14} color={activeTab === 'capa' ? '#f59e0b' : '#64748b'} />
-                  <span>🎨 {ui('Capa & Contracapa KDP', 'KDP Cover & Back')}</span>
-                </button>
-
-                {/* 4. AUDITORIA TRIPLA KDP */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('auditoria')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: activeTab === 'auditoria' ? '1px solid #10b981' : '1px solid #e2e8f0',
-                    background: activeTab === 'auditoria' ? '#ecfdf5' : '#ffffff',
-                    color: activeTab === 'auditoria' ? '#059669' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <ShieldCheck size={14} color={activeTab === 'auditoria' ? '#10b981' : '#64748b'} />
-                  <span>🛡️ {ui('Auditoria (Ortografia & Enredo)', 'Audit (Grammar & Plot)')}</span>
-                </button>
-
-                {/* 4.1 LOCALIZAÇÃO EM AMERICAN ENGLISH */}
-                <button
-                  type="button"
-                  onClick={handleConverterObraParaAmericanEnglish}
-                  disabled={isConvertingToEnglish || !livro || livro.capitulos.length === 0}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: idioma === 'inglês' ? '1.5px solid #3b82f6' : '1px solid #e2e8f0',
-                    background: idioma === 'inglês' ? '#eff6ff' : '#ffffff',
-                    color: idioma === 'inglês' ? '#1d4ed8' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                  title="Converte o miolo e título para American English contemporâneo natural"
-                >
-                  <Globe size={14} color={idioma === 'inglês' ? '#3b82f6' : '#64748b'} />
-                  <span>🇺🇸 {ui('Localizar em American English', 'Localize in American English')}</span>
-                </button>
-
-                {/* 5. BESTSELLERS & MERCADO */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('market')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: activeTab === 'market' ? '1px solid #0284c7' : '1px solid #e2e8f0',
-                    background: activeTab === 'market' ? '#f0f9ff' : '#ffffff',
-                    color: activeTab === 'market' ? '#0369a1' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <TrendingUp size={14} color={activeTab === 'market' ? '#0284c7' : '#64748b'} />
-                  <span>📈 {ui('Bestsellers & Mercado', 'Bestsellers & Market')}</span>
-                </button>
-
-                {/* 6. FOLHEAR PÁGINAS (FLIPBOOK) */}
-                <button
-                  type="button"
-                  onClick={() => setIsPageReviewerOpen(true)}
-                  disabled={!livro || livro.capitulos.length === 0}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: '1px solid #e2e8f0',
-                    background: '#ffffff',
-                    color: (!livro || livro.capitulos.length === 0) ? '#94a3b8' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <Eye size={14} color="#64748b" />
-                  <span>👁️ {ui('Folhear Páginas (Flipbook)', 'Page Reviewer')}</span>
-                </button>
-
-                {/* 7. TOGGLE DIVIDIR TELA */}
-                <button
-                  type="button"
-                  onClick={() => setWorkspaceLayout(prev => prev === 'split' ? 'focused' : 'split')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '7px 9px',
-                    borderRadius: 6,
-                    border: workspaceLayout === 'split' ? '1px solid #0f172a' : '1px solid #e2e8f0',
-                    background: workspaceLayout === 'split' ? '#0f172a' : '#ffffff',
-                    color: workspaceLayout === 'split' ? '#ffffff' : '#334155',
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left'
-                  }}
-                >
-                  <Columns size={14} />
-                  <span>◫ {workspaceLayout === 'split' ? ui('Modo Foco Único', 'Single Focus Mode') : ui('Dividir Tela (Split)', 'Split Screen')}</span>
-                </button>
-
-                {/* 8. EXPORTAÇÃO DE ARQUIVOS FINAIS KDP */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginTop: 4 }}>
-                  <button
-                    type="button"
-                    onClick={baixarPDF}
-                    disabled={!livro || livro.capitulos.length === 0}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 4,
-                      padding: '7px 5px',
-                      borderRadius: 6,
-                      border: '1px solid #cbd5e1',
-                      background: '#f8fafc',
-                      color: (!livro || livro.capitulos.length === 0) ? '#94a3b8' : '#0f172a',
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer'
-                    }}
-                    title="Baixar PDF diagramado do miolo oficial para Amazon KDP"
-                  >
-                    <Download size={12} />
-                    <span>PDF Miolo</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={baixarCapaCompletaPdf}
-                    disabled={!capaFinal}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 4,
-                      padding: '7px 5px',
-                      borderRadius: 6,
-                      border: '1px solid #cbd5e1',
-                      background: '#f8fafc',
-                      color: !capaFinal ? '#94a3b8' : '#b45309',
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      cursor: !capaFinal ? 'not-allowed' : 'pointer'
-                    }}
-                    title="Baixar PDF oficial de impressão da Capa Completa KDP (Wrap Aberto 300 DPI)"
-                  >
-                    <Download size={12} />
-                    <span>PDF Capa</span>
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={baixarCapaCompletaPdf}
+                disabled={!capaFinal}
+                style={{
+                  padding: '6px 4px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: !capaFinal ? '#94a3b8' : '#b45309',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  cursor: !capaFinal ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4
+                }}
+                title="Baixar PDF oficial da Capa KDP"
+              >
+                <Download size={11} /> 📘 PDF Capa
+              </button>
             </div>
           </div>
 
@@ -6711,99 +6763,305 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             {/* ═══════ WIZARD STEP 1: PESQUISA, TEMA & TESE ÚNICA ═══════ */}
             <div style={{ display: wizardStep === 1 ? undefined : 'none' }}>
 
-            {/* BARRA DE AÇÃO DIRETA: COMPOR COM A TESE OU PULAR PESQUISA */}
+            {/* ═══════ CENTRAL DE CRIAÇÃO AUTOMATIZADA AMAZON KDP ═══════ */}
             <div style={{
-              marginBottom: 12,
-              padding: '12px 14px',
-              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-              borderRadius: 8,
-              border: '1px solid #334155',
+              marginBottom: 16,
+              padding: '18px 20px',
+              background: 'linear-gradient(135deg, #0b1120 0%, #0f172a 50%, #1e293b 100%)',
+              borderRadius: 12,
+              border: '1.5px solid #38bdf8',
+              boxShadow: '0 8px 24px rgba(2, 132, 199, 0.15)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 10,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+              flexDirection: 'column',
+              gap: 14
             }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Sparkles size={14} color="#38bdf8" />
-                  <span style={{ fontSize: 12.5, fontWeight: 800, color: '#f8fafc' }}>
-                    {ui('Utilidade da Pesquisa & Tese para Compor o Livro', 'Research & Thesis Utility to Compose Book')}
-                  </span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)'
+                  }}>
+                    <Sparkles size={17} color="#ffffff" />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>
+                      {ui('⚡ Central de Criação Automatizada KDP', '⚡ KDP Automated Book Creation Suite')}
+                    </h3>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.35 }}>
+                      {ui(
+                        'Criação express de ponta a ponta com inteligência de mercado Amazon, outline automático, escrita sequencial com memória contínua e diagramação KDP.',
+                        'End-to-end autonomous creation powered by live Amazon market intelligence, sequential chapter writing, and official KDP formatting.'
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <p style={{ margin: '3px 0 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.35 }}>
-                  {ui(
-                    'Use a pesquisa para estruturar automaticamente título, diferencial e sumário do livro, ou pule direto para a escrita livre.',
-                    'Use research to automatically structure title, differentiator and outline, or jump straight to free writing.'
-                  )}
-                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={handleComporObraPorPesquisaETese}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #10b981',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: '#a7f3d0',
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    title="Estruturar título e sumário a partir do tema"
+                  >
+                    {ui('💡 Auto-Preencher Título & Sumário', '💡 Auto-Fill Title & Outline')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setModoExpressCriacao(!modoExpressCriacao)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #334155',
+                      background: '#1e293b',
+                      color: '#94a3b8',
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {modoExpressCriacao ? ui('🛠️ Ver Formulários Detalhados ▾', '🛠️ Show Step-by-Step Forms ▾') : ui('⚡ Focar no Modo Express ▴', '⚡ Focus on Express Mode ▴')}
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {/* CAMPOS ESSENCIAIS PARA CRIAÇÃO EM 1 CLIQUE */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                {/* 1. TEMA OU TÍTULO DO LIVRO */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                    {ui('💡 Tema, Ideia Central ou Título do Livro:', '💡 Topic, Core Thesis or Book Title:')}
+                  </label>
+                  <input
+                    type="text"
+                    value={titulo || topico}
+                    onChange={(e) => {
+                      setTitulo(e.target.value);
+                      setTopico(e.target.value);
+                    }}
+                    placeholder={ui('ex: O Segredo da Disciplina, Investigação Criminal em Londres, IA nos Negócios...', 'e.g. The Power of Consistency, Mystery in the Highlands...')}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 7,
+                      border: '1px solid #334155',
+                      background: '#040711',
+                      color: '#ffffff',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* 2. GÊNERO LITERÁRIO */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                    {ui('📚 Gênero Literário:', '📚 Literary Genre:')}
+                  </label>
+                  <select
+                    value={genero}
+                    onChange={(e) => {
+                      setGenero(e.target.value);
+                      setTemaSelecionado(e.target.value);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      borderRadius: 7,
+                      border: '1px solid #334155',
+                      background: '#040711',
+                      color: '#ffffff',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="Thriller Psicológico">Thriller Psicológico</option>
+                    <option value="Ficção Policial">Ficção Policial & Investigação</option>
+                    <option value="Suspense">Suspense & Mistério</option>
+                    <option value="Romance Contemporâneo">Romance Contemporâneo</option>
+                    <option value="Autoajuda">Autoajuda & Hábitos</option>
+                    <option value="Desenvolvimento Pessoal">Desenvolvimento Pessoal</option>
+                    <option value="Negócios">Negócios & Liderança</option>
+                    <option value="Finanças Pessoais">Finanças Pessoais</option>
+                    <option value="Fantasia">Fantasia & Magia</option>
+                    <option value="Ficção Científica">Ficção Científica</option>
+                    <option value="Terror">Terror & Horror</option>
+                    <option value="Não ficção">Não-Ficção Geral</option>
+                    <option value="Educação infantil">Infantil Ilustrado</option>
+                  </select>
+                </div>
+
+                {/* 3. IDIOMA DE PUBLICAÇÃO */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                    {ui('🌐 Idioma de Publicação:', '🌐 Publication Language:')}
+                  </label>
+                  <select
+                    value={idioma}
+                    onChange={(e) => setIdioma(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      borderRadius: 7,
+                      border: '1px solid #334155',
+                      background: '#040711',
+                      color: '#ffffff',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="português">🇧🇷 Português (Brasil / Global)</option>
+                    <option value="inglês">🇺🇸 American English (US Marketplace)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* BOTÃO PRINCIPAL DE GERAÇÃO AUTOMATIZADA */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
                 <button
                   type="button"
-                  onClick={handleComporObraPorPesquisaETese}
+                  onClick={handleGeracaoAutomaticaTotal}
                   style={{
-                    padding: '7px 14px',
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    color: '#ffffff',
+                    width: '100%',
+                    padding: '12px 18px',
+                    borderRadius: 8,
                     border: 'none',
-                    borderRadius: 6,
-                    fontSize: 11.5,
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #059669 100%)',
+                    color: '#ffffff',
+                    fontSize: 13,
                     fontWeight: 800,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
-                    boxShadow: '0 2px 6px rgba(16,185,129,0.3)'
+                    justifyContent: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 14px rgba(2, 132, 199, 0.45)',
+                    transition: 'all 0.18s ease'
                   }}
-                  title="Gera título, subtítulo, diferencial competitivo e sumário a partir deste tema"
                 >
-                  <Sparkles size={13} /> {ui('⚡ Compor Livro Automaticamente com esta Tese', '⚡ Auto-Compose Book with this Thesis')}
+                  <Sparkles size={16} />
+                  <span>
+                    {ui('⚡ Gerar Livro Completo Automaticamente (Inteligência Amazon + Capítulos + Diagramação KDP)', '⚡ Generate Complete Book Automatically (Amazon Intel + Chapters + KDP Formatting)')}
+                  </span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => handlePularPesquisaEAnalise(3)}
-                  style={{
-                    padding: '7px 12px',
-                    background: '#ffffff',
-                    color: '#0f172a',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 6,
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5
-                  }}
-                  title="Pular pesquisa e ir direto para escolha do título"
-                >
-                  {ui('⏩ Pular Pesquisa (Ir para Título)', '⏩ Skip Research (Go to Title)')}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 10.5, color: '#94a3b8' }}>
+                  <span>✓ {ui('APIs da Amazon integradas no backend para pesquisa e indexação', 'Amazon backend APIs fully wired for live search and ranking')}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => handlePularPesquisaEAnalise(8)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#94a3b8',
+                        fontSize: 10.5,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {ui('⏩ Ir Direto para Escrita', '⏩ Jump to Writing')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedExpressSettings(!showAdvancedExpressSettings)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#38bdf8',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {showAdvancedExpressSettings ? ui('Ocultar Ajustes Avançados ▴', 'Hide Advanced Settings ▴') : ui('⚙️ Ajustes Avançados (Capítulos, Páginas, Autor) ▾', '⚙️ Advanced Settings (Chapters, Pages, Author) ▾')}
+                    </button>
+                  </div>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => handlePularPesquisaEAnalise(8)}
-                  style={{
-                    padding: '7px 12px',
-                    background: '#f1f5f9',
-                    color: '#334155',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 6,
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5
-                  }}
-                  title="Pular tudo e ir direto para o editor de escrita"
-                >
-                  {ui('⏩ Ir Direto para Escrita', '⏩ Jump to Writing')}
-                </button>
+                {/* ACCORDION DE AJUSTES AVANÇADOS */}
+                {showAdvancedExpressSettings && (
+                  <div style={{
+                    marginTop: 6,
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    background: '#040711',
+                    border: '1px solid #1e293b',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: 12
+                  }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>
+                        {ui('Capítulos Alvo:', 'Target Chapters:')} <b>{maxCapitulos} caps</b>
+                      </label>
+                      <input
+                        type="range"
+                        min={3}
+                        max={20}
+                        value={maxCapitulos}
+                        onChange={(e) => setMaxCapitulos(Number(e.target.value))}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>
+                        {ui('Páginas Estimadas KDP:', 'Target KDP Pages:')} <b>{paginasAlvo} pág</b>
+                      </label>
+                      <input
+                        type="range"
+                        min={24}
+                        max={250}
+                        step={10}
+                        value={paginasAlvo}
+                        onChange={(e) => setPaginasAlvo(Number(e.target.value))}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>
+                        {ui('Nome do Autor:', 'Author Name:')}
+                      </label>
+                      <input
+                        type="text"
+                        value={autor}
+                        onChange={(e) => setAutor(e.target.value)}
+                        placeholder="Nome do Autor"
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: 6,
+                          border: '1px solid #334155',
+                          background: '#0f172a',
+                          color: '#ffffff',
+                          fontSize: 11
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

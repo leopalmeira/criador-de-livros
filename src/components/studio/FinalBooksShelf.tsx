@@ -458,84 +458,100 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
     };
   }, [loadBooks]);
 
-  // Auxiliar para obter ou gerar o ArrayBuffer do PDF do livro
+  // Auxiliar para obter ou gerar o ArrayBuffer do PDF do livro (Garante Miolo Limpo sem Capa na Pág 1)
   const obterPdfBytes = async (book: FinalBookRecord): Promise<ArrayBuffer> => {
-    if (book.pdf && book.pdf.byteLength > 100) {
-      return book.pdf;
-    }
-    const storedBook = await db.getFinalBook(book.id);
-    if (storedBook?.pdf && storedBook.pdf.byteLength > 100) {
-      return storedBook.pdf;
-    }
-
     const capitulos = (book.chapters && book.chapters.length > 0)
       ? book.chapters
       : [
           { titulo: 'Capítulo 1: O Início', texto: book.manuscriptText || 'Texto oficial do livro diagramado para Amazon KDP.' }
         ];
 
+    const isEn = Boolean(book.language && /ingl|en/i.test(book.language));
+
+    // DIRETRIZ RIGOROSA AMAZON KDP: O MIOLO (Interior PDF) NUNCA DEVE CONTER A CAPA NA PÁGINA 1
+    // A capa é enviada em arquivo separado no Amazon KDP (Capa KDP ou Full Wrap Spread PDF).
     const result = await buildKdpPdf({
       livro: {
         titulo: book.title,
         subtitulo: book.subtitle,
         autor: book.author,
+        genero: book.genre,
+        idioma: isEn ? 'en' : 'pt',
         capitulos
       },
-      capaDataUrl: book.coverDataUrl || null,
+      capaDataUrl: null, // MIOLO LIMPO: Inicia diretamente na Folha de Rosto (Title Page)
+      incluirCapaNoMiolo: false,
+      incluirContracapa: false,
       formato: book.trimSize || '6x9',
       optSumario: true,
       tamCapitulo: 11,
       corCapitulo: '#1e293b'
     });
 
-    return result.bytes as unknown as ArrayBuffer;
+    const cleanBytes = result.bytes as unknown as ArrayBuffer;
+
+    // Atualiza o registro em banco para expurgar de vez qualquer PDF antigo que continha a capa na página 1
+    if (book.id) {
+      try {
+        const stored = await db.getFinalBook(book.id);
+        if (stored) {
+          stored.pdf = cleanBytes;
+          await db.saveFinalBook(stored);
+        }
+      } catch (e) {
+        console.warn('Erro ao atualizar cache de PDF limpo:', e);
+      }
+    }
+
+    return cleanBytes;
   };
 
   // 1. BAIXAR MANUSCRITO (.TXT COM CABEÇALHO EDITORIAL COMPLETO)
   const handleDownloadManuscript = (book: FinalBookRecord) => {
     try {
-      const dateStr = new Date(book.finalizedAt).toLocaleDateString('pt-BR');
+      const isEn = Boolean(book.language && /ingl|en/i.test(book.language));
+      const dateStr = new Date(book.finalizedAt).toLocaleDateString(isEn ? 'en-US' : 'pt-BR');
       let conteudo = `================================================================================\n`;
-      conteudo += `MANUSCRITO EDITORIAL OFICIAL — AMAZON KDP\n`;
+      conteudo += isEn ? `OFFICIAL EDITORIAL MANUSCRIPT — AMAZON KDP\n` : `MANUSCRITO EDITORIAL OFICIAL — AMAZON KDP\n`;
       conteudo += `================================================================================\n\n`;
-      conteudo += `TÍTULO: ${book.title}\n`;
-      if (book.subtitle) conteudo += `SUBTÍTULO: ${book.subtitle}\n`;
-      conteudo += `AUTOR: ${book.author}\n`;
-      if (book.genre) conteudo += `GÊNERO / CATEGORIA: ${book.genre}\n`;
-      conteudo += `FORMATO EDITORIAL: Capa Comum Amazon KDP (${book.trimSize || '6x9'})\n`;
-      conteudo += `DATA DE FINALIZAÇÃO: ${dateStr}\n\n`;
+      conteudo += isEn ? `TITLE: ${book.title}\n` : `TÍTULO: ${book.title}\n`;
+      if (book.subtitle) conteudo += isEn ? `SUBTITLE: ${book.subtitle}\n` : `SUBTÍTULO: ${book.subtitle}\n`;
+      conteudo += isEn ? `AUTHOR: ${book.author}\n` : `AUTOR: ${book.author}\n`;
+      if (book.genre) conteudo += isEn ? `GENRE / CATEGORY: ${book.genre}\n` : `GÊNERO / CATEGORIA: ${book.genre}\n`;
+      conteudo += isEn ? `EDITORIAL FORMAT: Amazon KDP Paperback (${book.trimSize || '6x9'})\n` : `FORMATO EDITORIAL: Capa Comum Amazon KDP (${book.trimSize || '6x9'})\n`;
+      conteudo += isEn ? `COMPLETION DATE: ${dateStr}\n\n` : `DATA DE FINALIZAÇÃO: ${dateStr}\n\n`;
       conteudo += `--------------------------------------------------------------------------------\n`;
-      conteudo += `FOLHA DE ROSTO\n`;
+      conteudo += isEn ? `TITLE PAGE\n` : `FOLHA DE ROSTO\n`;
       conteudo += `--------------------------------------------------------------------------------\n\n`;
       conteudo += `                ${book.title.toUpperCase()}\n`;
       if (book.subtitle) conteudo += `                ${book.subtitle}\n\n`;
-      conteudo += `                por ${book.author}\n\n\n`;
-      conteudo += `FICHA EDITORIAL:\n`;
-      conteudo += `Edição: 1ª Edição Digital & Impressa Amazon KDP\n`;
-      conteudo += `Plataforma: BookEngin v1.0\n`;
-      conteudo += `Diagramação: Padrão Oficial Amazon KDP\n\n`;
+      conteudo += isEn ? `                By ${book.author}\n\n\n` : `                por ${book.author}\n\n\n`;
+      conteudo += isEn ? `EDITORIAL IMPRINT:\n` : `FICHA EDITORIAL:\n`;
+      conteudo += isEn ? `Edition: 1st Digital & Print Edition Amazon KDP\n` : `Edição: 1ª Edição Digital & Impressa Amazon KDP\n`;
+      conteudo += `Platform: BookEngin v1.0\n`;
+      conteudo += isEn ? `Typesetting: Official Amazon KDP Standards\n\n` : `Diagramação: Padrão Oficial Amazon KDP\n\n`;
       conteudo += `--------------------------------------------------------------------------------\n`;
-      conteudo += `SUMÁRIO\n`;
+      conteudo += isEn ? `TABLE OF CONTENTS\n` : `SUMÁRIO\n`;
       conteudo += `--------------------------------------------------------------------------------\n\n`;
 
       if (book.chapters && book.chapters.length > 0) {
         book.chapters.forEach((c, idx) => {
-          conteudo += `Capítulo ${idx + 1}: ${c.titulo}\n`;
+          conteudo += isEn ? `Chapter ${idx + 1}: ${c.titulo}\n` : `Capítulo ${idx + 1}: ${c.titulo}\n`;
         });
         conteudo += `\n--------------------------------------------------------------------------------\n`;
-        conteudo += `CAPÍTULOS NA ÍNTEGRA\n`;
+        conteudo += isEn ? `FULL CHAPTERS\n` : `CAPÍTULOS NA ÍNTEGRA\n`;
         conteudo += `--------------------------------------------------------------------------------\n\n`;
 
         book.chapters.forEach((c, idx) => {
           conteudo += `\n================================================================================\n`;
-          conteudo += `CAPÍTULO ${idx + 1}: ${c.titulo.toUpperCase()}\n`;
+          conteudo += isEn ? `CHAPTER ${idx + 1}: ${c.titulo.toUpperCase()}\n` : `CAPÍTULO ${idx + 1}: ${c.titulo.toUpperCase()}\n`;
           conteudo += `================================================================================\n\n`;
           conteudo += `${c.texto}\n\n`;
         });
       } else if (book.manuscriptText) {
         conteudo += book.manuscriptText;
       } else {
-        conteudo += `Capítulo 1: Fundamentos\n\nTexto do manuscrito finalizado e aprovado para publicação.`;
+        conteudo += isEn ? `Chapter 1: Foundations\n\nOfficial manuscript approved for publication.` : `Capítulo 1: Fundamentos\n\nTexto do manuscrito finalizado e aprovado para publicação.`;
       }
 
       // Reparação completa de acentuação e desmojibake

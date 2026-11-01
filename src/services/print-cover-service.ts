@@ -97,7 +97,7 @@ export class PrintCoverService {
    * Constrói a Contracapa Inteligente adaptada ao gênero
    */
   public static generateSmartBackCover(
-    arg1: string | { title: string; subtitle?: string; author?: string; genre?: string; synopsis?: string; audience?: string },
+    arg1: string | { title: string; subtitle?: string; author?: string; genre?: string; synopsis?: string; audience?: string; language?: string },
     synopsisArg?: string,
     genreArg: string = 'Ficção'
   ): BackCoverContent & {
@@ -109,27 +109,47 @@ export class PrintCoverService {
     let title = typeof arg1 === 'string' ? arg1 : arg1.title || 'Obra';
     let synopsis = typeof arg1 === 'string' ? (synopsisArg || '') : (arg1.synopsis || '');
     let genre = typeof arg1 === 'string' ? (genreArg || 'Ficção') : (arg1.genre || 'Ficção');
+    let language = typeof arg1 === 'object' ? (arg1.language || '') : '';
+    const isEn = Boolean(language && /ingl|en/i.test(language));
 
-    const cleanSynopsis = synopsis || 'Uma obra profunda e instigante, elaborada com rigor narrativo e pronta para proporcionar uma experiência marcante ao leitor.';
+    const cleanSynopsis = synopsis || (isEn
+      ? 'A profound and gripping narrative, crafted with meticulous storytelling and designed for an unforgettable reader experience.'
+      : 'Uma obra profunda e instigante, elaborada com rigor narrativo e pronta para proporcionar uma experiência marcante ao leitor.');
     
     // Ganchos comerciais adaptados
-    let hookHeadline = `O livro que vai transformar sua percepção sobre ${title}.`;
+    let hookHeadline = isEn
+      ? `The definitive work that will transform your perspective on ${title}.`
+      : `O livro que vai transformar sua percepção sobre ${title}.`;
     const g = genre.toLowerCase();
-    if (g.includes('thriller') || g.includes('suspense') || g.includes('mistério')) {
-      hookHeadline = 'Alguns segredos cobram um preço alto demais para serem revelados.';
+    if (g.includes('thriller') || g.includes('suspense') || g.includes('mistério') || g.includes('mystery')) {
+      hookHeadline = isEn
+        ? 'Some secrets carry a price too high to ever be brought into the light.'
+        : 'Alguns segredos cobram um preço alto demais para serem revelados.';
     } else if (g.includes('romance') || g.includes('drama')) {
-      hookHeadline = 'Uma história arrebatadora sobre escolhas, encontros e o poder do tempo.';
-    } else if (g.includes('negócio') || g.includes('finança') || g.includes('liderança')) {
-      hookHeadline = 'Estratégias práticas e comprovadas para alcançar clareza, resultados e excelência.';
-    } else if (g.includes('fantasia') || g.includes('aventura')) {
-      hookHeadline = 'Um universo onde o destino é forjado pela coragem e pela lealdade.';
+      hookHeadline = isEn
+        ? 'A sweeping story about choices, unyielding love, and the power of time.'
+        : 'Uma história arrebatadora sobre escolhas, encontros e o poder do tempo.';
+    } else if (g.includes('negócio') || g.includes('finança') || g.includes('liderança') || g.includes('business') || g.includes('finance')) {
+      hookHeadline = isEn
+        ? 'Actionable, proven strategies engineered to achieve clarity, execution, and lasting excellence.'
+        : 'Estratégias práticas e comprovadas para alcançar clareza, resultados e excelência.';
+    } else if (g.includes('fantasia') || g.includes('aventura') || g.includes('fantasy') || g.includes('adventure')) {
+      hookHeadline = isEn
+        ? 'A boundless realm where destiny is forged in courage and tested by honor.'
+        : 'Um universo onde o destino é forjado pela coragem e pela lealdade.';
     }
 
-    const benefits = [
-      'Narrativa envolvente com progressão rigorosa de cenas e conflitos',
-      'Personagens autênticos com dilemas humanos e diálogos marcantes',
-      'Edição cuidada e revisada para uma leitura fluida e memorável'
-    ];
+    const benefits = isEn
+      ? [
+          'Gripping pacing with airtight continuity and emotional depth',
+          'Authentic character arcs shaped by human dilemmas and memorable dialogue',
+          'Professionally formatted and edited for effortless, immersive reading'
+        ]
+      : [
+          'Narrativa envolvente com progressão rigorosa de cenas e conflitos',
+          'Personagens autênticos com dilemas humanos e diálogos marcantes',
+          'Edição cuidada e revisada para uma leitura fluida e memorável'
+        ];
 
     const barcodeBox = {
       widthMm: 50.8,
@@ -476,6 +496,7 @@ export class PrintCoverService {
     textAlign?: 'left' | 'center' | 'right';
     authorPhotoUrl?: string;
     authorPhotoSize?: number;
+    language?: string;
   }): Promise<string> {
     const canvas = document.createElement('canvas');
     canvas.width = 1600;
@@ -513,15 +534,20 @@ export class PrintCoverService {
     ctx.strokeRect(frameInner, frameInner, canvas.width - frameInner * 2, canvas.height - frameInner * 2);
     ctx.restore();
 
-    // Margens seguras KDP estritas anti-corte (Safe Zone KDP G201113520 ampliada: 200px em cada lado)
-    const marginX = 200;
+    // Margens seguras KDP estritas anti-corte (Safe Zone KDP G201113520 ampliada: 240px em cada lado = 15% seguro)
+    const marginX = 240;
     const maxTextW = canvas.width - (marginX * 2);
 
     // Posição X de ancoragem conforme alinhamento
     const anchorX = align === 'center' ? canvas.width / 2 : align === 'right' ? canvas.width - marginX : marginX;
 
     // Dados da contracapa
-    const backContent = this.generateSmartBackCover(params.title, params.synopsis, params.genre || 'Ficção');
+    const backContent = this.generateSmartBackCover({
+      title: params.title,
+      synopsis: params.synopsis,
+      genre: params.genre || 'Ficção',
+      language: params.language
+    });
     const headline = params.hookHeadline || backContent.hookHeadline;
 
     // 2. Gancho Comercial / Headline no topo com auto-fit dinâmico anti-corte
@@ -685,11 +711,11 @@ export class PrintCoverService {
       }
     }
 
-    // 5. Rodapé Editorial / Autor
+    // 5. Rodapé Editorial / Autor (com margem de segurança anti-corte de 180px)
     ctx.textAlign = align;
     ctx.fillStyle = '#94a3b8';
     ctx.font = '600 32px sans-serif';
-    ctx.fillText(`${params.author.toUpperCase()}`, anchorX, canvas.height - 140);
+    ctx.fillText(`${params.author.toUpperCase()}`, anchorX, canvas.height - 180);
     ctx.fillStyle = '#64748b';
     ctx.font = '400 24px sans-serif';
     // Rodapé limpo sem rótulo de edição artificial

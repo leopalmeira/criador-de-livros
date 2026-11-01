@@ -145,6 +145,7 @@ function renderVectorKdpBackCover(
   input: BuildPdfInput,
   sanitize: (s: string) => string
 ): void {
+  const isEn = Boolean(input.livro.idioma && /ingl|en/i.test(input.livro.idioma));
   doc.saveGraphicsState();
 
   // 1. Fundo Editorial Profundo (Slate/Navy Nobre)
@@ -164,7 +165,8 @@ function renderVectorKdpBackCover(
   let curY = 0.92;
 
   // 3. Selo Superior de Categoria
-  const generoLabel = sanitize((input.livro.genero || 'EDIÇÃO OFICIAL AMAZON KDP').toUpperCase());
+  const generoDefault = isEn ? 'OFFICIAL AMAZON KDP EDITION' : 'EDIÇÃO OFICIAL AMAZON KDP';
+  const generoLabel = sanitize((input.livro.genero || generoDefault).toUpperCase());
   doc.setFont('helvetica', 'bold').setFontSize(8.5).setTextColor(212, 175, 55);
   doc.text(generoLabel, LW / 2, curY, { align: 'center' });
   curY += 0.22;
@@ -173,7 +175,9 @@ function renderVectorKdpBackCover(
   curY += 0.38;
 
   // 4. Gancho Comercial (Hook Headline)
-  const defaultHook = `Alguns segredos cobram um preço alto demais para permanecerem nas sombras.`;
+  const defaultHook = isEn
+    ? `Some secrets demand too high a price to remain in the shadows.`
+    : `Alguns segredos cobram um preço alto demais para permanecerem nas sombras.`;
   const hook = sanitize(input.livro.ganchoContracapa || defaultHook);
   doc.setFont('times', 'bolditalic').setFontSize(14).setTextColor(248, 250, 252);
   const hookLines = doc.splitTextToSize(hook, maxW) as string[];
@@ -188,6 +192,8 @@ function renderVectorKdpBackCover(
     .slice(0, 460);
   const fallbackSynopsis = rawChaptersPreview
     ? `${rawChaptersPreview.trim()}...`
+    : isEn
+    ? `In "${input.livro.titulo}", ${input.livro.autor} leads the reader through a magnetic literary journey, engineered with cinematic pacing, psychological depth, and unforgettable twists.`
     : `Em "${input.livro.titulo}", ${input.livro.autor} conduz o leitor por uma trama magnética, construída com ritmo cinematográfico, profundidade psicológica e reviravoltas inesquecíveis.`;
   const synopsis = sanitize(input.livro.sinopse || fallbackSynopsis);
 
@@ -200,6 +206,12 @@ function renderVectorKdpBackCover(
   // 6. Destaques da Edição (Bullets)
   const benefits = (input.livro.beneficiosContracapa && input.livro.beneficiosContracapa.length > 0)
     ? input.livro.beneficiosContracapa
+    : isEn
+    ? [
+        'Compelling narrative with rigorous scene progression and tension',
+        'Complex characters with authentic dialogue and immersive atmosphere',
+        'Formatted strictly under Amazon KDP international publishing standards'
+      ]
     : [
         'Narrativa envolvente com progressão rigorosa de cenas e conflitos',
         'Personagens densos com diálogos autênticos e atmosfera imersiva',
@@ -219,10 +231,11 @@ function renderVectorKdpBackCover(
   // 7. Assinatura do Autor & Selo à esquerda na base
   const footerY = LH - 1.35;
   doc.setFont('times', 'bold').setFontSize(11).setTextColor(248, 250, 252);
-  doc.text(sanitize(input.livro.autor.toUpperCase()), padX, footerY);
+  const authorSig = isEn ? `BY ${input.livro.autor.toUpperCase()}` : sanitize(input.livro.autor.toUpperCase());
+  doc.text(authorSig, padX, footerY);
   doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(148, 163, 184);
-  doc.text('EDIÇÃO OFICIAL AMAZON KDP', padX, footerY + 0.18);
-  doc.text(`Formato ${input.formato}" • Especificação G201113520`, padX, footerY + 0.32);
+  doc.text(isEn ? 'OFFICIAL AMAZON KDP EDITION' : 'EDIÇÃO OFICIAL AMAZON KDP', padX, footerY + 0.18);
+  doc.text(isEn ? `Format ${input.formato}" • Specification G201113520` : `Formato ${input.formato}" • Especificação G201113520`, padX, footerY + 0.32);
 
   // 8. Contracapa sem corte branco de código de barras (mantém a arte 100% contínua e limpa)
   doc.restoreGraphicsState();
@@ -368,7 +381,10 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   const cleanTitles = chapters.map((c, i) => {
     let raw = cleanChapterTitle(c.titulo, c.texto);
     if (!raw) raw = isEnDoc ? `Chapter ${i + 1}` : `Capítulo ${i + 1}`;
-    else if (isEnDoc) raw = raw.replace(/^cap[ií]tulo\s*/i, "Chapter ");
+    else if (isEnDoc) {
+      raw = raw.replace(/^cap[ií]tulo\s*/i, 'Chapter ');
+      raw = raw.replace(/^cap\.?\s*/i, 'Chapter ');
+    }
     return sanitize(raw);
   });
   const starts: number[] = new Array(chapters.length).fill(0);
@@ -452,8 +468,10 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
 
   // 1) CAPA
   // Regra KDP (Seção 16): Não inserir a capa frontal como primeira página do PDF do miolo impresso
-  // quando ela já fizer parte do arquivo de capa/wrap de impressão, salvo se incluirCapaNoMiolo for explicitamente true.
-  const deveIncluirCapaNoMiolo = input.incluirCapaNoMiolo === true || (input.incluirCapaNoMiolo !== false && Boolean(input.capaDataUrl));
+  // quando ela já fizer parte do arquivo de capa/wrap de impressão (quando incluirCapaNoMiolo === false).
+  const deveIncluirCapaNoMiolo = input.incluirCapaNoMiolo !== undefined
+    ? input.incluirCapaNoMiolo === true
+    : Boolean(input.capaDataUrl);
   if (deveIncluirCapaNoMiolo && input.capaDataUrl) {
     const info = readImageInfo(input.capaDataUrl);
     if (info) {
@@ -495,7 +513,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
 
   // Nome do Autor e Selo Editorial na base da folha de rosto
   doc.setFont('times', 'normal').setFontSize(13).setTextColor(20);
-  const authorPrefix = isEn ? 'by' : isEs ? 'por' : 'por';
+  const authorPrefix = isEn ? 'By' : isEs ? 'Por' : 'Por';
   doc.text(sanitize(`${authorPrefix} ${input.livro.autor}`), LW / 2, LH - 1.5, { align: 'center' });
 
 
@@ -661,7 +679,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
     const capPrefix = isEn ? "CHAPTER" : isEs ? "CAPÍTULO" : "CAPÍTULO";
     doc.text(`${capPrefix} ${ci + 1}`, LW / 2, y, { align: "center" });
     y += 0.38;
-    const tSize = Math.max(14, Math.min(28, Math.round(input.tamCapitulo * 1.65)));
+    const tSize = Math.max(14, Math.min(28, Math.round((input.tamCapitulo || 11) * 1.65)));
     const isGenericChapterTitle = /^(?:cap[ií]tulo|chapter)\s*\d+$/i.test((cleanTitles[ci] || '').trim());
     if (!isGenericChapterTitle && cleanTitles[ci].trim()) {
       doc.setFont('times', 'bold').setFontSize(tSize).setTextColor(rgb[0], rgb[1], rgb[2]);
@@ -782,7 +800,7 @@ function renderOnce(input: BuildPdfInput, tocNums: number[] | null, gutter: numb
   finishPage();
 
   // 5) CONTRACAPA OFICIAL AMAZON KDP (G201113520) NO FECHAMENTO DO LIVRO
-  if (input.contracapaDataUrl || input.incluirContracapa) {
+  if (input.incluirContracapa === true) {
     startPage('capa');
     let backRendered = false;
     if (input.contracapaDataUrl) {

@@ -463,15 +463,46 @@ export async function sugerirCampo(
   dados: { titulo?: string; subtitulo?: string; genero?: string; idioma?: string }
 ): Promise<string> {
   const { titulo = '', subtitulo = '', genero = 'Geral', idioma = 'Português' } = dados;
+  const isEn = Boolean(idioma && /ingl|en/i.test(idioma));
 
-  const prompts = {
-    titulo: `Você é o principal diretor editorial de literatura da Amazon KDP.
+  const prompts = isEn
+    ? {
+        titulo: `You are a senior publishing director for Amazon KDP US bestsellers.
+Genre: ${genero}
+Language: Strictly AMERICAN ENGLISH
+Suggest 1 extremely magnetic, short (maximum 6 words), commercially compelling and original BOOK TITLE in English.
+CRITICAL: Do NOT use Portuguese, Spanish, or any other language.
+Return ONLY the title in English, without quotes, without numbering, and without any introductory text.`,
+
+        subtitulo: `You are an expert in commercial subtitles and conversion on Amazon KDP US.
+Title: "${titulo}"
+Genre: ${genero}
+Language: Strictly AMERICAN ENGLISH
+Suggest 1 high-converting commercial SUBTITLE with 7 to 16 words, featuring a strong emotional hook and clear reader promise.
+CRITICAL RULE: Create a 100% COMPLETE sentence grammatically ending with a period. Return on a SINGLE LINE with no line breaks. NEVER cut words in half and NEVER leave the sentence truncated.
+CRITICAL: 100% in English only.
+Return ONLY the subtitle, without quotes and without explanations.`,
+
+        premissa: `You are a professional editor for Amazon KDP US bestsellers.
+Title: "${titulo}"
+Subtitle: "${subtitulo}"
+Genre: ${genero}
+Language: Strictly AMERICAN ENGLISH
+Write 1 intriguing CORE PREMISE in English with 25 to 50 words, featuring protagonist, conflict, atmosphere, and high tension or clear benefit.
+Return ONLY the premise in English, without quotes and without introduction.`,
+
+        autor: `Suggest 1 elegant, memorable, and bestselling American author pen name for works in ${genero}.
+Language: American English
+Return ONLY the author name, without quotes and without explanations.`
+      }
+    : {
+        titulo: `Você é o principal diretor editorial de literatura da Amazon KDP.
 Gênero: ${genero}
 Idioma: ${idioma}
 Sugira 1 TÍTULO extremamente magnético, curto (máximo 6 palavras), comercial e original para este livro.
 Retorne APENAS o título, sem aspas, sem numeração e sem introdução.`,
 
-    subtitulo: `Você é especialista em subtítulos comerciais e conversão no KDP.
+        subtitulo: `Você é especialista em subtítulos comerciais e conversão no KDP.
 Título: "${titulo}"
 Gênero: ${genero}
 Idioma: ${idioma}
@@ -479,7 +510,7 @@ Sugira 1 SUBTÍTULO comercial de alta conversão com 7 a 16 palavras, com forte 
 REGRA CRÍTICA: Crie uma FRASE 100% COMPLETA e gramaticalmente finalizada com ponto final. Retorne em UMA ÚNICA LINHA, sem quebras de linha. NUNCA corte palavras pela metade e NUNCA deixe a frase truncada ou interrompida no meio.
 Retorne APENAS o subtítulo, sem aspas e sem explicações.`,
 
-    premissa: `Você é editor profissional de ficção e não-ficção para Amazon KDP.
+        premissa: `Você é editor profissional de ficção e não-ficção para Amazon KDP.
 Título: "${titulo}"
 Subtítulo: "${subtitulo}"
 Gênero: ${genero}
@@ -487,10 +518,10 @@ Idioma: ${idioma}
 Escreva 1 PREMISSA CENTRAL intrigante com 25 a 50 palavras, contendo protagonista, conflito, atmosfera e alta tensão/benefício.
 Retorne APENAS a premissa, sem aspas e sem introdução.`,
 
-    autor: `Sugira 1 NOME DE AUTOR ou pseudônimo elegante, sonoro e memorável para obras de ${genero}.
+        autor: `Sugira 1 NOME DE AUTOR ou pseudônimo elegante, sonoro e memorável para obras de ${genero}.
 Idioma: ${idioma}
 Retorne APENAS o nome, sem aspas e sem explicações.`
-  };
+      };
 
   const res = await chamarGeminiTexto(prompts[tipo], { temperature: 0.9, maxTokens: 400 });
   let raw = res.texto.trim();
