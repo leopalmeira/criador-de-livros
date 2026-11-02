@@ -186,7 +186,7 @@ export class AmazonLiveService {
       console.warn(`[AmazonLiveService] Falha ao consultar Amazon ao vivo para "${keyword}":`, err.message);
       // Fallback de alta fidelidade: catálogo curado dos 50 bestsellers da Amazon Books
       try {
-        const { getTop50BestsellersForSegment } = await import('./top50-bestsellers-catalog');
+        const { getTop50BestsellersForSegment } = await import('./top50-bestsellers-catalog.ts');
         const catalog = await getTop50BestsellersForSegment(cleanKeyword);
         if (catalog && catalog.length > 0) {
           const mapped: AmazonLiveBook[] = catalog.slice(0, limit).map((b, idx) => {

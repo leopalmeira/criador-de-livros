@@ -4,8 +4,8 @@
 // e sugestões de Título & Subtítulo baseadas nos 50 maiores bestsellers do segmento
 // ============================================================================
 
-import { MarketReference } from './project-state';
-import { chamarGeminiTexto } from './kdp-ai-engine';
+import { MarketReference } from './project-state.ts';
+import { chamarGeminiTexto } from './kdp-ai-engine.ts';
 
 export interface BestsellerRankItem extends Omit<MarketReference, 'collectedAt'> {
   collectedAt?: number;

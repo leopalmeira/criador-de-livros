@@ -4,7 +4,7 @@
 // calibrados por nicho KDP, ganchos psicológicos, títulos similares e livros concorrentes.
 // ============================================================================
 
-import type { MarketReference } from './project-state';
+import type { MarketReference } from './project-state.ts';
 
 export interface TitleSuggestion {
   id: string;

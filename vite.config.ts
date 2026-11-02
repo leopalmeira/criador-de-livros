@@ -499,26 +499,37 @@ export default defineConfig({
       },
       output: {
         manualChunks: (id) => {
-          if (id.includes('node_modules/jspdf')) return 'vendor-jspdf';
-          if (id.includes('node_modules/pdfjs-dist')) return 'vendor-pdfjs';
-          if (id.includes('node_modules/html2canvas')) return 'vendor-html2canvas';
-          if (id.includes('node_modules/dompurify')) return 'vendor-purify';
-          if (id.includes('node_modules/lucide-react')) return 'vendor-lucide';
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) return 'vendor-react';
-          if (id.includes('src/services/kdp-ai-engine')) return 'engine-ai';
-          if (id.includes('src/services/kdp-pdf-builder') || id.includes('src/services/pdf-preflight')) return 'engine-pdf';
-          if (id.includes('src/data/book-themes')) return 'data-themes';
-          if (id.includes('src/components/studio/course/')) return 'studio-course';
-          if (id.includes('src/components/studio/coloring/')) return 'studio-coloring';
-          if (id.includes('src/components/studio/puzzle/')) return 'studio-puzzle';
-          if (id.includes('src/components/studio/cinematic/')) return 'studio-cinematic';
-          if (id.includes('src/components/studio/audiobook/')) return 'studio-audiobook';
-          if (id.includes('src/services/kdp-cover-master-prompt-generator') || id.includes('src/components/studio/generator/KdpCoverMasterPromptCard')) return 'engine-cover-prompt';
-          if (id.includes('src/components/studio/generator/KdpTikTokStoryStudio')) return 'studio-tiktok';
-          if (id.includes('src/components/studio/generator/Top50BestsellersModal')) return 'studio-bestsellers-modal';
-          if (id.includes('src/components/studio/generator/')) return 'studio-generator';
-          if (id.includes('src/services/top50-bestsellers-catalog') || id.includes('src/services/amazon-top100-segments')) return 'market-catalog';
-          if (id.includes('src/services/kdp-workflow-gatekeeper') || id.includes('src/services/kdp-title-suggestion-engine')) return 'engine-workflow';
+          const nid = id.replace(/\\/g, '/');
+          if (nid.includes('node_modules/jspdf')) return 'vendor-jspdf';
+          if (nid.includes('node_modules/pdfjs-dist')) return 'vendor-pdfjs';
+          if (nid.includes('node_modules/html2canvas')) return 'vendor-html2canvas';
+          if (nid.includes('node_modules/dompurify')) return 'vendor-purify';
+          if (nid.includes('node_modules/lucide-react')) return 'vendor-lucide';
+          if (nid.includes('node_modules/react') || nid.includes('node_modules/react-dom')) return 'vendor-react';
+          if (nid.includes('src/services/kdp-ai-engine')) return 'engine-ai';
+          if (nid.includes('src/services/kdp-pdf-builder') || nid.includes('src/services/pdf-preflight')) return 'engine-pdf';
+          if (nid.includes('src/data/book-themes')) return 'data-themes';
+          if (nid.includes('src/components/studio/course/')) return 'studio-course';
+          if (nid.includes('src/components/studio/coloring/')) return 'studio-coloring';
+          if (nid.includes('src/components/studio/puzzle/')) return 'studio-puzzle';
+          if (nid.includes('src/components/studio/cinematic/')) return 'studio-cinematic';
+          if (nid.includes('src/components/studio/audiobook/')) return 'studio-audiobook';
+          if (nid.includes('src/services/multi-engine/')) return 'engine-multi';
+          if (nid.includes('src/services/kdp-editorial-corrector') || nid.includes('src/services/kdp-editorial-pipeline') || nid.includes('src/services/story-context-auditor')) return 'engine-editorial';
+          if (nid.includes('src/services/backend-cover-service') || nid.includes('src/services/kdp-cover-smart-engine') || nid.includes('src/services/smart-cover-art-director')) return 'engine-cover-smart';
+          if (nid.includes('src/components/studio/generator/MultiEngineAuditPanel')) return 'studio-multi-engine-panel';
+          if (nid.includes('src/components/studio/generator/SequentialWritingStudio')) return 'studio-sequential-writing';
+          if (nid.includes('src/components/studio/generator/CoAuthorAgentSuite')) return 'studio-coauthor-suite';
+          if (nid.includes('src/components/studio/generator/CoAuthorFloatingAssistant')) return 'studio-coauthor-floating';
+          if (nid.includes('src/components/studio/generator/EditorialCorrectionSection')) return 'studio-editorial-correction';
+          if (nid.includes('src/components/studio/generator/BookArchitecturePanel')) return 'studio-book-architecture';
+          if (nid.includes('src/components/studio/generator/KdpPageReviewerModal')) return 'studio-page-reviewer';
+          if (nid.includes('src/services/kdp-cover-master-prompt-generator') || nid.includes('src/components/studio/generator/KdpCoverMasterPromptCard')) return 'engine-cover-prompt';
+          if (nid.includes('src/components/studio/generator/KdpTikTokStoryStudio')) return 'studio-tiktok';
+          if (nid.includes('src/components/studio/generator/Top50BestsellersModal')) return 'studio-bestsellers-modal';
+          if (nid.includes('src/components/studio/generator/')) return 'studio-generator';
+          if (nid.includes('src/services/top50-bestsellers-catalog') || nid.includes('src/services/amazon-top100-segments')) return 'market-catalog';
+          if (nid.includes('src/services/kdp-workflow-gatekeeper') || nid.includes('src/services/kdp-title-suggestion-engine')) return 'engine-workflow';
         },
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'background') {

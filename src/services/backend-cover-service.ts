@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { getReplicateToken } from './replicate-service';
-import { SmartCoverArtDirector } from './smart-cover-art-director';
+import { getReplicateToken } from './replicate-service.ts';
+import { SmartCoverArtDirector } from './smart-cover-art-director.ts';
 
 export interface BookCoverJobPayload {
   projectId: string;

@@ -3,8 +3,8 @@
 // Suporte nativo a OpenRouter, Replicate (FLUX.1 Schnell), Gemini e Imagen 3
 // ================================================================
 
-import { BookPromotionalPageData, GenreVisualTheme } from '../types/promotional-page';
-import { gerarImagemReplicate, gerarTextoReplicate } from './replicate-service';
+import { BookPromotionalPageData, GenreVisualTheme } from '../types/promotional-page.ts';
+import { gerarImagemReplicate, gerarTextoReplicate } from './replicate-service.ts';
 
 export const MODELOS_OPENROUTER = [
   "qwen/qwen3.8-27b:free",
