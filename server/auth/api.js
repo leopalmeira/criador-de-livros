@@ -463,7 +463,9 @@ export function createAuthApi(options = {}) {
             }
             await pool.query(
               `INSERT INTO kdp_user_records (user_id, collection, record_id, data, updated_at)
-               VALUES ($1, $2, $3, $4::jsonb, NOW())`,
+               VALUES ($1, $2, $3, $4::jsonb, NOW())
+               ON CONFLICT (user_id, collection, record_id)
+               DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
               [userId, collection, recordId, JSON.stringify(record)]
             );
             sendJson(res, 200, { success: true });
@@ -512,7 +514,9 @@ export function createAuthApi(options = {}) {
 
           await pool.query(
             `INSERT INTO kdp_book_projects (user_id, project_id, project, updated_at)
-             VALUES ($1, $2, $3::jsonb, NOW())`,
+             VALUES ($1, $2, $3::jsonb, NOW())
+             ON CONFLICT (user_id, project_id)
+             DO UPDATE SET project = EXCLUDED.project, updated_at = NOW()`,
             [user.id, projectId, JSON.stringify(project)]
           );
           sendJson(res, 200, { success: true });

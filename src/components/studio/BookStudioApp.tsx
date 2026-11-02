@@ -228,7 +228,16 @@ export const BookStudioApp: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated) reloadProjects();
-  }, [reloadProjects]);
+    const handleSyncUpdate = () => {
+      reloadProjects();
+    };
+    window.addEventListener('kdp-final-books-updated', handleSyncUpdate);
+    window.addEventListener('kdp-projects-updated', handleSyncUpdate);
+    return () => {
+      window.removeEventListener('kdp-final-books-updated', handleSyncUpdate);
+      window.removeEventListener('kdp-projects-updated', handleSyncUpdate);
+    };
+  }, [isAuthenticated, reloadProjects]);
 
   // Keep-Alive Ping no Render enquanto a aba estiver aberta (a cada 5 min)
   useEffect(() => {
@@ -628,8 +637,16 @@ export const BookStudioApp: React.FC = () => {
   const deleteProject = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm('Tem certeza que deseja excluir permanentemente este livro?')) return;
-    await db.deleteBookProject(id);
-    setProjects(prev => prev.filter(p => p.id !== id));
+    try {
+      await db.deleteBookProject(id);
+      await db.deleteFinalBook(`final_proj_${id}`);
+      await db.deleteFinalBook(id);
+    } catch (err) {
+      console.warn('Erro ao deletar projeto e livro finalizado:', err);
+    }
+    setProjects(prev => prev.filter(p => p.id !== id && p.id !== `final_proj_${id}`));
+    window.dispatchEvent(new CustomEvent('kdp-final-books-updated'));
+    window.dispatchEvent(new CustomEvent('kdp-projects-updated'));
     if (activeProject?.id === id) {
       setActiveProject(null);
       setMode('project-list');

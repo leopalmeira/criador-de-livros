@@ -68,6 +68,28 @@ export const BookIntelDashboard: React.FC<Props> = ({
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
   const [libraryActiveTab, setLibraryActiveTab] = useState<'finalized' | 'drafts'>('finalized');
 
+  const [finalBooksState, setFinalBooksState] = useState<any[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchFinals = async () => {
+      try {
+        const books = await db.getAllFinalBooks();
+        if (active) setFinalBooksState(books);
+      } catch (e) {
+        console.warn('Erro ao carregar livros finalizados:', e);
+      }
+    };
+    fetchFinals();
+    window.addEventListener('kdp-final-books-updated', fetchFinals);
+    window.addEventListener('kdp-projects-updated', fetchFinals);
+    return () => {
+      active = false;
+      window.removeEventListener('kdp-final-books-updated', fetchFinals);
+      window.removeEventListener('kdp-projects-updated', fetchFinals);
+    };
+  }, []);
+
   // Ouve atualizações de progresso do lote em tempo real
   useEffect(() => {
     const unsub = batchBackgroundRunner.subscribe((state) => {
@@ -84,6 +106,52 @@ export const BookIntelDashboard: React.FC<Props> = ({
   const finalizedProjects = projects.filter(p => 
     p.status === 'FINALIZADO' || p.pipelineStage === 'final'
   );
+
+  // Consolidação de obras para exibição precisa na Dashboard
+  const allDisplayBooks = React.useMemo(() => {
+    const list: Array<{
+      id: string;
+      bookId: string;
+      title: string;
+      author: string;
+      coverUrl?: string;
+      chapCount: number;
+      isDone: boolean;
+    }> = [];
+
+    for (const p of projects) {
+      list.push({
+        id: p.id,
+        bookId: p.id,
+        title: p.title || 'Livro Sem Título',
+        author: p.author || 'Autor',
+        coverUrl: p.coverImageUrl,
+        chapCount: p.kdpChapters?.length || 0,
+        isDone: p.status === 'FINALIZADO' || p.pipelineStage === 'final'
+      });
+    }
+
+    for (const fb of finalBooksState) {
+      const cleanId = fb.bookId || fb.id.replace('final_proj_', '');
+      const exists = list.some(item => item.id === cleanId || item.id === fb.id || (item.title && item.title.trim().toLowerCase() === (fb.title || '').trim().toLowerCase()));
+      if (!exists) {
+        list.push({
+          id: cleanId,
+          bookId: cleanId,
+          title: fb.title || 'Livro Sem Título',
+          author: fb.author || 'Autor',
+          coverUrl: fb.coverDataUrl,
+          chapCount: fb.chaptersCount || fb.chapters?.length || 0,
+          isDone: true
+        });
+      }
+    }
+    return list;
+  }, [projects, finalBooksState]);
+
+  const totalCount = allDisplayBooks.length;
+  const finalizedCount = Math.max(finalizedProjects.length, finalBooksState.length);
+  const inProgressCount = draftProjects.length;
 
   const projetoEmAndamento = draftProjects.find(p => 
     p.status === 'ESCREVENDO' || 
@@ -203,7 +271,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
               <button
                 className="sidebar-nav-item"
                 onClick={() => {
-                  setLibraryActiveTab(finalizedProjects.length > 0 ? 'finalized' : 'drafts');
+                  setLibraryActiveTab(finalizedCount > 0 ? 'finalized' : 'drafts');
                   setIsLibraryModalOpen(true);
                 }}
                 title="Ver todos os projetos organizados no acervo"
@@ -212,7 +280,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <FolderKanban size={16} color="#0284c7" />
                 <span>Meus Projetos</span>
                 <span className="sidebar-badge" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
-                  {projects.length}
+                  {totalCount}
                 </span>
               </button>
 
@@ -228,7 +296,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <Clock size={16} color="#d97706" />
                 <span>Em andamento</span>
                 <span className="sidebar-badge" style={{ background: '#fef3c7', color: '#b45309' }}>
-                  {draftProjects.length}
+                  {inProgressCount}
                 </span>
               </button>
 
@@ -244,7 +312,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                 <CheckCircle2 size={16} color="#059669" />
                 <span>Concluídos</span>
                 <span className="sidebar-badge" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
-                  {finalizedProjects.length}
+                  {finalizedCount}
                 </span>
               </button>
             </div>
@@ -623,9 +691,16 @@ export const BookIntelDashboard: React.FC<Props> = ({
                   <Plus size={18} strokeWidth={2.5} /> + Criar livro
                 </button>
 
-                {projects.length > 0 && (
+                {allDisplayBooks.length > 0 && (
                   <button
-                    onClick={() => onOpenProject(projects[0].id)}
+                    onClick={() => {
+                      const firstProj = projects.find(p => p.id === allDisplayBooks[0].id) || projects[0];
+                      if (firstProj) onOpenProject(firstProj.id);
+                      else {
+                        setLibraryActiveTab('finalized');
+                        setIsLibraryModalOpen(true);
+                      }
+                    }}
                     style={{
                       background: '#ffffff',
                       color: '#334155',
@@ -648,7 +723,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
             </div>
 
             {/* SEÇÃO DO ACERVO DE LIVROS PUBLICADOS + VITRINE DIRETA DAS OBRAS */}
-            {projects.length > 0 ? (
+            {allDisplayBooks.length > 0 ? (
               <div
                 style={{
                   background: 'linear-gradient(135deg, #0b1120 0%, #0f172a 55%, #1e293b 100%)',
@@ -692,7 +767,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                           Biblioteca Editorial
                         </span>
                         <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                          • {projects.length} {projects.length === 1 ? 'obra catalogada' : 'obras catalogadas'}
+                          • {allDisplayBooks.length} {allDisplayBooks.length === 1 ? 'obra catalogada' : 'obras catalogadas'}
                         </span>
                       </div>
 
@@ -704,7 +779,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
 
                   <button
                     onClick={() => {
-                      setLibraryActiveTab(finalizedProjects.length > 0 ? 'finalized' : 'drafts');
+                      setLibraryActiveTab(finalizedCount > 0 ? 'finalized' : 'drafts');
                       setIsLibraryModalOpen(true);
                     }}
                     style={{
@@ -722,23 +797,30 @@ export const BookIntelDashboard: React.FC<Props> = ({
                       boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
                     }}
                   >
-                    <Layers size={16} /> Abrir Estante Completa ({projects.length}) <ArrowRight size={15} />
+                    <Layers size={16} /> Abrir Estante Completa ({allDisplayBooks.length}) <ArrowRight size={15} />
                   </button>
                 </div>
 
-                {/* GRADE DE ACESSO RÁPIDO ÀS 4 OBRAS MAIS RECENTES */}
+                {/* GRADE DE ACESSO RÁPIDO ÀS OBRAS DO ACERVO */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
                   gap: 14
                 }}>
-                  {projects.slice(0, 4).map((p) => {
-                    const chapCount = p.kdpChapters?.length || 0;
-                    const isDone = p.status === 'FINALIZADO' || p.pipelineStage === 'final';
+                  {allDisplayBooks.slice(0, 6).map((b) => {
+                    const isDone = b.isDone;
                     return (
                       <div
-                        key={p.id}
-                        onClick={() => onOpenProject(p.id)}
+                        key={b.id}
+                        onClick={() => {
+                          const matchingProj = projects.find(p => p.id === b.id || p.id === b.bookId);
+                          if (matchingProj) {
+                            onOpenProject(matchingProj.id);
+                          } else {
+                            setLibraryActiveTab('finalized');
+                            setIsLibraryModalOpen(true);
+                          }
+                        }}
                         style={{
                           background: 'rgba(255, 255, 255, 0.05)',
                           border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -764,11 +846,11 @@ export const BookIntelDashboard: React.FC<Props> = ({
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'space-between',
-                          padding: p.coverImageUrl ? 0 : 5,
+                          padding: b.coverUrl ? 0 : 5,
                           textAlign: 'center'
                         }}>
-                          {p.coverImageUrl ? (
-                            <img src={p.coverImageUrl} alt={p.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          {b.coverUrl ? (
+                            <img src={b.coverUrl} alt={b.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <>
                               <span style={{ fontSize: 6.5, color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase' }}>
@@ -784,7 +866,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                                 WebkitBoxOrient: 'vertical',
                                 overflow: 'hidden'
                               }}>
-                                {p.title || 'Livro'}
+                                {b.title || 'Livro'}
                               </span>
                               <span style={{ fontSize: 6, color: '#94a3b8' }}>6×9"</span>
                             </>
@@ -804,7 +886,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                               {isDone ? '✓ Concluído' : 'Em Edição'}
                             </span>
                             <span style={{ fontSize: 10.5, color: '#94a3b8' }}>
-                              {chapCount} caps
+                              {b.chapCount} caps
                             </span>
                           </div>
 
@@ -817,7 +899,7 @@ export const BookIntelDashboard: React.FC<Props> = ({
                             textOverflow: 'ellipsis',
                             marginBottom: 2
                           }}>
-                            {p.title || 'Obra Sem Título'}
+                            {b.title || 'Obra Sem Título'}
                           </div>
 
                           <div style={{
@@ -826,21 +908,62 @@ export const BookIntelDashboard: React.FC<Props> = ({
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            marginBottom: 6
+                            marginBottom: 4
                           }}>
-                            {p.author || 'Autor Editorial'}
+                            {b.author || 'Autor Editorial'}
                           </div>
 
-                          <span style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: '#38bdf8',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4
-                          }}>
-                            Abrir no Estúdio <ArrowRight size={11} />
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                            <span style={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: '#38bdf8',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3
+                            }}>
+                              Abrir <ArrowRight size={10} />
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm(`Tem certeza de que deseja excluir permanentemente o livro "${b.title}"?`)) {
+                                  try {
+                                    if (onDeleteProject) {
+                                      await onDeleteProject(b.id, e);
+                                    }
+                                    await db.deleteBookProject(b.id).catch(() => {});
+                                    await db.deleteFinalBook(`final_proj_${b.id}`).catch(() => {});
+                                    await db.deleteFinalBook(b.id).catch(() => {});
+                                    setFinalBooksState(prev => prev.filter(fb => fb.id !== b.id && fb.bookId !== b.id && fb.id !== `final_proj_${b.id}`));
+                                    window.dispatchEvent(new CustomEvent('kdp-final-books-updated'));
+                                    window.dispatchEvent(new CustomEvent('kdp-projects-updated'));
+                                  } catch (errDel) {
+                                    console.error('Erro ao excluir livro:', errDel);
+                                  }
+                                }
+                              }}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.15)',
+                                color: '#f87171',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                borderRadius: 5,
+                                padding: '2px 6px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                marginLeft: 'auto'
+                              }}
+                              title="Excluir este livro permanentemente"
+                            >
+                              <Trash2 size={11} /> Excluir
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );

@@ -1321,6 +1321,8 @@ export interface BookProject {
   images?: BookImageItem[];
   versions?: BookVersionItem[];
   coverImageUrl?: string;
+  backCoverImageUrl?: string;
+  fullWrapCoverUrl?: string;
   cover_id?: string;
   promotionalPage?: any;
   promotionalImageUrl?: string;

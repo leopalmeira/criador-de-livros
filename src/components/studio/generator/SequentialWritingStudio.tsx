@@ -38,6 +38,12 @@ import type {
   ProductionStageCardInfo,
   ProductionStageStatus,
 } from '../../../services/editorial-multiagent-house';
+import { MultiEngineAuditPanel } from './MultiEngineAuditPanel';
+import type {
+  MultiEngineConfig,
+  WebnovelReviewReport,
+  GlobalEditorialAuditReport
+} from '../../../services/multi-engine/contracts';
 
 interface Props {
   livro: LivroGerado | null;
@@ -57,6 +63,12 @@ interface Props {
   productionState?: ProductionStateMachine | null;
   globalMemory?: BookGlobalMemory | null;
   lastChapterState?: LastChapterState | null;
+  multiEngineConfig?: MultiEngineConfig;
+  onUpdateMultiEngineConfig?: (newConfig: Partial<MultiEngineConfig>) => void;
+  latestWebnovelReport?: WebnovelReviewReport | null;
+  globalAuditReport?: GlobalEditorialAuditReport | null;
+  onRunGlobalAudit?: () => void;
+  isGlobalAuditing?: boolean;
   ui: (pt: string, en: string) => string;
 }
 
@@ -78,11 +90,17 @@ export const SequentialWritingStudio: React.FC<Props> = ({
   productionState,
   globalMemory,
   lastChapterState,
+  multiEngineConfig,
+  onUpdateMultiEngineConfig,
+  latestWebnovelReport,
+  globalAuditReport,
+  onRunGlobalAudit,
+  isGlobalAuditing,
   ui,
 }) => {
   // Estado do accordion de Configurações Avançadas (recolhido por padrão)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [advancedTab, setAdvancedTab] = useState<'editor' | 'memory' | 'outline'>('editor');
+  const [advancedTab, setAdvancedTab] = useState<'editor' | 'memory' | 'outline' | 'multi-engine'>('editor');
 
   const capitulos = livro?.capitulos || [];
   const selectedCap = capitulos[selectedChapterIndex] || null;
@@ -651,7 +669,36 @@ export const SequentialWritingStudio: React.FC<Props> = ({
               >
                 🧠 {ui('Bíblia & Memória Narrativa', 'Story Bible & Memory')}
               </button>
+
+              <button
+                type="button"
+                onClick={() => setAdvancedTab('multi-engine')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: advancedTab === 'multi-engine' ? '#ffffff' : 'transparent',
+                  color: advancedTab === 'multi-engine' ? '#059669' : '#64748b',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                🛡️ {ui('Multi-Engine & Auditoria', 'Multi-Engine & Audit')}
+              </button>
             </div>
+
+            {/* ABA: MULTI-ENGINE */}
+            {advancedTab === 'multi-engine' && multiEngineConfig && onUpdateMultiEngineConfig && (
+              <MultiEngineAuditPanel
+                config={multiEngineConfig}
+                onUpdateConfig={onUpdateMultiEngineConfig}
+                latestReport={latestWebnovelReport}
+                globalAuditReport={globalAuditReport}
+                onRunGlobalAudit={onRunGlobalAudit}
+                isAuditing={isGlobalAuditing}
+              />
+            )}
 
             {/* ABA: EDITOR MANUAL */}
             {advancedTab === 'editor' && (

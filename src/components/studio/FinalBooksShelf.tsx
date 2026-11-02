@@ -619,6 +619,51 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
     }
   };
 
+  // 1.8 BAIXAR LIVRO COMPLETO COM CAPAS (CAPA FRONTAL + MIOLO + CONTRACAPA)
+  const handleDownloadFullBookWithCoversPdf = async (book: FinalBookRecord) => {
+    setDownloadingBookId(book.id);
+    try {
+      const capitulos = (book.chapters && book.chapters.length > 0)
+        ? book.chapters
+        : [{ titulo: 'Capítulo 1: O Início', texto: book.manuscriptText || 'Texto oficial do livro diagramado.' }];
+      const isEn = Boolean(book.language && /ingl|en/i.test(book.language));
+
+      const result = await buildKdpPdf({
+        livro: {
+          titulo: book.title,
+          subtitulo: book.subtitle,
+          autor: book.author,
+          genero: book.genre,
+          idioma: isEn ? 'en' : 'pt',
+          capitulos
+        },
+        capaDataUrl: book.coverDataUrl || null,
+        contracapaDataUrl: book.backCoverDataUrl || null,
+        incluirCapaNoMiolo: true,
+        incluirContracapa: true,
+        formato: book.trimSize || '6x9',
+        optSumario: true,
+        tamCapitulo: 11,
+        corCapitulo: '#1e293b'
+      });
+
+      const blob = new Blob([result.bytes as any], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${book.title.replace(/\s+/g, '_')}_LIVRO_COMPLETO_COM_CAPAS.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.error('Falha ao baixar Livro Completo com Capas:', err);
+      await handleDownloadPdf(book);
+    } finally {
+      setDownloadingBookId(null);
+    }
+  };
+
   // 2. BAIXAR PDF DO LIVRO (MIOLO DIAGRAMADO OFICIAL KDP)
   const handleDownloadPdf = async (book: FinalBookRecord) => {
     setDownloadingBookId(book.id);
@@ -911,6 +956,11 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
     e.stopPropagation();
     if (confirm('Tem certeza de que deseja remover este livro finalizado da estante?')) {
       await db.deleteFinalBook(id);
+      const cleanId = id.replace('final_proj_', '');
+      await db.deleteBookProject(cleanId).catch(() => {});
+      await db.deleteBookProject(id).catch(() => {});
+      window.dispatchEvent(new CustomEvent('kdp-final-books-updated'));
+      window.dispatchEvent(new CustomEvent('kdp-projects-updated'));
       loadBooks();
     }
   };
@@ -1562,6 +1612,33 @@ export const FinalBooksShelf: React.FC<FinalBooksShelfProps> = ({ onOpenProject,
                 >
                   <Smartphone size={15} />
                   <span>{isEpubBusy ? t('shelf.btnGenerating') : t('shelf.btnEpub')}</span>
+                </button>
+
+                {/* 1.8 BAIXAR LIVRO COMPLETO COM CAPAS */}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadFullBookWithCoversPdf(book)}
+                  disabled={isBusy}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    padding: '10px 14px',
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: isBusy ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Baixar livro completo diagramado com capa frontal e contracapa inclusas no PDF"
+                >
+                  <BookOpen size={15} />
+                  <span>{isBusy ? t('shelf.btnGenerating') : 'Livro Completo'}</span>
                 </button>
 
                 {/* 2. BAIXAR PDF DO LIVRO (MIOLO) */}

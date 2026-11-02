@@ -48,6 +48,13 @@ import { normalizeChapterHeading } from '../../../services/chapter-structure';
 import { runAutonomousEditorialCycle } from '../../../services/autonomous-editorial-pipeline';
 import { buildKdpPdf } from '../../../services/kdp-pdf-builder';
 import { ManuscriptIntegrityEngine } from '../../../services/manuscript-integrity-engine';
+import {
+  MultiEngineCoordinator,
+  type MultiEngineConfig,
+  type WebnovelReviewReport,
+  type GlobalEditorialAuditReport
+} from '../../../services/multi-engine';
+import { MultiEngineAuditPanel } from './MultiEngineAuditPanel';
 import type { FinalBookRecord } from '../../../types/editorial-correction';
 import { newId } from '../../../services/project-state';
 import { BOOK_THEMES, getTheme, isChildrenTheme, type BookTheme } from '../../../data/book-themes';
@@ -1019,6 +1026,30 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
   const storageKeyFor = (id: string) => `kdp_projeto_pro_v11_${id}`;
   const STORAGE_KEY = storageKeyFor(projectIdRef.current);
 
+  // ESTADO DO MOTOR MULTI-ENGINE (InkOS + Webnovel Writer)
+  const [multiEngineConfig, setMultiEngineConfig] = useState<MultiEngineConfig>({
+    inkosOrchestrationEnabled: true,
+    narrativeMemoryEnabled: true,
+    webnovelAuditorEnabled: true,
+    autoCorrectionEnabled: true,
+    maxCorrectionCycles: 3
+  });
+  const [latestWebnovelReport, setLatestWebnovelReport] = useState<WebnovelReviewReport | null>(null);
+  const [globalAuditReport, setGlobalAuditReport] = useState<GlobalEditorialAuditReport | null>(null);
+  const [isGlobalAuditing, setIsGlobalAuditing] = useState(false);
+  const multiEngineCoordinatorRef = useRef<MultiEngineCoordinator | null>(null);
+
+  const getCoordinator = async (projId: string) => {
+    if (!multiEngineCoordinatorRef.current || multiEngineCoordinatorRef.current.getMemoryStore().getProjectMemory()?.bookId !== projId) {
+      const coord = new MultiEngineCoordinator(projId, multiEngineConfig);
+      await coord.init();
+      multiEngineCoordinatorRef.current = coord;
+    } else {
+      multiEngineCoordinatorRef.current.updateConfig(multiEngineConfig);
+    }
+    return multiEngineCoordinatorRef.current;
+  };
+
   const logDiag = (msg: string) => {
     const timestamp = new Date().toLocaleTimeString('pt-BR');
     setDiagnostico(`[${timestamp}] ${msg}`);
@@ -1112,6 +1143,12 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
       setTopico(initialProject.topic || initialProject.description || '');
       setFormato(initialProject.trimSize || '6x9');
       setCapaFinal(initialProject.coverImageUrl || null);
+      if (initialProject.backCoverImageUrl) {
+        setContracapaFinal(initialProject.backCoverImageUrl);
+      }
+      if (initialProject.fullWrapCoverUrl) {
+        setWrapPreviewUrl(initialProject.fullWrapCoverUrl);
+      }
       setPromoData(initialProject.promotionalPage || null);
       if (initialProject.coverImageUrl) {
         setHistoricoCapas([{
@@ -1246,6 +1283,8 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
         topic: topico,
         kdpBookType: bookType,
         coverImageUrl: capa !== undefined ? capa : (capaFinal || undefined),
+        backCoverImageUrl: contracapaFinal || undefined,
+        fullWrapCoverUrl: wrapPreviewUrl || undefined,
         promotionalPage: promo !== undefined ? promo : (promoData || undefined),
         promotionalImageUrl: (promo !== undefined ? promo?.promotionalImageUrl : promoData?.promotionalImageUrl) || undefined,
         kdpChapters: novoLivro.capitulos.map((c, i) => ({
@@ -1312,6 +1351,69 @@ export const KdpBookGeneratorPro: React.FC<Props> = ({
         localStorage.setItem('kdp_last_active_project_id', projId);
       }
     } catch {}
+  };
+
+  // Persistir capas e contracapas diretamente no projeto IndexedDB/Cloud
+  const persistirCapasNoProjeto = async (front?: string | null, back?: string | null, wrap?: string | null) => {
+    const currentProjId = projectIdRef.current || initialProject?.id || `proj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    projectIdRef.current = currentProjId;
+    try {
+      const existing = await db.getBookProject(currentProjId);
+      const updated: BookProject = {
+        ...(existing || initialProject || {}),
+        id: currentProjId,
+        createdAt: existing?.createdAt || initialProject?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+        status: existing?.status || 'ESCREVENDO',
+        priority: 'ALTA',
+        executionMode: 'assisted',
+        title: livro?.titulo || titulo.trim() || existing?.title || 'Novo Livro Editorial',
+        subtitle: livro?.subtitulo || subtitulo.trim() || existing?.subtitle || '',
+        author: livro?.autor || autor.trim() || existing?.author || 'Leandro Palmeira',
+        description: topico || existing?.description || '',
+        language: (livro?.idioma || idioma) === 'português' ? 'Português' : 'Inglês',
+        format: 'Capa Comum',
+        trimSize: (formato as any) || '6x9',
+        paperType: 'bw-white',
+        estimatedPages: paginasAlvo,
+        actualPages: livro ? livro.capitulos.length * 6 : (existing?.actualPages || 0),
+        targetPrice: 39.90,
+        currency: 'BRL',
+        targetMarketplace: 'amazon.com.br',
+        categories: [genero],
+        keywords: keywordsKdp,
+        targetAudience: targetReader || 'Público Geral',
+        topic: topico,
+        kdpBookType: bookType,
+        coverImageUrl: front !== undefined ? (front || undefined) : (capaFinal || existing?.coverImageUrl),
+        backCoverImageUrl: back !== undefined ? (back || undefined) : (contracapaFinal || existing?.backCoverImageUrl),
+        fullWrapCoverUrl: wrap !== undefined ? (wrap || undefined) : (wrapPreviewUrl || existing?.fullWrapCoverUrl),
+        promotionalPage: promoData || existing?.promotionalPage || undefined,
+        chapters: existing?.chapters || [],
+        kdpChapters: livro?.capitulos?.map((c, i) => ({
+          index: i + 1,
+          title: c.titulo,
+          summary: c.texto.slice(0, 150),
+          targetWordCount: livro.meta?.palavrasPorCap || 900,
+          prose: c.texto,
+          wordCount: c.texto.split(/\s+/).length,
+          status: 'APROVADO' as const,
+          illustrations: c.imagemDataUrl ? [c.imagemDataUrl] : [],
+          scenes: []
+        })) || existing?.kdpChapters || [],
+        tasks: [],
+        notes: existing?.notes || '',
+        competitorsAsins: [],
+        pipelineStage: existing?.pipelineStage || 'writing',
+        pipelineProgress: existing?.pipelineProgress || 20,
+        pipelineLog: [`Capa e materiais visuais atualizados no projeto.`]
+      };
+      await db.saveBookProject(updated);
+      if (onProjectSaved) onProjectSaved(updated);
+      window.dispatchEvent(new CustomEvent('kdp-projects-updated'));
+    } catch (err) {
+      console.warn('Erro ao persistir capas no projeto:', err);
+    }
   };
 
   // Análise de Mercado Amazon KDP (TOP 1-200) com sorteio dinâmico e randômico
@@ -2966,6 +3068,32 @@ ${ganchoImediato}`;
           }
         }
 
+        // AUDITORIA E REFINAMENTO MULTI-ENGINE (InkOS + Webnovel Writer Audit em 5 Dimensões)
+        if (multiEngineConfig.webnovelAuditorEnabled || multiEngineConfig.narrativeMemoryEnabled) {
+          try {
+            const coord = await getCoordinator(currentProjId);
+            logDiag(`Capítulo ${num}: Executando auditoria narrativa Webnovel Writer em 5 dimensões...`);
+            const engineRes = await coord.produceChapter(
+              num,
+              cap.titulo,
+              diretrizArquitetura.objective || `Capítulo ${num}`,
+              {
+                targetWords: palavrasPorCap,
+                systemTone: autor,
+                language: livroBase.idioma || idioma,
+                rawTextToAuditDirectly: cap.texto
+              }
+            );
+            cap.texto = engineRes.finalProse;
+            setLatestWebnovelReport(engineRes.firstAudit);
+            if (engineRes.secondAudit) {
+              logDiag(`Capítulo ${num}: 2ª Auditoria Independente executada (${engineRes.cyclesExecuted} ciclos de correção). Aprovado: ${engineRes.approved}`);
+            }
+          } catch (errEngine) {
+            console.warn(`[MultiEngine] Aviso ao auditar capítulo ${num}:`, errEngine);
+          }
+        }
+
         // ATUALIZAÇÃO DA MEMÓRIA EDITORIAL GLOBAL E LAST_CHAPTER_STATE
         const { updatedMemory, newChapterState } = BookSequentialWritingEngine.updateGlobalMemoryAfterChapter({
           memory: activeMemory,
@@ -4277,6 +4405,8 @@ ${ganchoImediato}`;
           setFundoImg(frontUrl);
           setContracapaFinal(backUrl);
 
+          await persistirCapasNoProjeto(frontUrl, backUrl, dataUrl);
+
           if (livro) {
             salvarProgressoLocal(livro, frontUrl, frontUrl, promoData || undefined);
           }
@@ -4296,6 +4426,8 @@ ${ganchoImediato}`;
           const obSynopsis = bookPromise || uniqueAngle || topico || subtitulo;
 
           await gerarContracapaEWrap(dataUrl, obTitle, obAuthor, obGenre, obSynopsis);
+
+          await persistirCapasNoProjeto(dataUrl, contracapaFinal, wrapPreviewUrl);
 
           if (livro) {
             salvarProgressoLocal(livro, dataUrl, dataUrl);
@@ -4382,6 +4514,7 @@ ${ganchoImediato}`;
       if (livro) {
         salvarProgressoLocal(livro, capaFinal || undefined, fundoImg || undefined, promoData || undefined);
       }
+      await persistirCapasNoProjeto(capaFinal, dataUrl, wrapPreviewUrl);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -4779,7 +4912,7 @@ ${ganchoImediato}`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `kdp-full-cover-${(obTitle || 'livro').toLowerCase().replace(/\s+/g, '-')}.pdf`;
+      a.download = `${(obTitle || 'livro').replace(/\s+/g, '_')}_CAPA_KDP.pdf`;
       a.click();
       URL.revokeObjectURL(url);
       setStatusMsg('✓ PDF da Capa Completa KDP baixado com sucesso!');
@@ -5243,7 +5376,77 @@ Total de Capítulos: ${livro.capitulos.length}
     setStatusType('ok');
   };
 
-  // BAIXAR PDF KDP DIAGRAMADO (MULTI-PASSE COM CAPA, SUMÁRIO E SILHUETAS MARGINAIS)
+  // 1. BAIXAR LIVRO COMPLETO COM CAPAS (FRENTE + MIOLO + CONTRACAPA INTEGRADOS)
+  const baixarLivroCompletoComCapas = async () => {
+    if (!livro || livro.capitulos.length === 0) {
+      setStatusMsg('Gere o livro primeiro para exportar o PDF completo.');
+      setStatusType('error');
+      return;
+    }
+
+    setStatusMsg('📗 Compilando Livro Completo com Capas (Frente, Miolo e Verso)...');
+    setStatusType('normal');
+    logDiag('Iniciando construção de Livro Completo: Capa frontal + Miolo diagramado + Contracapa final...');
+
+    try {
+      const validTrimSizes = ['6x9', '5x8', '5.5x8.5', '8.5x11', '8.5x8.5'] as const;
+      const trimSize = validTrimSizes.includes(formato as any) ? (formato as any) : '6x9';
+
+      const result = await buildKdpPdf({
+        livro: {
+          titulo: livro.titulo,
+          subtitulo: livro.subtitulo,
+          autor: livro.autor,
+          genero: livro.genero || genero,
+          idioma: livro.idioma || idioma,
+          sinopse: contracapaTexto?.synopsisText || bookCommercialDescription || topico,
+          ganchoContracapa: contracapaTexto?.hookHeadline,
+          beneficiosContracapa: contracapaTexto?.readerBenefits,
+          capitulos: livro.capitulos
+        },
+        capaDataUrl: capaFinal || undefined,
+        contracapaDataUrl: contracapaFinal || undefined,
+        incluirCapaNoMiolo: true,
+        incluirContracapa: true,
+        bookType,
+        formato,
+        optSumario,
+        tamCapitulo,
+        corCapitulo,
+        silhuetaConfig: silhuetaConfig.ativado && silhuetaConfig.imagemDataUrl ? {
+          ativado: true,
+          imagemDataUrl: silhuetaConfig.imagemDataUrl,
+          paginasSelecionadas: calcularPaginasSilhueta(
+            livro.capitulos.length * 8,
+            silhuetaConfig.modo,
+            {
+              intervalo: silhuetaConfig.intervalo,
+              totalAleatorio: silhuetaConfig.totalAleatorio
+            }
+          ),
+          opacidade: silhuetaConfig.opacidade,
+          sangriaPct: silhuetaConfig.sangriaPct
+        } : undefined
+      });
+
+      const blob = new Blob([result.bytes as any], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${livro.titulo.replace(/\s+/g, '_')}_LIVRO_COMPLETO_COM_CAPAS.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setStatusMsg(`✓ Livro Completo com Capas baixado: ${result.pageCount} páginas no formato ${formato}.`);
+      setStatusType('ok');
+    } catch (err: any) {
+      console.error('Erro ao gerar Livro Completo com Capas:', err);
+      setStatusMsg(`Erro ao gerar Livro Completo: ${err.message || err}`);
+      setStatusType('error');
+    }
+  };
+
+  // 2. BAIXAR PDF KDP DIAGRAMADO (MIOLO PURO SEM CAPA NA PÁG 1)
   const baixarPDF = async () => {
     if (!livro || livro.capitulos.length === 0) {
       setStatusMsg('Gere o livro primeiro para exportar o PDF.');
@@ -5311,7 +5514,7 @@ Total de Capítulos: ${livro.capitulos.length}
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${livro.titulo.replace(/\s+/g, '_')}_KDP.pdf`;
+      a.download = `${livro.titulo.replace(/\s+/g, '_')}_LIVRO_MIOLO_KDP.pdf`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
 
@@ -5391,6 +5594,41 @@ Total de Capítulos: ${livro.capitulos.length}
     setStatusMsg(`✓ Todas as ${fixedCount} correções foram aplicadas automaticamente no livro!`);
     setStatusType('ok');
     logDiag(`${fixedCount} correções aplicadas automaticamente`);
+  };
+
+  // AUDITORIA GLOBAL MULTI-ENGINE (0-100 PONTOS)
+  const handleRunGlobalAudit = async () => {
+    if (!livro || livro.capitulos.length === 0) {
+      setStatusMsg('Gere o livro primeiro para executar a auditoria global.');
+      setStatusType('error');
+      return;
+    }
+    setIsGlobalAuditing(true);
+    setStatusMsg('🔍 Executando Auditoria Editorial Global Multi-Engine (0-100)...');
+    setStatusType('normal');
+    try {
+      const coord = await getCoordinator(projectIdRef.current || initialProject?.id || 'proj_default');
+      const chaptersForAudit = livro.capitulos.map((c, i) => ({
+        number: i + 1,
+        title: c.titulo,
+        text: c.texto
+      }));
+      const rep = await coord.getGlobalAuditor().auditEntireBook(
+        livro.titulo,
+        chaptersForAudit,
+        livro.autor,
+        livro.genero
+      );
+      setGlobalAuditReport(rep);
+      setStatusMsg(`✓ Auditoria Global Concluída! Nota Editorial: ${rep.score}/100 [${rep.approvalStatus}]`);
+      setStatusType('ok');
+    } catch (err: any) {
+      console.error('Erro na auditoria global:', err);
+      setStatusMsg(`Erro na auditoria global: ${err.message || err}`);
+      setStatusType('error');
+    } finally {
+      setIsGlobalAuditing(false);
+    }
   };
 
   // SALVAR NO CATÁLOGO DO BOOKENGIN (INDEXEDDB)
@@ -6590,28 +6828,51 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
             </div>
 
             {/* BOTÕES RÁPIDOS DE DOWNLOAD KDP */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, paddingTop: 4 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, paddingTop: 4 }}>
               <button
                 type="button"
-                onClick={baixarPDF}
+                onClick={baixarLivroCompletoComCapas}
                 disabled={!livro || livro.capitulos.length === 0}
                 style={{
-                  padding: '6px 4px',
+                  padding: '6px 3px',
                   borderRadius: 6,
                   border: '1px solid #cbd5e1',
                   background: '#ffffff',
-                  color: (!livro || livro.capitulos.length === 0) ? '#94a3b8' : '#0369a1',
-                  fontSize: 10,
+                  color: (!livro || livro.capitulos.length === 0) ? '#94a3b8' : '#059669',
+                  fontSize: 9.5,
                   fontWeight: 700,
                   cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 4
+                  gap: 3
+                }}
+                title="Baixar Livro Completo com Capas (Frente, Miolo e Contracapa)"
+              >
+                <BookOpen size={11} /> 📗 Completo
+              </button>
+
+              <button
+                type="button"
+                onClick={baixarPDF}
+                disabled={!livro || livro.capitulos.length === 0}
+                style={{
+                  padding: '6px 3px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: (!livro || livro.capitulos.length === 0) ? '#94a3b8' : '#0369a1',
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  cursor: (!livro || livro.capitulos.length === 0) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 3
                 }}
                 title="Baixar PDF diagramado do Miolo (sem capa na pág 1)"
               >
-                <Download size={11} /> 📕 PDF Miolo
+                <Download size={11} /> 📕 Miolo
               </button>
 
               <button
@@ -6619,22 +6880,22 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                 onClick={baixarCapaCompletaPdf}
                 disabled={!capaFinal}
                 style={{
-                  padding: '6px 4px',
+                  padding: '6px 3px',
                   borderRadius: 6,
                   border: '1px solid #cbd5e1',
                   background: '#ffffff',
                   color: !capaFinal ? '#94a3b8' : '#b45309',
-                  fontSize: 10,
+                  fontSize: 9.5,
                   fontWeight: 700,
                   cursor: !capaFinal ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 4
+                  gap: 3
                 }}
                 title="Baixar PDF oficial da Capa KDP"
               >
-                <Download size={11} /> 📘 PDF Capa
+                <ImageIcon size={11} /> 🎨 Capa
               </button>
             </div>
           </div>
@@ -10925,6 +11186,28 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button
                   type="button"
+                  onClick={baixarLivroCompletoComCapas}
+                  disabled={!livro || livro.capitulos.length === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '7px 12px',
+                    borderRadius: 6,
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: !livro || livro.capitulos.length === 0 ? '#94a3b8' : '#15803d',
+                    cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Baixar Livro Completo com Capas (Frente, Miolo e Contracapa)"
+                >
+                  <BookOpen size={13} /> {ui('Livro Completo', 'Full Book')}
+                </button>
+
+                <button
+                  type="button"
                   onClick={baixarPDF}
                   disabled={!livro || livro.capitulos.length === 0}
                   style={{
@@ -10940,9 +11223,31 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     color: !livro || livro.capitulos.length === 0 ? '#94a3b8' : '#0f172a',
                     cursor: !livro || livro.capitulos.length === 0 ? 'not-allowed' : 'pointer'
                   }}
-                  title="Baixar Livro Diagramado em PDF KDP"
+                  title="Baixar Miolo Diagramado em PDF KDP (Sem capa na pág 1)"
                 >
                   <Download size={13} /> {ui('PDF Miolo', 'Interior PDF')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={baixarCapaCompletaPdf}
+                  disabled={!capaFinal}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '7px 12px',
+                    borderRadius: 6,
+                    background: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: !capaFinal ? '#94a3b8' : '#b45309',
+                    cursor: !capaFinal ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Baixar Capa Completa KDP em PDF (Full Wrap Spread)"
+                >
+                  <ImageIcon size={13} /> {ui('PDF Capa', 'Cover PDF')}
                 </button>
 
                 <button
@@ -11045,6 +11350,12 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                   productionState={productionState}
                   globalMemory={globalMemory}
                   lastChapterState={lastChapterState}
+                  multiEngineConfig={multiEngineConfig}
+                  onUpdateMultiEngineConfig={(cfg) => setMultiEngineConfig(prev => ({ ...prev, ...cfg }))}
+                  latestWebnovelReport={latestWebnovelReport}
+                  globalAuditReport={globalAuditReport}
+                  onRunGlobalAudit={handleRunGlobalAudit}
+                  isGlobalAuditing={isGlobalAuditing}
                   ui={ui}
                 />
               )}
@@ -14917,6 +15228,16 @@ h1{font-size:3.2em;line-height:1.05;margin-bottom:12px}
                     gap: 16
                   }}
                 >
+                  {/* PAINEL DE CONTROLE E AUDITORIA MULTI-ENGINE (InkOS + Webnovel Writer) */}
+                  <MultiEngineAuditPanel
+                    config={multiEngineConfig}
+                    onUpdateConfig={(cfg) => setMultiEngineConfig(prev => ({ ...prev, ...cfg }))}
+                    latestReport={latestWebnovelReport}
+                    globalAuditReport={globalAuditReport}
+                    onRunGlobalAudit={handleRunGlobalAudit}
+                    isAuditing={isGlobalAuditing}
+                  />
+
                   {/* SISTEMA DEFINITIVO DE CORREÇÃO EDITORIAL CAPÍTULO A CAPÍTULO */}
                   <EditorialCorrectionSection
                     livro={livro}

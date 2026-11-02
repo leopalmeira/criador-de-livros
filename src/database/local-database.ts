@@ -110,10 +110,10 @@ class LocalDatabase {
       const store = tx.objectStore(storeName);
       const getAll = store.getAll();
       getAll.onsuccess = () => {
-        for (const record of getAll.result as Array<T & { ownerId?: string }>) {
-          if (record.ownerId === ownerId) store.delete(getId(record));
+        // Upsert inteligente dos registros recebidos sem apagar rascunhos ou livros locais não sincronizados
+        for (const record of records) {
+          store.put({ ...record, ownerId });
         }
-        for (const record of records) store.put({ ...record, ownerId });
       };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -122,8 +122,6 @@ class LocalDatabase {
   }
 
   private async deleteOwnedRecord(storeName: string, id: string, ownerId = this.activeUserId): Promise<void> {
-    const record = await this.getOwnedRecord<{ ownerId?: string }>(storeName, id, ownerId);
-    if (!record) return;
     const db = await this.getDB();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(storeName, 'readwrite');
@@ -143,8 +141,8 @@ class LocalDatabase {
       const req = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
       req.onsuccess = () => {
         const records = (req.result as T[]).filter(record => ownerId
-          ? record.ownerId === ownerId
-          : !record.ownerId);
+          ? (record.ownerId === ownerId || !record.ownerId)
+          : true);
         resolve(records);
       };
       req.onerror = () => reject(req.error);
@@ -623,14 +621,13 @@ class LocalDatabase {
             project => project.id,
             ownerId
           );
-          return response.projects.sort((a, b) => b.updatedAt - a.updatedAt);
         }
       } catch (cloudErr) {
         console.warn('[LocalDatabase] Nuvem indisponível para listar projetos, usando dados locais do IndexedDB:', cloudErr);
       }
     }
     const list = await this.getAllOwnedRecords<BookProject & { ownerId?: string }>('bookProjects', ownerId);
-    return list.sort((a, b) => b.updatedAt - a.updatedAt);
+    return list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   }
 
   async deleteBookProject(id: string): Promise<void> {
@@ -811,13 +808,12 @@ class LocalDatabase {
           return record;
         });
         await this.replaceOwnedRecords('finalBooks', records, record => record.id, ownerId);
-        return records.sort((a, b) => b.finalizedAt - a.finalizedAt);
       } catch (cloudErr) {
         console.warn('[LocalDatabase] Nuvem indisponível para listar final-books, usando dados locais do IndexedDB:', cloudErr);
       }
     }
-    const list = await this.getAllOwnedRecords<FinalBookRecord & { ownerId?: string }>('finalBooks');
-    return list.sort((a, b) => b.finalizedAt - a.finalizedAt);
+    const list = await this.getAllOwnedRecords<FinalBookRecord & { ownerId?: string }>('finalBooks', ownerId);
+    return list.sort((a, b) => (b.finalizedAt || 0) - (a.finalizedAt || 0));
   }
 
   async deleteFinalBook(id: string): Promise<void> {
